@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus, ChevronRight, MapPin } from "lucide-react";
+import { toast } from "sonner";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -14,6 +15,7 @@ import { LeadTable } from "@/components/sentinel/leads/lead-table";
 import type { MarketFilter, AttentionFocus } from "@/hooks/use-leads";
 import { MasterClientFileModal, clientFileFromLead } from "@/components/sentinel/master-client-file-modal";
 import { useLeads } from "@/hooks/use-leads";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 type InboundFilter = "overdue" | "new_inbound" | "due_today" | "callbacks_today";
@@ -139,6 +141,31 @@ function LeadsPageInner() {
       escalated_count: needsAttention.escalatedReview,
     },
   });
+
+  const handleTogglePin = useCallback(async (leadId: string, pinned: boolean) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired");
+      return;
+    }
+
+    const res = await fetch(`/api/leads/${leadId}/pin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ pinned }),
+    });
+
+    if (!res.ok) {
+      toast.error("Failed to update pin");
+      return;
+    }
+
+    toast.success(pinned ? "Pinned to Pipeline" : "Removed from Pipeline");
+    await refetch();
+  }, [refetch]);
 
   return (
     <PageShell
@@ -272,6 +299,7 @@ function LeadsPageInner() {
           sortDir={sortDir}
           onSort={toggleSort}
           onSelect={setSelectedId}
+          onTogglePin={handleTogglePin}
           onRefresh={refetch}
           currentUserId={currentUser.id}
         />

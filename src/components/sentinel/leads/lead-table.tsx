@@ -8,6 +8,7 @@ import {
   ArrowUp,
   ArrowDown,
   Phone,
+  Pin,
   AlertTriangle,
   Trash2,
   Loader2,
@@ -35,12 +36,13 @@ interface LeadTableProps {
   sortDir: SortDir;
   onSort: (field: SortField) => void;
   onSelect: (id: string) => void;
+  onTogglePin: (id: string, pinned: boolean) => void | Promise<void>;
   onRefresh?: () => void;
   currentUserId: string;
 }
 
 // Grid definition
-const GRID = "grid-cols-[28px_1.8fr_80px_minmax(140px,1fr)_90px_80px]";
+const GRID = "grid-cols-[28px_28px_1.8fr_80px_minmax(140px,1fr)_90px_80px]";
 
 // Helpers
 
@@ -138,6 +140,7 @@ export function LeadTable({
   sortDir,
   onSort,
   onSelect,
+  onTogglePin,
   onRefresh,
   currentUserId,
 }: LeadTableProps) {
@@ -396,6 +399,7 @@ export function LeadTable({
             className="h-3.5 w-3.5 rounded border-overlay-20 bg-overlay-5 accent-cyan cursor-pointer"
           />
         </div>
+        <span />
         <SortHeader label="Property / Owner" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Score" field="score" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Next Action" field="followUp" currentField={sortField} currentDir={sortDir} onSort={onSort} />
@@ -471,16 +475,47 @@ export function LeadTable({
               />
             </div>
 
+            <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={lead.pinned ? "Remove from Pipeline" : "Pin to Pipeline"}
+                    aria-pressed={lead.pinned}
+                    onClick={() => onTogglePin(lead.id, !lead.pinned)}
+                    className={cn(
+                      "h-6 w-6 flex items-center justify-center rounded-md transition-colors",
+                      lead.pinned
+                        ? "text-primary hover:bg-primary/10"
+                        : "text-muted-foreground/35 hover:text-muted-foreground hover:bg-muted/10",
+                    )}
+                  >
+                    <Pin className={cn("h-3.5 w-3.5", lead.pinned && "fill-current")} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="text-sm">
+                  {lead.pinned ? "Remove from Pipeline" : "Pin to Pipeline"}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+
             {/* Property + Owner (consolidated) */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex flex-col justify-center min-w-0 gap-0.5">
-                  <span
-                    className="text-sm font-semibold truncate text-foreground"
-                    style={{ WebkitFontSmoothing: "antialiased" }}
-                  >
-                    {lead.address}{lead.city ? `, ${lead.city}` : ""}
-                  </span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="text-sm font-semibold truncate text-foreground"
+                      style={{ WebkitFontSmoothing: "antialiased" }}
+                    >
+                      {lead.address}{lead.city ? `, ${lead.city}` : ""}
+                    </span>
+                    {lead.pinned && (
+                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-medium">
+                        Active
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                     <span
                       className="text-xs font-medium text-muted-foreground/90 truncate shrink"

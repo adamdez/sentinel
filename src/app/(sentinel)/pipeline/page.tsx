@@ -14,6 +14,7 @@ import {
   Search,
   RefreshCw,
   GripVertical,
+  PinOff,
   Phone,
   ArrowRight,
 } from "lucide-react";
@@ -66,6 +67,9 @@ interface Lead {
   address: string;
   owner_name: string;
   status: string;
+  pinned: boolean;
+  pinned_at: string | null;
+  pinned_by: string | null;
   owner_id: string | null;
   source: string | null;
   follow_up_at: string | null;
@@ -119,7 +123,8 @@ export default function PipelinePage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: leadsRaw, error: leadsErr } = await (supabase.from("leads") as any)
         .select("*")
-        .neq("status", "staging")
+        .eq("pinned", true)
+        .neq("status", "dead")
         .order("priority", { ascending: false });
 
       if (leadsErr) {
@@ -164,6 +169,9 @@ export default function PipelinePage() {
           address: prop.address ?? "Unknown address",
           owner_name: prop.owner_name ?? "Unknown",
           status: canonicalStatus,
+          pinned: raw.pinned === true,
+          pinned_at: raw.pinned_at ?? null,
+          pinned_by: raw.pinned_by ?? null,
           owner_id: raw.assigned_to ?? null,
           source: raw.source ?? null,
           follow_up_at: raw.next_call_scheduled_at ?? raw.next_follow_up_at ?? raw.follow_up_date ?? null,
@@ -313,6 +321,31 @@ export default function PipelinePage() {
     await fetchLeads();
   }, [patchLead, fetchLeads]);
 
+  const togglePin = useCallback(async (leadId: string, pinned: boolean) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired");
+      return;
+    }
+
+    const res = await fetch(`/api/leads/${leadId}/pin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ pinned }),
+    });
+
+    if (!res.ok) {
+      toast.error("Failed to update pin");
+      return;
+    }
+
+    toast.success(pinned ? "Pinned to Pipeline" : "Removed from Pipeline");
+    await fetchLeads();
+  }, [fetchLeads]);
+
   const filteredByLane = Object.fromEntries(
     PIPELINE_LANES.map((s) => {
       let leads = leadsByLane[s.id] ?? [];
@@ -340,7 +373,7 @@ export default function PipelinePage() {
             Pipeline
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Stage board — drag leads between stages. {totalLeads} active leads.
+            Pinned deals — drag leads between stages. {totalLeads} active leads.
           </p>
         </div>
 
@@ -408,6 +441,7 @@ export default function PipelinePage() {
                               key={lead.id}
                               lead={lead}
                               index={index}
+                              onTogglePin={togglePin}
                               onOpenDetail={(id) => {
                                 const raw = rawDataRef.current[id];
                                 if (raw) {
@@ -448,10 +482,12 @@ export default function PipelinePage() {
 function PipelineCard({
   lead,
   index,
+  onTogglePin,
   onOpenDetail,
 }: {
   lead: Lead;
   index: number;
+  onTogglePin: (id: string, pinned: boolean) => void;
   onOpenDetail: (id: string) => void;
 }) {
   const dueLine = (() => {
@@ -502,6 +538,17 @@ function PipelineCard({
                 {lead.owner_name}
               </p>
             </div>
+            <button
+              type="button"
+              aria-label="Remove from Pipeline"
+              onClick={(event) => {
+                event.stopPropagation();
+                onTogglePin(lead.id, false);
+              }}
+              className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/10 transition-colors"
+            >
+              <PinOff className="h-3.5 w-3.5" />
+            </button>
           </div>
 
           <div className="mt-2 flex items-center justify-between text-xs">

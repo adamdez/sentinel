@@ -13,7 +13,8 @@ import type { LeadStatus, AIScore } from "@/lib/types";
 import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { extractProspectingSnapshot, sourceChannelLabel } from "@/lib/prospecting";
-import { deriveLeadActionSummary, type UrgencyLevel } from "@/lib/action-derivation";
+import { deriveLeadActionSummary } from "@/lib/action-derivation";
+import { sortLeadRows } from "./use-leads-sort";
 
 export type SortField = "score" | "priority" | "followUp" | "address" | "owner" | "status" | "equity";
 export type SortDir = "asc" | "desc";
@@ -33,15 +34,6 @@ export type AttentionFocus =
 const SPEED_TO_LEAD_SLA_MS = 15 * 60 * 1000;
 const IMPORTANT_SCORE_THRESHOLD = 65;
 const NEEDS_QUALIFICATION_AGE_MS = 48 * 60 * 60 * 1000;
-
-/** Numeric rank for urgency-based sort — lower = more urgent */
-const URGENCY_SORT_RANK: Record<UrgencyLevel, number> = {
-  critical: 0,
-  high: 1,
-  normal: 2,
-  low: 3,
-  none: 4,
-};
 
 const DEFAULT_SORT_DIR_BY_FIELD: Record<SortField, SortDir> = {
   score: "desc",
@@ -687,71 +679,7 @@ export function useLeads() {
   // Sort
 
   const sortedLeads = useMemo(() => {
-    const copy = [...filteredLeads];
-    const dir = sortDir === "asc" ? 1 : -1;
-
-    // Precompute urgency ranks for followUp sort to avoid re-deriving per comparison
-    let urgencyCache: Map<string, number> | null = null;
-    if (sortField === "followUp") {
-      urgencyCache = new Map();
-      for (const lead of copy) {
-        const summary = deriveLeadActionSummary({
-          status: lead.status,
-          qualificationRoute: lead.qualificationRoute,
-          assignedTo: lead.assignedTo,
-          nextCallScheduledAt: lead.nextCallScheduledAt,
-          nextFollowUpAt: lead.followUpDate,
-          lastContactAt: lead.lastContactAt,
-          totalCalls: lead.totalCalls,
-          createdAt: lead.promotedAt,
-          promotedAt: lead.promotedAt,
-        });
-        urgencyCache.set(lead.id, URGENCY_SORT_RANK[summary.urgency]);
-      }
-    }
-
-    copy.sort((a, b) => {
-      switch (sortField) {
-        case "score":
-          return (a.score.composite - b.score.composite) * dir;
-        case "priority":
-          return (a.predictivePriority - b.predictivePriority) * dir;
-        case "followUp": {
-          const ar = urgencyCache!.get(a.id) ?? 4;
-          const br = urgencyCache!.get(b.id) ?? 4;
-          if (ar !== br) return (ar - br) * dir;
-
-          // Tie-break: earliest scheduled action first
-          const aDate = a.nextCallScheduledAt
-            ? new Date(a.nextCallScheduledAt).getTime()
-            : a.followUpDate
-              ? new Date(a.followUpDate).getTime()
-              : Infinity;
-          const bDate = b.nextCallScheduledAt
-            ? new Date(b.nextCallScheduledAt).getTime()
-            : b.followUpDate
-              ? new Date(b.followUpDate).getTime()
-              : Infinity;
-          if (aDate !== bDate) return (aDate - bDate) * dir;
-
-          // Final tie-break: oldest promoted first (waiting longest)
-          const aP = a.promotedAt ? new Date(a.promotedAt).getTime() : Infinity;
-          const bP = b.promotedAt ? new Date(b.promotedAt).getTime() : Infinity;
-          return (aP - bP) * dir;
-        }
-        case "address":
-          return a.address.localeCompare(b.address) * dir;
-        case "owner":
-          return a.ownerName.localeCompare(b.ownerName) * dir;
-        case "equity":
-          return ((a.equityPercent ?? 0) - (b.equityPercent ?? 0)) * dir;
-        case "status":
-          return a.status.localeCompare(b.status) * dir;
-        default:
-          return 0;
-      }
-    });
-    return copy;
+    return sortLeadRows(filteredLeads, sortField, sortDir);
   }, [filteredLeads, sortField, sortDir]);
 
   const toggleSort = useCallback(
