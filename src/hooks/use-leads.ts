@@ -339,6 +339,10 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null,
     contactabilityScore: raw.contactability_score != null ? Number(raw.contactability_score) : null,
     confidenceScore: raw.confidence_score != null ? Number(raw.confidence_score) : null,
     dossierUrl: raw.dossier_url ?? null,
+    // Pin state
+    pinned: raw.pinned === true,
+    pinnedAt: raw.pinned_at ?? null,
+    pinnedBy: raw.pinned_by ?? null,
   };
 }
 

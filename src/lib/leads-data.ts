@@ -613,6 +613,10 @@ export interface LeadRow {
   contactabilityScore: number | null;
   confidenceScore: number | null;
   dossierUrl: string | null;
+  // Pin state — pinned leads appear in Pipeline
+  pinned: boolean;
+  pinnedAt: string | null;
+  pinnedBy: string | null;
 }
 
 /**
