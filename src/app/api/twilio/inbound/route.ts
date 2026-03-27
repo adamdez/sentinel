@@ -111,6 +111,12 @@ export async function POST(req: NextRequest) {
 
     let nextTwiml: string;
 
+    // For non-transfer chains, originalFrom carries the actual caller's phone number
+    // so Adam's browser (and Jeff) see the real caller, not the Twilio number.
+    // For transfer chains, originalFrom is already set from the transfer detection.
+    const callerIdForBrowser = originalFrom || twilioNumber;
+    const originalFromParam = originalFrom ? `&amp;originalFrom=${encodeURIComponent(originalFrom)}` : "";
+
     if (step === "logan" && adamIdentity) {
       // Logan's browser didn't answer → try Adam's browser for 20 seconds
       console.log(`[inbound] Logan browser missed → trying Adam browser${isTransfer ? " (transfer cascade)" : ""}`);
@@ -118,7 +124,7 @@ export async function POST(req: NextRequest) {
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
         ...chainStreamLines,
-        `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=adam${chainParams2}${transferParams}" method="POST">`,
+        `  <Dial callerId="${callerIdForBrowser}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=adam${originalFromParam}${chainParams2}${transferParams}" method="POST">`,
         `    <Client>${adamIdentity}</Client>`,
         "  </Dial>",
         "</Response>",
@@ -126,6 +132,7 @@ export async function POST(req: NextRequest) {
     } else if ((step === "adam" || (step === "logan" && !adamIdentity)) && vapiNumber && !isTransfer) {
       // Adam's browser didn't answer → forward to Jeff (Vapi AI)
       // ONLY for regular inbound. Vapi transfers skip this step to prevent looping.
+      // callerId stays as twilioNumber for Jeff (PSTN number dial, not browser Client)
       console.log(`[inbound] ${step} browser missed → forwarding to Jeff (Vapi)`);
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -267,10 +274,12 @@ export async function POST(req: NextRequest) {
 
     // Transfer cascade TwiML: Logan (20s) → Adam (20s) → missed handler
     // No Vapi fallback step — Jeff is the one transferring, so looping back would be infinite.
+    // callerId = originalFrom so Logan's browser shows the actual caller's number
+    // (enables phone lookup, client file auto-pull, and live coaching context)
     const transferTwiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
-      `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan&amp;transfer=1&amp;vsid=${encodeURIComponent(vsid)}&amp;originalFrom=${encodeURIComponent(originalFrom)}" method="POST">`,
+      `  <Dial callerId="${originalFrom || twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan&amp;transfer=1&amp;vsid=${encodeURIComponent(vsid)}&amp;originalFrom=${encodeURIComponent(originalFrom)}" method="POST">`,
       `    <Client>${loganIdentity}</Client>`,
       "  </Dial>",
       "</Response>",
@@ -380,11 +389,15 @@ export async function POST(req: NextRequest) {
     ].join("\n");
   } else {
     // During hours — ring Logan's browser first
+    // callerId = fromNumber so Logan's browser shows the actual caller's phone number
+    // (enables phone lookup, client file auto-pull, and live coaching context)
+    // Thread originalFrom through chain steps so Adam's browser also sees the real caller
+    const originalFromParam = fromNumber ? `&amp;originalFrom=${encodeURIComponent(fromNumber)}` : "";
     twiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
       ...streamLines,
-      `  <Dial callerId="${twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan${chainParams}" method="POST">`,
+      `  <Dial callerId="${fromNumber || twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan${originalFromParam}${chainParams}" method="POST">`,
       `    <Client>${loganIdentity}</Client>`,
       "  </Dial>",
       "</Response>",

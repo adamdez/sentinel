@@ -28,6 +28,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Twilio credentials not set" }, { status: 500 });
   }
 
+  // GUARD: Never import the main Dominion inbound number into Vapi.
+  // The main number must route through Twilio's inbound handler (Logan → Adam → Jeff cascade).
+  // Only Jeff's dedicated outbound number (VAPI_PHONE_NUMBER) should be in Vapi.
+  // Importing the main line causes Vapi to intercept ALL inbound calls, bypassing browser ring.
+  const vapiPhone = process.env.VAPI_PHONE_NUMBER;
+  if (vapiPhone && twilioPhone) {
+    const mainDigits = twilioPhone.replace(/\D/g, "").slice(-10);
+    const vapiDigits = vapiPhone.replace(/\D/g, "").slice(-10);
+    if (mainDigits !== vapiDigits) {
+      return NextResponse.json({
+        error: "Blocked: Cannot import main Dominion inbound number into Vapi. "
+          + "The main number must route through /api/twilio/inbound for browser ring cascade. "
+          + "Jeff uses a separate number (VAPI_PHONE_NUMBER) for outbound only.",
+      }, { status: 400 });
+    }
+  }
+
   try {
     // Step 1: Import Twilio number into Vapi
     const importRes = await fetch("https://api.vapi.ai/phone-number", {

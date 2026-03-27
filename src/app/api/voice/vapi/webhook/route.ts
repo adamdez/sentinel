@@ -118,12 +118,13 @@ export async function POST(req: NextRequest) {
 // This allows dynamic configuration per call.
 
 async function handleAssistantRequest(message: VapiWebhookPayload["message"]) {
+  // Build config FIRST — this must always succeed so Vapi never gets an error response.
+  // If config building fails, the call will disconnect immediately (the 3-second drop bug).
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
   const serverUrl = `${siteUrl}/api/voice/vapi/webhook`;
 
-  // Detect outbound calls and return the appropriate assistant config
   const isOutbound = message.call?.type === "outboundPhoneCall";
   const config = isOutbound
     ? buildOutboundAssistantConfig(serverUrl)
@@ -131,9 +132,10 @@ async function handleAssistantRequest(message: VapiWebhookPayload["message"]) {
 
   // After-hours: inject message-taking override into inbound prompt
   if (!isOutbound) {
-    const hours = isBusinessHours();
-    if (!hours.isOpen) {
-      const afterHoursOverride = `
+    try {
+      const hours = isBusinessHours();
+      if (!hours.isOpen) {
+        const afterHoursOverride = `
 
 ## AFTER-HOURS MODE (ACTIVE NOW)
 The office is currently closed. Do NOT attempt to transfer — nobody is at their desk.
@@ -146,35 +148,45 @@ Instead:
 
 Keep it warm and brief — don't run the full discovery flow after hours. Just take the message and get them off the phone feeling good.`;
 
-      const systemMsg = config.model.messages.find((m: { role: string }) => m.role === "system");
-      if (systemMsg) {
-        systemMsg.content += afterHoursOverride;
+        const systemMsg = config.model.messages.find((m: { role: string }) => m.role === "system");
+        if (systemMsg) {
+          systemMsg.content += afterHoursOverride;
+        }
       }
+    } catch (err) {
+      console.error("[vapi/webhook] After-hours check failed (non-blocking):", err instanceof Error ? err.message : String(err));
     }
   }
 
-  // Create agent run for traceability before session
-  const runId = await createAgentRun({
-    agentName: isOutbound ? "vapi-outbound" : "vapi-inbound",
-    triggerType: "webhook",
-    triggerRef: message.call?.id ?? "unknown",
-    leadId: undefined,
-    model: "claude-sonnet-4-6",
-    promptVersion: isOutbound ? "outbound-v1" : "inbound-v1",
-    inputs: {
-      callId: message.call?.id,
-      fromNumber: message.call?.customer?.number ?? null,
-    },
-  });
-
-  // Create voice session early — don't wait for first function call
-  const vapiCallId = message.call?.id;
-  if (vapiCallId) {
-    resolveVoiceSession(vapiCallId, message.call, runId).catch((err) => {
-      console.error("[vapi/webhook] resolveVoiceSession failed:", err instanceof Error ? err.message : String(err));
+  // Tracing and session creation — fire-and-forget, NEVER block the config response.
+  // If these fail, the call still works — we just lose traceability for this call.
+  try {
+    const runId = await createAgentRun({
+      agentName: isOutbound ? "vapi-outbound" : "vapi-inbound",
+      triggerType: "webhook",
+      triggerRef: message.call?.id ?? "unknown",
+      leadId: undefined,
+      model: "claude-sonnet-4-6",
+      promptVersion: isOutbound ? "outbound-v1" : "inbound-v1",
+      inputs: {
+        callId: message.call?.id,
+        fromNumber: message.call?.customer?.number ?? null,
+      },
     });
+
+    const vapiCallId = message.call?.id;
+    if (vapiCallId) {
+      resolveVoiceSession(vapiCallId, message.call, runId).catch((err) => {
+        console.error("[vapi/webhook] resolveVoiceSession failed:", err instanceof Error ? err.message : String(err));
+      });
+    }
+  } catch (err) {
+    // Tracing failure must NEVER prevent the assistant config from being returned.
+    // Without the config, Vapi disconnects the call instantly.
+    console.error("[vapi/webhook] Agent run / session creation failed (non-blocking):", err instanceof Error ? err.message : String(err));
   }
 
+  // ALWAYS return the assistant config — this is the critical response that keeps the call alive.
   return NextResponse.json({ assistant: config });
 }
 
@@ -385,18 +397,16 @@ async function handleEndOfCallReport(
     // When Jeff finishes an outbound call that's part of an auto-cycle,
     // route the disposition back so the cycle advances.
     if (session.auto_cycle_lead_id && session.lead_id) {
-      const autoCycleDispo = mapVapiDispositionToAutoCycle(disposition);
-      if (autoCycleDispo) {
-        const phoneDialed = session.direction === "outbound" ? session.to_number : session.from_number;
-        processAutoCycleOutcome({
-          leadId: session.lead_id,
-          disposition: autoCycleDispo,
-          phoneNumber: phoneDialed,
-          source: "webhook",
-        }).catch((err) => {
-          console.error("[vapi/webhook] auto-cycle outcome failed:", err instanceof Error ? err.message : String(err));
-        });
-      }
+      const autoCycleDispo = mapVapiDispositionToAutoCycle(disposition, message.durationSeconds);
+      const phoneDialed = session.direction === "outbound" ? session.to_number : session.from_number;
+      processAutoCycleOutcome({
+        leadId: session.lead_id,
+        disposition: autoCycleDispo,
+        phoneNumber: phoneDialed,
+        source: "webhook",
+      }).catch((err) => {
+        console.error("[vapi/webhook] auto-cycle outcome failed:", err instanceof Error ? err.message : String(err));
+      });
     }
 
     // Dispatch missed-call alert if caller wasn't transferred to Logan
@@ -704,8 +714,11 @@ function mapVapiEndedReasonToDisposition(
     case "assistant-forwarded-call":
       return "transferred";
     case "customer-ended-call":
-    case "customer-did-not-give-microphone-permission":
       return callerType === "spam" ? "spam" : "completed";
+    case "customer-did-not-give-microphone-permission":
+      return "no_answer";
+    case "customer-did-not-answer":
+      return "no_answer";
     case "assistant-ended-call":
       return "ai_ended";
     case "voicemail":
@@ -718,8 +731,12 @@ function mapVapiEndedReasonToDisposition(
     case "pipeline-error-openai-llm-failed":
     case "pipeline-error-custom-llm-llm-failed":
       return "error";
+    // SIP failures — phone didn't connect at all
+    case "call.in-progress.error-sip-outbound-call-failed-to-connect":
+      return "sip_failed";
     default:
-      return "completed";
+      // Unknown reasons should still advance the cycle, not silently drop
+      return endedReason?.includes("error") ? "error" : "completed";
   }
 }
 
