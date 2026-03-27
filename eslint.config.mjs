@@ -11,6 +11,8 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  // Ignore Tina (built separately by Codex)
+  { ignores: ["src/tina/**"] },
   ...compat.extends("next/core-web-vitals"),
   ...tseslint.configs.recommended,
   {
