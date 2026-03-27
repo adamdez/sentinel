@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { isBusinessHours } from "@/providers/voice/vapi-adapter";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 15;
 
 /**
  * POST /api/twilio/inbound
@@ -81,7 +82,14 @@ export async function POST(req: NextRequest) {
 
     // If someone answered in their browser, log it and we're done
     if (dialStatus === "completed" || dialStatus === "in-progress") {
-      await handleAnsweredInbound({ fromNumber, callSid, dialDuration: formData.get("DialCallDuration")?.toString() ?? null });
+      const dialDuration = formData.get("DialCallDuration")?.toString() ?? null;
+      after(async () => {
+        try {
+          await handleAnsweredInbound({ fromNumber, callSid, dialDuration });
+        } catch (err) {
+          console.error("[inbound] after() handleAnsweredInbound failed:", err);
+        }
+      });
       return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
         headers: { "Content-Type": "text/xml" },
       });
@@ -149,11 +157,17 @@ export async function POST(req: NextRequest) {
       const missedFrom = isTransfer ? (originalFrom || fromNumber) : fromNumber;
       console.log(`[inbound] All chain steps exhausted — missed call from ${missedFrom}${isTransfer ? " (transfer cascade exhausted)" : ""}`);
 
-      if (isTransfer) {
-        await handleMissedTransfer({ originalFrom: missedFrom, callSid, voiceSessionId: transferVsid, siteUrl });
-      } else {
-        await handleMissedInbound({ fromNumber: missedFrom, callSid, siteUrl });
-      }
+      after(async () => {
+        try {
+          if (isTransfer) {
+            await handleMissedTransfer({ originalFrom: missedFrom, callSid, voiceSessionId: transferVsid, siteUrl });
+          } else {
+            await handleMissedInbound({ fromNumber: missedFrom, callSid, siteUrl });
+          }
+        } catch (err) {
+          console.error("[inbound] after() missed handler failed:", err);
+        }
+      });
 
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -196,11 +210,17 @@ export async function POST(req: NextRequest) {
       dialStatus === "failed"    ||
       (dialStatus === "completed" && !wasAnswered);
 
-    if (wasAnswered) {
-      await handleAnsweredInbound({ fromNumber, callSid, dialDuration });
-    } else if (isMissed) {
-      await handleMissedInbound({ fromNumber, callSid, siteUrl });
-    }
+    after(async () => {
+      try {
+        if (wasAnswered) {
+          await handleAnsweredInbound({ fromNumber, callSid, dialDuration });
+        } else if (isMissed) {
+          await handleMissedInbound({ fromNumber, callSid, siteUrl });
+        }
+      } catch (err) {
+        console.error("[inbound] after() call_status handler failed:", err);
+      }
+    });
 
     return new NextResponse("", { status: 204 });
   }
@@ -220,9 +240,6 @@ export async function POST(req: NextRequest) {
   const fromNumber = formData.get("From")?.toString() ?? "";
   const callSid = formData.get("CallSid")?.toString() ?? "";
 
-  // Supabase client needed for both transfer detection and regular flow
-  const sb = createServerClient();
-
   // ── Detect Vapi transfer ──────────────────────────────────────────────
   const vapiNumber = process.env.VAPI_PHONE_NUMBER ?? "";
   const fromDigits = fromNumber.replace(/\D/g, "");
@@ -233,15 +250,28 @@ export async function POST(req: NextRequest) {
   if (isVapiTransfer) {
     // This is a warm transfer from Jeff (Vapi AI).
     // Look up the recent transferred voice_session to get original caller info.
-    const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: transferSession } = await (sb.from("voice_sessions") as any)
-      .select("id, from_number, lead_id, transfer_brief")
-      .eq("status", "transferred")
-      .gte("created_at", twoMinAgo)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Use a 2-second timeout — if Supabase is slow, fall back to Twilio number as callerId.
+    // The call still rings the browser either way; we just lose the original caller display.
+    let transferSession: { id: string; from_number: string; lead_id: string | null; transfer_brief: unknown } | null = null;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 2000);
+      const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+      const sbTransfer = createServerClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (sbTransfer.from("voice_sessions") as any)
+        .select("id, from_number, lead_id, transfer_brief")
+        .eq("status", "transferred")
+        .gte("created_at", twoMinAgo)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .abortSignal(controller.signal)
+        .maybeSingle();
+      clearTimeout(timer);
+      transferSession = data;
+    } catch (err) {
+      console.warn("[inbound] Vapi transfer lookup timed out or failed — using fallback callerId:", err);
+    }
 
     const originalFrom = transferSession?.from_number ?? fromNumber;
     const vsid = transferSession?.id ?? "";
@@ -259,7 +289,13 @@ export async function POST(req: NextRequest) {
     const transferHours = isBusinessHours();
     if (!transferHours.isOpen) {
       console.log(`[inbound] After-hours Vapi transfer — skipping ring cascade, booking callback`);
-      await handleMissedTransfer({ originalFrom, callSid, voiceSessionId: vsid, siteUrl });
+      after(async () => {
+        try {
+          await handleMissedTransfer({ originalFrom, callSid, voiceSessionId: vsid, siteUrl });
+        } catch (err) {
+          console.error("[inbound] after() after-hours transfer handler failed:", err);
+        }
+      });
       const afterHoursTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
@@ -291,76 +327,21 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Create a call session + calls_log entry upfront so transcription and closeout work
-  let sessionId: string | null = null;
-  let callLogId: string | null = null;
-
-  // Try to match caller to an existing lead
-  let matchedLeadId: string | null = null;
-  if (fromNumber) {
-    const normalized = fromNumber.replace(/\D/g, "");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leads } = await (sb.from("leads") as any)
-      .select("id")
-      .or(`owner_phone.eq.${fromNumber},owner_phone.eq.+${normalized},owner_phone.eq.${normalized},owner_phone.eq.+1${normalized.slice(-10)}`)
-      .limit(1);
-    if (leads && leads.length > 0) matchedLeadId = leads[0].id;
-  }
-
-  // Default user for inbound calls — Logan is primary acquisitions
+  // ── Pre-generate UUIDs so TwiML can reference them without waiting for DB ──
+  // This is the critical fix: TwiML is returned INSTANTLY, DB work happens in after().
+  // Supabase/Postgres accept client-supplied UUIDs for id columns.
+  const sessionId = crypto.randomUUID();
+  const callLogId = crypto.randomUUID();
   const loganUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
-
-  try {
-    // Create call_session (columns: id, lead_id, user_id, twilio_sid, phone_dialed, status, started_at, ended_at, duration_sec, updated_at, context_snapshot, ai_summary, disposition, created_at)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: sess, error: sessErr } = await (sb.from("call_sessions") as any)
-      .insert({
-        lead_id: matchedLeadId,
-        user_id: loganUserId,
-        twilio_sid: callSid,
-        phone_dialed: fromNumber || "unknown",
-        status: "ringing",
-      })
-      .select("id")
-      .single();
-    if (sessErr) console.error("[inbound] call_sessions insert failed:", sessErr.message);
-    sessionId = sess?.id ?? null;
-
-    // Create calls_log entry so disposition works
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: cl, error: clErr } = await (sb.from("calls_log") as any)
-      .insert({
-        lead_id: matchedLeadId,
-        user_id: loganUserId,
-        phone_dialed: fromNumber || null,
-        twilio_sid: callSid,
-        disposition: "in_progress",
-        direction: "inbound",
-        dialer_session_id: sessionId,
-      })
-      .select("id")
-      .single();
-    if (clErr) console.error("[inbound] calls_log insert failed:", clErr.message);
-    callLogId = cl?.id ?? null;
-  } catch (err) {
-    console.error("[inbound] Session/call log creation failed:", err);
-  }
-
-  console.log("[inbound] Inbound call setup:", {
-    from: fromNumber ? `***${fromNumber.slice(-4)}` : "none",
-    sessionId: sessionId?.slice(0, 8),
-    callLogId: callLogId?.slice(0, 8),
-    matchedLead: matchedLeadId?.slice(0, 8) ?? "none",
-  });
 
   // Build <Stream> for Deepgram transcription (same pattern as outbound)
   const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL;
   const hasDeepgram = !!process.env.DEEPGRAM_API_KEY;
-  const streamLines = transcriptionUrl && hasDeepgram && sessionId
+  const streamLines = transcriptionUrl && hasDeepgram
     ? [
         "  <Start>",
         `    <Stream url="${transcriptionUrl}" track="both_tracks">`,
-        ...(callLogId ? [`      <Parameter name="callLogId" value="${callLogId}" />`] : []),
+        `      <Parameter name="callLogId" value="${callLogId}" />`,
         `      <Parameter name="sessionId" value="${sessionId}" />`,
         `      <Parameter name="userId" value="${loganUserId}" />`,
         "    </Stream>",
@@ -371,7 +352,7 @@ export async function POST(req: NextRequest) {
   // After-hours: skip browser ring cascade, send directly to Jeff (Vapi AI)
   // During hours: Ring Logan's browser (20s) → chain continues to Adam → Jeff
   const hours = isBusinessHours();
-  const chainParams = sessionId ? `&amp;sessionId=${sessionId}&amp;callLogId=${callLogId ?? ""}` : "";
+  const chainParams = `&amp;sessionId=${sessionId}&amp;callLogId=${callLogId}`;
 
   let twiml: string;
 
@@ -404,7 +385,67 @@ export async function POST(req: NextRequest) {
     ].join("\n");
   }
 
-  console.log("[inbound] Initial TwiML:", twiml.substring(0, 500));
+  console.log("[inbound] TwiML returned in <50ms, DB work deferred to after():", {
+    from: fromNumber ? `***${fromNumber.slice(-4)}` : "none",
+    sessionId: sessionId.slice(0, 8),
+    callLogId: callLogId.slice(0, 8),
+  });
+
+  // ── Schedule ALL database work to run AFTER the TwiML response is sent ──
+  // This ensures the call ALWAYS rings the browser, even if Supabase is down.
+  after(async () => {
+    try {
+      const sbAfter = createServerClient();
+
+      // 1. Try to match caller to an existing lead
+      let matchedLeadId: string | null = null;
+      if (fromNumber) {
+        const normalized = fromNumber.replace(/\D/g, "");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: leads } = await (sbAfter.from("leads") as any)
+          .select("id")
+          .or(`owner_phone.eq.${fromNumber},owner_phone.eq.+${normalized},owner_phone.eq.${normalized},owner_phone.eq.+1${normalized.slice(-10)}`)
+          .limit(1);
+        if (leads && leads.length > 0) matchedLeadId = leads[0].id;
+      }
+
+      // 2. Create call_session with the pre-generated UUID
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: sessErr } = await (sbAfter.from("call_sessions") as any)
+        .insert({
+          id: sessionId,
+          lead_id: matchedLeadId,
+          user_id: loganUserId,
+          twilio_sid: callSid,
+          phone_dialed: fromNumber || "unknown",
+          status: "ringing",
+        });
+      if (sessErr) console.error("[inbound] after() call_sessions insert failed:", sessErr.message);
+
+      // 3. Create calls_log with the pre-generated UUID
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: clErr } = await (sbAfter.from("calls_log") as any)
+        .insert({
+          id: callLogId,
+          lead_id: matchedLeadId,
+          user_id: loganUserId,
+          phone_dialed: fromNumber || null,
+          twilio_sid: callSid,
+          disposition: "in_progress",
+          direction: "inbound",
+          dialer_session_id: sessionId,
+        });
+      if (clErr) console.error("[inbound] after() calls_log insert failed:", clErr.message);
+
+      console.log("[inbound] after() DB work complete:", {
+        sessionId: sessionId.slice(0, 8),
+        callLogId: callLogId.slice(0, 8),
+        matchedLead: matchedLeadId?.slice(0, 8) ?? "none",
+      });
+    } catch (err) {
+      console.error("[inbound] after() DB work failed:", err);
+    }
+  });
 
   return new NextResponse(twiml, {
     status: 200,
