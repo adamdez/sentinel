@@ -15,7 +15,7 @@ export const maxDuration = 120;
 import { NextRequest, NextResponse } from "next/server";
 import { getDialerUser, createDialerClient } from "@/lib/dialer/db";
 import { isDnc } from "@/lib/dnc-check";
-import { initiateOutboundCall } from "@/providers/voice/vapi-adapter";
+import { initiateOutboundCall, isBusinessHours } from "@/providers/voice/vapi-adapter";
 import { normalizePhoneForCompare } from "@/lib/dialer/auto-cycle";
 
 const MAX_BATCH_SIZE = 10;
@@ -44,6 +44,15 @@ export async function POST(req: NextRequest) {
   const { leadIds } = body;
   if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
     return NextResponse.json({ error: "leadIds array is required" }, { status: 400 });
+  }
+
+  // ── Business hours gate ───────────────────────────────────────────────
+  const hours = isBusinessHours();
+  if (!hours.isOpen) {
+    return NextResponse.json(
+      { error: `Outside business hours. Next open: ${hours.nextOpenTime}` },
+      { status: 403 },
+    );
   }
 
   if (leadIds.length > MAX_BATCH_SIZE) {

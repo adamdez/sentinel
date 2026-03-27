@@ -9,6 +9,8 @@
  * Never writes to CRM tables. Never contains business logic.
  */
 
+import { createServerClient } from "@/lib/supabase";
+
 const TIMEOUT_MS = 8_000;
 
 interface CallbackSMSParams {
@@ -16,6 +18,7 @@ interface CallbackSMSParams {
   callerName: string | null;
   preferredTime: string | null;
   reason: string | null;
+  leadId?: string | null;
 }
 
 /**
@@ -67,6 +70,24 @@ export async function sendCallbackConfirmationSMS(
     if (!res.ok) {
       const errBody = await res.text().catch(() => "");
       console.error(`[vapi-sms] Twilio returned ${res.status}: ${errBody.slice(0, 200)}`);
+    }
+
+    // C2: Log seller-facing SMS to sms_messages for thread visibility
+    const twilioData = await res.json().catch(() => ({}));
+    try {
+      const sb = createServerClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("sms_messages") as any).insert({
+        phone: params.to,
+        direction: "outbound",
+        body: body,
+        twilio_sid: twilioData.sid ?? null,
+        twilio_status: twilioData.status ?? "sent",
+        lead_id: params.leadId ?? null,
+        user_id: "00000000-0000-0000-0000-000000000000",
+      });
+    } catch (logErr) {
+      console.error("[vapi-sms] Failed to log callback SMS to sms_messages:", logErr);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -125,6 +146,7 @@ export async function sendDirectSMS(
 export async function sendTransferFailedSMS(
   to: string,
   operatorName: string,
+  leadId?: string | null,
 ): Promise<void> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -162,6 +184,24 @@ export async function sendTransferFailedSMS(
     if (!res.ok) {
       const errBody = await res.text().catch(() => "");
       console.error(`[vapi-sms] Transfer-failed SMS error ${res.status}: ${errBody.slice(0, 200)}`);
+    }
+
+    // C2: Log seller-facing SMS to sms_messages for thread visibility
+    const twilioData = await res.json().catch(() => ({}));
+    try {
+      const sb = createServerClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("sms_messages") as any).insert({
+        phone: to,
+        direction: "outbound",
+        body: body,
+        twilio_sid: twilioData.sid ?? null,
+        twilio_status: twilioData.status ?? "sent",
+        lead_id: leadId ?? null,
+        user_id: "00000000-0000-0000-0000-000000000000",
+      });
+    } catch (logErr) {
+      console.error("[vapi-sms] Failed to log transfer-failed SMS to sms_messages:", logErr);
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

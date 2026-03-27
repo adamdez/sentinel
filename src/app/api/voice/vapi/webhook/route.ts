@@ -304,6 +304,31 @@ async function handleEndOfCallReport(
 
   const sb = createServerClient();
 
+  // ── Idempotency guard: check if we already processed this call ──
+  // Vapi retries webhooks on timeout/5xx. Without this guard, retries
+  // create duplicate calls_log rows, double-advance auto-cycle, and
+  // inflate lead counters.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existingSession } = await (sb.from("voice_sessions") as any)
+    .select("id")
+    .eq("vapi_call_id", vapiCallId)
+    .eq("status", "completed")
+    .maybeSingle();
+
+  if (existingSession) {
+    // Also check if calls_log already has a row for this session
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existingLog } = await (sb.from("calls_log") as any)
+      .select("id")
+      .eq("voice_session_id", existingSession.id)
+      .maybeSingle();
+
+    if (existingLog) {
+      console.log(`[vapi/webhook] Idempotency: end-of-call-report already processed for ${vapiCallId}`);
+      return NextResponse.json({ ok: true, deduplicated: true });
+    }
+  }
+
   // Extract structured facts from call summary/transcript (fire-and-forget)
   const extractedFacts = extractCallFacts(message.summary, message.transcript);
 
@@ -369,6 +394,13 @@ async function handleEndOfCallReport(
       .single();
 
     if (callsLogErr) {
+      // Handle unique constraint violation (23505) as idempotent success —
+      // prevents Vapi retry storms from getting 500s
+      const pgCode = (callsLogErr as { code?: string }).code;
+      if (pgCode === "23505") {
+        console.log(`[vapi/webhook] Idempotency: calls_log unique constraint caught for session ${session.id}`);
+        return NextResponse.json({ ok: true, deduplicated: true });
+      }
       console.error("[vapi/webhook] calls_log INSERT FAILED — this is the source of truth for calls:", callsLogErr.message);
       return NextResponse.json({ error: "Failed to persist call record" }, { status: 500 });
     }

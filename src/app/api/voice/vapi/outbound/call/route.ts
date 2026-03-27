@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { getDialerUser, createDialerClient } from "@/lib/dialer/db";
 import { isDnc } from "@/lib/dnc-check";
-import { initiateOutboundCall } from "@/providers/voice/vapi-adapter";
+import { initiateOutboundCall, isBusinessHours } from "@/providers/voice/vapi-adapter";
 import { normalizePhoneForCompare } from "@/lib/dialer/auto-cycle";
 
 function buildSiteUrl(req: NextRequest): string {
@@ -42,6 +42,15 @@ export async function POST(req: NextRequest) {
   const { leadId } = body;
   if (!leadId) {
     return NextResponse.json({ error: "leadId is required" }, { status: 400 });
+  }
+
+  // ── Business hours gate ───────────────────────────────────────────────
+  const hours = isBusinessHours();
+  if (!hours.isOpen) {
+    return NextResponse.json(
+      { error: `Outside business hours. Next open: ${hours.nextOpenTime}` },
+      { status: 403 },
+    );
   }
 
   const sb = createDialerClient();

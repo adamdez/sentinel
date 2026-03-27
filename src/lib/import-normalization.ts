@@ -509,7 +509,7 @@ export function detectHeaderRow(rows: string[][]): number {
 
 export async function parseImportWorkbook(file: File): Promise<ParsedWorkbookPreview> {
   const lowerName = file.name.toLowerCase();
-  const isXlsx = lowerName.endsWith(".xlsx");
+  const isXlsx = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
   const kind: ImportFileKind = isXlsx ? "xlsx" : "csv";
 
   let sheets: ParsedSheetPreview[];
@@ -541,7 +541,7 @@ function buildRowsFromMatrix(headers: string[], matrix: string[][], headerRowInd
 
 export async function parseImportRows(file: File, sheetName?: string | null): Promise<ParsedImportRows> {
   const lowerName = file.name.toLowerCase();
-  const isXlsx = lowerName.endsWith(".xlsx");
+  const isXlsx = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls");
   const kind: ImportFileKind = isXlsx ? "xlsx" : "csv";
 
   if (isXlsx) {

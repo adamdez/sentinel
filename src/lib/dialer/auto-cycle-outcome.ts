@@ -23,17 +23,35 @@ import type { PublishDisposition } from "./types";
 
 /**
  * Maps a Vapi calls_log disposition to the auto-cycle vocabulary.
- * Returns null if the disposition should NOT trigger an auto-cycle update
- * (e.g. errors — we don't want to burn an attempt on a pipeline failure).
+ *
+ * CRITICAL: This must NEVER return null for a connected Vapi call.
+ * Returning null means the auto-cycle phone never advances, causing
+ * infinite retry (the 2,420-call bug). Every call that reaches Vapi
+ * and gets an end-of-call-report MUST advance the cycle.
+ *
+ * @param durationSeconds — if provided, used to distinguish real conversations
+ *   from quick hangups. A "completed" call with >30s duration was a real convo
+ *   and should exit the cycle (follow_up), not retry as no_answer.
  */
-export function mapVapiDispositionToAutoCycle(disposition: string): PublishDisposition | null {
+export function mapVapiDispositionToAutoCycle(
+  disposition: string,
+  durationSeconds?: number | null,
+): PublishDisposition {
   switch (disposition) {
     case "transferred":  return "follow_up";       // live answer → operator takes over
     case "no_answer":    return "no_answer";        // advance phone attempt
     case "voicemail":    return "voicemail";         // advance phone attempt
-    case "completed":    return "completed";         // conversation happened, exit
+    case "completed": {
+      // Real conversation (>30s) = follow_up (exit cycle, Logan takes over)
+      // Quick hangup (<30s) = no_answer (advance attempt, try again later)
+      if (durationSeconds != null && durationSeconds > 30) return "follow_up";
+      return "no_answer";
+    }
     case "ai_ended":     return "not_interested";    // Jeff screened out, exit
-    default:             return null;                // error, spam, unknown → skip
+    case "error":        return "no_answer";         // API/pipeline error — advance, don't retry forever
+    case "sip_failed":   return "dead_phone";        // SIP failed to connect — mark phone dead
+    case "spam":         return "disqualified";      // spam caller, exit lead
+    default:             return "no_answer";          // unknown → advance cycle, don't loop
   }
 }
 
@@ -210,24 +228,14 @@ export async function processAutoCycleOutcome(
     }
   }
 
-  // ── Update lead call counters ────────────────────────────────────
+  // ── Update lead call counters (atomic — prevents lost increments) ──
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: leadCounts, error: leadCountsErr } = await (sb.from("leads") as any)
-    .select("total_calls, live_answers, voicemails_left")
-    .eq("id", leadId)
-    .single();
-
-  if (!leadCountsErr && leadCounts) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("leads") as any)
-      .update({
-        total_calls: (leadCounts.total_calls ?? 0) + 1,
-        live_answers: (leadCounts.live_answers ?? 0) + (LIVE_ANSWER_DISPOSITIONS.has(disposition) ? 1 : 0),
-        voicemails_left: (leadCounts.voicemails_left ?? 0) + (disposition === "voicemail" ? 1 : 0),
-        last_contact_at: nowIso,
-      })
-      .eq("id", leadId);
-  }
+  await (sb as any).rpc("increment_lead_call_counters", {
+    p_lead_id: leadId,
+    p_is_live_answer: LIVE_ANSWER_DISPOSITIONS.has(disposition),
+    p_is_voicemail: disposition === "voicemail",
+    p_last_contact_at: nowIso,
+  }).throwOnError();
 
   // ── Derive new lead cycle state ──────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

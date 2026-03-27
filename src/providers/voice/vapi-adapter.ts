@@ -387,11 +387,16 @@ Say: "You know what, Logan handles all our acquisitions and he'd be way better t
 3. If transfer fails — don't panic: "Looks like Logan's away from the phone. Let me set up a time for him to call you back — what works?"
 4. Book callback immediately. Make sure they know someone WILL call back.
 
+## Voicemail Handling
+If you reach voicemail or an answering machine:
+- Leave a SHORT message (under 15 seconds): "Hey [name if known], this is Jeff from Dominion Home Deals in Spokane. Just reaching out about your property — give us a call back when you get a chance at this number. Thanks!"
+- Then end the call using end_call with reason "voicemail_left"
+- Do NOT run the full discovery script into a voicemail. Do NOT say "do you have a quick minute" to a machine.
+
 ## Hard Rules
 - NEVER discuss prices, offers, ARV, repair estimates, or deal terms
 - NEVER promise anything on behalf of Dominion
 - If they say "not interested" — respect it immediately: "Totally understand, appreciate your time. Have a good one."
-- If no answer / voicemail: End the call. The system will handle follow-up.
 - Keep the call under 2 minutes before transfer attempt. If discovery is going well, transfer sooner.
 - NEVER provide legal, financial, or tax advice`;
 
@@ -427,6 +432,32 @@ export function buildOutboundAssistantConfig(serverUrl: string): VapiAssistantCo
     maxDurationSeconds: 180, // 3 min max — shorter than inbound
     silenceTimeoutSeconds: 20,
     responseDelaySeconds: 0.5,
+    // PR-FIX: transferPlan was MISSING — Jeff couldn't transfer to Logan/Adam
+    // Without this, Vapi ignores transfer_to_operator function calls entirely.
+    // Mode "server" means our webhook returns the destination number dynamically.
+    transferPlan: {
+      mode: "server",
+      message: "One moment while I connect you.",
+      summaryPlan: {
+        enabled: true,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Summarize the call in 2-3 sentences for the operator receiving the transfer. Include: caller type, property address if mentioned, key motivation, and any promises made.",
+          },
+        ],
+      },
+    },
+    // Voicemail detection — Vapi can detect machine/voicemail and notify us
+    // so Jeff doesn't talk into a voicemail recording like a confused robot.
+    voicemailDetection: {
+      provider: "twilio",
+      enabled: true,
+      machineDetectionTimeout: 8,
+      machineDetectionSpeechThreshold: 3000,
+      machineDetectionSpeechEndThreshold: 2000,
+    },
   };
 }
 

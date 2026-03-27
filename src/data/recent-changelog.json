@@ -1,127 +1,127 @@
 [
   {
-    "hash": "f0366db0",
-    "date": "2026-03-24",
-    "message": "[cursor] Property carousel: merge fetched+cached photos, Street View fallback, img onError"
+    "hash": "f3f4c761",
+    "date": "2026-03-25",
+    "message": "fix: four critical bugs in incoming call + jeff messages handling"
   },
   {
-    "hash": "adf8c469",
-    "date": "2026-03-24",
-    "message": "Live coaching: always-visible 3 NEPQ questions + 3 Voss labels in yellow"
+    "hash": "d2cbf406",
+    "date": "2026-03-25",
+    "message": "feat: persistent Jeff messages panel with full history"
   },
   {
-    "hash": "86bc2deb",
-    "date": "2026-03-24",
-    "message": "[cursor] Close implementation gaps: dead phone auto-mark, dead lead dispo, consent cleanup, dossier placeholder, missed queue retry, phone cycling"
+    "hash": "c8297ff5",
+    "date": "2026-03-25",
+    "message": "feat: unlimited dial queue + red X remove + scrollable lists"
   },
   {
-    "hash": "53906e41",
-    "date": "2026-03-24",
-    "message": "[cursor] Dead phone UX fix, Dead Phone disposition, remove call consent blocker"
+    "hash": "3c0579a6",
+    "date": "2026-03-25",
+    "message": "feat: after-hours voicemail mode + incoming call popup + auto-open client file"
   },
   {
-    "hash": "4aeee966",
-    "date": "2026-03-24",
-    "message": "Tighten legal search and rewire dossier deep crawl"
+    "hash": "380f7122",
+    "date": "2026-03-25",
+    "message": "fix: polish regular queue dialer — phoneIndex resets, better toasts"
   },
   {
-    "hash": "30f49570",
-    "date": "2026-03-24",
-    "message": "[cursor] Task UX polish — filter Unknown Owner, show phone in dashboard, enrich generic titles in syncLeadToTask"
+    "hash": "58e4d17f",
+    "date": "2026-03-25",
+    "message": "fix: regular queue dialer stays on lead after call — no auto-advance"
   },
   {
-    "hash": "8cd77f89",
-    "date": "2026-03-24",
-    "message": "[cursor] Task system UX overhaul — identity, context, accountability, friction reduction"
+    "hash": "4bfc9b09",
+    "date": "2026-03-25",
+    "message": "fix: bypass Inngest for bulk-bricked — process inline with batching"
   },
   {
-    "hash": "1b759567",
-    "date": "2026-03-24",
-    "message": "[cursor] Fix client file modal positioning — account for sidebar width"
+    "hash": "48106aec",
+    "date": "2026-03-25",
+    "message": "fix: add CRON_SECRET auth to bulk-bricked endpoint for easy triggering"
   },
   {
-    "hash": "ce2f319d",
-    "date": "2026-03-24",
-    "message": "Harden live coach and call notes polling"
+    "hash": "27d296c8",
+    "date": "2026-03-25",
+    "message": "fix: persist Bricked AI data across page reloads + add bulk analysis endpoint"
   },
   {
-    "hash": "b951f4d6",
-    "date": "2026-03-24",
-    "message": "perf: speed up live coaching — faster polling, shorter cooldowns, token cap"
+    "hash": "e02b9bf5",
+    "date": "2026-03-25",
+    "message": "feat: infer distress tags from import list name"
   },
   {
-    "hash": "95918fed",
-    "date": "2026-03-24",
-    "message": "System hardening: silent failure fixes, webhook auth, image config, task titles, Twilio provider"
+    "hash": "6c51c7c1",
+    "date": "2026-03-25",
+    "message": "feat: add jeff-auto-redial cron — fires Jeff on due auto-cycle phones every 2 min"
   },
   {
-    "hash": "12abaa08",
-    "date": "2026-03-24",
-    "message": "[cursor] Task UX overhaul — click opens lead modal, lead name primary, call button, phone in API"
+    "hash": "b1e9cf83",
+    "date": "2026-03-25",
+    "message": "[cursor] Dialer: style Add To Auto Cycle link emerald green"
   },
   {
-    "hash": "2f535992",
-    "date": "2026-03-24",
-    "message": "[cursor] Search result click opens lead modal + surface error states instead of silent failures"
+    "hash": "4907d00d",
+    "date": "2026-03-25",
+    "message": "fix: remove serverUrl and transferPlan rejected by Vapi API"
   },
   {
-    "hash": "5415f630",
-    "date": "2026-03-24",
-    "message": "[cursor] Dialer phone cycling, dead phone marking, stage controls, default lead filter"
+    "hash": "992b87cc",
+    "date": "2026-03-25",
+    "message": "fix: surface Vapi errors in toast instead of silently swallowing them"
   },
   {
-    "hash": "aadf6f77",
-    "date": "2026-03-24",
-    "message": "fix: zip NOT NULL constraint causing all Add New Lead 500 errors"
+    "hash": "cac0961a",
+    "date": "2026-03-25",
+    "message": "fix: bypass Inngest for outbound batch — call Vapi directly"
   },
   {
-    "hash": "d68f2d77",
-    "date": "2026-03-24",
-    "message": "debug: return actual error details in prospects POST 500 response"
+    "hash": "5a375481",
+    "date": "2026-03-25",
+    "message": "[cursor] Overview distress box: show lead inbox tag pills + supplemental events"
   },
   {
-    "hash": "4668066b",
-    "date": "2026-03-24",
-    "message": "[cursor] Fix Save Lead 500 — remove owner_phone2 from property upsert (column does not exist in DB, moved to owner_flags)"
+    "hash": "9bfcfda1",
+    "date": "2026-03-25",
+    "message": "fix: Vapi API rejects systemMessage — use messages array format"
   },
   {
-    "hash": "066df576",
-    "date": "2026-03-24",
-    "message": "Unified task system with bidirectional sync, chip-based setter, and calendar view"
+    "hash": "6489364d",
+    "date": "2026-03-25",
+    "message": "fix: voice_session INSERT failing — invalid status + nonexistent column"
   },
   {
-    "hash": "b81a773e",
-    "date": "2026-03-23",
-    "message": "[cursor] Fix Save Lead 500 error — pass Bricked data from modal enrichment to API, skip redundant server-side re-fetch that was timing out the serverless function"
+    "hash": "2f8c0fd0",
+    "date": "2026-03-25",
+    "message": "fix: clicking Jeff tab leads now loads the lead detail panel"
   },
   {
-    "hash": "03bee49e",
-    "date": "2026-03-23",
-    "message": "[cursor] Make nationwide property search instant — open modal immediately with address, fetch Bricked enrichment in background. Previously blocked UI for 5-15s waiting for Bricked API before opening the modal."
+    "hash": "3ffd927a",
+    "date": "2026-03-25",
+    "message": "debug: add console logging to outbound-batch Inngest function"
   },
   {
-    "hash": "ecbd0023",
-    "date": "2026-03-23",
-    "message": "[cursor] Fix legal search crawlers to submit actual searches + enlarge detail dropdown. Recorder now uses Firecrawl actions to fill/submit the search form instead of scraping the landing page. Courts crawler constructs a direct WA Courts search URL with the owner name. Liens crawler uses targeted web searches. Detail rows bumped from 11px to 14px (text-sm)."
+    "hash": "35adc738",
+    "date": "2026-03-25",
+    "message": "fix: normalize phone to E.164 format before Vapi outbound call"
   },
   {
-    "hash": "d9a3f7b1",
-    "date": "2026-03-23",
-    "message": "[cursor] Fix equity display on dialer card — fall through to owner_flags data when equity_percent is null, compute from ARV minus loan balance, remove Owed column"
+    "hash": "5951340b",
+    "date": "2026-03-25",
+    "message": "fix: fall back to auto-cycle phones when lead_phones is empty in outbound routes"
   },
   {
-    "hash": "0c121633",
-    "date": "2026-03-23",
-    "message": "[cursor] Fix duplicate siteUrl declaration in browser voice route"
+    "hash": "26ee49ba",
+    "date": "2026-03-25",
+    "message": "fix: use LEFT join for properties in outbound routes + allow retry of skipped Jeff leads"
   },
   {
-    "hash": "b86524e0",
-    "date": "2026-03-23",
-    "message": "[cursor] Fix outbound calls dropping — Twilio signature validation used req.url (Vercel internal hostname) instead of NEXT_PUBLIC_SITE_URL (custom domain). Signature always failed, returning 403 JSON instead of TwiML, causing immediate hangup."
+    "hash": "629ea43a",
+    "date": "2026-03-25",
+    "message": "Fix outbound call routes — fetch phones from lead_phones, not leads"
   },
   {
-    "hash": "e7666578",
-    "date": "2026-03-23",
-    "message": "[cursor] Fix Legal tab visibility + persist deep crawl results across tab switches. Legal tab was filtered out by local PRIMARY_TAB_IDS. Deep crawl now saves categorized results to owner_flags so they reload on mount."
+    "hash": "d839f295",
+    "date": "2026-03-25",
+    "message": "Remove business hours guard from outbound calls and campaign dialer"
   }
 ]

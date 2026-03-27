@@ -141,24 +141,13 @@ export async function POST(req: NextRequest) {
       duration: callDuration,
     });
 
-    // Only overwrite disposition if the agent hasn't already set a final
-    // one from the UI (e.g. "voicemail", "interested", "appointment").
-    const MACHINE_DISPOSITIONS = new Set([
+    // D1: Machine dispositions that can be safely overwritten by status callbacks.
+    // If the operator has already set a real disposition (e.g. "voicemail", "interested"),
+    // the WHERE clause prevents the callback from overwriting it.
+    const SAFE_TO_OVERWRITE = [
       "initiating", "initiated", "ringing_agent", "agent_connected",
       "in_progress", "ringing",
-    ]);
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let currentDispo: string | null = null;
-    if (callLogId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: row } = await (sb.from("calls_log") as any)
-        .select("disposition")
-        .eq("id", callLogId)
-        .single();
-      currentDispo = row?.disposition ?? null;
-    }
-    const agentAlreadySet = currentDispo !== null && !MACHINE_DISPOSITIONS.has(currentDispo);
+    ];
 
     if (dialStatus !== "completed") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -170,12 +159,14 @@ export async function POST(req: NextRequest) {
         details: { dial_status: dialStatus, duration: callDuration },
       });
 
-      if (callLogId && !agentAlreadySet) {
+      if (callLogId) {
         const dispo = dialStatus === "busy" ? "busy" : "no_answer";
+        // D1: Atomic — only overwrite machine dispositions, preserve operator choices
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (sb.from("calls_log") as any)
           .update({ disposition: dispo })
-          .eq("id", callLogId);
+          .eq("id", callLogId)
+          .in("disposition", SAFE_TO_OVERWRITE);
       }
 
       // Immediately hang up the browser leg — do NOT play a <Say> because it
@@ -189,18 +180,21 @@ export async function POST(req: NextRequest) {
 
     // Prospect answered and the call completed normally
     if (callLogId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const updatePayload: Record<string, unknown> = {
-        transfer_completed: true,
-        duration_sec: parseInt(callDuration) || 0,
-      };
-      if (!agentAlreadySet) {
-        updatePayload.disposition = "completed";
-      }
+      // Always update transfer_completed and duration (safe — not disposition-dependent)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (sb.from("calls_log") as any)
-        .update(updatePayload)
+        .update({
+          transfer_completed: true,
+          duration_sec: parseInt(callDuration) || 0,
+        })
         .eq("id", callLogId);
+
+      // D1: Atomic disposition — only set "completed" if operator hasn't already chosen
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("calls_log") as any)
+        .update({ disposition: "completed" })
+        .eq("id", callLogId)
+        .in("disposition", SAFE_TO_OVERWRITE);
     }
 
     // PR2: sync dialer session state (fire-and-forget, non-blocking)

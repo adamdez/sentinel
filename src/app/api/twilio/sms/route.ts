@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   // 3. Log to sms_messages
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("sms_messages") as any).insert({
-    phone: from,
+    phone: from.startsWith("+") ? from : `+${from.replace(/\D/g, "")}`,
     direction: "inbound",
     body: body.slice(0, 2000),
     twilio_sid: messageSid,

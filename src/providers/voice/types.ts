@@ -170,6 +170,14 @@ export interface VapiAssistantConfig {
       messages?: Array<{ role: string; content: string }>;
     };
   };
+  /** Vapi voicemail/AMD detection — prevents Jeff from talking into voicemail boxes */
+  voicemailDetection?: {
+    provider: "twilio" | "vapi";
+    enabled: boolean;
+    machineDetectionTimeout?: number;
+    machineDetectionSpeechThreshold?: number;
+    machineDetectionSpeechEndThreshold?: number;
+  };
 }
 
 export interface VapiFunctionDef {

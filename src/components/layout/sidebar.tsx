@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
   CalendarCheck,
+  Calculator,
   Phone,
   Users,
   BarChart3,
@@ -98,6 +99,7 @@ const toolsSection: NavSection = {
   title: "Tools",
   items: [
     { label: "Property Research", href: "/properties/lookup", icon: MapPin },
+    { label: "Tina", href: "/tina", icon: Calculator },
     { label: "Buyers", href: "/buyers", icon: Handshake },
     { label: "Contacts", href: "/contacts", icon: Contact },
     { label: "Ads", href: "/ads", icon: Target, badge: "ads-alerts" },

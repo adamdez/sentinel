@@ -16,7 +16,8 @@ export const maxDuration = 60;
  *   4. Stale agent runs (stuck in "running" for >1 hour)
  *   5. Review queue hygiene (expired items still pending)
  *
- * Read-only — never mutates data. Logs findings and optionally dispatches alert.
+ * Detects issues and performs safe auto-repairs (stale runs, expired reviews,
+ * stuck voice sessions, orphaned auto-cycle phones). Logs findings and dispatches alert.
  * Secured by CRON_SECRET header.
  */
 export async function GET(req: NextRequest) {
@@ -202,6 +203,45 @@ export async function GET(req: NextRequest) {
     }
     run.increment();
 
+    // ── 10. Stale voice sessions (stuck in ringing/ai_handling >2 hours) ──
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: staleSessions, count: staleSessionCount } = await (sb.from("voice_sessions") as any)
+      .select("id", { count: "exact", head: false })
+      .not("status", "in", '("completed","failed")')
+      .lt("created_at", twoHoursAgo);
+
+    if ((staleSessionCount ?? 0) > 0) {
+      findings.push({
+        category: "stale_voice_session",
+        severity: "medium",
+        count: staleSessionCount ?? 0,
+        description: `${staleSessionCount} voice sessions stuck in non-terminal state for >2 hours`,
+        sample_ids: (staleSessions ?? []).slice(0, 5).map((r: { id: string }) => r.id),
+      });
+    }
+    run.increment();
+
+    // ── 11. Orphaned auto-cycle phones (active but NULL next_due_at) ──
+    const tenMinAgo = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: orphanedPhones, count: orphanedPhoneCount } = await (sb.from("dialer_auto_cycle_phones") as any)
+      .select("id", { count: "exact", head: false })
+      .eq("phone_status", "active")
+      .is("next_due_at", null)
+      .lt("last_attempt_at", tenMinAgo);
+
+    if ((orphanedPhoneCount ?? 0) > 0) {
+      findings.push({
+        category: "orphaned_auto_cycle_phone",
+        severity: "high",
+        count: orphanedPhoneCount ?? 0,
+        description: `${orphanedPhoneCount} auto-cycle phones are active but have no next_due_at (orphaned claim)`,
+        sample_ids: (orphanedPhones ?? []).slice(0, 5).map((r: { id: string }) => r.id),
+      });
+    }
+    run.increment();
+
     // ── Assemble report ─────────────────────────────────────────────
     const criticalCount = findings.filter(f => f.severity === "critical").length;
     const highCount = findings.filter(f => f.severity === "high").length;
@@ -211,6 +251,30 @@ export async function GET(req: NextRequest) {
     const summary = findings.length === 0
       ? "Database integrity check passed. No issues found."
       : `Found ${totalIssues} issues across ${findings.length} categories: ${criticalCount} critical, ${highCount} high, ${mediumCount} medium.`;
+
+    // Auto-repair: mark stale voice sessions as failed
+    if ((staleSessionCount ?? 0) > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("voice_sessions") as any)
+        .update({
+          status: "failed",
+          ended_at: now.toISOString(),
+        })
+        .not("status", "in", '("completed","failed")')
+        .lt("created_at", twoHoursAgo);
+    }
+
+    // Auto-repair: restore orphaned auto-cycle phones into the cron queue
+    if ((orphanedPhoneCount ?? 0) > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("dialer_auto_cycle_phones") as any)
+        .update({
+          next_due_at: now.toISOString(),
+        })
+        .eq("phone_status", "active")
+        .is("next_due_at", null)
+        .lt("last_attempt_at", tenMinAgo);
+    }
 
     // Auto-resolve stale agent runs (mark as failed)
     if ((staleRunCount ?? 0) > 0) {
@@ -248,6 +312,8 @@ export async function GET(req: NextRequest) {
       autoRepairs: {
         staleRunsFixed: staleRunCount ?? 0,
         expiredReviewsFixed: expiredReviewCount ?? 0,
+        staleVoiceSessionsFixed: staleSessionCount ?? 0,
+        orphanedPhonesRestored: orphanedPhoneCount ?? 0,
       },
     };
 
