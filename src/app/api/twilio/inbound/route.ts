@@ -545,6 +545,21 @@ async function handleMissedInbound({
     console.error("[inbound] dialer_events write failed:", eventErr.message);
   }
 
+  // ── 4. SMS both operators — missed inbound call ───────────────────────────
+  try {
+    const { sendDirectSMS } = await import("@/providers/voice/vapi-sms");
+    const loganCell = process.env.TWILIO_FORWARD_TO_CELL;
+    const adamCell = process.env.ADAM_CELL;
+    const time = now.toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit" });
+    const msg = `MISSED CALL: ${leadName} (${fromNumber}) at ${time}. Call back ASAP!`;
+
+    if (loganCell) sendDirectSMS(loganCell, msg).catch(() => {});
+    if (adamCell) sendDirectSMS(adamCell, msg).catch(() => {});
+    console.log("[inbound] Missed call SMS sent to operators");
+  } catch (smsErr) {
+    console.error("[inbound] Missed call SMS failed:", smsErr);
+  }
+
   console.log("[inbound] Missed inbound handled:", {
     fromNumber: fromNumber ? `***${fromNumber.slice(-4)}` : "none",
     leadId: leadId ? `${leadId.slice(0, 8)}…` : "no match",
