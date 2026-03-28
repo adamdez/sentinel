@@ -21,10 +21,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
 import { GripVertical, Phone, MoreHorizontal, Loader2, Clock } from "lucide-react";
 import { GlassCard } from "./glass-card";
-import { AIScoreBadge } from "./ai-score-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { AIScore, LeadStatus } from "@/lib/types";
+import type { LeadStatus } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 import { requiresNextAction } from "@/lib/lead-guardrails";
@@ -37,7 +36,6 @@ interface PipelineItem {
   address: string;
   phone?: string;
   status: string;
-  score: AIScore;
   distressType: string;
   propertyId?: string;
   equityPercent?: number | null;
@@ -92,8 +90,7 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
       style={style}
       className={cn(
         "group rounded-[14px] border border-glass-border glass-card p-4 transition-all duration-100",
-        isDragging && "drag-active",
-        item.score.label === "platinum" && "ring-1 ring-primary/25 border-primary/20"
+        isDragging && "drag-active"
       )}
     >
       <div className="flex items-start gap-3">
@@ -123,7 +120,6 @@ function SortableCard({ item, onCall }: { item: PipelineItem; onCall?: (phone: s
                 )}
               </div>
             </div>
-            <AIScoreBadge score={item.score} size="sm" />
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-sm">
@@ -192,18 +188,6 @@ function PipelineColumn({ title, items, count, color, onCall }: PipelineColumnPr
   );
 }
 
-function mapToScore(priority: number): AIScore {
-  const label = priority >= 85 ? "platinum" : priority >= 65 ? "gold" : priority >= 40 ? "silver" : "bronze";
-  return {
-    composite: priority,
-    motivation: Math.round(priority * 0.85),
-    equityVelocity: Math.round(priority * 0.9),
-    urgency: Math.round(priority * 0.8),
-    historicalConversion: Math.round(priority * 0.7),
-    aiBoost: priority >= 85 ? Math.round(priority * 0.1) : 0,
-    label: label as AIScore["label"],
-  };
-}
 
 function normalizeLegacyPipelineStatus(raw: string | null | undefined): string {
   const normalized = (raw ?? "").toLowerCase().replace(/\s+/g, "_");
@@ -259,7 +243,6 @@ export function PipelineBoard() {
             address: addr,
             phone: prop?.owner_phone ?? undefined,
             status: normalizeLegacyPipelineStatus(row.status),
-            score: mapToScore(row.priority ?? 0),
             distressType: row.tags?.[0] ?? row.source ?? "Unknown",
             propertyId: prop?.id,
             equityPercent: prop?.equity_percent != null ? Number(prop.equity_percent) : null,

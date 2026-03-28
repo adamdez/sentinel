@@ -23,7 +23,6 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { type LeadRow } from "@/lib/leads-data";
 import { deriveLeadActionSummary, type UrgencyLevel, type ActionSummary } from "@/lib/action-derivation";
 import type { SortField, SortDir } from "@/hooks/use-leads";
@@ -42,7 +41,7 @@ interface LeadTableProps {
 }
 
 // Grid definition
-const GRID = "grid-cols-[28px_28px_1.8fr_80px_minmax(140px,1fr)_90px_80px]";
+const GRID = "grid-cols-[28px_28px_1.8fr_minmax(140px,1fr)_90px_80px]";
 
 // Helpers
 
@@ -401,7 +400,6 @@ export function LeadTable({
         </div>
         <span />
         <SortHeader label="Property / Owner" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
-        <SortHeader label="Score" field="score" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Next Action" field="followUp" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Last Contact</span>
         <span />
@@ -462,7 +460,6 @@ export function LeadTable({
               GRID,
               isOverdue && overdueDays >= 3 && "bg-muted/5 border-l-2 border-l-red-500/40",
               isOverdue && overdueDays < 3 && "bg-muted/5 border-l-2 border-l-amber-500/40",
-              !isOverdue && lead.score.label === "platinum" && "bg-primary-500/[0.03] hover:bg-primary-500/[0.06]",
             )}
           >
             {/* Checkbox */}
@@ -511,7 +508,7 @@ export function LeadTable({
                       {lead.address}{lead.city ? `, ${lead.city}` : ""}
                     </span>
                     {lead.pinned && (
-                      <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-medium">
+                      <span className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-400 font-bold border border-blue-500/25">
                         Active
                       </span>
                     )}
@@ -566,11 +563,6 @@ export function LeadTable({
                 </TooltipContent>
               )}
             </Tooltip>
-
-            {/* Score (badge only) */}
-            <div className="flex items-center">
-              <AIScoreBadge score={lead.score} size="sm" />
-            </div>
 
             {/* Next Action */}
             <div className="flex flex-col justify-center min-w-0">

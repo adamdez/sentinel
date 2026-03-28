@@ -1087,9 +1087,6 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
   const repairCost = (cf.ownerFlags?.bricked_repair_cost as number) ?? 0;
 
-  const tier = getTier(cf.compositeScore);
-
-  const tc = TIER_COLORS[tier];
 
 
 
@@ -1373,61 +1370,6 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
         </div>
 
-
-
-        {/* --�----�-- 6. SCORE + BREAKDOWN --�----�-- */}
-
-        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Score</p>
-
-          {cf.compositeScore > 0 ? (
-
-            <div className="space-y-2">
-
-              <div className="flex items-center gap-3">
-
-                <div className={cn("w-12 h-12 rounded-lg flex items-center justify-center text-lg font-bold", tc.bar, tc.border, "border")}>
-
-                  {cf.compositeScore}
-
-                </div>
-
-                <div>
-
-                  <p className={cn("text-sm font-semibold uppercase", tc.text)}>{cf.scoreLabel}</p>
-
-                  {cf.prediction?.label && (
-
-                    <p className="text-xs text-muted-foreground/60">Distress: {cf.prediction.label}</p>
-
-                  )}
-
-                </div>
-
-              </div>
-
-              <div className="flex flex-wrap gap-1.5 text-xs">
-
-                {cf.isHighEquity && <span className="px-1.5 py-0.5 rounded border border-overlay-10 bg-overlay-3 text-muted-foreground">High Equity</span>}
-
-                {cf.isAbsentee && <span className="px-1.5 py-0.5 rounded border border-overlay-10 bg-overlay-3 text-muted-foreground">Absentee</span>}
-
-                {cf.isFreeClear && <span className="px-1.5 py-0.5 rounded border border-overlay-10 bg-overlay-3 text-muted-foreground">Free & Clear</span>}
-
-                {cf.isVacant && <span className="px-1.5 py-0.5 rounded border border-overlay-10 bg-overlay-3 text-muted-foreground">Vacant</span>}
-
-              </div>
-
-            </div>
-
-          ) : (
-
-            <p className="text-sm text-muted-foreground/50 italic">Not scored — needs enrichment</p>
-
-          )}
-
-        </div>
 
 
 
@@ -7895,7 +7837,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
 
 
-  const lbl = SCORE_LABEL_CFG[clientFile.scoreLabel];
 
   const currentStage = normalizeWorkflowStage(clientFile.status);
 
@@ -8174,12 +8115,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                   <div className="flex items-start gap-2 shrink-0">
 
-                    <div className={cn("flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold", lbl.bg, lbl.color)}>
-
-                      <Zap className="h-3 w-3" />{clientFile.compositeScore} {lbl.text}
-
-                    </div>
-
                     <div className="flex items-center gap-1.5">
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -8206,7 +8141,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                       </Tooltip>
 
                       {clientFile.pinned && (
-                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/15 text-primary font-medium">
+                        <span className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-400 font-bold border border-blue-500/25">
                           Active
                         </span>
                       )}
