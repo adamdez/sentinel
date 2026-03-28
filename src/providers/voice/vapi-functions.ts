@@ -39,15 +39,14 @@ export async function handleLookupLead(
 
   const normalized = phone.replace(/\D/g, "");
 
-  // Look up lead by phone
+  // Look up lead by phone via contacts table (leads has no phone column)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: leads } = await (sb.from("leads") as any)
-    .select("id, first_name, last_name, phone, status, next_action, source, notes, property_id, decision_maker_note, decision_maker_confirmed")
+  const { data: contacts } = await (sb.from("contacts") as any)
+    .select("id, first_name, last_name, phone, leads!contact_id(id, status, next_action, source, notes, property_id, decision_maker_note, decision_maker_confirmed)")
     .or(`phone.eq.${phone},phone.eq.+${normalized},phone.eq.${normalized}`)
-    .order("created_at", { ascending: false })
     .limit(1);
 
-  if (!leads || leads.length === 0) {
+  if (!contacts || contacts.length === 0 || !contacts[0].leads?.length) {
     return {
       result: JSON.stringify({
         found: false,
@@ -56,7 +55,8 @@ export async function handleLookupLead(
     };
   }
 
-  const lead = leads[0];
+  const contact = contacts[0];
+  const lead = { ...contact.leads[0], first_name: contact.first_name, last_name: contact.last_name, phone: contact.phone };
 
   // Get property info if linked
   let propertyInfo = null;
@@ -161,16 +161,21 @@ export async function handleBookCallback(
 ): Promise<VapiFunctionResult> {
   const sb = createServerClient();
 
-  // Try to find lead by phone
+  // Try to find lead by phone via contacts table (leads has no phone column)
   let leadId: string | null = null;
   if (params.phone_number) {
     const normalized = params.phone_number.replace(/\D/g, "");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leads } = await (sb.from("leads") as any)
-      .select("id")
+    const { data: contacts } = await (sb.from("contacts") as any)
+      .select("id, leads!contact_id(id)")
       .or(`phone.eq.${params.phone_number},phone.eq.+${normalized},phone.eq.${normalized}`)
       .limit(1);
-    if (leads && leads.length > 0) leadId = leads[0].id;
+    if (contacts && contacts.length > 0) {
+      const linkedLeads = contacts[0].leads;
+      if (Array.isArray(linkedLeads) && linkedLeads.length > 0) {
+        leadId = linkedLeads[0].id;
+      }
+    }
   }
 
   // Create callback task
@@ -188,11 +193,13 @@ export async function handleBookCallback(
     .filter(Boolean)
     .join("\n");
 
+  const loganUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: task, error } = await (sb.from("tasks") as any)
     .insert({
       title,
       lead_id: leadId,
+      assigned_to: loganUserId,
       due_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
       status: "pending",
       priority: leadId ? 3 : 2, // Higher priority for known leads

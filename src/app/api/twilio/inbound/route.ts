@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     const callSid = formData.get("CallSid")?.toString() ?? "";
 
     const adamIdentity = process.env.ADAM_BROWSER_IDENTITY ?? "adam@dominionhomedeals.com";
-    const vapiNumber = process.env.VAPI_PHONE_NUMBER ?? "";
+    const vapiNumber = (process.env.VAPI_PHONE_NUMBER ?? "").trim();
     const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
 
     console.log(`[inbound] chain_step=${step} dialStatus=${dialStatus} from=${fromNumber} sid=${callSid}${isTransfer ? " (vapi-transfer)" : ""}`);
@@ -241,7 +241,7 @@ export async function POST(req: NextRequest) {
   const callSid = formData.get("CallSid")?.toString() ?? "";
 
   // ── Detect Vapi transfer ──────────────────────────────────────────────
-  const vapiNumber = process.env.VAPI_PHONE_NUMBER ?? "";
+  const vapiNumber = (process.env.VAPI_PHONE_NUMBER ?? "").trim();
   const fromDigits = fromNumber.replace(/\D/g, "");
   const vapiDigits = vapiNumber.replace(/\D/g, "");
   const isVapiTransfer = fromDigits.length >= 10 && vapiDigits.length >= 10
@@ -397,16 +397,22 @@ export async function POST(req: NextRequest) {
     try {
       const sbAfter = createServerClient();
 
-      // 1. Try to match caller to an existing lead
+      // 1. Try to match caller to an existing lead via contacts table
+      // leads table has no phone column — phone lives on contacts, linked via leads.contact_id
       let matchedLeadId: string | null = null;
       if (fromNumber) {
         const normalized = fromNumber.replace(/\D/g, "");
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: leads } = await (sbAfter.from("leads") as any)
-          .select("id")
-          .or(`owner_phone.eq.${fromNumber},owner_phone.eq.+${normalized},owner_phone.eq.${normalized},owner_phone.eq.+1${normalized.slice(-10)}`)
+        const { data: contacts } = await (sbAfter.from("contacts") as any)
+          .select("id, leads!contact_id(id)")
+          .or(`phone.eq.${fromNumber},phone.eq.+${normalized},phone.eq.${normalized},phone.eq.+1${normalized.slice(-10)}`)
           .limit(1);
-        if (leads && leads.length > 0) matchedLeadId = leads[0].id;
+        if (contacts && contacts.length > 0) {
+          const linkedLeads = contacts[0].leads;
+          if (Array.isArray(linkedLeads) && linkedLeads.length > 0) {
+            matchedLeadId = linkedLeads[0].id;
+          }
+        }
       }
 
       // 2. Create call_session with the pre-generated UUID
@@ -506,10 +512,12 @@ async function handleMissedInbound({
 
   let taskId: string | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const loganUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
   const { data: taskRow, error: taskErr } = await (sb.from("tasks") as any)
     .insert({
       title: taskTitle,
       lead_id: leadId,
+      assigned_to: loganUserId,
       due_at: dueAt.toISOString(),
       status: "pending",
       priority: 3,
@@ -689,11 +697,13 @@ async function handleMissedTransfer({
   const dueAt = new Date(now.getTime() + 15 * 60 * 1000); // 15 minutes — urgent transfer callback
   const taskTitle = `⚡ Missed transfer — call back ${leadName} (${originalFrom}) ASAP`;
 
+  const loganUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: taskRow, error: taskErr } = await (sb.from("tasks") as any)
     .insert({
       title: taskTitle,
       lead_id: leadId,
+      assigned_to: loganUserId,
       due_at: dueAt.toISOString(),
       status: "pending",
       priority: 4, // Higher than regular missed calls

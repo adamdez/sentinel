@@ -32,7 +32,7 @@ export function isVapiConfigured(): boolean {
 }
 
 export function getVapiAssistantId(): string | null {
-  return process.env.VAPI_ASSISTANT_ID ?? null;
+  return process.env.VAPI_ASSISTANT_ID?.trim() ?? null;
 }
 
 // ── Business Hours ──────────────────────────────────────────────────────────

@@ -701,16 +701,21 @@ async function resolveVoiceSession(
   const toNumber = call?.phoneNumber?.number ?? call?.phoneNumber?.twilioPhoneNumber ?? null;
   const callSid = call?.phoneCallProviderId ?? null;
 
-  // Try to match lead by phone
+  // Try to match lead by phone via contacts table (leads has no phone column)
   let leadId: string | null = null;
   if (fromNumber) {
     const normalized = fromNumber.replace(/\D/g, "");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leads } = await (sb.from("leads") as any)
-      .select("id")
+    const { data: contacts } = await (sb.from("contacts") as any)
+      .select("id, leads!contact_id(id)")
       .or(`phone.eq.${fromNumber},phone.eq.+${normalized},phone.eq.${normalized}`)
       .limit(1);
-    if (leads && leads.length > 0) leadId = leads[0].id;
+    if (contacts && contacts.length > 0) {
+      const linkedLeads = contacts[0].leads;
+      if (Array.isArray(linkedLeads) && linkedLeads.length > 0) {
+        leadId = linkedLeads[0].id;
+      }
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
