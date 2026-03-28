@@ -38,7 +38,6 @@ interface UnlinkedCall {
   phone_dialed: string | null;
   started_at: string;
   duration_sec: number | null;
-  direction: string | null;
   ai_summary: string | null;
 }
 
@@ -366,7 +365,7 @@ function TodayView() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from("call_sessions") as any)
-        .select("id, phone_dialed, started_at, duration_sec, direction, ai_summary")
+        .select("id, phone_dialed, started_at, duration_sec, ai_summary")
         .is("lead_id", null)
         .eq("status", "ended")
         .order("started_at", { ascending: false })
@@ -996,12 +995,6 @@ function UnlinkedCallRow({ call, onAction }: { call: UnlinkedCall; onAction: () 
           <span className="text-muted-foreground/60">{dateStr} {timeStr}</span>
           <span className="text-muted-foreground/50">·</span>
           <span className="text-muted-foreground/60">{formatDuration(call.duration_sec)}</span>
-          {call.direction && (
-            <>
-              <span className="text-muted-foreground/50">·</span>
-              <span className="text-muted-foreground/60 capitalize">{call.direction}</span>
-            </>
-          )}
         </div>
         {call.ai_summary && (
           <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{call.ai_summary}</p>
