@@ -8,6 +8,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  useDroppable,
   type DragEndEvent,
   DragOverlay,
   type DragStartEvent,
@@ -162,7 +163,9 @@ interface PipelineColumnProps {
   onCall?: (phone: string) => void;
 }
 
-function PipelineColumn({ title, items, count, color, onCall }: PipelineColumnProps) {
+function PipelineColumn({ title, items, count, color, columnId, onCall }: PipelineColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({ id: `column-${columnId}`, data: { columnId } });
+
   return (
     <div className="flex-1 min-w-[280px] max-w-[350px]">
       <div className="flex items-center gap-2 mb-3 px-1">
@@ -173,7 +176,13 @@ function PipelineColumn({ title, items, count, color, onCall }: PipelineColumnPr
         </span>
       </div>
       <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-        <div className="space-y-2 min-h-[80px]">
+        <div
+          ref={setNodeRef}
+          className={cn(
+            "space-y-2 min-h-[80px] rounded-xl transition-colors",
+            isOver && "bg-primary/[0.04] ring-1 ring-primary/20"
+          )}
+        >
           {items.map((item) => (
             <SortableCard key={item.id} item={item} onCall={onCall} />
           ))}
@@ -308,21 +317,37 @@ export function PipelineBoard() {
     if (!over || active.id === over.id) return;
 
     const draggedItem = items.find((i) => i.id === active.id);
-    const overItem = items.find((i) => i.id === over.id);
-    if (!draggedItem || !overItem) return;
+    if (!draggedItem) return;
 
-    const newStatus = overItem.status;
-    if (draggedItem.status === newStatus) {
-      setItems((prev) => {
-        const oldIndex = prev.findIndex((i) => i.id === active.id);
-        const newIndex = prev.findIndex((i) => i.id === over.id);
-        const updated = [...prev];
-        const [moved] = updated.splice(oldIndex, 1);
-        updated.splice(newIndex, 0, moved);
-        return updated;
-      });
-      return;
+    // Determine target status: could be a column drop zone or an item
+    let newStatus: string;
+    const overId = String(over.id);
+
+    if (overId.startsWith("column-")) {
+      // Dropped on a column zone directly
+      newStatus = overId.replace("column-", "");
+    } else {
+      // Dropped on another item — use that item's status
+      const overItem = items.find((i) => i.id === over.id);
+      if (!overItem) return;
+      newStatus = overItem.status;
+
+      // If same column, just reorder
+      if (draggedItem.status === newStatus) {
+        setItems((prev) => {
+          const oldIndex = prev.findIndex((i) => i.id === active.id);
+          const newIndex = prev.findIndex((i) => i.id === over.id);
+          const updated = [...prev];
+          const [moved] = updated.splice(oldIndex, 1);
+          updated.splice(newIndex, 0, moved);
+          return updated;
+        });
+        return;
+      }
     }
+
+    // No-op if status didn't change
+    if (draggedItem.status === newStatus) return;
 
     // Check if target status requires next_action
     if (requiresNextAction(newStatus as LeadStatus)) {
