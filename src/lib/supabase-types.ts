@@ -87,6 +87,9 @@ interface LeadRow {
   /** CRM next step text; required for some stage transitions */
   next_action: string | null;
   next_action_due_at: string | null;
+  pinned: boolean;
+  pinned_at: string | null;
+  pinned_by: string | null;
   created_at: string;
   updated_at: string;
 }
