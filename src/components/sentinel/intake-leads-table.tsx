@@ -10,11 +10,17 @@ interface IntakeLead {
   property_address: string | null;
   property_city: string | null;
   property_state: string | null;
+  property_zip: string | null;
+  county: string | null;
+  apn: string | null;
+  source_channel: string;
+  source_vendor: string | null;
   source_category: string | null;
   received_at: string;
   status: "pending_review" | "claimed" | "rejected" | "duplicate";
   duplicate_of_lead_id: string | null;
   duplicate_confidence: number | null;
+  review_notes: string | null;
 }
 
 interface IntakeLeadsTableProps {

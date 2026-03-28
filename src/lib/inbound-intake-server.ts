@@ -81,7 +81,7 @@ export async function processInboundCandidateToIntakeQueue(args: {
       apn: candidate.apn,
       status: "pending_review",
       duplicate_of_lead_id: duplicate.leadId || null,
-      duplicate_confidence: duplicate.level === "high" ? 90 : duplicate.level === "medium" ? 60 : null,
+      duplicate_confidence: duplicate.level === "high" ? 90 : duplicate.level === "possible" ? 60 : null,
     })
     .select()
     .single();
