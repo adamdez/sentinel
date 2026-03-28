@@ -7842,7 +7842,50 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   }, [clientFile, onRefresh]);
 
+  const handleTogglePin = useCallback(async () => {
+    if (!clientFile?.id || pinUpdating) return;
 
+    const nextPinned = !clientFile.pinned;
+    setPinUpdating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired");
+        return;
+      }
+
+      const res = await fetch(`/api/leads/${clientFile.id}/pin`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ pinned: nextPinned }),
+      });
+
+      if (!res.ok) {
+        toast.error("Failed to update pin");
+        return;
+      }
+
+      const data = await res.json().catch(() => null) as {
+        pinned?: boolean;
+        pinned_at?: string | null;
+        pinned_by?: string | null;
+      } | null;
+
+      setClientFilePatch((prev) => ({
+        ...(prev ?? {}),
+        pinned: data?.pinned ?? nextPinned,
+        pinnedAt: data?.pinned_at ?? null,
+        pinnedBy: data?.pinned_by ?? null,
+      }));
+      toast.success(nextPinned ? "Pinned to Pipeline" : "Removed from Pipeline");
+      onRefresh?.();
+    } finally {
+      setPinUpdating(false);
+    }
+  }, [clientFile?.id, clientFile?.pinned, onRefresh, pinUpdating]);
 
   if (!clientFile) return null;
 
@@ -7961,51 +8004,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       ? "Assigned to You"
 
       : "Assign to Me";
-
-  const handleTogglePin = useCallback(async () => {
-    if (!clientFile?.id || pinUpdating) return;
-
-    const nextPinned = !clientFile.pinned;
-    setPinUpdating(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast.error("Session expired");
-        return;
-      }
-
-      const res = await fetch(`/api/leads/${clientFile.id}/pin`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ pinned: nextPinned }),
-      });
-
-      if (!res.ok) {
-        toast.error("Failed to update pin");
-        return;
-      }
-
-      const data = await res.json().catch(() => null) as {
-        pinned?: boolean;
-        pinned_at?: string | null;
-        pinned_by?: string | null;
-      } | null;
-
-      setClientFilePatch((prev) => ({
-        ...(prev ?? {}),
-        pinned: data?.pinned ?? nextPinned,
-        pinnedAt: data?.pinned_at ?? null,
-        pinnedBy: data?.pinned_by ?? null,
-      }));
-      toast.success(nextPinned ? "Pinned to Pipeline" : "Removed from Pipeline");
-      onRefresh?.();
-    } finally {
-      setPinUpdating(false);
-    }
-  }, [clientFile?.id, clientFile?.pinned, onRefresh, pinUpdating]);
 
 
 
