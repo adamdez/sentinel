@@ -30,21 +30,18 @@ export interface DialerKpiCallRecord {
   started_at: string;
 }
 
-const ANSWERED_EXCLUDE = new Set([
-  "no_answer",
-  "voicemail",
-  "manual_hangup",
-  "dead",
-  "skip_trace",
-  "ghost",
-  "nurture",
-  "in_progress",
-  "initiating",
-  "sms_outbound",
-  "disqualified",
-  "missed",
-  "busy",
-  "failed",
+const HUMAN_PICKUP_DISPOSITIONS = new Set([
+  "answered",
+  "connected",
+  "interested",
+  "completed",
+  "not_interested",
+  "follow_up",
+  "appointment",
+  "appointment_set",
+  "offer_made",
+  "callback",
+  "contract",
 ]);
 
 const MISSED_INBOUND_DISPOSITIONS = new Set(["no_answer", "missed", "busy"]);
@@ -220,7 +217,7 @@ export function isInboundCall(call: Pick<DialerKpiCallRecord, "direction">): boo
 }
 
 export function isPickupCall(call: Pick<DialerKpiCallRecord, "direction" | "disposition">): boolean {
-  return isOutboundCall(call) && !ANSWERED_EXCLUDE.has(call.disposition ?? "");
+  return isOutboundCall(call) && HUMAN_PICKUP_DISPOSITIONS.has((call.disposition ?? "").toLowerCase());
 }
 
 export function isMissedInboundCall(call: Pick<DialerKpiCallRecord, "direction" | "disposition">): boolean {

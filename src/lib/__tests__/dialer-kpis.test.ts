@@ -22,7 +22,13 @@ describe("dialer KPI call classification", () => {
   it("counts pickups only for answered outbound calls", () => {
     expect(isPickupCall({ direction: "outbound", disposition: "answered" })).toBe(true);
     expect(isPickupCall({ direction: "outbound", disposition: "interested" })).toBe(true);
+    expect(isPickupCall({ direction: "outbound", disposition: "completed" })).toBe(true);
     expect(isPickupCall({ direction: "outbound", disposition: "voicemail" })).toBe(false);
+    expect(isPickupCall({ direction: "outbound", disposition: "left_voicemail" })).toBe(false);
+    expect(isPickupCall({ direction: "outbound", disposition: "wrong_number" })).toBe(false);
+    expect(isPickupCall({ direction: "outbound", disposition: "dead_phone" })).toBe(false);
+    expect(isPickupCall({ direction: "outbound", disposition: "dead_lead" })).toBe(false);
+    expect(isPickupCall({ direction: "outbound", disposition: "disqualified" })).toBe(false);
     expect(isPickupCall({ direction: "inbound", disposition: "answered" })).toBe(false);
   });
 
@@ -76,6 +82,25 @@ describe("dialer KPI aggregation", () => {
 
     expect(snapshot.metrics.outbound.team).toBe(4);
     expect(snapshot.metrics.pickups.team).toBe(3);
+  });
+
+  it("does not inflate pickups with outbound non-human outcomes", () => {
+    const snapshot = aggregateDialerKpis({
+      calls: [
+        { user_id: "adam", direction: "outbound", disposition: "wrong_number", duration_sec: 15, started_at: "2026-03-30T16:00:00.000Z" },
+        { user_id: "adam", direction: "outbound", disposition: "dead_phone", duration_sec: 10, started_at: "2026-03-30T16:05:00.000Z" },
+        { user_id: "adam", direction: "outbound", disposition: "completed", duration_sec: 120, started_at: "2026-03-30T16:10:00.000Z" },
+        { user_id: "logan", direction: "outbound", disposition: "left_voicemail", duration_sec: 25, started_at: "2026-03-30T16:15:00.000Z" },
+      ],
+      userId: "adam",
+      teamUserIds: ["adam", "logan"],
+      range: { from: "2026-03-30T07:00:00.000Z", to: "2026-03-31T06:59:59.999Z", preset: "today" },
+    });
+
+    expect(snapshot.metrics.outbound.user).toBe(3);
+    expect(snapshot.metrics.outbound.team).toBe(4);
+    expect(snapshot.metrics.pickups.user).toBe(1);
+    expect(snapshot.metrics.pickups.team).toBe(1);
   });
 });
 
