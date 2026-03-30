@@ -1,5 +1,10 @@
 [
   {
+    "hash": "3fd85486",
+    "date": "2026-03-30",
+    "message": "Fix Jeff inbound caller handoff"
+  },
+  {
     "hash": "ff6c6969",
     "date": "2026-03-30",
     "message": "Fix Vapi assistant setup fallback"
@@ -118,10 +123,5 @@
     "hash": "314686d3",
     "date": "2026-03-27",
     "message": "[cursor] Add lead detail pin action to client file header"
-  },
-  {
-    "hash": "246c9748",
-    "date": "2026-03-27",
-    "message": "[cursor] Add active lead pinning to queue and pipeline"
   }
 ]

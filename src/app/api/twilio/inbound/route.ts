@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 15;
 
+const INBOUND_TRANSCRIPTION_STREAM_NAME = "sentinel-inbound-live-notes";
+
 /**
  * POST /api/twilio/inbound
  *
@@ -98,21 +100,16 @@ export async function POST(req: NextRequest) {
     // Nobody answered — move to next step
     // Carry sessionId/callLogId through the chain for Deepgram stream
     const chainSessionId = url.searchParams.get("sessionId") ?? "";
-    const chainCallLogId = url.searchParams.get("callLogId") ?? "";
     const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL;
     const hasDeepgram = !!process.env.DEEPGRAM_API_KEY;
-    const loganUid = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
-    const chainStreamLines = transcriptionUrl && hasDeepgram && chainSessionId
+    const stopInboundStreamLines = transcriptionUrl && hasDeepgram && chainSessionId
       ? [
-          "  <Start>",
-          `    <Stream url="${transcriptionUrl}" track="both_tracks">`,
-          ...(chainCallLogId ? [`      <Parameter name="callLogId" value="${chainCallLogId}" />`] : []),
-          `      <Parameter name="sessionId" value="${chainSessionId}" />`,
-          `      <Parameter name="userId" value="${loganUid}" />`,
-          "    </Stream>",
-          "  </Start>",
+          "  <Stop>",
+          `    <Stream name="${INBOUND_TRANSCRIPTION_STREAM_NAME}" />`,
+          "  </Stop>",
         ]
       : [];
+    const chainCallLogId = url.searchParams.get("callLogId") ?? "";
     const chainParams2 = chainSessionId ? `&amp;sessionId=${chainSessionId}&amp;callLogId=${chainCallLogId}` : "";
     // Carry transfer flag through the chain so subsequent steps know not to loop back to Vapi
     const transferParams = isTransfer ? `&amp;transfer=1&amp;vsid=${encodeURIComponent(transferVsid)}&amp;originalFrom=${encodeURIComponent(originalFrom)}` : "";
@@ -131,7 +128,6 @@ export async function POST(req: NextRequest) {
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
-        ...chainStreamLines,
         `  <Dial callerId="${callerIdForBrowser}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=adam${originalFromParam}${chainParams2}${transferParams}" method="POST">`,
         `    <Client>${adamIdentity}</Client>`,
         "  </Dial>",
@@ -148,7 +144,7 @@ export async function POST(req: NextRequest) {
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
-        ...chainStreamLines,
+        ...stopInboundStreamLines,
         `  <Dial callerId="${callerIdForJeff}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status" method="POST">`,
         `    <Number>${vapiNumber}</Number>`,
         "  </Dial>",
@@ -343,7 +339,7 @@ export async function POST(req: NextRequest) {
   const streamLines = transcriptionUrl && hasDeepgram
     ? [
         "  <Start>",
-        `    <Stream url="${transcriptionUrl}" track="both_tracks">`,
+        `    <Stream name="${INBOUND_TRANSCRIPTION_STREAM_NAME}" url="${transcriptionUrl}" track="both_tracks">`,
         `      <Parameter name="callLogId" value="${callLogId}" />`,
         `      <Parameter name="sessionId" value="${sessionId}" />`,
         `      <Parameter name="userId" value="${loganUserId}" />`,
@@ -362,11 +358,11 @@ export async function POST(req: NextRequest) {
   if (!hours.isOpen && vapiNumber) {
     // After hours — go straight to Jeff with extra time for message-taking
     console.log(`[inbound] After-hours (next open: ${hours.nextOpenTime}) — forwarding directly to Jeff`);
+    const callerIdForJeff = fromNumber || twilioNumber;
     twiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
-      ...streamLines,
-      `  <Dial callerId="${twilioNumber}" timeout="60" action="${siteUrl}/api/twilio/inbound?type=call_status${chainParams}" method="POST">`,
+      `  <Dial callerId="${callerIdForJeff}" timeout="60" action="${siteUrl}/api/twilio/inbound?type=call_status${chainParams}" method="POST">`,
       `    <Number>${vapiNumber}</Number>`,
       "  </Dial>",
       "</Response>",
