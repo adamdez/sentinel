@@ -69,6 +69,27 @@ interface JeffReviewLite {
   score?: number | null;
 }
 
+export interface JeffRecentSessionLite {
+  id: string;
+  status: string | null;
+  lead_id?: string | null;
+  created_at?: string | null;
+  ended_at?: string | null;
+  duration_seconds?: number | null;
+  cost_cents?: number | null;
+  transferred_to?: string | null;
+  transfer_reason?: string | null;
+  callback_requested?: boolean | null;
+}
+
+export interface JeffRecentLeadLite {
+  id: string;
+  properties?: {
+    owner_name?: string | null;
+    address?: string | null;
+  } | null;
+}
+
 export interface JeffKpiSnapshot {
   attempts: number;
   liveAnswers: number;
@@ -82,6 +103,32 @@ export interface JeffKpiSnapshot {
   callbackRate: number;
   answerRate: number;
   qualityReviewPassRate: number | null;
+}
+
+export function buildJeffRecentSessions(
+  sessions: JeffRecentSessionLite[],
+  leads: JeffRecentLeadLite[],
+  limit = 8,
+) {
+  const leadMap = new Map(leads.map((lead) => [lead.id, lead]));
+
+  return sessions.slice(0, limit).map((session) => {
+    const lead = session.lead_id ? leadMap.get(session.lead_id) : null;
+    return {
+      id: session.id,
+      leadId: session.lead_id ?? null,
+      ownerName: lead?.properties?.owner_name ?? null,
+      address: lead?.properties?.address ?? null,
+      status: session.status ?? "unknown",
+      createdAt: session.created_at ?? null,
+      endedAt: session.ended_at ?? null,
+      durationSeconds: session.duration_seconds ?? null,
+      costCents: session.cost_cents ?? null,
+      transferredTo: session.transferred_to ?? null,
+      transferReason: session.transfer_reason ?? null,
+      callbackRequested: Boolean(session.callback_requested),
+    };
+  });
 }
 
 const HUMAN_ANSWER_DISPOSITIONS = new Set([
@@ -335,6 +382,18 @@ export interface JeffLaunchGateResult {
   allowed: boolean;
   reason?: string;
   settings: JeffControlSettings;
+}
+
+export function isJeffManualQueueEntry(entry: JeffQueueEntry | null | undefined): boolean {
+  if (!entry) return false;
+  if (entry.queueStatus !== "active") return false;
+  return entry.queueTier === "eligible" || entry.queueTier === "active" || entry.queueTier === "auto";
+}
+
+export function isJeffCallableQueueEntry(entry: JeffQueueEntry | null | undefined): boolean {
+  if (!entry) return false;
+  if (entry.queueStatus !== "active") return false;
+  return entry.queueTier === "active" || entry.queueTier === "auto";
 }
 
 export async function getJeffLaunchGate(

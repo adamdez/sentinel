@@ -13,10 +13,13 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/api-auth";
+import { buildJeffRecentSessions, type JeffRecentLeadLite, type JeffRecentSessionLite } from "@/lib/jeff-control";
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader) {
+  const sb = createServerClient();
+  const user = await requireAuth(req, sb);
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -25,18 +28,37 @@ export async function GET(req: NextRequest) {
     168,
   );
 
-  const sb = createServerClient();
   const since = new Date(Date.now() - hours * 60 * 60_000).toISOString();
 
   // ── Outbound call stats ──────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: sessions } = await (sb.from("voice_sessions") as any)
-    .select("id, status, lead_id, created_at, ended_at, vapi_call_id")
+    .select("id, status, lead_id, created_at, ended_at, vapi_call_id, duration_seconds, cost_cents, transferred_to, transfer_reason, callback_requested")
     .eq("direction", "outbound")
     .gte("created_at", since)
     .order("created_at", { ascending: false });
 
   const allSessions = sessions ?? [];
+
+  const recentLeadIds = Array.from(
+    new Set(
+      allSessions
+        .map((session: { lead_id?: string | null }) => session.lead_id)
+        .filter((leadId): leadId is string => typeof leadId === "string" && leadId.length > 0),
+    ),
+  ).slice(0, 25);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: recentLeads } = recentLeadIds.length
+    ? await (sb.from("leads") as any)
+      .select("id, properties")
+      .in("id", recentLeadIds)
+    : { data: [] };
+
+  const leadMap = new Map(
+    ((recentLeads ?? []) as Array<{ id: string; properties?: { owner_name?: string | null; address?: string | null } | null }>)
+      .map((lead) => [lead.id, lead]),
+  );
 
   // Status breakdown
   const statusCounts: Record<string, number> = {};
@@ -92,6 +114,11 @@ export async function GET(req: NextRequest) {
     totalOutboundCalls: allSessions.length,
     statusBreakdown: statusCounts,
     topLeadsByCallCount: topLeads,
+    recentSessions: buildJeffRecentSessions(
+      allSessions as JeffRecentSessionLite[],
+      Array.from(leadMap.values()) as JeffRecentLeadLite[],
+      8,
+    ),
     autoCycle: {
       activeLeads: (cycleLeads ?? []).length,
       activePhones: (activePhones ?? []).length,

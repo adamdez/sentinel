@@ -17,7 +17,7 @@ import { getDialerUser, createDialerClient } from "@/lib/dialer/db";
 import { isDnc } from "@/lib/dnc-check";
 import { initiateOutboundCall, isBusinessHours } from "@/providers/voice/vapi-adapter";
 import { normalizePhoneForCompare } from "@/lib/dialer/auto-cycle";
-import { getJeffLaunchGate, getJeffQueueEntry, JEFF_OUTBOUND_POLICY_VERSION, updateJeffQueueEntry } from "@/lib/jeff-control";
+import { getJeffLaunchGate, getJeffQueueEntry, getUserProfile, isJeffController, isJeffManualQueueEntry, JEFF_OUTBOUND_POLICY_VERSION, updateJeffQueueEntry } from "@/lib/jeff-control";
 
 function buildSiteUrl(req: NextRequest): string {
   const env = process.env.NEXT_PUBLIC_SITE_URL
@@ -31,6 +31,11 @@ export async function POST(req: NextRequest) {
   const user = await getDialerUser(req.headers.get("authorization"));
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const profile = await getUserProfile(user.id);
+  if (!isJeffController(profile?.email)) {
+    return NextResponse.json({ error: "Only Adam can launch Jeff calls." }, { status: 403 });
   }
 
   let body: { leadId?: string; phoneNumber?: string };
@@ -61,6 +66,9 @@ export async function POST(req: NextRequest) {
 
   const sb = createDialerClient();
   const queueEntry = await getJeffQueueEntry(leadId);
+  if (!isJeffManualQueueEntry(queueEntry)) {
+    return NextResponse.json({ error: "Lead is not active in Jeff queue." }, { status: 403 });
+  }
 
   // ── Fetch lead + phone ──────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

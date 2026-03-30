@@ -71,6 +71,48 @@ type JeffReview = {
   created_at: string;
 };
 
+type JeffActivity = {
+  window: string;
+  since: string;
+  autoRedialEnabled: boolean;
+  autoRedialMode: string;
+  totalOutboundCalls: number;
+  statusBreakdown: Record<string, number>;
+  topLeadsByCallCount: Array<{ leadId: string; count: number }>;
+  recentSessions: Array<{
+    id: string;
+    leadId: string | null;
+    ownerName: string | null;
+    address: string | null;
+    status: string;
+    createdAt: string | null;
+    endedAt: string | null;
+    durationSeconds: number | null;
+    costCents: number | null;
+    transferredTo: string | null;
+    transferReason: string | null;
+    callbackRequested: boolean;
+  }>;
+  autoCycle: {
+    activeLeads: number;
+    activePhones: number;
+    overduePhones: number;
+    pausedPhones: number;
+    pausedDetails: Array<{
+      id: string;
+      leadId: string;
+      consecutiveFailures: number;
+      exitReason: string | null;
+    }>;
+  };
+  alerts: {
+    excessiveCalls: boolean;
+    anyLeadOver50Calls: boolean;
+    pausedPhonesExist: boolean;
+    overduePhonesPiling: boolean;
+  };
+};
+
 function formatCurrency(cents: number | null) {
   if (cents == null) return "-";
   return `$${(cents / 100).toFixed(2)}`;
@@ -87,12 +129,18 @@ function formatDuration(seconds: number) {
   return `${minutes}:${String(remaining).padStart(2, "0")}`;
 }
 
+function formatDateTime(value: string | null) {
+  if (!value) return "unknown";
+  return new Date(value).toLocaleString();
+}
+
 export default function JeffOutboundPage() {
   const [settings, setSettings] = useState<JeffSettings | null>(null);
   const [canControl, setCanControl] = useState(false);
   const [queue, setQueue] = useState<JeffQueueRow[]>([]);
   const [kpis, setKpis] = useState<JeffKpis | null>(null);
   const [reviews, setReviews] = useState<JeffReview[]>([]);
+  const [activity, setActivity] = useState<JeffActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [launchingQueue, setLaunchingQueue] = useState(false);
@@ -102,17 +150,19 @@ export default function JeffOutboundPage() {
     setLoading(true);
     try {
       const headers = await sentinelAuthHeaders(false);
-      const [controlRes, queueRes, kpiRes, reviewRes] = await Promise.all([
+      const [controlRes, queueRes, kpiRes, reviewRes, activityRes] = await Promise.all([
         fetch("/api/voice/jeff/control", { headers, cache: "no-store" }),
         fetch("/api/voice/jeff/queue", { headers, cache: "no-store" }),
         fetch("/api/voice/jeff/kpis", { headers, cache: "no-store" }),
         fetch("/api/voice/jeff/reviews?limit=20", { headers, cache: "no-store" }),
+        fetch("/api/voice/jeff-activity?hours=24", { headers, cache: "no-store" }),
       ]);
 
       const controlJson = await controlRes.json();
       const queueJson = await queueRes.json();
       const kpiJson = await kpiRes.json();
       const reviewJson = await reviewRes.json();
+      const activityJson = await activityRes.json();
 
       if (!controlRes.ok) throw new Error(controlJson.error ?? "Failed to load Jeff control");
       setSettings(controlJson.settings);
@@ -120,6 +170,7 @@ export default function JeffOutboundPage() {
       setQueue(queueJson.queue ?? []);
       setKpis(kpiJson.kpis ?? null);
       setReviews(reviewJson.reviews ?? []);
+      setActivity(activityJson ?? null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load Jeff control center");
     } finally {
@@ -202,6 +253,36 @@ export default function JeffOutboundPage() {
     () => queue.filter((row) => row.queueStatus !== "active" || row.queueTier === "eligible"),
     [queue],
   );
+
+  const reviewStateBySession = useMemo(() => {
+    const map = new Map<string, { score: number | null; tags: string[] }>();
+    for (const review of reviews) {
+      map.set(review.voice_session_id, {
+        score: review.score ?? null,
+        tags: review.review_tags ?? [],
+      });
+    }
+    return map;
+  }, [reviews]);
+
+  const recentReviewSummary = useMemo(() => {
+    const sessions = activity?.recentSessions ?? [];
+    let needsReview = 0;
+    let weakReview = 0;
+
+    for (const session of sessions) {
+      const review = reviewStateBySession.get(session.id);
+      if (!review) {
+        needsReview += 1;
+        continue;
+      }
+      if (review.score != null && review.score < 4) {
+        weakReview += 1;
+      }
+    }
+
+    return { needsReview, weakReview };
+  }, [activity, reviewStateBySession]);
 
   const launchJeffQueue = useCallback(async () => {
     if (!settings || !canControl) return;
@@ -291,6 +372,12 @@ export default function JeffOutboundPage() {
               <Link href="/settings/outbound-pilot" className="rounded-[10px] border border-border/20 bg-muted/5 px-3 py-1.5 text-muted-foreground hover:text-foreground transition-colors">
                 Prep & Readiness
               </Link>
+              <span className="rounded-[10px] border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-amber-100">
+                {recentReviewSummary.needsReview} need review
+              </span>
+              <span className="rounded-[10px] border border-red-500/20 bg-red-500/10 px-3 py-1.5 text-red-100">
+                {recentReviewSummary.weakReview} weak
+              </span>
             </div>
 
             {!canControl && (
@@ -459,6 +546,184 @@ export default function JeffOutboundPage() {
               </div>
             </GlassCard>
           </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <GlassCard hover={false} className="xl:col-span-2 space-y-3">
+              <div className="flex items-center gap-2">
+                <PhoneCall className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold">Recent Jeff activity</h3>
+                <Badge variant="outline">{activity?.window ?? "24h"}</Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="rounded-xl border border-border/15 bg-muted/5 p-3">
+                  <div className="text-lg font-semibold">{activity?.totalOutboundCalls ?? 0}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground/60">Outbound Calls</div>
+                </div>
+                <div className="rounded-xl border border-border/15 bg-muted/5 p-3">
+                  <div className="text-lg font-semibold">{activity?.autoCycle.activeLeads ?? 0}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground/60">Auto Leads</div>
+                </div>
+                <div className="rounded-xl border border-border/15 bg-muted/5 p-3">
+                  <div className="text-lg font-semibold">{activity?.autoCycle.overduePhones ?? 0}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground/60">Overdue Phones</div>
+                </div>
+                <div className="rounded-xl border border-border/15 bg-muted/5 p-3">
+                  <div className="text-lg font-semibold">{activity?.autoCycle.pausedPhones ?? 0}</div>
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground/60">Paused Phones</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-border/15 bg-muted/5 p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">Status Breakdown</div>
+                  <div className="space-y-2">
+                    {activity && Object.keys(activity.statusBreakdown).length > 0 ? (
+                      Object.entries(activity.statusBreakdown).map(([status, count]) => (
+                        <div key={status} className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground/70">{status}</span>
+                          <span className="font-medium">{count}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-muted-foreground/60">No Jeff call activity yet.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border/15 bg-muted/5 p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">Most-Called Leads</div>
+                  <div className="space-y-2">
+                    {activity?.topLeadsByCallCount?.length ? (
+                      activity.topLeadsByCallCount.map((lead) => (
+                        <div key={lead.leadId} className="flex items-center justify-between text-sm">
+                          <span className="font-mono text-muted-foreground/70">{lead.leadId.slice(0, 8)}</span>
+                          <span className="font-medium">{lead.count} calls</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-muted-foreground/60">No repeated Jeff leads in this window.</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+
+            <GlassCard hover={false} className="space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold">Health alerts</h3>
+              </div>
+              <div className="space-y-2">
+                {activity?.alerts.excessiveCalls ? (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+                    Jeff volume is unusually high for this window.
+                  </div>
+                ) : null}
+                {activity?.alerts.anyLeadOver50Calls ? (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+                    At least one lead has been called more than 50 times in this window.
+                  </div>
+                ) : null}
+                {activity?.alerts.pausedPhonesExist ? (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+                    Some auto phones are paused from repeated failures.
+                  </div>
+                ) : null}
+                {activity?.alerts.overduePhonesPiling ? (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+                    Overdue auto phones are piling up.
+                  </div>
+                ) : null}
+                {!activity?.alerts.excessiveCalls && !activity?.alerts.anyLeadOver50Calls && !activity?.alerts.pausedPhonesExist && !activity?.alerts.overduePhonesPiling ? (
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-sm text-emerald-100">
+                    No current Jeff health alerts in the selected window.
+                  </div>
+                ) : null}
+              </div>
+              {activity?.autoCycle.pausedDetails?.length ? (
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/60">Paused Phone Details</div>
+                  {activity.autoCycle.pausedDetails.slice(0, 4).map((phone) => (
+                    <div key={phone.id} className="rounded-xl border border-border/15 bg-muted/5 p-3 text-sm">
+                      <div className="font-mono text-muted-foreground/70">{phone.leadId.slice(0, 8)}</div>
+                      <div className="mt-1 text-muted-foreground/70">{phone.exitReason ?? "unknown exit"}</div>
+                      <div className="mt-1 text-xs text-muted-foreground/60">{phone.consecutiveFailures} consecutive failures</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </GlassCard>
+          </div>
+
+          <GlassCard hover={false} className="space-y-3">
+            <div className="flex items-center gap-2">
+              <PhoneCall className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">Recent call outcomes</h3>
+              <Badge variant="outline">{activity?.recentSessions?.length ?? 0} shown</Badge>
+            </div>
+            <p className="text-sm text-muted-foreground/70">
+              Launch Jeff here, then use this feed to spot weak transfers, callback misses, and unexpected call states right away.
+            </p>
+            <div className="space-y-2">
+              {activity?.recentSessions?.length ? (
+                activity.recentSessions.map((session) => (
+                  <div key={session.id} className="rounded-xl border border-border/15 bg-muted/5 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <div className="text-sm font-medium">
+                          {session.ownerName ?? (session.leadId ? `Lead ${session.leadId.slice(0, 8)}` : "Unknown lead")}
+                        </div>
+                        <div className="text-xs text-muted-foreground/60">
+                          {session.address ?? "Address unavailable"}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="outline">{session.status}</Badge>
+                        {!reviewStateBySession.has(session.id) ? (
+                          <Badge variant="secondary" className="border-amber-500/30 bg-amber-500/10 text-amber-200">
+                            Needs review
+                          </Badge>
+                        ) : reviewStateBySession.get(session.id)?.score != null && (reviewStateBySession.get(session.id)?.score ?? 0) < 4 ? (
+                          <Badge variant="secondary" className="border-red-500/30 bg-red-500/10 text-red-200">
+                            Weak review
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-200">
+                            Reviewed
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground/70">
+                      <span>Started {formatDateTime(session.createdAt)}</span>
+                      <span>Duration {formatDuration(session.durationSeconds ?? 0)}</span>
+                      <span>Cost {formatCurrency(session.costCents ?? 0)}</span>
+                      {session.transferredTo ? <span>Transferred</span> : null}
+                      {session.callbackRequested ? <span>Callback requested</span> : null}
+                    </div>
+                    {session.transferReason ? (
+                      <div className="mt-2 text-xs text-emerald-200/80">
+                        Transfer reason: {session.transferReason}
+                      </div>
+                    ) : null}
+                    {reviewStateBySession.get(session.id)?.tags?.length ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {reviewStateBySession.get(session.id)!.tags.slice(0, 4).map((tag) => (
+                          <Badge key={tag} variant="outline" className="text-[10px]">
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-dashed border-border/20 p-4 text-sm text-muted-foreground/70">
+                  No recent Jeff call outcomes yet.
+                </div>
+              )}
+            </div>
+          </GlassCard>
 
           <GlassCard hover={false} className="space-y-3">
             <div className="flex items-center gap-2">

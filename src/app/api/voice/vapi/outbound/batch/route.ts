@@ -17,7 +17,7 @@ import { getDialerUser, createDialerClient } from "@/lib/dialer/db";
 import { isDnc } from "@/lib/dnc-check";
 import { initiateOutboundCall, isBusinessHours } from "@/providers/voice/vapi-adapter";
 import { normalizePhoneForCompare } from "@/lib/dialer/auto-cycle";
-import { getJeffLaunchGate, getJeffQueueEntry, JEFF_OUTBOUND_POLICY_VERSION, updateJeffQueueEntry } from "@/lib/jeff-control";
+import { getJeffLaunchGate, getJeffQueueEntry, getUserProfile, isJeffCallableQueueEntry, isJeffController, JEFF_OUTBOUND_POLICY_VERSION, updateJeffQueueEntry } from "@/lib/jeff-control";
 
 const MAX_BATCH_SIZE = 10;
 
@@ -35,6 +35,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const profile = await getUserProfile(user.id);
+  if (!isJeffController(profile?.email)) {
+    return NextResponse.json({ error: "Only Adam can launch Jeff batches." }, { status: 403 });
+  }
+
   let body: { leadIds?: string[] };
   try {
     body = await req.json();
@@ -49,7 +54,7 @@ export async function POST(req: NextRequest) {
 
   // ── Business hours gate ───────────────────────────────────────────────
   const hours = isBusinessHours();
-  const gate = await getJeffLaunchGate("manual_priority", {
+  const gate = await getJeffLaunchGate("supervised_queue", {
     isBusinessHoursOpen: hours.isOpen,
     nextOpenTime: hours.nextOpenTime,
   });
@@ -89,6 +94,10 @@ export async function POST(req: NextRequest) {
 
   for (const lead of leads) {
     const queueEntry = await getJeffQueueEntry(String(lead.id));
+    if (!isJeffCallableQueueEntry(queueEntry)) {
+      skipped.push({ leadId: String(lead.id), reason: "Lead is not active in Jeff callable queue" });
+      continue;
+    }
     const phones = (lead.lead_phones as Array<{ phone: string; is_primary: boolean; position: number }>) ?? [];
     const sorted = [...phones].sort((a, b) => {
       if (a.is_primary && !b.is_primary) return -1;
@@ -202,8 +211,8 @@ export async function POST(req: NextRequest) {
         metadata: {
           batch_id: batchId,
           initiated_by: user.id,
-          source: "jeff-manual-batch",
-          jeff_lane: "manual_priority",
+          source: "jeff-supervised-batch",
+          jeff_lane: "supervised_queue",
           jeff_policy_version: gate.settings.policyVersion ?? JEFF_OUTBOUND_POLICY_VERSION,
         },
         auto_cycle_lead_id: autoCycleLeadId,

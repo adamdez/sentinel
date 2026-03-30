@@ -68,3 +68,74 @@ describe("Jeff KPI aggregation", () => {
     expect(snapshot.qualityReviewPassRate).toBe(0.5);
   });
 });
+
+describe("Jeff recent session shaping", () => {
+  it("keeps recent outcomes human-readable for the Jeff control center", async () => {
+    const { buildJeffRecentSessions } = await import("@/lib/jeff-control");
+    const recent = buildJeffRecentSessions(
+      [
+        {
+          id: "s1",
+          status: "transferred",
+          lead_id: "lead-1",
+          created_at: "2026-03-30T16:00:00.000Z",
+          duration_seconds: 181,
+          cost_cents: 245,
+          transferred_to: "+15095550000",
+          transfer_reason: "Seller is ready for Logan now",
+          callback_requested: false,
+        },
+        {
+          id: "s2",
+          status: "completed",
+          lead_id: "lead-2",
+          created_at: "2026-03-30T17:00:00.000Z",
+          duration_seconds: 63,
+          cost_cents: 90,
+          callback_requested: true,
+        },
+      ],
+      [
+        { id: "lead-1", properties: { owner_name: "Ada Seller", address: "123 Main St" } },
+        { id: "lead-2", properties: { owner_name: "Ben Owner", address: "456 Oak Ave" } },
+      ],
+      8,
+    );
+
+    expect(recent).toEqual([
+      expect.objectContaining({
+        id: "s1",
+        leadId: "lead-1",
+        ownerName: "Ada Seller",
+        address: "123 Main St",
+        status: "transferred",
+        transferredTo: "+15095550000",
+        transferReason: "Seller is ready for Logan now",
+        callbackRequested: false,
+      }),
+      expect.objectContaining({
+        id: "s2",
+        leadId: "lead-2",
+        ownerName: "Ben Owner",
+        address: "456 Oak Ave",
+        status: "completed",
+        callbackRequested: true,
+      }),
+    ]);
+  });
+});
+
+describe("Jeff queue launch rules", () => {
+  it("distinguishes manual-eligible from callable queue entries", async () => {
+    const { isJeffCallableQueueEntry, isJeffManualQueueEntry } = await import("@/lib/jeff-control");
+
+    expect(isJeffManualQueueEntry({ queueStatus: "active", queueTier: "eligible" } as never)).toBe(true);
+    expect(isJeffCallableQueueEntry({ queueStatus: "active", queueTier: "eligible" } as never)).toBe(false);
+
+    expect(isJeffManualQueueEntry({ queueStatus: "active", queueTier: "active" } as never)).toBe(true);
+    expect(isJeffCallableQueueEntry({ queueStatus: "active", queueTier: "active" } as never)).toBe(true);
+
+    expect(isJeffManualQueueEntry({ queueStatus: "paused", queueTier: "auto" } as never)).toBe(false);
+    expect(isJeffCallableQueueEntry({ queueStatus: "removed", queueTier: "auto" } as never)).toBe(false);
+  });
+});
