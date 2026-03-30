@@ -140,13 +140,16 @@ export async function POST(req: NextRequest) {
     } else if ((step === "adam" || (step === "logan" && !adamIdentity)) && vapiNumber && !isTransfer) {
       // Adam's browser didn't answer → forward to Jeff (Vapi AI)
       // ONLY for regular inbound. Vapi transfers skip this step to prevent looping.
-      // callerId stays as twilioNumber for Jeff (PSTN number dial, not browser Client)
+      // Preserve the original caller when handing off to Jeff so Vapi can
+      // identify the real customer and we avoid sending our own Twilio number
+      // back into the Jeff leg.
+      const callerIdForJeff = originalFrom || fromNumber || twilioNumber;
       console.log(`[inbound] ${step} browser missed → forwarding to Jeff (Vapi)`);
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
         ...chainStreamLines,
-        `  <Dial callerId="${twilioNumber}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status" method="POST">`,
+        `  <Dial callerId="${callerIdForJeff}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status" method="POST">`,
         `    <Number>${vapiNumber}</Number>`,
         "  </Dial>",
         "</Response>",

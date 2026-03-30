@@ -1,5 +1,20 @@
 [
   {
+    "hash": "ff6c6969",
+    "date": "2026-03-30",
+    "message": "Fix Vapi assistant setup fallback"
+  },
+  {
+    "hash": "7d516ce4",
+    "date": "2026-03-30",
+    "message": "Remove redundant comms rail tile"
+  },
+  {
+    "hash": "c4d80324",
+    "date": "2026-03-30",
+    "message": "Fix SMS thread auto-scroll resets"
+  },
+  {
     "hash": "6238a960",
     "date": "2026-03-30",
     "message": "Refine dialer layout hierarchy"
@@ -108,20 +123,5 @@
     "hash": "246c9748",
     "date": "2026-03-27",
     "message": "[cursor] Add active lead pinning to queue and pipeline"
-  },
-  {
-    "hash": "3925294a",
-    "date": "2026-03-27",
-    "message": "feat: add lead pinning — DB columns, API endpoint, type + mapping"
-  },
-  {
-    "hash": "8b3d8515",
-    "date": "2026-03-27",
-    "message": "fix: move useEffect after fetchStatus definition to prevent client-side crash"
-  },
-  {
-    "hash": "c8c22ae1",
-    "date": "2026-03-27",
-    "message": "feat: PPL Intake Queue — full pipeline with Gmail auto-poll, claim workflow, and sidebar nav"
   }
 ]
