@@ -23,12 +23,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const hours = Math.min(
-    Number(req.nextUrl.searchParams.get("hours") ?? "24"),
-    168,
+  const fromParam = req.nextUrl.searchParams.get("from");
+  const toParam = req.nextUrl.searchParams.get("to");
+  const parsedFrom = fromParam ? new Date(fromParam) : null;
+  const parsedTo = toParam ? new Date(toParam) : null;
+  const hasExplicitRange = Boolean(
+    parsedFrom && !Number.isNaN(parsedFrom.getTime()) && parsedTo && !Number.isNaN(parsedTo.getTime()),
   );
 
-  const since = new Date(Date.now() - hours * 60 * 60_000).toISOString();
+  const hours = Math.min(
+    Number(req.nextUrl.searchParams.get("hours") ?? "24"),
+    24 * 365,
+  );
+
+  const since = hasExplicitRange
+    ? parsedFrom!.toISOString()
+    : new Date(Date.now() - hours * 60 * 60_000).toISOString();
+  const until = hasExplicitRange
+    ? parsedTo!.toISOString()
+    : new Date().toISOString();
 
   // ── Outbound call stats ──────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,6 +49,7 @@ export async function GET(req: NextRequest) {
     .select("id, status, lead_id, created_at, ended_at, vapi_call_id, duration_seconds, cost_cents, transferred_to, transfer_reason, callback_requested")
     .eq("direction", "outbound")
     .gte("created_at", since)
+    .lte("created_at", until)
     .order("created_at", { ascending: false });
 
   const allSessions = sessions ?? [];
@@ -107,8 +121,9 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
 
   return NextResponse.json({
-    window: `${hours}h`,
+    window: hasExplicitRange ? "custom" : `${hours}h`,
     since,
+    until,
     autoRedialEnabled: flag?.enabled ?? false,
     autoRedialMode: flag?.mode ?? "unknown",
     totalOutboundCalls: allSessions.length,

@@ -75,6 +75,7 @@ type JeffReview = {
 type JeffActivity = {
   window: string;
   since: string;
+  until?: string | null;
   autoRedialEnabled: boolean;
   autoRedialMode: string;
   totalOutboundCalls: number;
@@ -119,6 +120,8 @@ type ReviewDraft = {
   notes: string;
   tags: string[];
 };
+
+type JeffRangePreset = "today" | "week" | "month" | "year" | "all";
 
 const JEFF_REVIEW_TAG_OPTIONS = [
   "great opener",
@@ -202,6 +205,36 @@ function formatDateTime(value: string | null) {
   return new Date(value).toLocaleString();
 }
 
+function formatDateInputValue(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildJeffRange(preset: JeffRangePreset) {
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  if (preset === "week") {
+    const day = start.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    start.setDate(start.getDate() - diff);
+  } else if (preset === "month") {
+    start.setDate(1);
+  } else if (preset === "year") {
+    start.setMonth(0, 1);
+  } else if (preset === "all") {
+    start.setFullYear(now.getFullYear() - 5);
+  }
+
+  return {
+    from: formatDateInputValue(start),
+    to: formatDateInputValue(now),
+  };
+}
+
 export default function JeffOutboundPage() {
   const [settings, setSettings] = useState<JeffSettings | null>(null);
   const [canControl, setCanControl] = useState(false);
@@ -215,17 +248,24 @@ export default function JeffOutboundPage() {
   const [leadIdsDraft, setLeadIdsDraft] = useState("");
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewDraft>>({});
   const [savingReviewId, setSavingReviewId] = useState<string | null>(null);
+  const [rangePreset, setRangePreset] = useState<JeffRangePreset>("today");
+  const [rangeFrom, setRangeFrom] = useState(() => buildJeffRange("today").from);
+  const [rangeTo, setRangeTo] = useState(() => buildJeffRange("today").to);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const headers = await sentinelAuthHeaders(false);
+      const rangeParams = new URLSearchParams({
+        from: new Date(`${rangeFrom}T00:00:00`).toISOString(),
+        to: new Date(`${rangeTo}T23:59:59.999`).toISOString(),
+      });
       const [controlRes, queueRes, kpiRes, reviewRes, activityRes] = await Promise.all([
         fetch("/api/voice/jeff/control", { headers, cache: "no-store" }),
         fetch("/api/voice/jeff/queue", { headers, cache: "no-store" }),
-        fetch("/api/voice/jeff/kpis", { headers, cache: "no-store" }),
+        fetch(`/api/voice/jeff/kpis?${rangeParams}`, { headers, cache: "no-store" }),
         fetch("/api/voice/jeff/reviews?limit=20", { headers, cache: "no-store" }),
-        fetch("/api/voice/jeff-activity?hours=24", { headers, cache: "no-store" }),
+        fetch(`/api/voice/jeff-activity?${rangeParams}`, { headers, cache: "no-store" }),
       ]);
 
       const controlJson = await controlRes.json();
@@ -246,7 +286,7 @@ export default function JeffOutboundPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [rangeFrom, rangeTo]);
 
   useEffect(() => {
     load();
@@ -254,8 +294,12 @@ export default function JeffOutboundPage() {
 
   const refreshJeffFeedback = useCallback(async () => {
     const headers = await sentinelAuthHeaders(false);
+    const rangeParams = new URLSearchParams({
+      from: new Date(`${rangeFrom}T00:00:00`).toISOString(),
+      to: new Date(`${rangeTo}T23:59:59.999`).toISOString(),
+    });
     const [kpiRes, reviewRes] = await Promise.all([
-      fetch("/api/voice/jeff/kpis", { headers, cache: "no-store" }),
+      fetch(`/api/voice/jeff/kpis?${rangeParams}`, { headers, cache: "no-store" }),
       fetch("/api/voice/jeff/reviews?limit=20", { headers, cache: "no-store" }),
     ]);
 
@@ -267,6 +311,13 @@ export default function JeffOutboundPage() {
 
     setKpis(kpiJson.kpis ?? null);
     setReviews(reviewJson.reviews ?? []);
+  }, [rangeFrom, rangeTo]);
+
+  const applyRangePreset = useCallback((preset: JeffRangePreset) => {
+    const next = buildJeffRange(preset);
+    setRangePreset(preset);
+    setRangeFrom(next.from);
+    setRangeTo(next.to);
   }, []);
 
   const saveSettings = useCallback(async (patch: Partial<JeffSettings>) => {
@@ -637,9 +688,48 @@ export default function JeffOutboundPage() {
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
             <GlassCard hover={false} className="xl:col-span-2 space-y-3">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold">Jeff KPI snapshot</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Jeff KPI snapshot</h3>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {(["today", "week", "month", "year", "all"] as JeffRangePreset[]).map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => applyRangePreset(preset)}
+                      className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-wide transition-colors ${
+                        rangePreset === preset
+                          ? "border-primary/40 bg-primary/12 text-primary"
+                          : "border-border/20 bg-muted/5 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {preset === "all" ? "All time" : preset}
+                    </button>
+                  ))}
+                  <Input
+                    type="date"
+                    value={rangeFrom}
+                    onChange={(event) => {
+                      setRangePreset("all");
+                      setRangeFrom(event.target.value);
+                    }}
+                    className="h-8 w-[150px]"
+                  />
+                  <Input
+                    type="date"
+                    value={rangeTo}
+                    onChange={(event) => {
+                      setRangePreset("all");
+                      setRangeTo(event.target.value);
+                    }}
+                    className="h-8 w-[150px]"
+                  />
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground/60">
+                Showing {rangeFrom} through {rangeTo}
               </div>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
                 {[
