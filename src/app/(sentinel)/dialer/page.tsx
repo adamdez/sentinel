@@ -762,6 +762,7 @@ function DialerPageInner() {
   const [selectedKpiPreset, setSelectedKpiPreset] = useState<DialerKpiPreset>("today");
   const [customKpiFrom, setCustomKpiFrom] = useState("");
   const [customKpiTo, setCustomKpiTo] = useState("");
+  const [scoreboardExpanded, setScoreboardExpanded] = useState(false);
   const kpiSelection = useMemo(
     () => (
       selectedKpiPreset === "custom"
@@ -2672,6 +2673,131 @@ function DialerPageInner() {
         )}
       </AnimatePresence>
 
+      <div className="mb-3 rounded-[16px] border border-overlay-6 bg-overlay-2 p-3 shadow-[0_16px_40px_var(--shadow-soft)]">
+        <button
+          type="button"
+          onClick={() => setScoreboardExpanded((value) => !value)}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/60">Dialer Scoreboard</p>
+            <p className="mt-1 text-sm text-muted-foreground/75">
+              {scoreboardExpanded
+                ? "Your pace first, team pace second, all from one shared time range."
+                : `Collapsed by default so calling stays first. Showing ${kpiDateInputValue(kpiSnapshot.range.from) || "Beginning"} to ${kpiDateInputValue(kpiSnapshot.range.to) || "Now"}.`}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
+            {!scoreboardExpanded && (
+              <div className="hidden items-center gap-2 text-xs text-muted-foreground/65 sm:flex">
+                {KPI_GROUPS.map((group) => (
+                  <div key={group.key} className="rounded-full border border-overlay-6 bg-overlay-3 px-2.5 py-1">
+                    <span className="uppercase tracking-[0.18em]">{group.label}</span>
+                    <span className="ml-2 font-medium text-foreground/85">
+                      {(group.format ? group.format(kpiSnapshot.metrics[group.key].user) : kpiSnapshot.metrics[group.key].user.toString())}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-overlay-6 bg-overlay-3 text-muted-foreground transition-colors hover:text-foreground">
+              <ChevronRight className={cn("h-4 w-4 transition-transform", scoreboardExpanded && "rotate-90")} />
+            </span>
+          </div>
+        </button>
+
+        {scoreboardExpanded && (
+          <div className="mt-3 border-t border-overlay-6 pt-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div className="flex flex-col gap-2 xl:items-start">
+                <div className="flex flex-wrap gap-2">
+                  {KPI_PERIOD_LABELS.map((period) => (
+                    <button
+                      key={period.key}
+                      type="button"
+                      onClick={() => setSelectedKpiPreset(period.key)}
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-xs font-medium uppercase tracking-[0.18em] transition-colors",
+                        selectedKpiPreset === period.key
+                          ? "border-primary/30 bg-primary/10 text-primary"
+                          : "border-overlay-6 bg-overlay-3 text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {period.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/55">From</label>
+                    <Input
+                      type="date"
+                      value={customKpiFrom}
+                      max={customKpiTo || undefined}
+                      onChange={(event) => {
+                        const nextFrom = event.target.value;
+                        setCustomKpiFrom(nextFrom);
+                        setSelectedKpiPreset("custom");
+                        if (customKpiTo && nextFrom && customKpiTo < nextFrom) {
+                          setCustomKpiTo(nextFrom);
+                        }
+                      }}
+                      className="h-9 w-[152px] border-overlay-6 bg-overlay-3 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/55">To</label>
+                    <Input
+                      type="date"
+                      value={customKpiTo}
+                      min={customKpiFrom || undefined}
+                      onChange={(event) => {
+                        setCustomKpiTo(event.target.value);
+                        setSelectedKpiPreset("custom");
+                      }}
+                      className="h-9 w-[152px] border-overlay-6 bg-overlay-3 text-sm"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 px-3 text-xs uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setCustomKpiFrom("");
+                      setCustomKpiTo("");
+                      setSelectedKpiPreset("today");
+                    }}
+                  >
+                    Reset
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground/60">
+              <span>Showing</span>
+              <span className="font-medium text-foreground/80">{kpiDateInputValue(kpiSnapshot.range.from) || "Beginning"}</span>
+              <span>to</span>
+              <span className="font-medium text-foreground/80">{kpiDateInputValue(kpiSnapshot.range.to) || "Now"}</span>
+            </div>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+              {KPI_GROUPS.map((group) => (
+                <DialerKpiGroup
+                  key={group.key}
+                  label={group.label}
+                  icon={group.icon}
+                  accentClass={group.accentClass}
+                  personal={kpiSnapshot.metrics[group.key].user}
+                  team={kpiSnapshot.metrics[group.key].team}
+                  loading={statsLoading}
+                  format={group.format}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Quick Manual Dial ─────────────────────────────────────────── */}
       <GlassCard hover={false} className="!p-3 mb-3">
         <div className="flex items-center gap-2 mb-2">
@@ -2897,101 +3023,6 @@ function DialerPageInner() {
           </div>
         )}
       </GlassCard>
-
-      <div className="mb-3 rounded-[16px] border border-overlay-6 bg-overlay-2 p-3 shadow-[0_16px_40px_var(--shadow-soft)]">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/60">Dialer Scoreboard</p>
-            <p className="mt-1 text-sm text-muted-foreground/75">
-              Your pace first, team pace second, all from one shared time range.
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 xl:items-end">
-            <div className="flex flex-wrap gap-2">
-              {KPI_PERIOD_LABELS.map((period) => (
-                <button
-                  key={period.key}
-                  type="button"
-                  onClick={() => setSelectedKpiPreset(period.key)}
-                  className={cn(
-                    "rounded-full border px-3 py-1.5 text-xs font-medium uppercase tracking-[0.18em] transition-colors",
-                    selectedKpiPreset === period.key
-                      ? "border-primary/30 bg-primary/10 text-primary"
-                      : "border-overlay-6 bg-overlay-3 text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {period.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/55">From</label>
-                <Input
-                  type="date"
-                  value={customKpiFrom}
-                  max={customKpiTo || undefined}
-                  onChange={(event) => {
-                    const nextFrom = event.target.value;
-                    setCustomKpiFrom(nextFrom);
-                    setSelectedKpiPreset("custom");
-                    if (customKpiTo && nextFrom && customKpiTo < nextFrom) {
-                      setCustomKpiTo(nextFrom);
-                    }
-                  }}
-                  className="h-9 w-[152px] border-overlay-6 bg-overlay-3 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/55">To</label>
-                <Input
-                  type="date"
-                  value={customKpiTo}
-                  min={customKpiFrom || undefined}
-                  onChange={(event) => {
-                    setCustomKpiTo(event.target.value);
-                    setSelectedKpiPreset("custom");
-                  }}
-                  className="h-9 w-[152px] border-overlay-6 bg-overlay-3 text-sm"
-                />
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-9 px-3 text-xs uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground"
-                onClick={() => {
-                  setCustomKpiFrom("");
-                  setCustomKpiTo("");
-                  setSelectedKpiPreset("today");
-                }}
-              >
-                Reset
-              </Button>
-            </div>
-          </div>
-        </div>
-        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground/60">
-          <span>Showing</span>
-          <span className="font-medium text-foreground/80">{kpiDateInputValue(kpiSnapshot.range.from) || "Beginning"}</span>
-          <span>to</span>
-          <span className="font-medium text-foreground/80">{kpiDateInputValue(kpiSnapshot.range.to) || "Now"}</span>
-        </div>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-          {KPI_GROUPS.map((group) => (
-            <DialerKpiGroup
-              key={group.key}
-              label={group.label}
-              icon={group.icon}
-              accentClass={group.accentClass}
-              personal={kpiSnapshot.metrics[group.key].user}
-              team={kpiSnapshot.metrics[group.key].team}
-              loading={statsLoading}
-              format={group.format}
-            />
-          ))}
-        </div>
-      </div>
 
       {/* ── Incoming Call Overlay ────────────────────────────────────── */}
       <AnimatePresence>
