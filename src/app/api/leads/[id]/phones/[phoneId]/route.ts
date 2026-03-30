@@ -7,7 +7,7 @@ import { requireAuth } from "@/lib/api-auth";
  *
  * Update a phone's status (mark dead, reactivate, or DNC).
  * When the primary phone is marked dead, auto-promotes the next active phone
- * and syncs properties.owner_phone to keep the dialer queue working.
+ * and syncs properties.owner_phone as a legacy compatibility mirror.
  */
 export async function PATCH(
   req: NextRequest,
@@ -91,7 +91,7 @@ export async function PATCH(
         await (sb.from("lead_phones") as any).update({ is_primary: true }).eq("id", next.id);
         newPrimaryPhone = next.phone;
 
-        // Sync properties.owner_phone
+        // Sync properties.owner_phone for legacy callers that still expect a primary mirror.
         if (phoneRecord.property_id) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           await (sb.from("properties") as any)
@@ -99,7 +99,7 @@ export async function PATCH(
             .eq("id", phoneRecord.property_id);
         }
       } else {
-        // No active phones left — clear owner_phone so lead drops from dialer queue
+        // No active phones left — clear the legacy primary-phone mirror.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (sb.from("lead_phones") as any).update({ is_primary: false }).eq("id", phoneId);
         if (phoneRecord.property_id) {

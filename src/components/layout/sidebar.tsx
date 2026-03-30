@@ -118,12 +118,12 @@ const toolsSection: NavSection = {
 };
 
 const reviewSection: NavSection = {
-  title: "Review",
+  title: "Ops Review",
   items: [
     { label: "Research Review", href: "/dialer/review/dossier-queue", icon: ShieldCheck, badge: "review-queue" },
     { label: "Call QA", href: "/dialer/qa", icon: ShieldCheck },
     { label: "Call Review", href: "/dialer/war-room", icon: Phone },
-    { label: "Review Console", href: "/dialer/review", icon: BarChart3 },
+    { label: "Dialer Ops Metrics", href: "/dialer/review", icon: BarChart3 },
   ],
 };
 
@@ -364,11 +364,12 @@ function SidebarFooter({ isPsalm20 }: { isPsalm20: boolean }) {
 }
 
 export function Sidebar() {
-  const { sidebarOpen, sidebarWidth, setSidebarWidth } = useSentinelStore();
+  const { sidebarOpen, sidebarWidth, setSidebarWidth, currentUser } = useSentinelStore();
   const badges = useSidebarBadges();
   const hydrated = useHydrated();
   const [isResizing, setIsResizing] = useState(false);
   const isPsalm20 = usePsalm20();
+  const showReviewSection = currentUser.role === "admin";
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -442,7 +443,7 @@ export function Sidebar() {
               ))}
             </div>
             <SidebarSection section={toolsSection} badges={badges} defaultCollapsed />
-            <SidebarSection section={reviewSection} badges={badges} defaultCollapsed />
+            {showReviewSection && <SidebarSection section={reviewSection} badges={badges} defaultCollapsed />}
             <SidebarSection section={adminSection} badges={badges} defaultCollapsed />
           </nav>
 

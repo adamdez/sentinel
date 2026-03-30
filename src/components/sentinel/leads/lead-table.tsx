@@ -151,6 +151,7 @@ export function LeadTable({
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkClaiming, setBulkClaiming] = useState(false);
   const [bulkAutoCycling, setBulkAutoCycling] = useState(false);
+  const [bulkQueueing, setBulkQueueing] = useState(false);
 
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
   const someSelected = selectedIds.size > 0;
@@ -319,6 +320,53 @@ export function LeadTable({
     }
   }, [selectedIds, onRefresh]);
 
+  const handleBulkAddToDialQueue = useCallback(async () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    setBulkQueueing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired. Please sign in again.");
+        return;
+      }
+
+      const res = await fetch("/api/dialer/v1/dial-queue", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ leadIds: Array.from(selectedIds) }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to add leads to dial queue");
+        return;
+      }
+
+      const queuedCount = Array.isArray(data.queuedIds) ? data.queuedIds.length : 0;
+      const conflictedCount = Array.isArray(data.conflictedIds) ? data.conflictedIds.length : 0;
+      const missingCount = Array.isArray(data.missingIds) ? data.missingIds.length : 0;
+
+      setSelectedIds(new Set());
+
+      if (conflictedCount > 0 || missingCount > 0) {
+        const pieces = [`Queued ${queuedCount}`];
+        if (conflictedCount > 0) pieces.push(`blocked ${conflictedCount} already-owned`);
+        if (missingCount > 0) pieces.push(`missing ${missingCount}`);
+        toast.warning(pieces.join(", "));
+      } else {
+        toast.success(`Added ${queuedCount} lead${queuedCount === 1 ? "" : "s"} to Dial Queue`);
+      }
+
+      onRefresh?.();
+    } finally {
+      setBulkQueueing(false);
+    }
+  }, [selectedIds, onRefresh]);
+
   const addToQueue = useCallback(async (leadId: string) => {
     setQueuingId(leadId);
     try {
@@ -368,6 +416,22 @@ export function LeadTable({
             {bulkClaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3 w-3" />}
             Claim Leads ({selectedIds.size})
           </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleBulkAddToDialQueue}
+                disabled={bulkQueueing}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary/10 text-primary border border-primary/25 hover:bg-primary/20 transition-colors disabled:opacity-50"
+              >
+                {bulkQueueing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Phone className="h-3 w-3" />}
+                Add to Dial Queue ({selectedIds.size})
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs text-xs">
+              Claims unclaimed leads to you and adds them to your manual dial queue. Leads owned by someone else stay blocked.
+            </TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <button

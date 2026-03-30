@@ -27,11 +27,9 @@ import { supabase } from "@/lib/supabase";
 import {
   useDialerQueue,
   useAutoCycleQueue,
-  useDialerStats,
+  useDialerKpis,
   useCallTimer,
-  fetchDialerKpis,
   type QueueLead,
-  type DialerStats,
   type AutoCycleQueueLead,
 } from "@/hooks/use-dialer";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
@@ -57,12 +55,63 @@ import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
 import type { LeadPhone } from "@/lib/dialer/types";
 import type { JeffCallStatus } from "@/lib/dialer/jeff-batch-types";
 import { useTwilio } from "@/providers/twilio-provider";
+import {
+  formatTalkTime,
+  kpiDateInputValue,
+  type DialerKpiPreset,
+  type DialerKpiSnapshot,
+} from "@/lib/dialer-kpis";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
   return headers;
+}
+
+type DialerStats = {
+  myOutbound: number;
+  myInbound: number;
+  myLiveAnswers: number;
+  myAvgTalkTime: number;
+  teamOutbound: number;
+  teamInbound: number;
+};
+
+async function fetchDialerKpis(
+  _userId: string,
+  period: "today" | "week" | "month" | "all",
+): Promise<{ my: DialerStats; team: DialerStats }> {
+  const response = await fetch(
+    `/api/dialer/v1/kpis?preset=${encodeURIComponent(period)}`,
+    { headers: await authHeaders(), cache: "no-store" },
+  );
+  if (!response.ok) {
+    return {
+      my: { myOutbound: 0, myInbound: 0, myLiveAnswers: 0, myAvgTalkTime: 0, teamOutbound: 0, teamInbound: 0 },
+      team: { myOutbound: 0, myInbound: 0, myLiveAnswers: 0, myAvgTalkTime: 0, teamOutbound: 0, teamInbound: 0 },
+    };
+  }
+
+  const snapshot = (await response.json()) as DialerKpiSnapshot;
+  return {
+    my: {
+      myOutbound: snapshot.metrics.outbound.user,
+      myInbound: snapshot.metrics.inbound.user,
+      myLiveAnswers: snapshot.metrics.pickups.user,
+      myAvgTalkTime: snapshot.metrics.talkTimeSec.user,
+      teamOutbound: snapshot.metrics.outbound.team,
+      teamInbound: snapshot.metrics.inbound.team,
+    },
+    team: {
+      myOutbound: snapshot.metrics.outbound.team,
+      myInbound: snapshot.metrics.inbound.team,
+      myLiveAnswers: snapshot.metrics.pickups.team,
+      myAvgTalkTime: snapshot.metrics.talkTimeSec.team,
+      teamOutbound: snapshot.metrics.outbound.team,
+      teamInbound: snapshot.metrics.inbound.team,
+    },
+  };
 }
 
 // ── Transfer Brief (full shape from /api/dialer/v1/transfer-brief) ────────
@@ -290,6 +339,76 @@ function StatDetailModal({ kpiKey, userId, onClose }: { kpiKey: KpiKey; userId: 
         </motion.div>
       </motion.div>
     </AnimatePresence>
+  );
+}
+
+type KpiPeriodPreset = Exclude<DialerKpiPreset, "custom">;
+type DialerKpiMetricKey = keyof DialerKpiSnapshot["metrics"];
+
+const KPI_PERIOD_LABELS: Array<{ key: KpiPeriodPreset; label: string }> = [
+  { key: "today", label: "Today" },
+  { key: "week", label: "Week" },
+  { key: "month", label: "Month" },
+  { key: "year", label: "Year" },
+  { key: "all", label: "All Time" },
+];
+
+const KPI_GROUPS: Array<{
+  key: DialerKpiMetricKey;
+  label: string;
+  icon: React.ElementType;
+  accentClass: string;
+  format?: (value: number) => string;
+}> = [
+  { key: "outbound", label: "Outbound", icon: PhoneForwarded, accentClass: "text-primary" },
+  { key: "pickups", label: "Pickups", icon: Phone, accentClass: "text-emerald-300" },
+  { key: "inbound", label: "Inbound", icon: PhoneIncoming, accentClass: "text-foreground" },
+  { key: "missedCalls", label: "Missed Calls", icon: PhoneOff, accentClass: "text-amber-300" },
+  { key: "talkTimeSec", label: "Talk Time", icon: Timer, accentClass: "text-sky-300", format: formatTalkTime },
+];
+
+function DialerKpiGroup({
+  label,
+  icon: Icon,
+  accentClass,
+  personal,
+  team,
+  loading,
+  format,
+}: {
+  label: string;
+  icon: React.ElementType;
+  accentClass: string;
+  personal: number;
+  team: number;
+  loading: boolean;
+  format?: (value: number) => string;
+}) {
+  const renderValue = (value: number) => (format ? format(value) : value.toString());
+
+  return (
+    <div className="rounded-[14px] border border-overlay-6 bg-overlay-2 px-4 py-3 shadow-[0_10px_30px_var(--shadow-soft)]">
+      <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/65">
+        <div className="flex h-7 w-7 items-center justify-center rounded-[10px] bg-overlay-6">
+          <Icon className={`h-3.5 w-3.5 ${accentClass}`} />
+        </div>
+        <span>{label}</span>
+      </div>
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground/50">You</p>
+          {loading ? (
+            <Loader2 className="mt-1 h-5 w-5 animate-spin text-primary/50" />
+          ) : (
+            <p className={`text-2xl font-semibold tracking-tight ${accentClass}`}>{renderValue(personal)}</p>
+          )}
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground/50">Team</p>
+          <p className="mt-1 text-sm font-medium text-foreground/85">{loading ? "..." : renderValue(team)}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -640,13 +759,25 @@ function DialerPageInner() {
   const { currentUser, ghostMode } = useSentinelStore();
   const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(200);
   const { queue: autoCycleQueue, loading: autoCycleLoading, refetch: refetchAutoCycle } = useAutoCycleQueue(200);
-  const { stats, loading: statsLoading } = useDialerStats();
+  const [selectedKpiPreset, setSelectedKpiPreset] = useState<DialerKpiPreset>("today");
+  const [customKpiFrom, setCustomKpiFrom] = useState("");
+  const [customKpiTo, setCustomKpiTo] = useState("");
+  const kpiSelection = useMemo(
+    () => (
+      selectedKpiPreset === "custom"
+        ? { preset: "custom" as const, from: customKpiFrom || undefined, to: customKpiTo || undefined }
+        : { preset: selectedKpiPreset }
+    ),
+    [customKpiFrom, customKpiTo, selectedKpiPreset],
+  );
+  const { snapshot: kpiSnapshot, loading: statsLoading } = useDialerKpis(kpiSelection);
   const timer = useCallTimer();
 
   const [callState, setCallState] = useState<CallState>("idle");
   const [currentLead, setCurrentLead] = useState<QueueLead | null>(null);
   const [dialerMode, setDialerMode] = useState<DialerMode>("queue");
   const autoCycleMode = dialerMode !== "queue";
+  const [queueSkipTracing, setQueueSkipTracing] = useState(false);
   const [currentDialedPhone, setCurrentDialedPhone] = useState<string | null>(null);
   const [currentCallLogId, setCurrentCallLogId] = useState<string | null>(null);
   const [dialerSessionId, setDialerSessionId] = useState<string | null>(null); // PR3b: survives call end for PostCallPanel publish
@@ -1069,6 +1200,53 @@ function DialerPageInner() {
       toast.error("Could not remove from queue");
     }
   }, [currentLead?.id, refetchQueue]);
+
+  const handleSkipTraceQueue = useCallback(async () => {
+    if (queueSkipTracing) return;
+    setQueueSkipTracing(true);
+    try {
+      const res = await fetch("/api/dialer/v1/dial-queue/skip-trace", {
+        method: "POST",
+        headers: await authHeaders(),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to skip trace queue");
+        return;
+      }
+
+      const summary = data.summary as {
+        checked: number;
+        tracedNow: number;
+        skippedAlreadyTraced: number;
+        failed: number;
+        phonesSaved: number;
+      };
+
+      refetchQueue();
+      if (currentLead?.id) {
+        const hdrs = await authHeaders();
+        fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs }).catch(() => {});
+      }
+
+      const pieces = [
+        `${summary.checked} checked`,
+        `${summary.tracedNow} traced now`,
+        `${summary.skippedAlreadyTraced} already traced`,
+        `${summary.failed} failed`,
+        `${summary.phonesSaved} phones saved`,
+      ];
+
+      if (summary.failed > 0) {
+        toast.warning(`Queue skip trace finished: ${pieces.join(", ")}`);
+      } else {
+        toast.success(`Queue skip trace finished: ${pieces.join(", ")}`);
+      }
+    } finally {
+      setQueueSkipTracing(false);
+    }
+  }, [queueSkipTracing, refetchQueue, currentLead?.id]);
 
   // ── Remove lead from auto-cycle inline ──────────────────────────────
   const handleRemoveFromAutoCycle = useCallback(async (leadId: string, e: React.MouseEvent) => {
@@ -1746,7 +1924,10 @@ function DialerPageInner() {
 
   const handleSendText = useCallback(async () => {
     if (!currentLead) return;
-    const phone = currentLead.properties?.owner_phone;
+    const activePhones = leadPhones.filter((p) => p.status === "active");
+    const phone = activePhones.length > 0
+      ? activePhones[phoneIndex]?.phone ?? activePhones[0]?.phone
+      : currentLead.properties?.owner_phone;
     if (!phone) {
       toast.error("No phone number for this lead");
       return;
@@ -1777,7 +1958,7 @@ function DialerPageInner() {
     } finally {
       setSmsLoading(false);
     }
-  }, [currentLead, currentUser.id]);
+  }, [currentLead, currentUser.id, leadPhones, phoneIndex]);
 
   // ── Lead card inline SMS send ──────────────────────────────────────
   const handleLeadSmsSend = useCallback(async (phone: string) => {
@@ -2272,10 +2453,6 @@ function DialerPageInner() {
     return () => window.removeEventListener("keydown", handler);
   }, [callState, dialerSessionId, currentLead, handleDial, handleDisposition, handleHangup]);
 
-  const [activeKpi, setActiveKpi] = useState<KpiKey | null>(null);
-
-  const kpiKeys: KpiKey[] = ["myOutbound", "myInbound", "myLiveAnswers", "myAvgTalkTime", "teamOutbound", "teamInbound"];
-
   const dialerContext = useMemo(() => {
     if (!currentLead) return null;
 
@@ -2721,24 +2898,100 @@ function DialerPageInner() {
         )}
       </GlassCard>
 
-      {/* Compact KPI summary — click any stat for detail */}
-      <div className="flex items-center gap-4 px-3 py-1.5 rounded-[10px] border border-overlay-6 bg-overlay-2 text-xs text-muted-foreground mb-3">
-        {kpiKeys.slice(0, 4).map((k) => {
-          const meta = KPI_META[k];
-          const display = meta.format ? meta.format(stats[k]) : stats[k];
-          return (
-            <button key={k} onClick={() => setActiveKpi(k)} className="flex items-center gap-1.5 hover:text-foreground transition-colors">
-              <meta.icon className="h-3 w-3" />
-              <span className="font-medium text-foreground/80">{statsLoading ? "—" : display}</span>
-              <span className="uppercase tracking-wider text-muted-foreground/50">{meta.label}</span>
-            </button>
-          );
-        })}
+      <div className="mb-3 rounded-[16px] border border-overlay-6 bg-overlay-2 p-3 shadow-[0_16px_40px_var(--shadow-soft)]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/60">Dialer Scoreboard</p>
+            <p className="mt-1 text-sm text-muted-foreground/75">
+              Your pace first, team pace second, all from one shared time range.
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 xl:items-end">
+            <div className="flex flex-wrap gap-2">
+              {KPI_PERIOD_LABELS.map((period) => (
+                <button
+                  key={period.key}
+                  type="button"
+                  onClick={() => setSelectedKpiPreset(period.key)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-xs font-medium uppercase tracking-[0.18em] transition-colors",
+                    selectedKpiPreset === period.key
+                      ? "border-primary/30 bg-primary/10 text-primary"
+                      : "border-overlay-6 bg-overlay-3 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {period.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/55">From</label>
+                <Input
+                  type="date"
+                  value={customKpiFrom}
+                  max={customKpiTo || undefined}
+                  onChange={(event) => {
+                    const nextFrom = event.target.value;
+                    setCustomKpiFrom(nextFrom);
+                    setSelectedKpiPreset("custom");
+                    if (customKpiTo && nextFrom && customKpiTo < nextFrom) {
+                      setCustomKpiTo(nextFrom);
+                    }
+                  }}
+                  className="h-9 w-[152px] border-overlay-6 bg-overlay-3 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/55">To</label>
+                <Input
+                  type="date"
+                  value={customKpiTo}
+                  min={customKpiFrom || undefined}
+                  onChange={(event) => {
+                    setCustomKpiTo(event.target.value);
+                    setSelectedKpiPreset("custom");
+                  }}
+                  className="h-9 w-[152px] border-overlay-6 bg-overlay-3 text-sm"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 px-3 text-xs uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setCustomKpiFrom("");
+                  setCustomKpiTo("");
+                  setSelectedKpiPreset("today");
+                }}
+              >
+                Reset
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground/60">
+          <span>Showing</span>
+          <span className="font-medium text-foreground/80">{kpiDateInputValue(kpiSnapshot.range.from) || "Beginning"}</span>
+          <span>to</span>
+          <span className="font-medium text-foreground/80">{kpiDateInputValue(kpiSnapshot.range.to) || "Now"}</span>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+          {KPI_GROUPS.map((group) => (
+            <DialerKpiGroup
+              key={group.key}
+              label={group.label}
+              icon={group.icon}
+              accentClass={group.accentClass}
+              personal={kpiSnapshot.metrics[group.key].user}
+              team={kpiSnapshot.metrics[group.key].team}
+              loading={statsLoading}
+              format={group.format}
+            />
+          ))}
+        </div>
       </div>
-
-      {activeKpi && (
-        <StatDetailModal kpiKey={activeKpi} userId={currentUser.id} onClose={() => setActiveKpi(null)} />
-      )}
 
       {/* ── Incoming Call Overlay ────────────────────────────────────── */}
       <AnimatePresence>
@@ -3005,6 +3258,16 @@ function DialerPageInner() {
                 >
                   Refresh
                 </button>
+                {!autoCycleMode && dialerMode === "queue" && (
+                  <button
+                    onClick={handleSkipTraceQueue}
+                    disabled={queueSkipTracing || displayedQueueLoading || displayedQueue.length === 0}
+                    className="inline-flex items-center gap-1.5 rounded-[8px] border border-primary/20 bg-primary/8 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
+                  >
+                    {queueSkipTracing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}
+                    Skip Trace Queue
+                  </button>
+                )}
               </div>
             </div>
             <p className="text-sm text-muted-foreground/50 mb-2">
@@ -3012,7 +3275,7 @@ function DialerPageInner() {
                 ? "Select ready leads and send Jeff to call them."
                 : autoCycleMode
                   ? "Ready-now leads float to the top, then the next retry due."
-                  : "Overdue first, then due today, then unscheduled."}
+                  : "Only leads you explicitly add to Dial Queue appear here. Skip Trace Queue fills the durable phone roster before you call."}
             </p>
 
             {dialerMode === "jeff" ? (
@@ -3168,7 +3431,7 @@ function DialerPageInner() {
             ) : displayedQueue.length === 0 ? (
               <div className="text-center py-6 space-y-3">
                 <Phone className="h-6 w-6 mx-auto text-muted-foreground/20" />
-                <p className="text-xs text-muted-foreground/50">No leads queued — add or claim leads from the Lead Queue</p>
+                <p className="text-xs text-muted-foreground/50">No leads queued — select leads in Lead Queue and use Add to Dial Queue</p>
                 <a href="/leads">
                   <button className="px-5 py-2 rounded-[10px] text-xs font-bold text-primary bg-primary/[0.10] border border-primary/25
                     hover:bg-primary/[0.18] hover:border-primary/35 shadow-[0_0_14px_var(--shadow-soft)]
@@ -3176,7 +3439,7 @@ function DialerPageInner() {
                     Go to Lead Queue
                   </button>
                 </a>
-                <p className="text-sm text-muted-foreground/60">Claimed leads appear here automatically</p>
+                <p className="text-sm text-muted-foreground/60">Queued leads stay here until you remove them from the dial queue</p>
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-overlay-8 scrollbar-track-transparent">

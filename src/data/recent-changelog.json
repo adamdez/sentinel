@@ -1,5 +1,10 @@
 [
   {
+    "hash": "aece0f38",
+    "date": "2026-03-30",
+    "message": "Update generated changelog"
+  },
+  {
     "hash": "96feb8f5",
     "date": "2026-03-30",
     "message": "Fix unclaimed lead claiming and caller ID copy"
@@ -118,10 +123,5 @@
     "hash": "0f72930b",
     "date": "2026-03-26",
     "message": "fix: exclude tina from eslint (built by Codex), add SMS webhook setup endpoint"
-  },
-  {
-    "hash": "7cbd976c",
-    "date": "2026-03-26",
-    "message": "feat: SMS webhook setup endpoint + SMS fields in disconnect-phone diagnostic"
   }
 ]

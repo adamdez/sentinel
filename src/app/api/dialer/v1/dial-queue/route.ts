@@ -1,7 +1,9 @@
 /**
  * DELETE /api/dialer/v1/dial-queue?leadId=...
  *
- * Removes a lead from the operator's dial queue by clearing assigned_to.
+ * POST adds one or more leads to the operator's explicit dial queue.
+ * DELETE removes a lead from the operator's explicit dial queue without
+ * clearing ownership.
  * Logs a dialer_event for audit trail so the removal is traceable.
  */
 
@@ -10,6 +12,49 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
+import { queueLeadIdsForUser, removeLeadFromDialQueue } from "@/lib/dial-queue";
+
+export async function POST(req: NextRequest) {
+  const user = await getDialerUser(req.headers.get("authorization"));
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await req.json().catch(() => ({}));
+  const leadIds = Array.isArray(body.leadIds)
+    ? body.leadIds.filter((value: unknown): value is string => typeof value === "string" && value.trim().length > 0)
+    : [];
+
+  if (leadIds.length === 0) {
+    return NextResponse.json({ error: "leadIds is required" }, { status: 400 });
+  }
+
+  const sb = createDialerClient();
+
+  try {
+    const result = await queueLeadIdsForUser({ sb, userId: user.id, leadIds });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("dialer_events") as any).insert({
+      event_type: "queue.added",
+      user_id: user.id,
+      metadata: {
+        queued_count: result.queuedIds.length,
+        conflicted_count: result.conflictedIds.length,
+        missing_count: result.missingIds.length,
+        lead_ids: result.queuedIds,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      queuedIds: result.queuedIds,
+      conflictedIds: result.conflictedIds,
+      missingIds: result.missingIds,
+    });
+  } catch (error) {
+    console.error("[dial-queue] queue add failed:", error);
+    return NextResponse.json({ error: "Failed to add leads to dial queue" }, { status: 500 });
+  }
+}
 
 export async function DELETE(req: NextRequest) {
   const user = await getDialerUser(req.headers.get("authorization"));
@@ -21,35 +66,22 @@ export async function DELETE(req: NextRequest) {
   }
 
   const sb = createDialerClient();
-
-  // Verify the lead is assigned to this user before removing
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: lead, error: leadErr } = await (sb.from("leads") as any)
+  const { data: lead } = await (sb.from("leads") as any)
     .select("id, assigned_to, status")
     .eq("id", leadId)
     .maybeSingle();
 
-  if (leadErr) {
-    console.error("[dial-queue] lead lookup failed:", leadErr.message);
-    return NextResponse.json({ error: "Failed to look up lead" }, { status: 500 });
-  }
-
-  if (!lead) {
-    return NextResponse.json({ error: "Lead not found" }, { status: 404 });
-  }
-
-  if (lead.assigned_to !== user.id) {
-    return NextResponse.json({ error: "Lead is not assigned to you" }, { status: 403 });
-  }
-
-  // Unassign the lead
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: updateErr } = await (sb.from("leads") as any)
-    .update({ assigned_to: null })
-    .eq("id", leadId);
-
-  if (updateErr) {
-    console.error("[dial-queue] unassign failed:", updateErr.message);
+  try {
+    const removal = await removeLeadFromDialQueue({ sb, leadId, userId: user.id });
+    if (removal === "not_found") {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+    if (removal === "not_owned") {
+      return NextResponse.json({ error: "Lead is not assigned to you" }, { status: 403 });
+    }
+  } catch (error) {
+    console.error("[dial-queue] remove failed:", error);
     return NextResponse.json({ error: "Failed to remove from queue" }, { status: 500 });
   }
 
@@ -61,7 +93,7 @@ export async function DELETE(req: NextRequest) {
       user_id: user.id,
       lead_id: leadId,
       metadata: {
-        previous_status: lead.status,
+        previous_status: lead?.status ?? null,
         action: "manual_queue_removal",
       },
     })

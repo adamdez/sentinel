@@ -6,6 +6,11 @@ import { scrubLeadClient } from "@/lib/compliance";
 import { useSentinelStore } from "@/lib/store";
 import type { QualificationRoute } from "@/lib/types";
 import type { AutoCycleLeadState, AutoCyclePhoneState } from "@/lib/dialer/types";
+import type {
+  DialerKpiPreset,
+  DialerKpiRange,
+  DialerKpiSnapshot,
+} from "@/lib/dialer-kpis";
 
 // ── Queue Lead shape ──────────────────────────────────────────────────
 
@@ -20,9 +25,14 @@ export interface QueueLead {
   assigned_to: string | null;
   lock_version: number;
   next_call_scheduled_at: string | null;
+  dial_queue_active?: boolean | null;
+  dial_queue_added_at?: string | null;
+  dial_queue_added_by?: string | null;
   next_action_due_at: string | null;
   next_follow_up_at: string | null;
   follow_up_date?: string | null;
+  skip_trace_status?: string | null;
+  skip_trace_completed_at?: string | null;
   last_contact_at: string | null;
   promoted_at: string | null;
   call_sequence_step: number;
@@ -79,51 +89,33 @@ export function useDialerQueue(limit = 7) {
   const fetchQueue = useCallback(async () => {
     if (!currentUser.id) return;
     try {
-      const now = new Date().toISOString();
-      // Personal queue: claimed leads where next call is due (or unscheduled)
-      const [scheduledRes, unscheduledRes] = await withTimeout(
-        Promise.all([
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase.from("leads") as any)
-            .select("*, properties(*)")
-            .in("status", ["lead", "negotiation"])
-            .eq("assigned_to", currentUser.id)
-            .lte("next_call_scheduled_at", now)
-            .order("next_call_scheduled_at", { ascending: true })
-            .limit(limit + 10),
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase.from("leads") as any)
-            .select("*, properties(*)")
-            .in("status", ["lead", "negotiation"])
-            .eq("assigned_to", currentUser.id)
-            .is("next_call_scheduled_at", null)
-            .order("priority", { ascending: false })
-            .limit(limit),
-        ]),
+      // Personal queue: explicitly queued leads only.
+      // We still rank due work inside that queue, but membership itself is manual.
+      const queueRes = await withTimeout<any>(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase.from("leads") as any)
+          .select("*, properties(*)")
+          .in("status", ["lead", "negotiation"])
+          .eq("assigned_to", currentUser.id)
+          .eq("dial_queue_active", true)
+          .order("dial_queue_added_at", { ascending: false })
+          .limit(limit + 40),
         10_000,
       );
 
-      if (scheduledRes.error || unscheduledRes.error) {
-        const err = scheduledRes.error ?? unscheduledRes.error;
+      if (queueRes.error) {
+        const err = queueRes.error;
         console.error("[DialerQueue] query error:", err?.message ?? err);
         setLoading(false);
         return;
       }
-
-      const seen = new Set<string>();
-      const merged: QueueLead[] = [];
-      for (const row of [...(scheduledRes.data ?? []), ...(unscheduledRes.data ?? [])]) {
-        if (!seen.has(row.id)) {
-          seen.add(row.id);
-          merged.push(row);
-        }
-      }
-      const rows = merged;
+      const rows = (queueRes.data ?? []) as QueueLead[];
 
       // Batch-fetch predictive scores for these leads' properties
       const propertyIds = rows
         .map((l) => l.property_id)
         .filter(Boolean);
+      const leadIds = rows.map((l) => l.id).filter(Boolean);
 
       let predMap: Record<string, number> = {};
       if (propertyIds.length > 0) {
@@ -144,13 +136,39 @@ export function useDialerQueue(limit = 7) {
         }
       }
 
+      let leadPhoneMap: Record<string, string> = {};
+      if (leadIds.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: phoneRows } = await (supabase.from("lead_phones") as any)
+          .select("lead_id, phone, status, is_primary, position")
+          .in("lead_id", leadIds)
+          .eq("status", "active")
+          .order("is_primary", { ascending: false })
+          .order("position", { ascending: true })
+          .order("created_at", { ascending: true });
+
+        if (phoneRows) {
+          for (const row of phoneRows as Array<{ lead_id: string; phone: string }>) {
+            if (!leadPhoneMap[row.lead_id]) {
+              leadPhoneMap[row.lead_id] = row.phone;
+            }
+          }
+        }
+      }
+
       // Blend: 60% existing priority + 40% predictive score
       const enriched = rows.map((lead) => {
         const predScore = predMap[lead.property_id] ?? null;
         const blendedPriority = predScore !== null
           ? Math.round(lead.priority * 0.6 + predScore * 0.4)
           : lead.priority;
-        return { ...lead, predictiveScore: predScore, blendedPriority };
+        const fallbackPhone = lead.properties?.owner_phone ?? leadPhoneMap[lead.id] ?? null;
+        return {
+          ...lead,
+          properties: lead.properties ? { ...lead.properties, owner_phone: fallbackPhone } : lead.properties,
+          predictiveScore: predScore,
+          blendedPriority,
+        };
       });
 
       // Prioritize due work first, then scheduled work, then unscheduled.
@@ -178,13 +196,11 @@ export function useDialerQueue(limit = 7) {
         return b.blendedPriority - a.blendedPriority;
       });
 
-      const withPhone = enriched
-        .filter((l) => l.properties?.owner_phone)
-        .slice(0, limit);
+      const queued = enriched.slice(0, limit);
 
       // Run compliance scrub in parallel
       const scrubbed = await Promise.all(
-        withPhone.map(async (lead) => {
+        queued.map(async (lead) => {
           const phone = lead.properties?.owner_phone;
           if (!phone) return { ...lead, compliant: true, scrubbing: false };
 
@@ -295,25 +311,10 @@ export function useAutoCycleQueue(limit = 12) {
 
 // ── Dialer Stats Hook ─────────────────────────────────────────────────
 
-export interface DialerStats {
-  myOutbound: number;
-  myInbound: number;
-  myLiveAnswers: number;
-  myAvgTalkTime: number;
-  teamOutbound: number;
-  teamInbound: number;
-}
-
-const OUTBOUND_FILTER = "no_answer,voicemail,interested,appointment,contract,dead,nurture,skip_trace,ghost,manual_hangup,in_progress,initiating";
-const LIVE_ANSWER_EXCLUDE = "no_answer,voicemail,manual_hangup,dead,skip_trace,ghost,nurture,in_progress,initiating,sms_outbound,disqualified";
-
-function periodStart(period: "today" | "week" | "month" | "all"): string | null {
-  if (period === "all") return null;
-  const d = new Date();
-  if (period === "today") d.setHours(0, 0, 0, 0);
-  else if (period === "week") { d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - d.getDay()); }
-  else if (period === "month") { d.setHours(0, 0, 0, 0); d.setDate(1); }
-  return d.toISOString();
+export interface DialerKpiSelection {
+  preset: DialerKpiPreset;
+  from?: string | null;
+  to?: string | null;
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -325,87 +326,67 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-const EMPTY_STATS: DialerStats = {
-  myOutbound: 0, myInbound: 0, myLiveAnswers: 0, myAvgTalkTime: 0, teamOutbound: 0, teamInbound: 0,
+const EMPTY_KPI_SNAPSHOT: DialerKpiSnapshot = {
+  range: { preset: "today", from: null, to: null },
+  metrics: {
+    outbound: { user: 0, team: 0 },
+    pickups: { user: 0, team: 0 },
+    inbound: { user: 0, team: 0 },
+    missedCalls: { user: 0, team: 0 },
+    talkTimeSec: { user: 0, team: 0 },
+  },
 };
 
 export async function fetchDialerKpis(
-  userId: string,
-  period: "today" | "week" | "month" | "all" = "today",
-): Promise<{ my: DialerStats; team: DialerStats }> {
-  const since = periodStart(period);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tbl = () => supabase.from("calls_log") as any;
-
-  function applyPeriod(q: ReturnType<typeof tbl>) {
-    return since ? q.gte("started_at", since) : q;
-  }
-
+  selection: DialerKpiSelection,
+): Promise<DialerKpiSnapshot> {
   try {
-    const [myOut, myIn, myLive, myDur, teamOut, teamIn, teamLive, teamDur] = await withTimeout(
-      Promise.all([
-        applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).neq("disposition", "sms_outbound")),
-        applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).eq("disposition", "inbound")),
-        applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("user_id", userId).not("disposition", "in", `(${LIVE_ANSWER_EXCLUDE})`)),
-        applyPeriod(tbl().select("duration_sec").eq("user_id", userId).gt("duration_sec", 0)),
-        applyPeriod(tbl().select("id", { count: "exact", head: true }).neq("disposition", "sms_outbound")),
-        applyPeriod(tbl().select("id", { count: "exact", head: true }).eq("disposition", "inbound")),
-        applyPeriod(tbl().select("id", { count: "exact", head: true }).not("disposition", "in", `(${LIVE_ANSWER_EXCLUDE})`)),
-        applyPeriod(tbl().select("duration_sec").gt("duration_sec", 0)),
-      ]),
+    const headers = await dialerAuthHeaders();
+    const params = new URLSearchParams();
+    params.set("preset", selection.preset);
+    if (selection.from) params.set("from", selection.from);
+    if (selection.to) params.set("to", selection.to);
+
+    const response = await withTimeout(
+      fetch(`/api/dialer/v1/kpis?${params.toString()}`, { headers }),
       8_000,
     );
 
-    function avgSec(rows: { duration_sec: number }[] | null): number {
-      if (!rows || rows.length === 0) return 0;
-      return Math.round(rows.reduce((s, r) => s + (r.duration_sec ?? 0), 0) / rows.length);
+    if (!response.ok) {
+      throw new Error(`Dialer KPI request failed (${response.status})`);
     }
 
-    const my: DialerStats = {
-      myOutbound: myOut.count ?? 0,
-      myInbound: myIn.count ?? 0,
-      myLiveAnswers: myLive.count ?? 0,
-      myAvgTalkTime: avgSec(myDur.data),
-      teamOutbound: teamOut.count ?? 0,
-      teamInbound: teamIn.count ?? 0,
-    };
-
-    const team: DialerStats = {
-      myOutbound: teamOut.count ?? 0,
-      myInbound: teamIn.count ?? 0,
-      myLiveAnswers: teamLive.count ?? 0,
-      myAvgTalkTime: avgSec(teamDur.data),
-      teamOutbound: teamOut.count ?? 0,
-      teamInbound: teamIn.count ?? 0,
-    };
-
-    return { my, team };
+    return await response.json() as DialerKpiSnapshot;
   } catch (err) {
     console.error("[DialerKpis] Failed to fetch stats:", err);
-    return { my: { ...EMPTY_STATS }, team: { ...EMPTY_STATS } };
+    return { ...EMPTY_KPI_SNAPSHOT, range: { ...EMPTY_KPI_SNAPSHOT.range, preset: selection.preset } };
   }
 }
 
-export function useDialerStats() {
-  const [stats, setStats] = useState<DialerStats>({
-    myOutbound: 0, myInbound: 0, myLiveAnswers: 0, myAvgTalkTime: 0, teamOutbound: 0, teamInbound: 0,
+export function useDialerKpis(selection: DialerKpiSelection) {
+  const [snapshot, setSnapshot] = useState<DialerKpiSnapshot>({
+    ...EMPTY_KPI_SNAPSHOT,
+    range: {
+      preset: selection.preset,
+      from: selection.from ?? null,
+      to: selection.to ?? null,
+    },
   });
   const [loading, setLoading] = useState(true);
-  const { currentUser } = useSentinelStore();
 
   const fetchStats = useCallback(async () => {
-    if (!currentUser.id) return;
     try {
-      const { my } = await fetchDialerKpis(currentUser.id, "today");
-      setStats(my);
+      const next = await fetchDialerKpis(selection);
+      setSnapshot(next);
     } catch (err) {
-      console.error("[DialerStats] fetch failed:", err);
+      console.error("[DialerKpis] fetch failed:", err);
     } finally {
       setLoading(false);
     }
-  }, [currentUser.id]);
+  }, [selection]);
 
   useEffect(() => {
+    setLoading(true);
     fetchStats();
     const interval = setInterval(fetchStats, 30_000);
     return () => clearInterval(interval);
@@ -421,7 +402,7 @@ export function useDialerStats() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchStats]);
 
-  return { stats, loading, refetch: fetchStats };
+  return { snapshot, loading, refetch: fetchStats };
 }
 
 // ── Call Timer Hook ───────────────────────────────────────────────────

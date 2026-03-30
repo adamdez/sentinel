@@ -6,7 +6,7 @@ import {
   UserPlus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown,
   Phone, MoreHorizontal, Radar, Loader2, AlertCircle,
   RefreshCw, UserCheck, Home, Trash2, Eye,
-  Clock, ListPlus,
+  Clock,
   HeartOff,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -899,20 +899,6 @@ export default function ProspectsPage() {
                         {/* ── Actions ── */}
                         <td className="p-3">
                           <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10"
-                              title="Queue for Call"
-                              disabled={queueing === p.id}
-                              onClick={() => handleQueueForCall(p)}
-                            >
-                              {queueing === p.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <ListPlus className="h-3.5 w-3.5" />
-                              )}
-                            </Button>
                             {p.owner_phone && (
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-foreground hover:text-foreground hover:bg-muted/10" title="Copy phone number"
                                 onClick={() => { navigator.clipboard.writeText(p.owner_phone!); toast.success("Phone number copied to clipboard"); }}>
