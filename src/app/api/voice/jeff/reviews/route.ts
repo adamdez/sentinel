@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
-import { listJeffReviews, upsertJeffReview } from "@/lib/jeff-control";
+import { getUserProfile, isJeffController, listJeffReviews, upsertJeffReview } from "@/lib/jeff-control";
 
 export async function GET(req: NextRequest) {
   const sb = createServerClient();
@@ -19,6 +19,11 @@ export async function POST(req: NextRequest) {
   const sb = createServerClient();
   const user = await requireAuth(req, sb);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const profile = await getUserProfile(user.id);
+  if (!isJeffController(profile?.email)) {
+    return NextResponse.json({ error: "Only Adam can submit Jeff reviews." }, { status: 403 });
+  }
 
   let body: { voiceSessionId?: string; reviewTags?: string[]; score?: number; notes?: string | null };
   try {

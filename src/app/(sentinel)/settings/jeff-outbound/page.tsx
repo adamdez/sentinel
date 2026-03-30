@@ -9,6 +9,7 @@ import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
 
 type JeffSettings = {
@@ -113,6 +114,73 @@ type JeffActivity = {
   };
 };
 
+type ReviewDraft = {
+  score: string;
+  notes: string;
+  tags: string[];
+};
+
+const JEFF_REVIEW_TAG_OPTIONS = [
+  "great opener",
+  "weak opener",
+  "good label",
+  "awkward label",
+  "good transfer timing",
+  "transferred too early",
+  "transferred too late",
+  "too robotic",
+  "too pushy",
+  "wrong target",
+  "callback captured well",
+  "missed callback opportunity",
+] as const;
+
+const JEFF_QUICK_REVIEW_PRESETS: Array<{
+  label: string;
+  score: string;
+  tags: string[];
+  notes: string;
+}> = [
+  {
+    label: "Great transfer",
+    score: "5",
+    tags: ["great opener", "good transfer timing"],
+    notes: "Jeff opened well and handed off at the right time.",
+  },
+  {
+    label: "Weak transfer",
+    score: "2",
+    tags: ["transferred too early"],
+    notes: "Jeff moved too quickly into transfer before enough seller clarity.",
+  },
+  {
+    label: "Too robotic",
+    score: "2",
+    tags: ["too robotic"],
+    notes: "Jeff sounded too scripted and needs a more natural seller rhythm.",
+  },
+  {
+    label: "Wrong target",
+    score: "1",
+    tags: ["wrong target"],
+    notes: "This reached the wrong person or a bad lead target.",
+  },
+  {
+    label: "Callback miss",
+    score: "2",
+    tags: ["missed callback opportunity"],
+    notes: "Jeff should have captured a clearer callback instead of letting the call fade.",
+  },
+];
+
+function createEmptyReviewDraft(): ReviewDraft {
+  return {
+    score: "4",
+    notes: "",
+    tags: [],
+  };
+}
+
 function formatCurrency(cents: number | null) {
   if (cents == null) return "-";
   return `$${(cents / 100).toFixed(2)}`;
@@ -145,6 +213,8 @@ export default function JeffOutboundPage() {
   const [saving, setSaving] = useState(false);
   const [launchingQueue, setLaunchingQueue] = useState(false);
   const [leadIdsDraft, setLeadIdsDraft] = useState("");
+  const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewDraft>>({});
+  const [savingReviewId, setSavingReviewId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -181,6 +251,23 @@ export default function JeffOutboundPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const refreshJeffFeedback = useCallback(async () => {
+    const headers = await sentinelAuthHeaders(false);
+    const [kpiRes, reviewRes] = await Promise.all([
+      fetch("/api/voice/jeff/kpis", { headers, cache: "no-store" }),
+      fetch("/api/voice/jeff/reviews?limit=20", { headers, cache: "no-store" }),
+    ]);
+
+    const kpiJson = await kpiRes.json();
+    const reviewJson = await reviewRes.json();
+
+    if (!kpiRes.ok) throw new Error(kpiJson.error ?? "Failed to refresh Jeff KPIs");
+    if (!reviewRes.ok) throw new Error(reviewJson.error ?? "Failed to refresh Jeff reviews");
+
+    setKpis(kpiJson.kpis ?? null);
+    setReviews(reviewJson.reviews ?? []);
+  }, []);
 
   const saveSettings = useCallback(async (patch: Partial<JeffSettings>) => {
     if (!canControl || !settings) return;
@@ -283,6 +370,68 @@ export default function JeffOutboundPage() {
 
     return { needsReview, weakReview };
   }, [activity, reviewStateBySession]);
+
+  const updateReviewDraft = useCallback((sessionId: string, patch: Partial<ReviewDraft>) => {
+    setReviewDrafts((current) => ({
+      ...current,
+      [sessionId]: {
+        ...(current[sessionId] ?? createEmptyReviewDraft()),
+        ...patch,
+      },
+    }));
+  }, []);
+
+  const toggleReviewTag = useCallback((sessionId: string, tag: string) => {
+    setReviewDrafts((current) => {
+      const existing = current[sessionId] ?? createEmptyReviewDraft();
+      const hasTag = existing.tags.includes(tag);
+      return {
+        ...current,
+        [sessionId]: {
+          ...existing,
+          tags: hasTag ? existing.tags.filter((value) => value !== tag) : [...existing.tags, tag],
+        },
+      };
+    });
+  }, []);
+
+  const saveReview = useCallback(async (sessionId: string, override?: Partial<ReviewDraft>) => {
+    if (!canControl) return;
+
+    const baseDraft = reviewDrafts[sessionId] ?? createEmptyReviewDraft();
+    const draft: ReviewDraft = {
+      ...baseDraft,
+      ...override,
+      tags: override?.tags ?? baseDraft.tags,
+    };
+
+    setSavingReviewId(sessionId);
+    try {
+      const res = await fetch("/api/voice/jeff/reviews", {
+        method: "POST",
+        headers: await sentinelAuthHeaders(),
+        body: JSON.stringify({
+          voiceSessionId: sessionId,
+          reviewTags: draft.tags,
+          score: Number(draft.score),
+          notes: draft.notes.trim() || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to save Jeff review");
+
+      await refreshJeffFeedback();
+      setReviewDrafts((current) => ({
+        ...current,
+        [sessionId]: draft,
+      }));
+      toast.success("Jeff review saved");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to save Jeff review");
+    } finally {
+      setSavingReviewId(null);
+    }
+  }, [canControl, refreshJeffFeedback, reviewDrafts]);
 
   const launchJeffQueue = useCallback(async () => {
     if (!settings || !canControl) return;
@@ -666,7 +815,15 @@ export default function JeffOutboundPage() {
             </p>
             <div className="space-y-2">
               {activity?.recentSessions?.length ? (
-                activity.recentSessions.map((session) => (
+                activity.recentSessions.map((session) => {
+                  const existingReview = reviewStateBySession.get(session.id);
+                  const reviewDraft = reviewDrafts[session.id] ?? {
+                    score: existingReview?.score != null ? String(existingReview.score) : "4",
+                    notes: "",
+                    tags: existingReview?.tags ?? [],
+                  };
+
+                  return (
                   <div key={session.id} className="rounded-xl border border-border/15 bg-muted/5 p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="space-y-1">
@@ -715,8 +872,94 @@ export default function JeffOutboundPage() {
                         ))}
                       </div>
                     ) : null}
+                    {canControl ? (
+                      <div className="mt-3 rounded-xl border border-border/10 bg-background/20 p-3">
+                        <div className="flex flex-wrap gap-2">
+                          {JEFF_QUICK_REVIEW_PRESETS.map((preset) => (
+                            <Button
+                              key={preset.label}
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              disabled={savingReviewId === session.id}
+                              onClick={() => saveReview(session.id, {
+                                score: preset.score,
+                                tags: preset.tags,
+                                notes: preset.notes,
+                              })}
+                            >
+                              {preset.label}
+                            </Button>
+                          ))}
+                        </div>
+                        <div className="mt-3 grid gap-3 md:grid-cols-[120px,1fr]">
+                          <label className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wide text-muted-foreground/60">Score</span>
+                            <select
+                              value={reviewDraft.score}
+                              onChange={(event) => updateReviewDraft(session.id, { score: event.target.value })}
+                              className="w-full rounded-md border border-overlay-10 bg-overlay-4 px-2 py-2 text-sm"
+                              disabled={savingReviewId === session.id}
+                            >
+                              <option value="5">5</option>
+                              <option value="4">4</option>
+                              <option value="3">3</option>
+                              <option value="2">2</option>
+                              <option value="1">1</option>
+                            </select>
+                          </label>
+                          <label className="space-y-1">
+                            <span className="text-[10px] uppercase tracking-wide text-muted-foreground/60">Review note</span>
+                            <Textarea
+                              value={reviewDraft.notes}
+                              onChange={(event) => updateReviewDraft(session.id, { notes: event.target.value })}
+                              placeholder="Why was this strong or weak?"
+                              rows={2}
+                              disabled={savingReviewId === session.id}
+                            />
+                          </label>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {JEFF_REVIEW_TAG_OPTIONS.map((tag) => {
+                            const selected = reviewDraft.tags.includes(tag);
+                            return (
+                              <button
+                                key={tag}
+                                type="button"
+                                disabled={savingReviewId === session.id}
+                                onClick={() => toggleReviewTag(session.id, tag)}
+                                className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                                  selected
+                                    ? "border-primary/40 bg-primary/12 text-primary"
+                                    : "border-border/20 bg-muted/5 text-muted-foreground hover:text-foreground"
+                                }`}
+                              >
+                                {tag}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-3 flex justify-end">
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={savingReviewId === session.id}
+                            onClick={() => saveReview(session.id)}
+                          >
+                            {savingReviewId === session.id ? (
+                              <span className="flex items-center gap-2">
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Saving review...
+                              </span>
+                            ) : (
+                              "Save review"
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                ))
+                )})
               ) : (
                 <div className="rounded-xl border border-dashed border-border/20 p-4 text-sm text-muted-foreground/70">
                   No recent Jeff call outcomes yet.
