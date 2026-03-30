@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { createServerClient } from "@/lib/supabase";
+import { loadTinaIrsAuthorityWatchStatus } from "@/tina/lib/irs-authority-watch";
 import { buildTinaPackageReadiness } from "@/tina/lib/package-readiness";
+import { reconcileTinaDerivedWorkspace } from "@/tina/lib/reconcile-workspace";
 import { parseTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 
 export async function POST(req: NextRequest) {
@@ -23,8 +25,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing draft payload" }, { status: 400 });
   }
 
-  const draft = parseTinaWorkspaceDraft(JSON.stringify((body as { draft: unknown }).draft));
-  const packageReadiness = buildTinaPackageReadiness(draft);
+  const draft = reconcileTinaDerivedWorkspace(
+    parseTinaWorkspaceDraft(JSON.stringify((body as { draft: unknown }).draft))
+  );
+  const packageReadiness = buildTinaPackageReadiness(draft, {
+    irsAuthorityWatchStatus: loadTinaIrsAuthorityWatchStatus(),
+  });
 
   return NextResponse.json({ packageReadiness });
 }

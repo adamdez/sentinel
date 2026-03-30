@@ -4,6 +4,10 @@ import {
   type TinaResearchDecisionBucket,
   type TinaResearchSourceClass,
 } from "@/tina/lib/research-policy";
+import {
+  findTinaFixedAssetSourceFacts,
+  hasTinaFixedAssetSignal,
+} from "@/tina/lib/source-fact-signals";
 import type { TinaSourceFact, TinaWorkspaceDraft } from "@/tina/types";
 
 export type TinaTaxIdeaCategory = "deduction" | "state" | "compliance" | "continuity";
@@ -45,6 +49,58 @@ function findFactsByLabel(sourceFacts: TinaSourceFact[], label: string): TinaSou
   );
 }
 
+function findFactsByLabels(sourceFacts: TinaSourceFact[], labels: string[]): TinaSourceFact[] {
+  const seen = new Set<string>();
+  const facts: TinaSourceFact[] = [];
+
+  labels.forEach((label) => {
+    findFactsByLabel(sourceFacts, label).forEach((fact) => {
+      if (seen.has(fact.id)) return;
+      seen.add(fact.id);
+      facts.push(fact);
+    });
+  });
+
+  return facts;
+}
+
+function pickIdeaSourceFacts(args: {
+  sourceFacts: TinaSourceFact[];
+  preferredLabels: string[];
+  fallbackLabels?: string[];
+}): TinaSourceFact[] {
+  const preferredFacts = findFactsByLabels(args.sourceFacts, args.preferredLabels);
+  if (preferredFacts.length > 0) return preferredFacts;
+
+  if (args.fallbackLabels && args.fallbackLabels.length > 0) {
+    const fallbackFacts = findFactsByLabels(args.sourceFacts, args.fallbackLabels);
+    if (fallbackFacts.length > 0) return fallbackFacts;
+  }
+
+  return args.sourceFacts;
+}
+
+function extractQuotedExamples(value: string): string[] {
+  return Array.from(value.matchAll(/"([^"]+)"/g))
+    .map((match) => match[1]?.trim() ?? "")
+    .filter((example, index, values) => example.length > 0 && values.indexOf(example) === index);
+}
+
+function appendFactExamplesToPrompt(prompt: string, sourceFacts: TinaSourceFact[]): string {
+  const examples = sourceFacts
+    .flatMap((fact) => extractQuotedExamples(fact.value))
+    .filter((example, index, values) => values.indexOf(example) === index)
+    .slice(0, 2);
+
+  if (examples.length === 0) return prompt;
+  if (examples.length === 1) {
+    return `${prompt} Focus on the saved-paper example "${examples[0]}".`;
+  }
+
+  const [firstExample, secondExample] = examples;
+  return `${prompt} Focus on the saved-paper examples "${firstExample}" and "${secondExample}".`;
+}
+
 function buildLead(seed: TinaTaxIdeaSeed): TinaTaxIdeaLead {
   const decision = evaluateTinaTaxIdea({
     sourceClasses: ["internal_signal"],
@@ -80,8 +136,12 @@ function collectLinkedIds(sourceFacts: TinaSourceFact[]): Pick<TinaTaxIdeaLead, 
 }
 
 export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLead[] {
-  const recommendation = recommendTinaFilingLane(draft.profile);
+  const recommendation = recommendTinaFilingLane(draft.profile, draft.sourceFacts);
   const ideas: TinaTaxIdeaLead[] = [];
+  const formedThisTaxYear =
+    draft.profile.formationDate.trim().length > 0 &&
+    draft.profile.taxYear.trim().length > 0 &&
+    draft.profile.formationDate.startsWith(draft.profile.taxYear);
 
   const priorReturnSourceLabel =
     draft.priorReturnDocumentId || draft.priorReturn
@@ -122,9 +182,80 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
           "Research whether this Schedule C or disregarded single-member LLC business qualifies for the qualified business income deduction, including any SSTB or income-limit issues.",
       })
     );
+
+    ideas.push(
+      buildLead({
+        id: "self-employed-benefits-review",
+        title: "Check owner health insurance and retirement options",
+        summary:
+          "Tina should look for self-employed owner deductions tied to health insurance and retirement savings, then confirm how the business facts affect them.",
+        whyItMatters:
+          "These can be meaningful legal tax savers that owners often miss because they sit partly outside the basic books.",
+        category: "deduction",
+        sourceLabels: [
+          "The current filing lane points to a Schedule C or single-member LLC path.",
+        ],
+        searchPrompt:
+          "Research self-employed health insurance and retirement-related deduction opportunities for this Schedule C or disregarded single-member LLC taxpayer, including fact limits and coordination issues.",
+      })
+    );
   }
 
-  if (draft.profile.hasFixedAssets) {
+  if (draft.profile.naicsCode.trim().length > 0) {
+    ideas.push(
+      buildLead({
+        id: "industry-edge-review",
+        title: "Check industry-specific tax edges",
+        summary:
+          "Tina should look for deductions, safe harbors, reporting quirks, and classification edges that are common in this line of business but easy to miss in a generic return review.",
+        whyItMatters:
+          "Some of the best legal savings ideas are industry-specific, so Tina should not rely only on a general small-business checklist.",
+        category: "deduction",
+        sourceLabels: [`The organizer includes NAICS code ${draft.profile.naicsCode}.`],
+        searchPrompt:
+          `Research industry-specific deductions, safe harbors, reporting quirks, and compliance edges for NAICS ${draft.profile.naicsCode}, focusing on legal but commonly missed opportunities and the primary authority needed to support them.`,
+      })
+    );
+  }
+
+  if (!priorReturnSourceLabel && formedThisTaxYear) {
+    ideas.push(
+      buildLead({
+        id: "startup-costs-review",
+        title: "Check startup and first-year costs",
+        summary:
+          "Tina should review early business costs to see whether some belong in startup treatment, organizational treatment, or current deductions.",
+        whyItMatters:
+          "New-business costs are easy to blur together, and the right treatment can change both savings and timing.",
+        category: "continuity",
+        sourceLabels: ["The organizer shows this business started during the current tax year."],
+        searchPrompt:
+          "Research startup-cost, first-year, and organizational-cost treatment for this new business, including what may be deducted now versus spread over time.",
+      })
+    );
+  }
+
+  const fixedAssetFacts = findTinaFixedAssetSourceFacts(draft.sourceFacts);
+  if (hasTinaFixedAssetSignal(draft.profile, draft.sourceFacts)) {
+    const fixedAssetIdeaFacts = pickIdeaSourceFacts({
+      sourceFacts: fixedAssetFacts,
+      preferredLabels: ["Fixed asset clue"],
+      fallbackLabels: ["Small equipment clue", "Repair clue"],
+    });
+    const fixedAssetIdeaLinkedIds = collectLinkedIds(fixedAssetIdeaFacts);
+    const repairIdeaFacts = pickIdeaSourceFacts({
+      sourceFacts: fixedAssetFacts,
+      preferredLabels: ["Repair clue"],
+      fallbackLabels: ["Fixed asset clue"],
+    });
+    const repairIdeaLinkedIds = collectLinkedIds(repairIdeaFacts);
+    const deMinimisIdeaFacts = pickIdeaSourceFacts({
+      sourceFacts: fixedAssetFacts,
+      preferredLabels: ["Small equipment clue"],
+      fallbackLabels: ["Fixed asset clue"],
+    });
+    const deMinimisIdeaLinkedIds = collectLinkedIds(deMinimisIdeaFacts);
+
     ideas.push(
       buildLead({
         id: "fixed-assets-review",
@@ -134,9 +265,60 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
         whyItMatters:
           "This is one of the most common places where a business can legally save money or accidentally report the timing wrong.",
         category: "deduction",
-        sourceLabels: ["The organizer says this business has equipment or other big purchases."],
-        searchPrompt:
+        sourceLabels:
+          fixedAssetFacts.length > 0
+            ? ["Tina found equipment, repair, or small-tool clues in the uploaded papers."]
+            : ["The organizer says this business has equipment or other big purchases."],
+        factIds: fixedAssetIdeaLinkedIds.factIds,
+        documentIds: fixedAssetIdeaLinkedIds.documentIds,
+        searchPrompt: appendFactExamplesToPrompt(
           "Review fixed assets for depreciation treatment, placed-in-service dates, Section 179, bonus depreciation, and any disposal history that affects the current-year return.",
+          findFactsByLabels(fixedAssetIdeaFacts, ["Fixed asset clue"])
+        ),
+      })
+    );
+
+    ideas.push(
+      buildLead({
+        id: "repair-safe-harbor-review",
+        title: "Check repair safe harbors before capitalizing everything",
+        summary:
+          "Tina should test whether some equipment or property-related spending belongs in repairs, maintenance, or safe-harbor treatment instead of being capitalized by default.",
+        whyItMatters:
+          "This is a quieter place to save money legally because small businesses often capitalize too much or miss repair-safe-harbor treatment.",
+        category: "deduction",
+        sourceLabels:
+          fixedAssetFacts.length > 0
+            ? ["Tina found equipment, repair, or small-tool clues in the uploaded papers."]
+            : ["The organizer says this business has equipment or other big purchases."],
+        factIds: repairIdeaLinkedIds.factIds,
+        documentIds: repairIdeaLinkedIds.documentIds,
+        searchPrompt: appendFactExamplesToPrompt(
+          "Research repair vs capitalization treatment, de minimis safe harbor, routine maintenance safe harbor, and related small-business write-off options for this business's property and equipment spending.",
+          findFactsByLabels(repairIdeaFacts, ["Repair clue"])
+        ),
+      })
+    );
+
+    ideas.push(
+      buildLead({
+        id: "de-minimis-writeoff-review",
+        title: "Check small-equipment write-offs and safe harbors",
+        summary:
+          "Tina should look for lower-dollar equipment, tools, and similar purchases that may qualify for simpler write-off treatment instead of slower capitalization.",
+        whyItMatters:
+          "Some of the best legal savings come from correctly spotting what can be written off now without forcing it through a heavier asset schedule.",
+        category: "deduction",
+        sourceLabels:
+          fixedAssetFacts.length > 0
+            ? ["Tina found equipment, repair, or small-tool clues in the uploaded papers."]
+            : ["The organizer says this business has equipment or other big purchases."],
+        factIds: deMinimisIdeaLinkedIds.factIds,
+        documentIds: deMinimisIdeaLinkedIds.documentIds,
+        searchPrompt: appendFactExamplesToPrompt(
+          "Research de minimis safe harbor, materials-and-supplies treatment, and other current-year write-off options for smaller business equipment and tool purchases in this fact pattern.",
+          findFactsByLabels(deMinimisIdeaFacts, ["Small equipment clue"])
+        ),
       })
     );
   }
@@ -221,9 +403,9 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
         id: "wa-state-review",
         title: "Check Washington business-tax treatment",
         summary:
-          "Tina should review Washington business-tax treatment, including B&O classification, sales tax handling, and any deductions or exemptions that fit the facts.",
+          "Tina should review Washington business-tax treatment only to see whether it changes the federal filing package, makes a current fact unsafe, or needs a separate reviewer note.",
         whyItMatters:
-          "Washington rules are separate from the federal return, and the right classification or deduction can matter a lot.",
+          "The federal return stays first, but Washington classification, state-tax handling, and separate filing obligations can still change what belongs in the package or what Tina must flag for review.",
         category: "state",
         sourceLabels:
           salesTaxFacts.length > 0
@@ -232,7 +414,7 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
         factIds: linkedIds.factIds,
         documentIds: linkedIds.documentIds,
         searchPrompt:
-          "Research Washington business-tax treatment for this business, including B&O classification, sales tax scope, relevant deductions, exemptions, and filing consequences.",
+          "Research Washington business-tax treatment for this business only to the extent it changes the federal filing package, makes a federal-package fact unsafe, creates deductible state-tax consequences, or requires a separate Washington reviewer note. Keep the main focus on the federal business return package rather than building a standalone Washington return.",
       })
     );
   }
@@ -245,9 +427,9 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
         id: "multistate-review",
         title: "Check multistate filing scope",
         summary:
-          "Tina should review whether another state may have filing rights here and how that changes the return package.",
+          "Tina should review whether another state may have filing rights here and whether that changes the federal filing package or needs a separate state note for the reviewer.",
         whyItMatters:
-          "A multistate clue can change what has to be filed and where, so Tina should not stay Washington-only without checking.",
+          "State nexus can change apportionment, deductions, and reviewer notes, but Tina should only let it affect the federal package when the facts and primary authority really support that move.",
         category: "state",
         sourceLabels:
           stateFacts.length > 0
@@ -256,7 +438,7 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
         factIds: linkedIds.factIds,
         documentIds: linkedIds.documentIds,
         searchPrompt:
-          "Research multistate filing scope for this business, including Idaho or other state nexus clues, and determine whether additional state filings or allocations may be required.",
+          "Research multistate filing scope for this business, including Idaho or other state nexus clues, and determine whether another state's rules change the federal filing package, create deductible state-tax consequences, or require a separate state reviewer note. Keep the main focus on what belongs in the federal package.",
       })
     );
   }

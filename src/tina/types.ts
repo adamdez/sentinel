@@ -22,6 +22,14 @@ export type TinaEntityType =
   | "unsure";
 
 export type TinaAccountingMethod = "cash" | "accrual" | "unsure";
+export type TinaLlcFederalTaxTreatment =
+  | "default"
+  | "owner_return"
+  | "partnership_return"
+  | "s_corp_return"
+  | "c_corp_return"
+  | "unsure";
+export type TinaLlcCommunityPropertyStatus = "not_applicable" | "yes" | "no" | "unsure";
 
 export interface TinaPriorReturnSnapshot {
   fileName: string;
@@ -79,10 +87,60 @@ export interface TinaDocumentReading {
   lastReadAt: string | null;
 }
 
+export type TinaBooksConnectionStatus =
+  | "not_connected"
+  | "upload_only"
+  | "planning_live_sync"
+  | "connected"
+  | "needs_attention";
+
+export interface TinaBooksConnectionSnapshot {
+  provider: "quickbooks";
+  status: TinaBooksConnectionStatus;
+  summary: string;
+  nextStep: string;
+  connectedAt: string | null;
+  lastSyncAt: string | null;
+  companyName: string;
+  realmId: string | null;
+}
+
+export type TinaBooksImportDocumentStatus = "ready" | "needs_attention" | "waiting";
+
+export interface TinaBooksImportDocument {
+  documentId: string;
+  name: string;
+  status: TinaBooksImportDocumentStatus;
+  summary: string;
+  rowCount: number | null;
+  coverageStart: string | null;
+  coverageEnd: string | null;
+  moneyIn: number | null;
+  moneyOut: number | null;
+  clueLabels: string[];
+  lastReadAt: string | null;
+}
+
+export interface TinaBooksImportSnapshot {
+  lastRunAt: string | null;
+  status: TinaWorkpaperStatus;
+  summary: string;
+  nextStep: string;
+  documentCount: number;
+  coverageStart: string | null;
+  coverageEnd: string | null;
+  moneyInTotal: number | null;
+  moneyOutTotal: number | null;
+  clueLabels: string[];
+  documents: TinaBooksImportDocument[];
+}
+
 export interface TinaBusinessTaxProfile {
   businessName: string;
   taxYear: string;
   entityType: TinaEntityType;
+  llcFederalTaxTreatment: TinaLlcFederalTaxTreatment;
+  llcCommunityPropertyStatus: TinaLlcCommunityPropertyStatus;
   formationState: string;
   formationDate: string;
   accountingMethod: TinaAccountingMethod;
@@ -278,6 +336,62 @@ export interface TinaScheduleCDraftSnapshot {
   notes: TinaScheduleCDraftNote[];
 }
 
+export type TinaOfficialFormLineState = "filled" | "review" | "blank";
+export type TinaOfficialFormStatus = "ready" | "needs_review" | "blocked";
+
+export interface TinaOfficialFormLine {
+  id: string;
+  lineNumber: string;
+  label: string;
+  value: string;
+  state: TinaOfficialFormLineState;
+  summary: string;
+  scheduleCDraftFieldIds: string[];
+  scheduleCDraftNoteIds: string[];
+  sourceDocumentIds: string[];
+}
+
+export interface TinaOfficialFormSupportRow {
+  id: string;
+  label: string;
+  amount: number | null;
+  summary: string;
+  reviewerFinalLineIds: string[];
+  taxAdjustmentIds: string[];
+  sourceDocumentIds: string[];
+}
+
+export interface TinaOfficialFormSupportSchedule {
+  id: string;
+  title: string;
+  summary: string;
+  rows: TinaOfficialFormSupportRow[];
+  sourceDocumentIds: string[];
+}
+
+export interface TinaOfficialFormDraft {
+  id: string;
+  formNumber: string;
+  title: string;
+  taxYear: string;
+  revisionYear: string;
+  status: TinaOfficialFormStatus;
+  summary: string;
+  nextStep: string;
+  lines: TinaOfficialFormLine[];
+  supportSchedules: TinaOfficialFormSupportSchedule[];
+  relatedNoteIds: string[];
+  sourceDocumentIds: string[];
+}
+
+export interface TinaOfficialFormPacketSnapshot {
+  lastRunAt: string | null;
+  status: TinaWorkpaperStatus;
+  summary: string;
+  nextStep: string;
+  forms: TinaOfficialFormDraft[];
+}
+
 export type TinaPackageReadinessLevel = "blocked" | "needs_review" | "ready_for_cpa";
 
 export interface TinaPackageReadinessItem {
@@ -320,6 +434,33 @@ export interface TinaCpaHandoffSnapshot {
   summary: string;
   nextStep: string;
   artifacts: TinaCpaHandoffArtifact[];
+}
+
+export type TinaFinalSignoffLevel = "blocked" | "waiting" | "ready";
+
+export interface TinaFinalSignoffCheck {
+  id: string;
+  label: string;
+  helpText: string;
+  checked: boolean;
+}
+
+export interface TinaFinalSignoffSnapshot {
+  lastRunAt: string | null;
+  status: TinaWorkpaperStatus;
+  level: TinaFinalSignoffLevel;
+  summary: string;
+  nextStep: string;
+  checks: TinaFinalSignoffCheck[];
+  reviewerName: string;
+  reviewerNote: string;
+  reviewPacketId: string | null;
+  reviewPacketVersion: string | null;
+  reviewPacketFingerprint: string | null;
+  confirmedAt: string | null;
+  confirmedPacketId: string | null;
+  confirmedPacketVersion: string | null;
+  confirmedPacketFingerprint: string | null;
 }
 
 export type TinaCleanupPlanStatus = "idle" | "stale" | "running" | "complete";
@@ -377,6 +518,21 @@ export type TinaAuthorityDisclosureDecision =
   | "needs_review"
   | "required";
 
+export type TinaAuthorityChallengeVerdict =
+  | "not_run"
+  | "did_not_finish"
+  | "survives"
+  | "needs_care"
+  | "likely_fails";
+
+export type TinaAuthorityBackgroundRunStatus =
+  | "idle"
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "rate_limited";
+
 export type TinaAuthorityCitationSourceClass =
   | "primary_authority"
   | "secondary_analysis"
@@ -396,16 +552,33 @@ export interface TinaAuthorityCitation {
   note: string;
 }
 
+export interface TinaAuthorityBackgroundRun {
+  status: TinaAuthorityBackgroundRunStatus;
+  jobId: string | null;
+  queuedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  retryAt: string | null;
+  error: string | null;
+}
+
 export interface TinaAuthorityWorkItem {
   ideaId: string;
   status: TinaAuthorityWorkStatus;
   reviewerDecision: TinaAuthorityReviewerDecision;
   disclosureDecision: TinaAuthorityDisclosureDecision;
+  challengeVerdict: TinaAuthorityChallengeVerdict;
   memo: string;
+  challengeMemo: string;
   reviewerNotes: string;
   missingAuthority: string[];
+  challengeWarnings: string[];
+  challengeQuestions: string[];
   citations: TinaAuthorityCitation[];
+  researchRun: TinaAuthorityBackgroundRun;
+  challengeRun: TinaAuthorityBackgroundRun;
   lastAiRunAt: string | null;
+  lastChallengeRunAt: string | null;
   updatedAt: string | null;
 }
 
@@ -416,6 +589,8 @@ export interface TinaWorkspaceDraft {
   priorReturnDocumentId: string | null;
   documents: TinaStoredDocument[];
   documentReadings: TinaDocumentReading[];
+  booksConnection: TinaBooksConnectionSnapshot;
+  booksImport: TinaBooksImportSnapshot;
   sourceFacts: TinaSourceFact[];
   bootstrapReview: TinaBootstrapReview;
   issueQueue: TinaIssueQueue;
@@ -425,8 +600,10 @@ export interface TinaWorkspaceDraft {
   taxAdjustments: TinaTaxAdjustmentSnapshot;
   reviewerFinal: TinaWorkpaperSnapshot;
   scheduleCDraft: TinaScheduleCDraftSnapshot;
+  officialFormPacket: TinaOfficialFormPacketSnapshot;
   packageReadiness: TinaPackageReadinessSnapshot;
   cpaHandoff: TinaCpaHandoffSnapshot;
+  finalSignoff: TinaFinalSignoffSnapshot;
   authorityWork: TinaAuthorityWorkItem[];
   profile: TinaBusinessTaxProfile;
 }
@@ -438,9 +615,23 @@ export type TinaDraftSyncStatus =
   | "saved"
   | "error";
 
+export type TinaIrsAuthorityWatchLevel = "not_run" | "healthy" | "needs_review";
+
+export interface TinaIrsAuthorityWatchStatus {
+  level: TinaIrsAuthorityWatchLevel;
+  generatedAt: string | null;
+  checkedCount: number;
+  failedCount: number;
+  changedCount: number;
+  newCount: number;
+  summary: string;
+  nextStep: string;
+}
+
 export type TinaFilingLaneId =
   | "schedule_c_single_member_llc"
   | "1120_s"
+  | "1120"
   | "1065"
   | "unknown";
 
@@ -456,11 +647,24 @@ export interface TinaFilingLaneRecommendation {
 }
 
 export type TinaChecklistPriority = "required" | "recommended" | "watch";
+export type TinaChecklistAction = "upload" | "answer" | "review";
+export type TinaChecklistKind = "baseline" | "follow_up" | "replacement";
+export type TinaChecklistSource =
+  | "organizer"
+  | "document_clue"
+  | "coverage_gap"
+  | "lane_support";
 
 export interface TinaChecklistItem {
   id: string;
   label: string;
   reason: string;
   priority: TinaChecklistPriority;
+  action: TinaChecklistAction;
+  kind: TinaChecklistKind;
+  source: TinaChecklistSource;
+  actionLabel?: string;
+  focusLabel?: string;
+  substituteHint?: string;
   status: "needed" | "covered";
 }

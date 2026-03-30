@@ -61,6 +61,9 @@ export function AuthSyncProvider({ children }: { children: React.ReactNode }) {
   const { setCurrentUser } = useSentinelStore();
   const router = useRouter();
   const pathname = usePathname();
+  const loginHref = pathname.startsWith("/tina")
+    ? `/login?product=tina&next=${encodeURIComponent(pathname)}`
+    : "/login";
 
   useEffect(() => {
     const syncSession = async () => {
@@ -69,7 +72,7 @@ export function AuthSyncProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         setCurrentUser(await ensureProfileAndResolve(session.user, session.access_token));
       } else if (pathname !== "/login") {
-        router.replace("/login");
+        router.replace(loginHref);
       }
     };
 
@@ -79,12 +82,12 @@ export function AuthSyncProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         setCurrentUser(await ensureProfileAndResolve(session.user, session.access_token));
       } else if (pathname !== "/login") {
-        router.replace("/login");
+        router.replace(loginHref);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [setCurrentUser, router, pathname]);
+  }, [loginHref, pathname, router, setCurrentUser]);
 
   return <>{children}</>;
 }

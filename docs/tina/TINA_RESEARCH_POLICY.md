@@ -1,8 +1,13 @@
 # Tina Research Policy
 
-Last updated: 2026-03-26
+Last updated: 2026-03-28
 
 This document is the durable rulebook for how Tina should research tax ideas.
+
+Tina now also has a code-backed IRS authority registry for the supported 2025 Schedule C lane. That registry should be Tina's first stop for runtime federal authority and for annual IRS freshness watching.
+
+The shared registry manifest lives at `src/tina/data/irs-authority-registry.json`.
+The live watcher script lives at `scripts/tina-irs-authority-watch.mjs`.
 
 ## Core Rule
 
@@ -13,6 +18,18 @@ That means:
 - broad discovery is allowed
 - direct filing support must come from primary authority
 - anything close to the edge must be reviewed by a human
+
+## IRS Freshness Rule
+
+For the supported federal lane, Tina should not rely on memory or generic web recall before she checks the curated IRS registry.
+
+That means:
+
+- runtime federal support should start with the shared IRS registry for the active lane
+- `npm run tina:irs-watch` should be the operational check for whether those IRS sources are still reachable and unchanged
+- if the watcher shows changed or failed IRS sources, Tina should treat that as a recertification event
+- if the packet tax year falls outside the curated IRS registry year, Tina must keep the packet in review mode and block IRS-facing export claims
+- broader discovery is still allowed, but it does not replace the registry for filing support
 
 ## Two-Lane Research Model
 
@@ -57,6 +74,26 @@ Examples of primary authority:
 - statutes
 - official court opinions
 - official IRS instructions and bulletins
+
+### 3. Challenge Lane
+
+Purpose:
+
+- try to break a tax idea before it reaches the return
+- look for narrow fact-pattern limits
+- look for contrary authority
+- look for disclosure pressure
+- turn fuzzy risk into concrete reviewer questions
+
+Allowed source classes:
+
+- broad search for failure theories is allowed
+- primary authority is still required for final support or warning
+
+Important rule:
+
+- Tina should not just ask "can this work?"
+- Tina should also ask "why might this fail here?"
 
 ## Source Classes
 
@@ -208,3 +245,9 @@ The user should never have to guess whether Tina is showing:
 - a clever lead
 - a vetted position
 - or a bad idea that got rejected
+
+When Tina has stress-tested an idea, she should also show:
+
+- whether the idea survived the challenge
+- what weak spots she found
+- which facts still need a human check

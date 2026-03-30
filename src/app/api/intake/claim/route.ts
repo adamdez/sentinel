@@ -1,5 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/api-auth";
+
+async function markIntakeLeadClaimed(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  intakeLeadId: string,
+  userId: string,
+  sourceCategory: string | null,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const update: Record<string, any> = {
+    status: "claimed",
+    claimed_by: userId,
+    claimed_at: new Date().toISOString(),
+  };
+
+  if (sourceCategory) {
+    update.source_category = sourceCategory;
+  }
+
+  return (sb.from("intake_leads") as any)
+    .update(update)
+    .eq("id", intakeLeadId);
+}
 
 /**
  * POST /api/intake/claim
@@ -31,10 +55,7 @@ import { createServerClient } from "@/lib/supabase";
 export async function POST(req: NextRequest) {
   try {
     const sb = createServerClient();
-    const authHeader = req.headers.get("authorization")?.replace("Bearer ", "");
-
-    // Verify user is authenticated
-    const { data: { user } } = await sb.auth.getUser(authHeader);
+    const user = await requireAuth(req, sb);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -75,7 +96,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Intake lead not found" }, { status: 404 });
     }
 
-    if (intakeLead.status !== "pending_review") {
+    // Recover gracefully if a prior claim already created the CRM lead but the
+    // intake row stayed stale or the operator retried from an older tab.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existingLead } = await (sb.from("leads") as any)
+      .select("id, source_category")
+      .eq("intake_lead_id", intake_lead_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingLead?.id) {
+      const recoveredSourceCategory =
+        existingLead.source_category || intakeLead.source_category || null;
+
+      const { error: syncError } = await markIntakeLeadClaimed(
+        sb,
+        intake_lead_id,
+        user.id,
+        recoveredSourceCategory,
+      );
+      if (syncError) {
+        console.error("[Intake Claim] Existing lead sync failed:", syncError);
+      }
+
+      return NextResponse.json({
+        success: true,
+        lead_id: existingLead.id,
+        source_category: recoveredSourceCategory,
+        intake_lead_id,
+        recovered_existing_lead: true,
+      });
+    }
+
+    if (!["pending_review", "claimed"].includes(intakeLead.status)) {
       return NextResponse.json(
         { error: `Cannot claim intake lead with status: ${intakeLead.status}` },
         { status: 409 }
@@ -180,6 +234,39 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (leadError || !lead) {
+      if ((leadError as { code?: string } | null)?.code === "23505") {
+        // Another request won the race after our earlier existence check.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: racedLead } = await (sb.from("leads") as any)
+          .select("id, source_category")
+          .eq("intake_lead_id", intake_lead_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (racedLead?.id) {
+          const recoveredSourceCategory =
+            racedLead.source_category || intakeLead.source_category || sourceCategory;
+          const { error: syncError } = await markIntakeLeadClaimed(
+            sb,
+            intake_lead_id,
+            user.id,
+            recoveredSourceCategory,
+          );
+          if (syncError) {
+            console.error("[Intake Claim] Race recovery sync failed:", syncError);
+          }
+
+          return NextResponse.json({
+            success: true,
+            lead_id: racedLead.id,
+            source_category: recoveredSourceCategory,
+            intake_lead_id,
+            recovered_existing_lead: true,
+          });
+        }
+      }
+
       console.error("[Intake Claim] Lead creation failed:", leadError);
       return NextResponse.json(
         { error: "Failed to create lead record" },
@@ -188,15 +275,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 4: Update intake_lead status to claimed
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: updateError } = await (sb.from("intake_leads") as any)
-      .update({
-        status: "claimed",
-        claimed_by: user.id,
-        claimed_at: new Date().toISOString(),
-        source_category: sourceCategory, // Override with user-selected provider
-      })
-      .eq("id", intake_lead_id);
+    const { error: updateError } = await markIntakeLeadClaimed(
+      sb,
+      intake_lead_id,
+      user.id,
+      sourceCategory,
+    );
 
     if (updateError) {
       console.error("[Intake Claim] Status update failed:", updateError);

@@ -1,5 +1,12 @@
-import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import {
+  findTinaLlcCommunityPropertySourceFact,
+  findTinaLlcTreatmentSourceFact,
+  isTinaLlcEntityType,
+  resolveTinaLlcCommunityPropertyStatusFromSourceFacts,
+  resolveTinaLlcFederalTaxTreatmentFromSourceFacts,
+} from "@/tina/lib/llc-profile";
+import { findTinaFixedAssetSourceFacts } from "@/tina/lib/source-fact-signals";
 import type {
   TinaIssueQueue,
   TinaPrepRecord,
@@ -67,6 +74,16 @@ function extractFactYears(value: string): string[] {
   return Array.from(new Set(value.match(/\b20\d{2}\b/g) ?? []));
 }
 
+function parseIsoDate(value: string | null): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = Date.parse(`${value}T00:00:00.000Z`);
+  return Number.isNaN(parsed) ? null : new Date(parsed);
+}
+
+function diffDays(later: Date, earlier: Date): number {
+  return Math.floor((later.getTime() - earlier.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 function isBooksDocument(document: TinaStoredDocument | undefined): boolean {
   return document?.requestId === "quickbooks" || document?.requestId === "bank-support";
 }
@@ -77,8 +94,7 @@ function findFirstFactByLabel(sourceFacts: TinaSourceFact[], label: string): Tin
 
 export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
   const items: TinaReviewItem[] = [];
-  const recommendation = recommendTinaFilingLane(draft.profile);
-  const checklist = buildTinaChecklist(draft, recommendation);
+  const recommendation = recommendTinaFilingLane(draft.profile, draft.sourceFacts);
   const documentById = new Map(draft.documents.map((document) => [document.id, document]));
   const priorReturnDocument = draft.priorReturnDocumentId
     ? documentById.get(draft.priorReturnDocumentId) ?? null
@@ -103,6 +119,20 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     .filter((fact) => normalizeForComparison(fact.label) === "money out clue")
     .reduce((total, fact) => total + (parseMoneyFactValue(fact.value) ?? 0), 0);
   const bookYears = new Set(bookDateFacts.flatMap((fact) => extractFactYears(fact.value)));
+  const booksImportWaitingDocuments =
+    draft.booksImport.status === "complete"
+      ? draft.booksImport.documents.filter((document) => document.status === "waiting")
+      : [];
+  const booksImportAttentionDocuments =
+    draft.booksImport.status === "complete"
+      ? draft.booksImport.documents.filter((document) => document.status === "needs_attention")
+      : [];
+  const taxYear = draft.profile.taxYear.trim();
+  const llcTreatmentSourceFact = findTinaLlcTreatmentSourceFact(draft.sourceFacts);
+  const llcTreatmentFromPapers = resolveTinaLlcFederalTaxTreatmentFromSourceFacts(draft.sourceFacts);
+  const llcCommunityPropertySourceFact = findTinaLlcCommunityPropertySourceFact(draft.sourceFacts);
+  const llcCommunityPropertyFromPapers =
+    resolveTinaLlcCommunityPropertyStatusFromSourceFacts(draft.sourceFacts);
 
   if (priorReturnDocument && !priorReturnReading) {
     items.push({
@@ -198,6 +228,55 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
+  if (
+    isTinaLlcEntityType(draft.profile.entityType) &&
+    llcTreatmentSourceFact &&
+    llcTreatmentFromPapers &&
+    draft.profile.llcFederalTaxTreatment !== "default" &&
+    draft.profile.llcFederalTaxTreatment !== "unsure" &&
+    draft.profile.llcFederalTaxTreatment !== llcTreatmentFromPapers &&
+    !(
+      llcTreatmentSourceFact.label === "Return type hint" &&
+      recommendation.laneId === "schedule_c_single_member_llc"
+    )
+  ) {
+    items.push({
+      id: "llc-tax-treatment-conflict",
+      title: "LLC tax path does not match the saved papers",
+      summary:
+        "The LLC tax path in the organizer does not match the federal filing clue Tina found in a saved paper. Tina wants a human to settle that before she trusts the return lane.",
+      severity: "blocking",
+      status: "open",
+      category: "fact_mismatch",
+      requestId: null,
+      documentId: llcTreatmentSourceFact.sourceDocumentId,
+      factId: llcTreatmentSourceFact.id,
+    });
+  }
+
+  if (
+    draft.profile.entityType === "multi_member_llc" &&
+    draft.profile.llcFederalTaxTreatment === "owner_return" &&
+    llcCommunityPropertySourceFact &&
+    llcCommunityPropertyFromPapers &&
+    draft.profile.llcCommunityPropertyStatus !== "not_applicable" &&
+    draft.profile.llcCommunityPropertyStatus !== "unsure" &&
+    draft.profile.llcCommunityPropertyStatus !== llcCommunityPropertyFromPapers
+  ) {
+    items.push({
+      id: "llc-community-property-conflict",
+      title: "Spouse community-property status does not match the papers",
+      summary:
+        "The spouse/community-property answer in the organizer does not match what Tina found in a saved paper. This changes whether the LLC can stay on an owner-return path.",
+      severity: "blocking",
+      status: "open",
+      category: "fact_mismatch",
+      requestId: null,
+      documentId: llcCommunityPropertySourceFact.sourceDocumentId,
+      factId: llcCommunityPropertySourceFact.id,
+    });
+  }
+
   const stateClue = findFirstFactByLabel(draft.sourceFacts, "State clue");
   if (
     stateClue &&
@@ -282,11 +361,58 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
+  const fixedAssetClues = findTinaFixedAssetSourceFacts(draft.sourceFacts);
+  const fixedAssetClue = fixedAssetClues[0];
+  if (fixedAssetClue && !draft.profile.hasFixedAssets) {
+    items.push({
+      id: "fixed-assets-clue",
+      title: "A saved paper hints at big purchases or capitalization questions",
+      summary:
+        "Tina found equipment, repair, or small-tool clues in a saved paper, but big purchases are not marked in the organizer yet.",
+      severity: "watch",
+      status: "open",
+      category: "books",
+      requestId: null,
+      documentId: fixedAssetClue.sourceDocumentId,
+      factId: fixedAssetClue.id,
+    });
+  }
+
+  if (booksImportWaitingDocuments.length > 0) {
+    items.push({
+      id: "books-files-still-waiting",
+      title: "Some books files still need Tina's first read",
+      summary:
+        "Tina has one or more books files saved here, but she still needs a first clean read before she can trust them in the bookkeeping lane.",
+      severity: "needs_attention",
+      status: "open",
+      category: "books",
+      requestId: "quickbooks",
+      documentId: booksImportWaitingDocuments[0]?.documentId ?? null,
+      factId: null,
+    });
+  }
+
+  if (booksImportAttentionDocuments.length > 0) {
+    items.push({
+      id: "books-files-need-cleaner-export",
+      title: "One or more books files may need a cleaner export",
+      summary:
+        "Tina read at least one books file, but it still looks too fuzzy to trust without a cleaner export or a human check.",
+      severity: "needs_attention",
+      status: "open",
+      category: "books",
+      requestId: "quickbooks",
+      documentId: booksImportAttentionDocuments[0]?.documentId ?? null,
+      factId: null,
+    });
+  }
+
   if (
-    draft.profile.taxYear.trim() &&
+    taxYear &&
     bookDateFacts.length > 0 &&
     bookYears.size > 0 &&
-    !bookYears.has(draft.profile.taxYear.trim())
+    !bookYears.has(taxYear)
   ) {
     const firstMismatchFact = bookDateFacts[0];
     items.push({
@@ -301,6 +427,42 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
       documentId: firstMismatchFact?.sourceDocumentId ?? null,
       factId: firstMismatchFact?.id ?? null,
     });
+  }
+
+  if (
+    draft.booksImport.status === "complete" &&
+    taxYear &&
+    draft.booksImport.coverageStart &&
+    draft.booksImport.coverageEnd
+  ) {
+    const coverageStart = parseIsoDate(draft.booksImport.coverageStart);
+    const coverageEnd = parseIsoDate(draft.booksImport.coverageEnd);
+    const expectedStart = parseIsoDate(
+      draft.profile.formationDate.startsWith(taxYear)
+        ? draft.profile.formationDate
+        : `${taxYear}-01-01`
+    );
+    const expectedEnd = parseIsoDate(`${taxYear}-12-31`);
+
+    const startGapDays =
+      coverageStart && expectedStart ? diffDays(coverageStart, expectedStart) : 0;
+    const endGapDays =
+      coverageEnd && expectedEnd ? diffDays(expectedEnd, coverageEnd) : 0;
+
+    if (startGapDays > 45 || endGapDays > 45) {
+      items.push({
+        id: "books-coverage-may-be-partial",
+        title: "The books lane may not cover the full tax year yet",
+        summary:
+          "Tina sees books coverage for part of the year, but not enough to confidently call it a full-year books picture yet.",
+        severity: "watch",
+        status: "open",
+        category: "books",
+        requestId: "quickbooks",
+        documentId: draft.booksImport.documents[0]?.documentId ?? null,
+        factId: null,
+      });
+    }
   }
 
   const partialWarning = findFirstFactByLabel(draft.sourceFacts, "Partial file warning");
@@ -319,8 +481,8 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const quickbooksCovered = checklist.find((item) => item.id === "quickbooks")?.status === "covered";
-  const bankCovered = checklist.find((item) => item.id === "bank-support")?.status === "covered";
+  const hasQuickbooksDocument = draft.documents.some((document) => document.requestId === "quickbooks");
+  const hasBankSupportDocument = draft.documents.some((document) => document.requestId === "bank-support");
 
   const uniqueItems = items.filter(
     (item, index) =>
@@ -340,7 +502,12 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     .filter((item) => item.category === "state_scope")
     .map((item) => item.id);
   const laneIssueIds = uniqueItems
-    .filter((item) => item.id === "return-type-hint-conflict")
+    .filter(
+      (item) =>
+        item.id === "return-type-hint-conflict" ||
+        item.id === "llc-tax-treatment-conflict" ||
+        item.id === "llc-community-property-conflict"
+    )
     .map((item) => item.id);
 
   const booksSignalSummaryParts: string[] = [];
@@ -357,6 +524,15 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
   }
   if (bookDateFacts.length > 0) {
     booksSignalSummaryParts.push(`The dates she found include ${Array.from(bookYears).sort().join(", ")}.`);
+  }
+  if (draft.booksImport.status === "complete") {
+    booksSignalSummaryParts.length = 0;
+    booksSignalSummaryParts.push(draft.booksImport.summary);
+    if (draft.booksImport.coverageStart || draft.booksImport.coverageEnd) {
+      booksSignalSummaryParts.push(
+        `Coverage looks like ${draft.booksImport.coverageStart ?? "?"} through ${draft.booksImport.coverageEnd ?? "?"}.`
+      );
+    }
   }
 
   const records: TinaPrepRecord[] = [
@@ -387,12 +563,12 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     buildRecord(
       "books",
       "Books and money records",
-      quickbooksCovered && bankCovered
+      hasQuickbooksDocument && hasBankSupportDocument
         ? booksIssueIds.length > 0
           ? "needs_attention"
           : "ready"
         : "waiting",
-      quickbooksCovered && bankCovered
+      hasQuickbooksDocument && hasBankSupportDocument
         ? booksIssueIds.length > 0
           ? booksSignalSummaryParts.length > 0
             ? `${booksSignalSummaryParts.join(" ")} Tina still sees something to check.`

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { createServerClient } from "@/lib/supabase";
-import { createDefaultTinaWorkspaceDraft, parseTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
-
-const TINA_PREFERENCES_KEY = "tina_workspace_v1";
+import {
+  loadTinaWorkspaceState,
+  saveTinaWorkspaceState,
+} from "@/tina/lib/server-packet-store";
+import { loadTinaIrsAuthorityWatchStatus } from "@/tina/lib/irs-authority-watch";
+import { parseTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 
 export async function GET(req: NextRequest) {
   const sb = createServerClient();
@@ -13,21 +16,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (sb.from("user_profiles") as any)
-    .select("preferences")
-    .eq("id", user.id)
-    .single();
-
-  if (error) {
+  try {
+    const { draft, packetVersions } = await loadTinaWorkspaceState(sb, user.id);
+    return NextResponse.json({
+      draft,
+      packetVersions,
+      irsAuthorityWatchStatus: loadTinaIrsAuthorityWatchStatus(),
+    });
+  } catch {
     return NextResponse.json({ error: "Failed to load Tina workspace" }, { status: 500 });
   }
-
-  const preferences = (data?.preferences as Record<string, unknown> | null) ?? {};
-  const rawDraft = preferences[TINA_PREFERENCES_KEY];
-  const draft = parseTinaWorkspaceDraft(rawDraft ? JSON.stringify(rawDraft) : null);
-
-  return NextResponse.json({ draft });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -50,37 +48,14 @@ export async function PATCH(req: NextRequest) {
   }
 
   const draft = parseTinaWorkspaceDraft(JSON.stringify((body as { draft: unknown }).draft));
-  const safeDraft = {
-    ...createDefaultTinaWorkspaceDraft(),
-    ...draft,
-    savedAt: draft.savedAt ?? new Date().toISOString(),
-  };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: existing, error: readError } = await (sb.from("user_profiles") as any)
-    .select("preferences")
-    .eq("id", user.id)
-    .single();
-
-  if (readError) {
-    return NextResponse.json({ error: "Failed to load profile preferences" }, { status: 500 });
-  }
-
-  const preferences = (existing?.preferences as Record<string, unknown> | null) ?? {};
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: updateError } = await (sb.from("user_profiles") as any)
-    .update({
-      preferences: {
-        ...preferences,
-        [TINA_PREFERENCES_KEY]: safeDraft,
-      },
-    })
-    .eq("id", user.id);
-
-  if (updateError) {
+  try {
+    const saved = await saveTinaWorkspaceState(sb, user.id, draft);
+    return NextResponse.json({
+      ...saved,
+      irsAuthorityWatchStatus: loadTinaIrsAuthorityWatchStatus(),
+    });
+  } catch {
     return NextResponse.json({ error: "Failed to save Tina workspace" }, { status: 500 });
   }
-
-  return NextResponse.json({ draft: safeDraft });
 }

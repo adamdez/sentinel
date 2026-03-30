@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap, Loader2, Shield, ArrowLeft, Lock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -8,7 +8,7 @@ import { usePsalm20 } from "@/components/sentinel/psalm20/use-psalm20";
 import { ShieldIcon, BannerLarge, GoldDivider, CrownIcon, BannerIcon } from "@/components/sentinel/psalm20/icons";
 import { ScriptureWatermark } from "@/components/sentinel/psalm20/scripture-watermark";
 
-const TEAM = [
+const BASE_TEAM = [
   {
     name: "Adam",
     initials: "AD",
@@ -32,11 +32,52 @@ const TEAM = [
   },
 ];
 
+const DEV_ONLY_TEAM = process.env.NODE_ENV === "development"
+  ? [
+      {
+        name: "Tina Tester",
+        initials: "TT",
+        email: "tina.tester@example.com",
+        color: "#7cab74",
+        role: "QA",
+      },
+    ]
+  : [];
+
+const TEAM = [...BASE_TEAM, ...DEV_ONLY_TEAM];
+
+function readLoginQueryState() {
+  if (typeof window === "undefined") {
+    return {
+      nextPath: null as string | null,
+      tinaMode: false,
+    };
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const nextPath = params.get("next");
+  const tinaMode =
+    (params.get("product") ?? params.get("app")) === "tina" ||
+    nextPath?.startsWith("/tina") === true;
+
+  return {
+    nextPath,
+    tinaMode,
+  };
+}
+
 export default function LoginPage() {
   const [selectedMember, setSelectedMember] = useState<(typeof TEAM)[number] | null>(null);
   const [password, setPassword] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [{ nextPath, tinaMode }, setLoginQueryState] = useState(readLoginQueryState);
+
+  useEffect(() => {
+    const queryState = readLoginQueryState();
+    setLoginQueryState(queryState);
+    document.title = queryState.tinaMode ? "Sign in to Tina" : "Sentinel - Unified ERP";
+  }, []);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,7 +98,7 @@ export default function LoginPage() {
       return;
     }
 
-    window.location.href = "/dashboard";
+    window.location.href = nextPath?.startsWith("/") ? nextPath : "/dashboard";
   };
 
   const handleBack = () => {
@@ -66,7 +107,7 @@ export default function LoginPage() {
     setError(null);
   };
 
-  const isPsalm20 = usePsalm20();
+  const isPsalm20 = usePsalm20() && !tinaMode;
 
   // Psalm 20 gold used for member avatars in psalm20 mode
   const memberColor = (member: (typeof TEAM)[number]) =>
@@ -100,7 +141,27 @@ export default function LoginPage() {
         className="w-full max-w-md relative z-10"
       >
         <div className="flex flex-col items-center mb-10">
-          {isPsalm20 ? (
+          {tinaMode ? (
+            <>
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
+                className="h-16 w-16 rounded-2xl flex items-center justify-center border border-emerald-300/18 bg-emerald-300/10 mb-4 shadow-[0_8px_32px_var(--shadow-medium)]"
+              >
+                <Shield className="h-8 w-8 text-emerald-100" />
+              </motion.div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200/80">
+                Private business-tax workspace
+              </p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+                Tina
+              </h1>
+              <p className="mt-2 max-w-sm text-center text-sm leading-6 text-muted-foreground/80">
+                Simple tax help, one clear step at a time.
+              </p>
+            </>
+          ) : isPsalm20 ? (
             <>
               {/* Shield emblem */}
               <motion.div
@@ -201,8 +262,15 @@ export default function LoginPage() {
                   ) : (
                     <Shield className="h-4 w-4 text-muted-foreground/60" />
                   )}
-                  <p className="text-sm text-muted-foreground/70">Select your profile</p>
+                  <p className="text-sm text-muted-foreground/70">
+                    {tinaMode ? "Choose your sign-in" : "Select your profile"}
+                  </p>
                 </div>
+                {tinaMode ? (
+                  <p className="mb-5 text-sm leading-6 text-muted-foreground/70">
+                    Tina will open your private tax workspace after you sign in.
+                  </p>
+                ) : null}
 
                 <div className="space-y-3">
                   {TEAM.map((member, i) => (
@@ -270,7 +338,9 @@ export default function LoginPage() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-foreground">
-                      Sign in as {selectedMember.name}
+                      {tinaMode
+                        ? `Sign in to Tina as ${selectedMember.name}`
+                        : `Sign in as ${selectedMember.name}`}
                     </p>
                     <p className="text-xs text-muted-foreground/60">{selectedMember.email}</p>
                   </div>
@@ -334,7 +404,11 @@ export default function LoginPage() {
         <p className="text-center text-sm mt-6 tracking-wide" style={{
           color: isPsalm20 ? "rgba(201,168,76,0.25)" : undefined,
         }}>
-          {isPsalm20 ? (
+          {tinaMode ? (
+            <span className="text-muted-foreground/40">
+              Private sign-in for Tina
+            </span>
+          ) : isPsalm20 ? (
             <span className="tracking-[0.15em] uppercase text-xs">
               DOMINION HOME DEALS — UNDER THE BANNER
             </span>

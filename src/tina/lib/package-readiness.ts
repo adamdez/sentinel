@@ -1,6 +1,10 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { getTinaIrsAuthorityRegistryStatus } from "@/tina/lib/irs-authority-registry";
+import { buildTinaOfficialFormCoverageGaps } from "@/tina/lib/official-form-coverage";
 import type {
+  TinaChecklistItem,
+  TinaIrsAuthorityWatchStatus,
   TinaPackageReadinessItem,
   TinaPackageReadinessLevel,
   TinaPackageReadinessSnapshot,
@@ -71,12 +75,40 @@ function noteNeedsAttention(note: TinaScheduleCDraftNote): boolean {
   return note.severity === "needs_attention";
 }
 
-export function buildTinaPackageReadiness(
+function isReturnTypeConflictIssueId(id: string): boolean {
+  return (
+    id === "return-type-hint-conflict" ||
+    id === "llc-tax-treatment-conflict" ||
+    id === "llc-community-property-conflict"
+  );
+}
+
+function checklistItemBlocksPackage(
+  item: TinaChecklistItem,
   draft: TinaWorkspaceDraft
+): boolean {
+  if (item.status !== "needed") return false;
+  if (item.priority === "required") return true;
+  if (item.id !== "lane-review") return false;
+
+  return !draft.issueQueue.items.some(
+    (issue) =>
+      issue.status === "open" &&
+      issue.severity === "blocking" &&
+      isReturnTypeConflictIssueId(issue.id)
+  );
+}
+
+export function buildTinaPackageReadiness(
+  draft: TinaWorkspaceDraft,
+  options?: {
+    irsAuthorityWatchStatus?: TinaIrsAuthorityWatchStatus | null;
+  }
 ): TinaPackageReadinessSnapshot {
   const now = new Date().toISOString();
-  const lane = recommendTinaFilingLane(draft.profile);
+  const lane = recommendTinaFilingLane(draft.profile, draft.sourceFacts);
   const checklist = buildTinaChecklist(draft, lane);
+  const irsAuthorityWatchStatus = options?.irsAuthorityWatchStatus ?? null;
   const items: TinaPackageReadinessItem[] = [];
 
   if (lane.support !== "supported" || lane.laneId !== "schedule_c_single_member_llc") {
@@ -86,6 +118,33 @@ export function buildTinaPackageReadiness(
         title: "Tina is not on a supported filing lane yet",
         summary:
           "This first filing package check only works for Tina's supported Schedule C path. Tina should stop here instead of pretending the package is ready.",
+        severity: "blocking",
+      })
+    );
+  }
+
+  const irsAuthorityStatus = getTinaIrsAuthorityRegistryStatus(
+    lane.laneId,
+    draft.profile.taxYear
+  );
+
+  if (irsAuthorityStatus.level === "blocked") {
+    items.push(
+      createItem({
+        id: "irs-authority-registry",
+        title: "IRS authority year support is not certified yet",
+        summary: `${irsAuthorityStatus.summary} ${irsAuthorityStatus.nextStep}`,
+        severity: "blocking",
+      })
+    );
+  }
+
+  if (irsAuthorityWatchStatus?.level === "needs_review") {
+    items.push(
+      createItem({
+        id: "irs-authority-watch",
+        title: "IRS freshness watch needs review",
+        summary: `${irsAuthorityWatchStatus.summary} ${irsAuthorityWatchStatus.nextStep}`,
         severity: "blocking",
       })
     );
@@ -115,12 +174,23 @@ export function buildTinaPackageReadiness(
     );
   }
 
+  buildTinaOfficialFormCoverageGaps(draft).forEach((gap) => {
+    items.push(
+      createItem({
+        id: `federal-form-${gap.id}`,
+        title: `${gap.formNumber}: ${gap.title}`,
+        summary: `${gap.summary} Tina should keep the CPA handoff moving, but she should not pretend the IRS-facing business form packet is complete yet.`,
+        severity: "needs_attention",
+      })
+    );
+  });
+
   checklist
-    .filter((item) => item.priority === "required" && item.status === "needed")
+    .filter((item) => checklistItemBlocksPackage(item, draft))
     .forEach((item) => {
       items.push(
         createItem({
-          id: `required-${item.id}`,
+          id: `${item.priority === "required" ? "required" : "review"}-${item.id}`,
           title: item.label,
           summary: `${item.reason} Tina should get this before calling the package ready.`,
           severity: "blocking",
@@ -240,24 +310,24 @@ export function buildTinaPackageReadiness(
   if (blockingCount > 0) level = "blocked";
   else if (attentionCount > 0) level = "needs_review";
 
-  let summary = "Tina does not see anything blocking a CPA-ready package right now.";
+  let summary = "Tina does not see anything blocking a CPA-ready federal business packet right now.";
   if (level === "blocked") {
-    summary = `Tina found ${blockingCount} blocking item${blockingCount === 1 ? "" : "s"} before this package can be called filing-ready.`;
+    summary = `Tina found ${blockingCount} blocking item${blockingCount === 1 ? "" : "s"} before this federal business packet can be called filing-ready.`;
     if (attentionCount > 0) {
       summary += ` ${attentionCount} more ${attentionCount === 1 ? "item needs" : "items need"} review after that.`;
     }
   } else if (level === "needs_review") {
-    summary = `Tina does not see a hard stop, but ${attentionCount} item${attentionCount === 1 ? " still needs" : "s still need"} review before a CPA should trust the package.`;
+    summary = `Tina does not see a hard stop, but ${attentionCount} item${attentionCount === 1 ? " still needs" : "s still need"} review before a CPA should trust the federal business packet.`;
   }
 
   let nextStep =
-    "Tina can hand this package to a CPA review flow next, but it is still worth doing a final human scan.";
+    "Tina can hand this federal business packet to a CPA review flow next, but it is still worth doing a final human scan.";
   if (level === "blocked") {
     nextStep =
-      "Work through the blocking items first. Tina should not call this package filing-ready until those are cleared.";
+      "Work through the blocking items first. Tina should not call this federal business packet filing-ready until those are cleared.";
   } else if (level === "needs_review") {
     nextStep =
-      "Clear the review items next so Tina can say the package is ready for CPA handoff with confidence.";
+      "Clear the review items next so Tina can say the federal business packet is ready for CPA handoff with confidence.";
   }
 
   return {

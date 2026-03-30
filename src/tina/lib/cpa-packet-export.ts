@@ -1,5 +1,7 @@
-import { buildTinaCpaHandoff } from "@/tina/lib/cpa-handoff";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { buildTinaPacketIdentity, getTinaPacketFileTag } from "@/tina/lib/packet-identity";
+import { buildTinaPacketReviewMarkdownLines } from "@/tina/lib/packet-review-export";
+import type { TinaStoredPacketReviewState } from "@/tina/lib/packet-versions";
 import type { TinaWorkspaceDraft } from "@/tina/types";
 
 function formatMoney(value: number | null): string {
@@ -26,12 +28,17 @@ export interface TinaCpaPacketExport {
   contents: string;
 }
 
-export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPacketExport {
-  const handoff = buildTinaCpaHandoff(draft);
-  const lane = recommendTinaFilingLane(draft.profile);
+export function buildTinaCpaPacketExport(
+  draft: TinaWorkspaceDraft,
+  options?: { packetReview?: TinaStoredPacketReviewState | null }
+): TinaCpaPacketExport {
+  const handoff = draft.cpaHandoff;
+  const lane = recommendTinaFilingLane(draft.profile, draft.sourceFacts);
   const businessName = draft.profile.businessName || "Unnamed business";
   const taxYear = draft.profile.taxYear || "tax-year";
   const slug = toSlug(businessName) || "tina-business";
+  const packetIdentity = buildTinaPacketIdentity(draft);
+  const packetTag = getTinaPacketFileTag(draft);
 
   const lines: string[] = [
     "# Tina CPA Review Packet",
@@ -39,8 +46,13 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     `- Business: ${businessName}`,
     `- Tax year: ${taxYear}`,
     `- Filing lane: ${lane.title}`,
+    `- Packet ID: ${packetIdentity.packetId}`,
+    `- Packet version: ${packetIdentity.packetVersion}`,
     `- Packet status: ${handoff.summary}`,
     `- Next step: ${handoff.nextStep}`,
+    "",
+    "## Saved packet review",
+    ...buildTinaPacketReviewMarkdownLines(options?.packetReview),
     "",
     "## Packet sections",
   ];
@@ -97,7 +109,24 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     draft.authorityWork.forEach((item) => {
       lines.push(`- ${item.ideaId} [${item.status}]`);
       if (item.memo) lines.push(`  - Tina note: ${item.memo}`);
+      if (item.challengeVerdict !== "not_run") {
+        lines.push(`  - Stress test: ${item.challengeVerdict.replace(/_/g, " ")}`);
+      }
+      if (item.challengeMemo) lines.push(`  - Stress-test note: ${item.challengeMemo}`);
+      if (item.challengeWarnings.length > 0) {
+        item.challengeWarnings.forEach((warning) => {
+          lines.push(`  - Weak spot: ${warning}`);
+        });
+      }
+      if (item.challengeQuestions.length > 0) {
+        item.challengeQuestions.forEach((question) => {
+          lines.push(`  - Reviewer question: ${question}`);
+        });
+      }
       if (item.reviewerNotes) lines.push(`  - Reviewer note: ${item.reviewerNotes}`);
+      if (item.lastChallengeRunAt) {
+        lines.push(`  - Last stress test: ${item.lastChallengeRunAt}`);
+      }
       lines.push(`  - Citations saved: ${item.citations.length}`);
     });
   } else {
@@ -110,7 +139,7 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
   );
 
   return {
-    fileName: `tina-cpa-packet-${slug}-${taxYear}.md`,
+    fileName: `tina-cpa-packet-${slug}-${taxYear}-${packetTag}.md`,
     mimeType: "text/markdown; charset=utf-8",
     contents: lines.join("\n"),
   };

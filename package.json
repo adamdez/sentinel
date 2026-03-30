@@ -11,6 +11,7 @@
     "test": "npx vitest run",
     "test:watch": "npx vitest",
     "test:smoke": "npx playwright test --config e2e/playwright.config.ts --project smoke",
+    "tina:irs-watch": "node scripts/tina-irs-authority-watch.mjs",
     "typecheck": "tsc --noEmit",
     "db:gen-types": "npx supabase gen types --lang=typescript --project-id imusghlptroddfeycpei > src/lib/supabase-generated-types.ts"
   },

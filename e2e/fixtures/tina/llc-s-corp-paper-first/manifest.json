@@ -1,0 +1,43 @@
+{
+  "id": "llc-s-corp-paper-first",
+  "business_name": "Harbor Signal Analytics LLC",
+  "owner_name": "Jordan Lee",
+  "tax_year": "2025",
+  "entity_type": "single_member_llc",
+  "formation_state": "WA",
+  "formation_date": "2022-03-01",
+  "accounting_method": "cash",
+  "naics_code": "541611 business analytics consulting",
+  "has_payroll": false,
+  "pays_contractors": false,
+  "has_inventory": false,
+  "has_fixed_assets": false,
+  "collects_sales_tax": false,
+  "has_idaho_activity": false,
+  "notes": "Single-member LLC with an S-corp election already shown in the prior return. The owner leaves the LLC tax-path question at the normal default so Tina has to learn it from the saved paper instead of asking again.",
+  "prior_return": "prior-return-2024.pdf",
+  "books_files": [
+    "2025-profit-loss.csv"
+  ],
+  "bank_files": [
+    "2025-bank-summary.csv"
+  ],
+  "extra_files": [
+    "2025-general-ledger.xlsx"
+  ],
+  "llc_federal_tax_treatment": null,
+  "llc_community_property_status": null,
+  "expected_recommendation_title_after_reading": "1120-S / LLC Taxed as S-Corp",
+  "expected_absent_next_actions": [
+    "How this LLC files with the IRS"
+  ],
+  "expected_visible_next_actions_after_reading": [],
+  "expected_visible_next_actions_after_review": [],
+  "expected_page_text_after_review": [],
+  "files": [
+    "prior-return-2024.pdf",
+    "2025-profit-loss.csv",
+    "2025-bank-summary.csv",
+    "2025-general-ledger.xlsx"
+  ]
+}

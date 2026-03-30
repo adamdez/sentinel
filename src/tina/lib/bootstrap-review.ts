@@ -1,5 +1,6 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { describeTinaLlcFederalTaxTreatment, isTinaLlcEntityType } from "@/tina/lib/llc-profile";
 import type {
   TinaBootstrapFact,
   TinaBootstrapReview,
@@ -102,7 +103,7 @@ export function buildTinaBootstrapReview(draft: TinaWorkspaceDraft): TinaBootstr
     ? draft.documents.find((document) => document.id === draft.priorReturnDocumentId) ?? null
     : null;
   const completedReadings = draft.documentReadings.filter((reading) => reading.status === "complete");
-  const recommendation = recommendTinaFilingLane(draft.profile);
+  const recommendation = recommendTinaFilingLane(draft.profile, draft.sourceFacts);
   const checklist = buildTinaChecklist(draft, recommendation);
   const facts: TinaBootstrapFact[] = [];
   const items: TinaReviewItem[] = [];
@@ -123,6 +124,13 @@ export function buildTinaBootstrapReview(draft: TinaWorkspaceDraft): TinaBootstr
 
   if (draft.profile.entityType !== "unsure") {
     facts.push(buildFact("entity-type", "Business type", recommendation.title, "organizer"));
+  }
+
+  if (isTinaLlcEntityType(draft.profile.entityType)) {
+    const llcTreatment = describeTinaLlcFederalTaxTreatment(draft.profile, draft.sourceFacts);
+    if (llcTreatment) {
+      facts.push(buildFact("llc-tax-treatment", "LLC federal tax path", llcTreatment, "organizer"));
+    }
   }
 
   if (draft.profile.accountingMethod !== "unsure") {

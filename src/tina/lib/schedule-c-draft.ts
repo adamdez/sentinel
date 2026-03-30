@@ -115,7 +115,7 @@ export function buildTinaScheduleCDraft(
   draft: TinaWorkspaceDraft
 ): TinaScheduleCDraftSnapshot {
   const now = new Date().toISOString();
-  const lane = recommendTinaFilingLane(draft.profile);
+  const lane = recommendTinaFilingLane(draft.profile, draft.sourceFacts);
 
   if (lane.laneId !== "schedule_c_single_member_llc" || lane.support !== "supported") {
     return {

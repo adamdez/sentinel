@@ -1,0 +1,43 @@
+{
+  "id": "messy-books",
+  "business_name": "Blue Cedar Home Services LLC",
+  "owner_name": "Maya Jensen",
+  "tax_year": "2025",
+  "entity_type": "single_member_llc",
+  "formation_state": "WA",
+  "formation_date": "2024-01-15",
+  "accounting_method": "cash",
+  "naics_code": "561790 cleaning and home services",
+  "has_payroll": false,
+  "pays_contractors": false,
+  "has_inventory": false,
+  "has_fixed_assets": false,
+  "collects_sales_tax": false,
+  "has_idaho_activity": false,
+  "notes": "Messy Spokane service business with partial books, payroll hints, contractor payments, sales tax notes, inventory-like purchases, and Idaho job clues.",
+  "prior_return": "prior-return-2024.pdf",
+  "books_files": [
+    "2025-quickbooks-january-june.csv"
+  ],
+  "bank_files": [
+    "2025-bank-summary-messy.csv"
+  ],
+  "extra_files": [
+    "2025-general-ledger-messy.xlsx",
+    "warehouse-box-receipt.png"
+  ],
+  "llc_federal_tax_treatment": null,
+  "llc_community_property_status": null,
+  "expected_recommendation_title_after_reading": null,
+  "expected_absent_next_actions": [],
+  "expected_visible_next_actions_after_reading": [],
+  "expected_visible_next_actions_after_review": [],
+  "expected_page_text_after_review": [],
+  "files": [
+    "prior-return-2024.pdf",
+    "2025-quickbooks-january-june.csv",
+    "2025-bank-summary-messy.csv",
+    "2025-general-ledger-messy.xlsx",
+    "warehouse-box-receipt.png"
+  ]
+}

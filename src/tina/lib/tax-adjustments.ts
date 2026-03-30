@@ -113,13 +113,29 @@ export function markTinaTaxAdjustmentsStale(
   };
 }
 
-function authorityAllowsAdjustment(draft: TinaWorkspaceDraft, ideaIds: string[]): boolean {
-  if (ideaIds.length === 0) return true;
+function authorityDecisionForAdjustment(
+  draft: TinaWorkspaceDraft,
+  ideaIds: string[]
+): "ready" | "needs_authority" | "reject" {
+  if (ideaIds.length === 0) return "ready";
 
-  return ideaIds.every((ideaId) => {
+  const decisions = ideaIds.map((ideaId) => {
     const workItem = draft.authorityWork.find((item) => item.ideaId === ideaId);
-    return Boolean(workItem && workItem.reviewerDecision === "use_it" && workItem.status !== "rejected");
+    if (!workItem) return "needs_authority";
+    if (
+      workItem.status === "rejected" ||
+      workItem.reviewerDecision === "do_not_use" ||
+      workItem.challengeVerdict === "likely_fails"
+    ) {
+      return "reject";
+    }
+    if (workItem.reviewerDecision === "use_it") return "ready";
+    return "needs_authority";
   });
+
+  if (decisions.includes("reject")) return "reject";
+  if (decisions.includes("needs_authority")) return "needs_authority";
+  return "ready";
 }
 
 function mergeAdjustment(
@@ -129,7 +145,9 @@ function mergeAdjustment(
   if (!existing) return generated;
 
   const status =
-    generated.status === "needs_authority"
+    generated.status === "rejected"
+      ? "rejected"
+      : generated.status === "needs_authority"
       ? "needs_authority"
       : existing.status === "approved" || existing.status === "rejected"
         ? existing.status
@@ -195,13 +213,17 @@ function buildAdjustmentFromLine(
         }
       : buildCarryforwardSeed(line);
 
-  const authorityReady = authorityAllowsAdjustment(draft, seed.authorityWorkIdeaIds);
+  const authorityDecision = authorityDecisionForAdjustment(draft, seed.authorityWorkIdeaIds);
 
   return {
     id: `tax-adjustment-${line.id}`,
     kind: seed.kind,
     status:
-      seed.requiresAuthority && !authorityReady ? "needs_authority" : "ready_for_review",
+      seed.requiresAuthority && authorityDecision === "reject"
+        ? "rejected"
+        : seed.requiresAuthority && authorityDecision !== "ready"
+          ? "needs_authority"
+          : "ready_for_review",
     risk: seed.risk,
     requiresAuthority: seed.requiresAuthority,
     title: seed.title,
@@ -251,6 +273,7 @@ export function buildTinaTaxAdjustmentSnapshot(
   const authorityBlockedCount = adjustments.filter(
     (adjustment) => adjustment.status === "needs_authority"
   ).length;
+  const rejectedCount = adjustments.filter((adjustment) => adjustment.status === "rejected").length;
   const readyCount = adjustments.filter(
     (adjustment) => adjustment.status === "ready_for_review"
   ).length;
@@ -259,12 +282,18 @@ export function buildTinaTaxAdjustmentSnapshot(
   if (authorityBlockedCount > 0) {
     summary += ` ${authorityBlockedCount} still ${authorityBlockedCount === 1 ? "needs" : "need"} authority signoff first.`;
   }
+  if (rejectedCount > 0) {
+    summary += ` ${rejectedCount} ${rejectedCount === 1 ? "was" : "were"} rejected because Tina's authority review or stress test says not to use ${rejectedCount === 1 ? "it" : "them"}.`;
+  }
 
   let nextStep =
     "Review the tax adjustments Tina proposed before anything flows into a filing package.";
   if (authorityBlockedCount > 0) {
     nextStep =
       "Finish the linked authority work first, then review the tax adjustments that remain.";
+  } else if (rejectedCount > 0) {
+    nextStep =
+      "Leave rejected tax moves out of the return unless new authority or facts change the answer.";
   } else if (readyCount > 0) {
     nextStep =
       "A human can now review and approve the tax adjustments that are ready.";

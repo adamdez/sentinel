@@ -1,8 +1,13 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { type RefObject, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
   CheckCircle2,
   ExternalLink,
   FileText,
@@ -24,23 +29,50 @@ import { cn } from "@/lib/utils";
 import { TinaStageCard } from "@/tina/components/tina-stage-card";
 import { TINA_STAGES } from "@/tina/data/foundation";
 import { useTinaDraft } from "@/tina/hooks/use-tina-draft";
-import { buildTinaAuthorityWorkItems, createDefaultTinaAuthorityCitation } from "@/tina/lib/authority-work";
+import { buildTinaArtifactManifest, type TinaArtifactManifestItem } from "@/tina/lib/artifact-manifest";
+import {
+  buildTinaAuthorityBackgroundProgress,
+  buildTinaAuthorityBackgroundQueueState,
+  buildTinaAuthorityWorkItems,
+  createDefaultTinaAuthorityCitation,
+  isTinaAuthorityBackgroundRunActive,
+} from "@/tina/lib/authority-work";
+import {
+  createPlanningLiveSyncTinaBooksConnection,
+  createUploadOnlyTinaBooksConnection,
+} from "@/tina/lib/books-connection";
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { findTinaDocumentReading } from "@/tina/lib/document-readings";
+import { canConfirmTinaFinalSignoff } from "@/tina/lib/final-signoff";
+import { canExportTinaOfficialFormPacket } from "@/tina/lib/official-form-coverage";
+import { selectTinaVisibleChecklist } from "@/tina/lib/next-asks";
+import { buildTinaPacketComparison } from "@/tina/lib/packet-comparison";
 import { buildTinaResearchDossiers } from "@/tina/lib/research-dossiers";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import {
+  TINA_IRS_AUTHORITY_REGISTRY_VERIFIED_AT,
+  TINA_IRS_AUTHORITY_SUPPORTED_TAX_YEAR,
+  getTinaIrsAuthorityRegistryStatus,
+  listTinaIrsAuthoritySources,
+} from "@/tina/lib/irs-authority-registry";
 import { buildTinaResearchIdeas } from "@/tina/lib/research-ideas";
 import { describeTinaResearchPolicy } from "@/tina/lib/research-policy";
 import { resolveTinaPriorReturnDocument } from "@/tina/lib/workspace-draft";
 import type {
   TinaAiCleanupSnapshot,
   TinaAccountingMethod,
+  TinaAuthorityBackgroundRun,
   TinaAuthorityCitationEffect,
   TinaAuthorityCitationSourceClass,
+  TinaAuthorityChallengeVerdict,
   TinaAuthorityDisclosureDecision,
   TinaAuthorityReviewerDecision,
   TinaAuthorityWorkStatus,
+  TinaBooksConnectionStatus,
+  TinaBooksImportSnapshot,
+  TinaBooksImportDocumentStatus,
   TinaBootstrapReview,
+  TinaChecklistAction,
   TinaChecklistItem,
   TinaCleanupPlan,
   TinaCleanupSuggestion,
@@ -49,7 +81,12 @@ import type {
   TinaDocumentReading,
   TinaEntityType,
   TinaCpaHandoffSnapshot,
+  TinaFinalSignoffSnapshot,
   TinaIssueQueue,
+  TinaLlcCommunityPropertyStatus,
+  TinaLlcFederalTaxTreatment,
+  TinaOfficialFormDraft,
+  TinaOfficialFormPacketSnapshot,
   TinaPackageReadinessSnapshot,
   TinaScheduleCDraftSnapshot,
   TinaStoredDocument,
@@ -75,6 +112,69 @@ function formatSavedAt(value: string | null): string {
   });
 }
 
+function formatShortDate(value: string): string {
+  return new Date(`${value}T00:00:00.000Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatEstimatedRemainingDuration(ms: number): string {
+  const totalMinutes = Math.max(1, Math.ceil(ms / 60_000));
+
+  if (totalMinutes >= 60) {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}:${minutes.toString().padStart(2, "0")}`;
+  }
+
+  return `${totalMinutes} min`;
+}
+
+function getAuthorityRunButtonLabel(
+  run: TinaAuthorityBackgroundRun,
+  options: {
+    idleLabel: string;
+    rerunLabel: string;
+    queuedLabel: string;
+    runningLabel: string;
+    rateLimitedLabel: string;
+  }
+): string {
+  switch (run.status) {
+    case "queued":
+      return options.queuedLabel;
+    case "running":
+      return options.runningLabel;
+    case "rate_limited":
+      return options.rateLimitedLabel;
+    default:
+      return run.finishedAt ? options.rerunLabel : options.idleLabel;
+  }
+}
+
+function getAuthorityRunSummary(
+  run: TinaAuthorityBackgroundRun,
+  waitingLabel: string
+): string | null {
+  if (run.status === "queued") {
+    return "Tina queued this deeper pass and will keep working while you stay in the workspace.";
+  }
+  if (run.status === "running") {
+    return "Tina is working on this in the background.";
+  }
+  if (run.status === "rate_limited") {
+    return run.retryAt
+      ? `${waitingLabel} ${formatSavedAt(run.retryAt)}.`
+      : `${waitingLabel} in a moment.`;
+  }
+  if (run.status === "failed" && run.error) {
+    return run.error;
+  }
+  return null;
+}
+
 function formatMoneyAmount(value: number | null): string {
   if (value === null) return "No dollar amount";
   return new Intl.NumberFormat("en-US", {
@@ -90,6 +190,13 @@ function getWorkpaperStatusLabel(workpapers: TinaWorkpaperSnapshot): string {
   if (workpapers.status === "stale") return "Needs a fresh build";
   if (workpapers.lastRunAt) return "Need more papers first";
   return "Not built yet";
+}
+
+function getBooksImportStatusLabel(status: TinaWorkpaperSnapshot["status"]): string {
+  if (status === "complete") return "sorted";
+  if (status === "stale") return "needs a fresh sort";
+  if (status === "running") return "sorting";
+  return "not sorted yet";
 }
 
 function formatDocumentReadingKind(reading: TinaDocumentReading): string {
@@ -122,11 +229,60 @@ const ACCOUNTING_METHOD_OPTIONS: Array<{ value: TinaAccountingMethod; label: str
   { value: "unsure", label: "I'm not sure yet" },
 ];
 
+const LLC_TAX_TREATMENT_OPTIONS: Array<{
+  value: TinaLlcFederalTaxTreatment;
+  label: string;
+}> = [
+  { value: "default", label: "Use the normal IRS default" },
+  { value: "owner_return", label: "On the owner's return" },
+  { value: "partnership_return", label: "As a partnership return" },
+  { value: "s_corp_return", label: "As an S-corp return" },
+  { value: "c_corp_return", label: "As a corporation return" },
+  { value: "unsure", label: "I'm not sure yet" },
+];
+
+const LLC_COMMUNITY_PROPERTY_OPTIONS: Array<{
+  value: TinaLlcCommunityPropertyStatus;
+  label: string;
+}> = [
+  { value: "unsure", label: "I'm not sure yet" },
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+];
+
 const SUPPORT_STYLES = {
   supported: "border-emerald-300/20 bg-emerald-300/10 text-emerald-50",
   future: "border-amber-300/20 bg-amber-300/10 text-amber-50",
   blocked: "border-rose-300/20 bg-rose-300/10 text-rose-50",
 } as const;
+
+const BOOKS_CONNECTION_STYLES = {
+  not_connected: "border-white/10 bg-white/5 text-zinc-200",
+  upload_only: "border-emerald-300/18 bg-emerald-300/8 text-emerald-50",
+  planning_live_sync: "border-sky-300/18 bg-sky-300/8 text-sky-50",
+  connected: "border-emerald-300/18 bg-emerald-300/8 text-emerald-50",
+  needs_attention: "border-amber-300/18 bg-amber-300/8 text-amber-50",
+} as const;
+
+const BOOKS_CONNECTION_LABELS: Record<TinaBooksConnectionStatus, string> = {
+  not_connected: "not connected",
+  upload_only: "using uploads",
+  planning_live_sync: "live sync later",
+  connected: "connected",
+  needs_attention: "needs help",
+};
+
+const BOOKS_IMPORT_DOCUMENT_STYLES = {
+  ready: "border-emerald-300/18 bg-emerald-300/8 text-emerald-50",
+  needs_attention: "border-amber-300/18 bg-amber-300/8 text-amber-50",
+  waiting: "border-white/10 bg-white/5 text-zinc-200",
+} as const;
+
+const BOOKS_IMPORT_DOCUMENT_LABELS: Record<TinaBooksImportDocumentStatus, string> = {
+  ready: "ready",
+  needs_attention: "needs attention",
+  waiting: "waiting",
+};
 
 const PRIORITY_STYLES = {
   required: "border-rose-300/18 bg-rose-300/8 text-rose-100",
@@ -139,6 +295,53 @@ const REVIEW_STYLES = {
   needs_attention: "border-amber-300/18 bg-amber-300/8 text-amber-50",
   watch: "border-white/10 bg-white/5 text-zinc-200",
 } as const;
+
+function getChecklistActionLabel(item: TinaChecklistItem): string {
+  if (item.actionLabel) return item.actionLabel;
+  if (item.action === "answer") return "Answer this above";
+  if (item.action === "review") return "Review this with Tina";
+
+  switch (item.id) {
+    case "prior-return":
+      return "Add last year's return";
+    case "quickbooks":
+      return "Add QuickBooks or P&L";
+    case "bank-support":
+      return "Add bank statements";
+    case "contractors":
+      return "Add contractor papers";
+    case "payroll":
+      return "Add payroll papers";
+    case "sales-tax":
+      return "Add sales tax papers";
+    case "inventory":
+      return "Add inventory papers";
+    case "assets":
+      return "Add big purchase papers";
+    default:
+      return "Add this paper";
+  }
+}
+
+function getChecklistSourceLabel(item: TinaChecklistItem): string {
+  if (item.kind === "replacement") return "full-year fix";
+  if (item.source === "document_clue") return "paper clue";
+  if (item.source === "lane_support") return "human check";
+  return "starter step";
+}
+
+function getChecklistSourceSummary(item: TinaChecklistItem): string {
+  if (item.kind === "replacement") {
+    return "Tina is asking for a fuller year view before she trusts these books.";
+  }
+  if (item.source === "document_clue") {
+    return "Tina is asking because one of your saved papers hinted at this.";
+  }
+  if (item.source === "lane_support") {
+    return "Tina is asking for a human check before she goes deeper here.";
+  }
+  return "This is part of Tina's normal starter list.";
+}
 
 const PREP_RECORD_STYLES = {
   ready: "border-emerald-300/18 bg-emerald-300/8 text-emerald-50",
@@ -232,6 +435,73 @@ const CPA_HANDOFF_ARTIFACT_LABELS = {
   ready: "ready",
   waiting: "waiting",
   blocked: "blocked",
+} as const;
+
+const FINAL_SIGNOFF_LEVEL_STYLES = {
+  blocked: "border-rose-300/18 bg-rose-300/8 text-rose-50",
+  waiting: "border-amber-300/18 bg-amber-300/8 text-amber-50",
+  ready: "border-emerald-300/18 bg-emerald-300/8 text-emerald-50",
+} as const;
+
+const FINAL_SIGNOFF_LEVEL_LABELS = {
+  blocked: "blocked",
+  waiting: "waiting on review",
+  ready: "ready for final signoff",
+} as const;
+
+const ARTIFACT_STATUS_STYLES = {
+  ready: "border-emerald-300/18 bg-emerald-300/8 text-emerald-50",
+  waiting: "border-amber-300/18 bg-amber-300/8 text-amber-50",
+  blocked: "border-rose-300/18 bg-rose-300/8 text-rose-50",
+} as const;
+
+const ARTIFACT_STATUS_LABELS = {
+  ready: "ready",
+  waiting: "waiting",
+  blocked: "blocked",
+} as const;
+
+const PACKET_COMPARISON_STYLES = {
+  same: "border-white/10 bg-white/5 text-zinc-100",
+  calmer: "border-emerald-300/18 bg-emerald-300/8 text-emerald-100",
+  riskier: "border-rose-300/18 bg-rose-300/8 text-rose-100",
+  different: "border-amber-300/18 bg-amber-300/8 text-amber-100",
+} as const;
+
+const ARTIFACT_DELIVERY_STYLES = {
+  bundle_only: "border-white/10 bg-white/5 text-zinc-200",
+  direct: "border-sky-300/18 bg-sky-300/8 text-sky-50",
+  bundle_and_direct: "border-emerald-300/18 bg-emerald-300/8 text-emerald-50",
+} as const;
+
+const ARTIFACT_DELIVERY_LABELS = {
+  bundle_only: "inside bundle",
+  direct: "own download",
+  bundle_and_direct: "bundle + own download",
+} as const;
+
+const OFFICIAL_FORM_STATUS_STYLES = {
+  ready: "border-emerald-300/18 bg-emerald-300/8 text-emerald-50",
+  needs_review: "border-amber-300/18 bg-amber-300/8 text-amber-50",
+  blocked: "border-rose-300/18 bg-rose-300/8 text-rose-50",
+} as const;
+
+const OFFICIAL_FORM_STATUS_LABELS = {
+  ready: "ready",
+  needs_review: "needs review",
+  blocked: "blocked",
+} as const;
+
+const OFFICIAL_FORM_LINE_STYLES = {
+  filled: "border-emerald-300/18 bg-emerald-300/8 text-emerald-50",
+  review: "border-amber-300/18 bg-amber-300/8 text-amber-50",
+  blank: "border-white/10 bg-white/5 text-zinc-200",
+} as const;
+
+const OFFICIAL_FORM_LINE_LABELS = {
+  filled: "filled",
+  review: "needs review",
+  blank: "blank",
 } as const;
 
 const RESEARCH_BUCKET_STYLES = {
@@ -334,17 +604,48 @@ const AUTHORITY_CITATION_EFFECT_LABELS: Record<TinaAuthorityCitationEffect, stri
   background: "Background only",
 };
 
+const AUTHORITY_CHALLENGE_STYLES: Record<TinaAuthorityChallengeVerdict, string> = {
+  not_run: "border-white/10 bg-white/5 text-zinc-200",
+  did_not_finish: "border-orange-300/18 bg-orange-300/8 text-orange-50",
+  survives: "border-emerald-300/18 bg-emerald-300/8 text-emerald-50",
+  needs_care: "border-amber-300/18 bg-amber-300/8 text-amber-50",
+  likely_fails: "border-rose-300/18 bg-rose-300/8 text-rose-50",
+};
+
+const AUTHORITY_CHALLENGE_LABELS: Record<TinaAuthorityChallengeVerdict, string> = {
+  not_run: "not stress-tested",
+  did_not_finish: "stress test did not finish",
+  survives: "survives stress test",
+  needs_care: "survives with caution",
+  likely_fails: "likely fails",
+};
+
 export function TinaWorkspace() {
+  const searchParams = useSearchParams();
   const {
     draft,
+    irsAuthorityWatchStatus,
+    packetVersions,
+    selectedPacketVersion,
+    selectedPacketState,
+    openingPacketFingerprint,
+    selectedPacketMessage,
     hydrated,
     syncStatus,
+    refreshPacketVersions,
+    saveDraftNow,
+    pauseDraftSync,
+    resumeDraftSync,
+    openPacketVersion,
+    clearSelectedPacketVersion,
     updateProfile,
     attachPriorReturn,
     clearPriorReturn,
     addUploadedDocument,
     removeDocument,
     saveDocumentReading,
+    updateBooksConnection,
+    saveBooksImport,
     saveBootstrapReview,
     saveIssueQueue,
     saveWorkpapers,
@@ -353,8 +654,10 @@ export function TinaWorkspace() {
     saveTaxAdjustments,
     saveReviewerFinal,
     saveScheduleCDraft,
+    saveOfficialFormPacket,
     savePackageReadiness,
     saveCpaHandoff,
+    saveFinalSignoff,
     updateCleanupSuggestion,
     updateTaxAdjustment,
     saveAuthorityWorkItem,
@@ -362,11 +665,20 @@ export function TinaWorkspace() {
     addAuthorityCitation,
     updateAuthorityCitation,
     removeAuthorityCitation,
+    updateFinalSignoffCheck,
+    updateFinalSignoffReviewerName,
+    updateFinalSignoffReviewerNote,
+    confirmFinalSignoff,
+    clearFinalSignoffConfirmation,
     resetDraft,
   } = useTinaDraft();
   const inputId = useId();
   const supportingInputId = useId();
   const supportingInputRef = useRef<HTMLInputElement | null>(null);
+  const organizerSectionRef = useRef<HTMLDivElement | null>(null);
+  const returnTypeSectionRef = useRef<HTMLDivElement | null>(null);
+  const naicsFieldRef = useRef<HTMLLabelElement | null>(null);
+  const idahoFieldRef = useRef<HTMLLabelElement | null>(null);
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "error">("idle");
   const [reviewState, setReviewState] = useState<"idle" | "running" | "error">("idle");
   const [issueState, setIssueState] = useState<"idle" | "running" | "error">("idle");
@@ -374,22 +686,36 @@ export function TinaWorkspace() {
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
   const [issueMessage, setIssueMessage] = useState<string | null>(null);
+  const [booksImportMessage, setBooksImportMessage] = useState<string | null>(null);
   const [workpaperMessage, setWorkpaperMessage] = useState<string | null>(null);
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null);
   const [aiCleanupMessage, setAiCleanupMessage] = useState<string | null>(null);
   const [taxAdjustmentMessage, setTaxAdjustmentMessage] = useState<string | null>(null);
   const [reviewerFinalMessage, setReviewerFinalMessage] = useState<string | null>(null);
   const [scheduleCMessage, setScheduleCMessage] = useState<string | null>(null);
+  const [officialFormMessage, setOfficialFormMessage] = useState<string | null>(null);
+  const [officialFormDownloadMessage, setOfficialFormDownloadMessage] = useState<string | null>(null);
+  const [officialFormPdfMessage, setOfficialFormPdfMessage] = useState<string | null>(null);
   const [packageReadinessMessage, setPackageReadinessMessage] = useState<string | null>(null);
   const [cpaHandoffMessage, setCpaHandoffMessage] = useState<string | null>(null);
   const [cpaDownloadMessage, setCpaDownloadMessage] = useState<string | null>(null);
+  const [htmlPacketMessage, setHtmlPacketMessage] = useState<string | null>(null);
+  const [reviewBookMessage, setReviewBookMessage] = useState<string | null>(null);
+  const [finalSignoffMessage, setFinalSignoffMessage] = useState<string | null>(null);
+  const [bundleDownloadMessage, setBundleDownloadMessage] = useState<string | null>(null);
   const [authorityMessage, setAuthorityMessage] = useState<string | null>(null);
+  const [challengeMessage, setChallengeMessage] = useState<string | null>(null);
   const [openingDocumentId, setOpeningDocumentId] = useState<string | null>(null);
   const [removingDocumentId, setRemovingDocumentId] = useState<string | null>(null);
   const [activeUploadTarget, setActiveUploadTarget] = useState<string | null>(null);
   const [researchingIdeaId, setResearchingIdeaId] = useState<string | null>(null);
+  const [challengingIdeaId, setChallengingIdeaId] = useState<string | null>(null);
+  const [authorityProgressNow, setAuthorityProgressNow] = useState(() => Date.now());
+  const [authorityQueueNow, setAuthorityQueueNow] = useState(() => Date.now());
   const [selectedChecklistItem, setSelectedChecklistItem] = useState<TinaChecklistItem | null>(null);
+  const [showAdvancedTools, setShowAdvancedTools] = useState(false);
   const [workpaperState, setWorkpaperState] = useState<"idle" | "running" | "error">("idle");
+  const [booksImportState, setBooksImportState] = useState<"idle" | "running" | "error">("idle");
   const [cleanupState, setCleanupState] = useState<"idle" | "running" | "error">("idle");
   const [aiCleanupState, setAiCleanupState] = useState<"idle" | "running" | "error">("idle");
   const [taxAdjustmentState, setTaxAdjustmentState] = useState<"idle" | "running" | "error">(
@@ -399,28 +725,68 @@ export function TinaWorkspace() {
     "idle"
   );
   const [scheduleCState, setScheduleCState] = useState<"idle" | "running" | "error">("idle");
+  const [officialFormState, setOfficialFormState] = useState<"idle" | "running" | "error">("idle");
+  const [officialFormDownloadState, setOfficialFormDownloadState] = useState<
+    "idle" | "running" | "error"
+  >("idle");
+  const [officialFormPdfState, setOfficialFormPdfState] = useState<"idle" | "running" | "error">(
+    "idle"
+  );
   const [packageReadinessState, setPackageReadinessState] = useState<
     "idle" | "running" | "error"
   >("idle");
   const [cpaHandoffState, setCpaHandoffState] = useState<"idle" | "running" | "error">("idle");
   const [cpaDownloadState, setCpaDownloadState] = useState<"idle" | "running" | "error">("idle");
-  const recommendation = recommendTinaFilingLane(draft.profile);
+  const [htmlPacketState, setHtmlPacketState] = useState<"idle" | "running" | "error">("idle");
+  const [reviewBookState, setReviewBookState] = useState<"idle" | "running" | "error">("idle");
+  const [finalSignoffState, setFinalSignoffState] = useState<"idle" | "running" | "error">("idle");
+  const [bundleDownloadState, setBundleDownloadState] = useState<"idle" | "running" | "error">("idle");
+  const recommendation = recommendTinaFilingLane(draft.profile, draft.sourceFacts);
+  const artifactManifest = useMemo(() => buildTinaArtifactManifest(draft), [draft]);
+  const selectedPacketArtifactManifest = useMemo(
+    () => (selectedPacketVersion ? buildTinaArtifactManifest(selectedPacketVersion.draft) : null),
+    [selectedPacketVersion]
+  );
+  const selectedPacketComparison = useMemo(
+    () =>
+      selectedPacketVersion ? buildTinaPacketComparison(selectedPacketVersion.draft, draft) : null,
+    [draft, selectedPacketVersion]
+  );
   const checklist = buildTinaChecklist(draft, recommendation);
   const neededChecklist = checklist.filter((item) => item.status === "needed");
+  const visibleChecklist = selectTinaVisibleChecklist(checklist, 3);
+  const hiddenChecklistCount = Math.max(neededChecklist.length - visibleChecklist.length, 0);
+  const quickbooksChecklistItem = checklist.find((item) => item.id === "quickbooks") ?? null;
   const review = draft.bootstrapReview;
   const issueQueue = draft.issueQueue;
+  const booksConnection = draft.booksConnection;
+  const booksImport = draft.booksImport;
   const workpapers = draft.workpapers;
   const cleanupPlan = draft.cleanupPlan;
   const aiCleanup = draft.aiCleanup;
   const taxAdjustments = draft.taxAdjustments;
   const reviewerFinal = draft.reviewerFinal;
   const scheduleCDraft = draft.scheduleCDraft;
+  const officialFormPacket = draft.officialFormPacket;
   const packageReadiness = draft.packageReadiness;
   const cpaHandoff = draft.cpaHandoff;
+  const finalSignoff = draft.finalSignoff;
   const storedPriorReturn = useMemo(() => resolveTinaPriorReturnDocument(draft), [draft]);
+  const quickbooksDocuments = useMemo(
+    () => draft.documents.filter((document) => document.requestId === "quickbooks"),
+    [draft.documents]
+  );
   const researchIdeas = useMemo(() => buildTinaResearchIdeas(draft), [draft]);
   const researchDossiers = useMemo(() => buildTinaResearchDossiers(draft), [draft]);
   const authorityWorkItems = useMemo(() => buildTinaAuthorityWorkItems(draft), [draft]);
+  const authorityBackgroundProgress = useMemo(
+    () => buildTinaAuthorityBackgroundProgress(authorityWorkItems, authorityProgressNow),
+    [authorityProgressNow, authorityWorkItems]
+  );
+  const authorityQueueState = useMemo(
+    () => buildTinaAuthorityBackgroundQueueState(authorityWorkItems, { now: authorityQueueNow }),
+    [authorityQueueNow, authorityWorkItems]
+  );
   const researchPolicyLines = useMemo(() => describeTinaResearchPolicy(), []);
   const authorityWorkMap = useMemo(
     () => new Map(authorityWorkItems.map((item) => [item.ideaId, item])),
@@ -438,6 +804,33 @@ export function TinaWorkspace() {
     () => new Map(draft.sourceFacts.map((fact) => [fact.id, fact])),
     [draft.sourceFacts]
   );
+
+  useEffect(() => {
+    if (authorityBackgroundProgress.remainingTaskCount === 0) return;
+
+    setAuthorityProgressNow(Date.now());
+    const interval = window.setInterval(() => {
+      setAuthorityProgressNow(Date.now());
+    }, 30_000);
+
+    return () => window.clearInterval(interval);
+  }, [authorityBackgroundProgress.remainingTaskCount]);
+
+  useEffect(() => {
+    if (!authorityQueueState.hasPendingWork) return;
+    if (researchingIdeaId !== null || challengingIdeaId !== null) return;
+
+    const delayMs = authorityQueueState.nextPollDelayMs ?? 0;
+    const timeout = window.setTimeout(() => {
+      void processAuthorityQueue(authorityQueueState.nextTask);
+    }, delayMs);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    authorityQueueState,
+    challengingIdeaId,
+    researchingIdeaId,
+  ]);
 
   if (!hydrated) {
     return (
@@ -483,6 +876,40 @@ export function TinaWorkspace() {
   ).length;
   const scheduleCFieldCount = scheduleCDraft.fields.length;
   const scheduleCNoteCount = scheduleCDraft.notes.length;
+  const officialFormCount = officialFormPacket.forms.length;
+  const officialFormLineCount = officialFormPacket.forms.reduce(
+    (total, form) => total + form.lines.length,
+    0
+  );
+  const officialFormPacketExportReady = canExportTinaOfficialFormPacket(draft, {
+    irsAuthorityWatchStatus,
+  });
+  const irsAuthorityStatus = getTinaIrsAuthorityRegistryStatus(
+    recommendation.laneId,
+    draft.profile.taxYear
+  );
+  const irsAuthoritySourceCount = listTinaIrsAuthoritySources({
+    laneId: recommendation.laneId,
+    includeAnnualWatch: true,
+    includeSupportingReference: true,
+  }).length;
+  const hasExplicitPacketTaxYear = /^\d{4}$/.test(draft.profile.taxYear.trim());
+  const irsAuthorityStatusLabel = !hasExplicitPacketTaxYear
+    ? "Waiting on tax year"
+    : irsAuthorityStatus.level === "ready"
+      ? `${draft.profile.taxYear.trim()} certified`
+      : `${draft.profile.taxYear.trim()} not certified`;
+  const irsWatchStatusLabel =
+    !irsAuthorityWatchStatus
+      ? "Watch unavailable"
+      : irsAuthorityWatchStatus.level === "not_run"
+        ? "Watch not run"
+        : irsAuthorityWatchStatus.level === "needs_review"
+          ? "Review watch"
+          : irsAuthorityWatchStatus.newCount === irsAuthorityWatchStatus.checkedCount &&
+              irsAuthorityWatchStatus.checkedCount > 0
+            ? "Baseline ready"
+            : "Watch clean";
   const packageReadinessBlockingCount = packageReadiness.items.filter(
     (item) => item.severity === "blocking"
   ).length;
@@ -498,6 +925,68 @@ export function TinaWorkspace() {
   const cpaHandoffBlockedCount = cpaHandoff.artifacts.filter(
     (artifact) => artifact.status === "blocked"
   ).length;
+  const finalSignoffCheckedCount = finalSignoff.checks.filter((check) => check.checked).length;
+  const canConfirmFinalSignoff = canConfirmTinaFinalSignoff(finalSignoff);
+  const artifactManifestReadyCount = artifactManifest.readyCount;
+  const artifactManifestWaitingCount = artifactManifest.waitingCount;
+  const artifactManifestBlockedCount = artifactManifest.blockedCount;
+  const fullHandoffPacketItem =
+    artifactManifest.items.find((item) => item.id === "full-handoff-packet") ?? null;
+  const restoredPacketFingerprint = searchParams.get("restoredPacket");
+  const latestStoredPacketVersion = packetVersions[0] ?? null;
+  const selectedPacketMatchesLive =
+    selectedPacketVersion?.fingerprint === artifactManifest.packetIdentity.fingerprint;
+  const selectedPacketLabel = selectedPacketVersion
+    ? `${selectedPacketVersion.packetId} (${selectedPacketVersion.packetVersion})`
+    : null;
+  const selectedPacketReadyCount = selectedPacketArtifactManifest?.readyCount ?? 0;
+  const selectedPacketWaitingCount = selectedPacketArtifactManifest?.waitingCount ?? 0;
+  const selectedPacketBlockedCount = selectedPacketArtifactManifest?.blockedCount ?? 0;
+  const currentChecklistFocus = visibleChecklist[0] ?? null;
+  const upcomingChecklist = currentChecklistFocus
+    ? visibleChecklist.filter((item) => item.id !== currentChecklistFocus.id)
+    : visibleChecklist;
+  const currentChecklistFocusTitle = currentChecklistFocus
+    ? currentChecklistFocus.action === "upload"
+      ? `Next, add ${currentChecklistFocus.focusLabel ?? currentChecklistFocus.label.toLowerCase()}.`
+      : currentChecklistFocus.action === "answer"
+        ? `Next, answer ${currentChecklistFocus.focusLabel ?? currentChecklistFocus.label.toLowerCase()}.`
+        : `Next, check ${currentChecklistFocus.focusLabel ?? currentChecklistFocus.label.toLowerCase()}.`
+    : "Tina has the first round of basics she needs.";
+  const currentChecklistFocusSummary = currentChecklistFocus
+    ? currentChecklistFocus.reason
+    : "Tina can keep moving with what she already has, and the deeper review tools are ready when you want them.";
+
+  async function withPacketExportBody<T>(
+    packetFingerprint: string | undefined,
+    run: (body: string) => Promise<T>
+  ) {
+    pauseDraftSync();
+
+    try {
+      const body = packetFingerprint
+        ? JSON.stringify({ packetFingerprint })
+        : JSON.stringify({ draft: await saveDraftNow() });
+
+      return await run(body);
+    } finally {
+      resumeDraftSync();
+    }
+  }
+
+  async function getFreshDraftForAction() {
+    pauseDraftSync();
+
+    try {
+      return await saveDraftNow();
+    } finally {
+      resumeDraftSync();
+    }
+  }
+
+  function formatPacketOriginLabel(origin: string) {
+    return origin.replace(/_/g, " ");
+  }
 
   function renderIssueContext(documentId?: string | null, factId?: string | null) {
     const linkedDocument = documentId ? documentMap.get(documentId) ?? null : null;
@@ -590,14 +1079,15 @@ export function TinaWorkspace() {
 
   async function runAuthorityResearch(ideaId: string) {
     setResearchingIdeaId(ideaId);
-    setAuthorityMessage("Tina is researching this idea with a deeper authority pass...");
+    setAuthorityMessage("Tina queued a deeper authority pass and will keep working in the background.");
 
     try {
+      await getFreshDraftForAction();
       const headers = await sentinelAuthHeaders();
       const res = await fetch("/api/tina/research/run", {
         method: "POST",
         headers,
-        body: JSON.stringify({ draft, ideaId }),
+        body: JSON.stringify({ ideaId, action: "queue" }),
       });
 
       const payload = (await res.json()) as {
@@ -610,7 +1100,7 @@ export function TinaWorkspace() {
       }
 
       saveAuthorityWorkItem(payload.workItem);
-      setAuthorityMessage("Tina finished the authority search and saved the result.");
+      setAuthorityMessage("Tina queued the authority pass. You can keep moving while she works.");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Tina could not finish this authority search.";
@@ -620,16 +1110,136 @@ export function TinaWorkspace() {
     }
   }
 
+  async function runAuthorityChallenge(ideaId: string) {
+    setChallengingIdeaId(ideaId);
+    setChallengeMessage("Tina queued the stress test and will keep working in the background.");
+
+    try {
+      await getFreshDraftForAction();
+      const headers = await sentinelAuthHeaders();
+      const res = await fetch("/api/tina/research/challenge", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ ideaId, action: "queue" }),
+      });
+
+      const payload = (await res.json()) as {
+        workItem?: ReturnType<typeof buildTinaAuthorityWorkItems>[number];
+        error?: string;
+      };
+
+      if (!res.ok || !payload.workItem) {
+        throw new Error(payload.error || "challenge failed");
+      }
+
+      saveAuthorityWorkItem(payload.workItem);
+      setChallengeMessage("Tina queued the stress test. You can keep moving while she works.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Tina could not finish this stress test.";
+      setChallengeMessage(message);
+    } finally {
+      setChallengingIdeaId(null);
+    }
+  }
+
+  async function processAuthorityQueue(
+    expectedTask:
+      | {
+          kind: "research" | "challenge";
+          ideaId: string;
+        }
+      | null
+  ) {
+    if (expectedTask?.kind === "research") {
+      setResearchingIdeaId(expectedTask.ideaId);
+    } else if (expectedTask?.kind === "challenge") {
+      setChallengingIdeaId(expectedTask.ideaId);
+    }
+
+    try {
+      const headers = await sentinelAuthHeaders();
+      const res = await fetch("/api/tina/research/process-queue", {
+        method: "POST",
+        headers,
+      });
+
+      const payload = (await res.json()) as {
+        processed?: boolean;
+        task?: {
+          kind: "research" | "challenge";
+          ideaId: string;
+        } | null;
+        workItem?: ReturnType<typeof buildTinaAuthorityWorkItems>[number] | null;
+        error?: string;
+      };
+
+      if (!res.ok) {
+        throw new Error(payload.error || "authority queue failed");
+      }
+
+      if (payload.workItem) {
+        saveAuthorityWorkItem(payload.workItem);
+      }
+
+      const completedTask = payload.task ?? expectedTask;
+      if (!payload.processed || !payload.workItem || !completedTask) {
+        return;
+      }
+
+      if (completedTask.kind === "research") {
+        if (payload.workItem.researchRun.status === "succeeded") {
+          setAuthorityMessage("Tina finished the authority search and saved the result.");
+        } else if (payload.workItem.researchRun.status === "rate_limited") {
+          setAuthorityMessage("Tina hit a temporary limit, saved her place, and will retry soon.");
+        } else if (payload.workItem.researchRun.status === "failed") {
+          setAuthorityMessage(
+            payload.workItem.researchRun.error || "Tina could not finish this authority search."
+          );
+        }
+        return;
+      }
+
+      if (payload.workItem.challengeRun.status === "succeeded") {
+        setChallengeMessage("Tina finished the stress test and saved the weak spots.");
+      } else if (payload.workItem.challengeRun.status === "rate_limited") {
+        setChallengeMessage("Tina hit a temporary limit, saved her place, and will retry soon.");
+      } else if (payload.workItem.challengeRun.status === "failed") {
+        setChallengeMessage(
+          payload.workItem.challengeRun.error || "Tina could not finish this stress test."
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : expectedTask?.kind === "challenge"
+            ? "Tina could not finish this stress test."
+            : "Tina could not finish this authority search.";
+
+      if (expectedTask?.kind === "challenge") {
+        setChallengeMessage(message);
+      } else {
+        setAuthorityMessage(message);
+      }
+    } finally {
+      setResearchingIdeaId(null);
+      setChallengingIdeaId(null);
+      setAuthorityQueueNow(Date.now());
+    }
+  }
+
   async function runWorkpaperBuild() {
     setWorkpaperState("running");
     setWorkpaperMessage("Tina is building the first money story from your papers...");
 
     try {
+      const freshDraft = await getFreshDraftForAction();
       const headers = await sentinelAuthHeaders();
       const res = await fetch("/api/tina/workpapers/build", {
         method: "POST",
         headers,
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ draft: freshDraft }),
       });
 
       if (!res.ok) throw new Error("workpaper build failed");
@@ -821,6 +1431,61 @@ export function TinaWorkspace() {
     );
   }
 
+  function renderOfficialFormLineContext(
+    form: TinaOfficialFormDraft,
+    line: TinaOfficialFormDraft["lines"][number]
+  ) {
+    const relatedFields = line.scheduleCDraftFieldIds
+      .map((fieldId) => scheduleCDraft.fields.find((field) => field.id === fieldId))
+      .filter((field): field is TinaScheduleCDraftSnapshot["fields"][number] => Boolean(field));
+    const relatedNotes = line.scheduleCDraftNoteIds
+      .map((noteId) => scheduleCDraft.notes.find((note) => note.id === noteId))
+      .filter((note): note is TinaScheduleCDraftSnapshot["notes"][number] => Boolean(note));
+    const linkedDocument = line.sourceDocumentIds[0]
+      ? documentMap.get(line.sourceDocumentIds[0]) ?? null
+      : null;
+
+    if (relatedFields.length === 0 && relatedNotes.length === 0 && !linkedDocument) return null;
+
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+        {relatedFields.map((field) => (
+          <span
+            key={`${form.id}-${line.id}-${field.id}`}
+            className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1"
+          >
+            Draft box: {field.lineNumber}
+          </span>
+        ))}
+        {relatedNotes.map((note) => (
+          <span
+            key={`${form.id}-${line.id}-${note.id}`}
+            className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1"
+          >
+            Review note: {note.title}
+          </span>
+        ))}
+        {linkedDocument ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+            onClick={() => void openSavedDocument(linkedDocument)}
+            disabled={openingDocumentId === linkedDocument.id}
+          >
+            {openingDocumentId === linkedDocument.id ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ExternalLink className="h-4 w-4" />
+            )}
+            Open paper
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
   function renderCpaHandoffArtifactContext(artifact: TinaCpaHandoffSnapshot["artifacts"][number]) {
     const relatedFields = artifact.relatedFieldIds
       .map((fieldId) => scheduleCDraft.fields.find((field) => field.id === fieldId))
@@ -873,16 +1538,30 @@ export function TinaWorkspace() {
     );
   }
 
+  function renderArtifactDelivery(item: TinaArtifactManifestItem) {
+    return (
+      <span
+        className={cn(
+          "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+          ARTIFACT_DELIVERY_STYLES[item.delivery]
+        )}
+      >
+        {ARTIFACT_DELIVERY_LABELS[item.delivery]}
+      </span>
+    );
+  }
+
   async function runCleanupBuild() {
     setCleanupState("running");
     setCleanupMessage("Tina is turning the money story into cleanup ideas...");
 
     try {
+      const freshDraft = await getFreshDraftForAction();
       const headers = await sentinelAuthHeaders();
       const res = await fetch("/api/tina/cleanup-plan/build", {
         method: "POST",
         headers,
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ draft: freshDraft }),
       });
 
       if (!res.ok) throw new Error("cleanup build failed");
@@ -906,11 +1585,12 @@ export function TinaWorkspace() {
     setAiCleanupMessage("Tina is carrying approved cleanup ideas into the AI cleanup layer...");
 
     try {
+      const freshDraft = await getFreshDraftForAction();
       const headers = await sentinelAuthHeaders();
       const res = await fetch("/api/tina/ai-cleanup/build", {
         method: "POST",
         headers,
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ draft: freshDraft }),
       });
 
       if (!res.ok) throw new Error("ai cleanup build failed");
@@ -934,11 +1614,12 @@ export function TinaWorkspace() {
     setTaxAdjustmentMessage("Tina is turning the cleanup layer into tax review ideas...");
 
     try {
+      const freshDraft = await getFreshDraftForAction();
       const headers = await sentinelAuthHeaders();
       const res = await fetch("/api/tina/tax-adjustments/build", {
         method: "POST",
         headers,
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ draft: freshDraft }),
       });
 
       if (!res.ok) throw new Error("tax adjustment build failed");
@@ -964,11 +1645,12 @@ export function TinaWorkspace() {
     setReviewerFinalMessage("Tina is building the first return-facing review layer...");
 
     try {
+      const freshDraft = await getFreshDraftForAction();
       const headers = await sentinelAuthHeaders();
       const res = await fetch("/api/tina/reviewer-final/build", {
         method: "POST",
         headers,
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ draft: freshDraft }),
       });
 
       if (!res.ok) throw new Error("reviewer final build failed");
@@ -994,11 +1676,12 @@ export function TinaWorkspace() {
     setScheduleCMessage("Tina is mapping the safe pieces into a small Schedule C draft...");
 
     try {
+      const freshDraft = await getFreshDraftForAction();
       const headers = await sentinelAuthHeaders();
       const res = await fetch("/api/tina/schedule-c/build", {
         method: "POST",
         headers,
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ draft: freshDraft }),
       });
 
       if (!res.ok) throw new Error("schedule c build failed");
@@ -1017,16 +1700,162 @@ export function TinaWorkspace() {
     }
   }
 
-  async function runPackageReadinessBuild() {
-    setPackageReadinessState("running");
-    setPackageReadinessMessage("Tina is checking what still blocks a filing-ready package...");
+  async function runOfficialFormBuild() {
+    setOfficialFormState("running");
+    setOfficialFormMessage(
+      "Tina is laying the approved draft into the federal business form packet..."
+    );
 
     try {
+      const freshDraft = await getFreshDraftForAction();
+      const headers = await sentinelAuthHeaders();
+      const res = await fetch("/api/tina/official-forms/build", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ draft: freshDraft }),
+      });
+
+      if (!res.ok) throw new Error("official form build failed");
+
+      const payload = (await res.json()) as {
+        officialFormPacket?: TinaOfficialFormPacketSnapshot;
+      };
+      if (!payload.officialFormPacket) throw new Error("missing official form packet");
+
+      saveOfficialFormPacket(payload.officialFormPacket);
+      setOfficialFormState("idle");
+      setOfficialFormMessage("Tina finished the first federal business form packet check.");
+    } catch {
+      setOfficialFormState("error");
+      setOfficialFormMessage(
+        "Tina could not build the federal business form packet yet. Try again in a moment."
+      );
+    }
+  }
+
+  async function downloadOfficialFormPacket(packetFingerprint?: string, packetLabel?: string) {
+    setOfficialFormDownloadState("running");
+    setOfficialFormDownloadMessage(
+      packetFingerprint
+        ? `Tina is reopening ${packetLabel ?? "that saved packet"} and packing the federal business form packet...`
+        : "Tina is packing the federal business form packet into one file..."
+    );
+
+    try {
+      const headers = await sentinelAuthHeaders();
+      const res = await withPacketExportBody(packetFingerprint, async (body) =>
+        fetch("/api/tina/official-forms/export", {
+          method: "POST",
+          headers,
+          body,
+        })
+      );
+
+      if (!res.ok) throw new Error("official form export failed");
+
+      const payload = (await res.json()) as {
+        fileName?: string;
+        mimeType?: string;
+        contents?: string;
+      };
+
+      if (!payload.fileName || !payload.mimeType || typeof payload.contents !== "string") {
+        throw new Error("missing official form export");
+      }
+
+      const blob = new Blob([payload.contents], { type: payload.mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = payload.fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+
+      await refreshPacketVersions();
+      setOfficialFormDownloadState("idle");
+      setOfficialFormDownloadMessage(
+        packetFingerprint
+          ? `Tina downloaded the saved federal business form packet for ${packetLabel ?? "that packet"}.`
+          : "Tina downloaded the federal business form packet."
+      );
+    } catch (error) {
+      setOfficialFormDownloadState("error");
+      setOfficialFormDownloadMessage(
+        error instanceof Error
+          ? error.message
+          : "Tina could not download the federal business form packet yet. Try again in a moment."
+      );
+    }
+  }
+
+  async function downloadOfficialFormPacketPdf(packetFingerprint?: string, packetLabel?: string) {
+    setOfficialFormPdfState("running");
+    setOfficialFormPdfMessage(
+      packetFingerprint
+        ? `Tina is reopening ${packetLabel ?? "that saved packet"} and turning it into a printable PDF...`
+        : "Tina is turning the federal business form packet into a printable PDF..."
+    );
+
+    try {
+      const headers = await sentinelAuthHeaders();
+      const res = await withPacketExportBody(packetFingerprint, async (body) =>
+        fetch("/api/tina/official-forms/pdf", {
+          method: "POST",
+          headers,
+          body,
+        })
+      );
+
+      if (!res.ok) {
+        const maybeJson = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(maybeJson?.error || "official form pdf export failed");
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") ?? "";
+      const fileNameMatch = disposition.match(/filename="([^"]+)"/);
+      const fileName = fileNameMatch?.[1] || "tina-official-form-packet.pdf";
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+
+      await refreshPacketVersions();
+      setOfficialFormPdfState("idle");
+      setOfficialFormPdfMessage(
+        packetFingerprint
+          ? `Tina downloaded the saved federal business form PDF for ${packetLabel ?? "that packet"}.`
+          : "Tina downloaded the federal business form packet as a PDF."
+      );
+    } catch (error) {
+      setOfficialFormPdfState("error");
+      setOfficialFormPdfMessage(
+        error instanceof Error
+          ? error.message
+          : "Tina could not download the PDF form packet yet. Try again in a moment."
+      );
+    }
+  }
+
+  async function runPackageReadinessBuild() {
+    setPackageReadinessState("running");
+    setPackageReadinessMessage(
+      "Tina is checking what still blocks a filing-ready federal business packet..."
+    );
+
+    try {
+      const freshDraft = await getFreshDraftForAction();
       const headers = await sentinelAuthHeaders();
       const res = await fetch("/api/tina/package-readiness/build", {
         method: "POST",
         headers,
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ draft: freshDraft }),
       });
 
       if (!res.ok) throw new Error("package readiness build failed");
@@ -1052,11 +1881,12 @@ export function TinaWorkspace() {
     setCpaHandoffMessage("Tina is laying out the first CPA review packet...");
 
     try {
+      const freshDraft = await getFreshDraftForAction();
       const headers = await sentinelAuthHeaders();
       const res = await fetch("/api/tina/cpa-handoff/build", {
         method: "POST",
         headers,
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ draft: freshDraft }),
       });
 
       if (!res.ok) throw new Error("cpa handoff build failed");
@@ -1077,17 +1907,23 @@ export function TinaWorkspace() {
     }
   }
 
-  async function downloadCpaPacket() {
+  async function downloadCpaPacket(packetFingerprint?: string, packetLabel?: string) {
     setCpaDownloadState("running");
-    setCpaDownloadMessage("Tina is packing your CPA review notes into a file...");
+    setCpaDownloadMessage(
+      packetFingerprint
+        ? `Tina is reopening ${packetLabel ?? "that saved packet"} and packing the CPA review notes...`
+        : "Tina is packing your CPA review notes into a file..."
+    );
 
     try {
       const headers = await sentinelAuthHeaders();
-      const res = await fetch("/api/tina/cpa-packet/export", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ draft }),
-      });
+      const res = await withPacketExportBody(packetFingerprint, async (body) =>
+        fetch("/api/tina/cpa-packet/export", {
+          method: "POST",
+          headers,
+          body,
+        })
+      );
 
       if (!res.ok) throw new Error("packet export failed");
 
@@ -1111,11 +1947,215 @@ export function TinaWorkspace() {
       anchor.remove();
       window.URL.revokeObjectURL(url);
 
+      await refreshPacketVersions();
       setCpaDownloadState("idle");
-      setCpaDownloadMessage("Tina downloaded the CPA review notes.");
+      setCpaDownloadMessage(
+        packetFingerprint
+          ? `Tina downloaded the saved CPA review notes for ${packetLabel ?? "that packet"}.`
+          : "Tina downloaded the CPA review notes."
+      );
     } catch {
       setCpaDownloadState("error");
       setCpaDownloadMessage("Tina could not download the CPA notes yet. Try again in a moment.");
+    }
+  }
+
+  async function downloadReviewPacketHtml(packetFingerprint?: string, packetLabel?: string) {
+    setHtmlPacketState("running");
+    setHtmlPacketMessage(
+      packetFingerprint
+        ? `Tina is reopening ${packetLabel ?? "that saved packet"} and building the saved review packet...`
+        : "Tina is building a cleaner review packet you can open in one file..."
+    );
+
+    try {
+      const headers = await sentinelAuthHeaders();
+      const res = await withPacketExportBody(packetFingerprint, async (body) =>
+        fetch("/api/tina/review-packet-html/export", {
+          method: "POST",
+          headers,
+          body,
+        })
+      );
+
+      if (!res.ok) throw new Error("html packet export failed");
+
+      const payload = (await res.json()) as {
+        fileName?: string;
+        mimeType?: string;
+        contents?: string;
+      };
+
+      if (!payload.fileName || !payload.mimeType || typeof payload.contents !== "string") {
+        throw new Error("missing html export payload");
+      }
+
+      const blob = new Blob([payload.contents], { type: payload.mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = payload.fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+
+      await refreshPacketVersions();
+      setHtmlPacketState("idle");
+      setHtmlPacketMessage(
+        packetFingerprint
+          ? `Tina downloaded the saved review packet for ${packetLabel ?? "that packet"}.`
+          : "Tina downloaded the review packet as one clean HTML file."
+      );
+    } catch {
+      setHtmlPacketState("error");
+      setHtmlPacketMessage(
+        "Tina could not download the HTML review packet yet. Try again in a moment."
+      );
+    }
+  }
+
+  async function downloadReviewBook(packetFingerprint?: string, packetLabel?: string) {
+    setReviewBookState("running");
+    setReviewBookMessage(
+      packetFingerprint
+        ? `Tina is reopening ${packetLabel ?? "that saved packet"} and assembling its full handoff packet...`
+        : "Tina is assembling the full handoff packet into one printable file..."
+    );
+
+    try {
+      const headers = await sentinelAuthHeaders();
+      const res = await withPacketExportBody(packetFingerprint, async (body) =>
+        fetch("/api/tina/review-book/export", {
+          method: "POST",
+          headers,
+          body,
+        })
+      );
+
+      if (!res.ok) {
+        const maybeJson = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(maybeJson?.error || "full handoff export failed");
+      }
+
+      const payload = (await res.json()) as {
+        fileName?: string;
+        mimeType?: string;
+        contents?: string;
+      };
+
+      if (!payload.fileName || !payload.mimeType || typeof payload.contents !== "string") {
+        throw new Error("missing full handoff export");
+      }
+
+      const blob = new Blob([payload.contents], { type: payload.mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = payload.fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+
+      await refreshPacketVersions();
+      setReviewBookState("idle");
+      setReviewBookMessage(
+        packetFingerprint
+          ? `Tina downloaded the saved full handoff packet for ${packetLabel ?? "that packet"}.`
+          : "Tina downloaded the full handoff packet."
+      );
+    } catch (error) {
+      setReviewBookState("error");
+      setReviewBookMessage(
+        error instanceof Error
+          ? error.message
+          : "Tina could not download the full handoff packet yet. Try again in a moment."
+      );
+    }
+  }
+
+  async function runFinalSignoffBuild() {
+    setFinalSignoffState("running");
+    setFinalSignoffMessage("Tina is checking whether this packet is ready for a human signoff...");
+
+    try {
+      const freshDraft = await getFreshDraftForAction();
+      const headers = await sentinelAuthHeaders();
+      const res = await fetch("/api/tina/final-signoff/build", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ draft: freshDraft }),
+      });
+
+      if (!res.ok) throw new Error("final signoff build failed");
+
+      const payload = (await res.json()) as {
+        finalSignoff?: TinaFinalSignoffSnapshot;
+      };
+      if (!payload.finalSignoff) throw new Error("missing final signoff");
+
+      saveFinalSignoff(payload.finalSignoff);
+      setFinalSignoffState("idle");
+      setFinalSignoffMessage("Tina finished the final signoff check.");
+    } catch {
+      setFinalSignoffState("error");
+      setFinalSignoffMessage(
+        "Tina could not finish the final signoff check yet. Try again in a moment."
+      );
+    }
+  }
+
+  async function downloadReviewBundle(packetFingerprint?: string, packetLabel?: string) {
+    setBundleDownloadState("running");
+    setBundleDownloadMessage(
+      packetFingerprint
+        ? `Tina is reopening ${packetLabel ?? "that saved packet"} and packing its full review bundle...`
+        : "Tina is packing the full review bundle into one file..."
+    );
+
+    try {
+      const headers = await sentinelAuthHeaders();
+      const res = await withPacketExportBody(packetFingerprint, async (body) =>
+        fetch("/api/tina/review-bundle/package", {
+          method: "POST",
+          headers,
+          body,
+        })
+      );
+
+      if (!res.ok) throw new Error("bundle export failed");
+
+      const payload = (await res.json()) as {
+        fileName?: string;
+        mimeType?: string;
+        contents?: string;
+      };
+
+      if (!payload.fileName || !payload.mimeType || typeof payload.contents !== "string") {
+        throw new Error("missing bundle file");
+      }
+
+      const blob = new Blob([payload.contents], { type: payload.mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = payload.fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+
+      await refreshPacketVersions();
+      setBundleDownloadState("idle");
+      setBundleDownloadMessage(
+        packetFingerprint
+          ? `Tina downloaded the saved bundle for ${packetLabel ?? "that packet"}.`
+          : "Tina downloaded the full review bundle package."
+      );
+    } catch {
+      setBundleDownloadState("error");
+      setBundleDownloadMessage("Tina could not download the full review bundle package yet.");
     }
   }
 
@@ -1283,11 +2323,12 @@ export function TinaWorkspace() {
     setReviewMessage("Tina is checking what she already knows...");
 
     try {
+      const freshDraft = await getFreshDraftForAction();
       const headers = await sentinelAuthHeaders();
       const res = await fetch("/api/tina/bootstrap-review", {
         method: "POST",
         headers,
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ draft: freshDraft }),
       });
 
       if (!res.ok) throw new Error("review failed");
@@ -1309,11 +2350,12 @@ export function TinaWorkspace() {
     setIssueMessage("Tina is checking your papers for conflicts...");
 
     try {
+      const freshDraft = await getFreshDraftForAction();
       const headers = await sentinelAuthHeaders();
       const res = await fetch("/api/tina/issue-queue", {
         method: "POST",
         headers,
-        body: JSON.stringify({ draft }),
+        body: JSON.stringify({ draft: freshDraft }),
       });
 
       if (!res.ok) throw new Error("issue check failed");
@@ -1330,9 +2372,84 @@ export function TinaWorkspace() {
     }
   }
 
+  function switchBooksLaneToUploads() {
+    updateBooksConnection(createUploadOnlyTinaBooksConnection(quickbooksDocuments.length, booksConnection));
+    setBooksImportState("idle");
+    setBooksImportMessage("Tina will use uploaded books files in this lane.");
+  }
+
+  function planLiveQuickBooksLane() {
+    updateBooksConnection(
+      createPlanningLiveSyncTinaBooksConnection(quickbooksDocuments.length, booksConnection)
+    );
+    setBooksImportState("idle");
+    setBooksImportMessage("Tina saved this spot for a live QuickBooks link later.");
+  }
+
+  async function runBooksImportBuild() {
+    setBooksImportState("running");
+    setBooksImportMessage("Tina is sorting the books files she already has...");
+
+    try {
+      const freshDraft = await getFreshDraftForAction();
+      const headers = await sentinelAuthHeaders();
+      const res = await fetch("/api/tina/books/import/build", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ draft: freshDraft }),
+      });
+
+      if (!res.ok) throw new Error("books import failed");
+
+      const payload = (await res.json()) as { booksImport?: TinaBooksImportSnapshot };
+      if (!payload.booksImport) throw new Error("missing books import");
+
+      saveBooksImport(payload.booksImport);
+      setBooksImportState("idle");
+      setBooksImportMessage("Tina finished sorting the books lane.");
+    } catch {
+      setBooksImportState("error");
+      setBooksImportMessage("Tina could not sort the books lane yet. Try again in a moment.");
+    }
+  }
+
   function beginChecklistUpload(item: TinaChecklistItem) {
     setSelectedChecklistItem(item);
     supportingInputRef.current?.click();
+  }
+
+  function scrollToSection(ref: RefObject<HTMLDivElement | null>) {
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function scrollToField(ref: RefObject<HTMLElement | null>) {
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const focusTarget = ref.current?.querySelector<HTMLElement>("input, button, textarea, select");
+    focusTarget?.focus();
+  }
+
+  function runChecklistAction(item: TinaChecklistItem) {
+    if (item.action === "upload") {
+      beginChecklistUpload(item);
+      return;
+    }
+
+    if (item.action === "answer") {
+      if (item.id === "naics") {
+        scrollToField(naicsFieldRef);
+        return;
+      }
+
+      if (item.id === "idaho-activity") {
+        scrollToField(idahoFieldRef);
+        return;
+      }
+
+      scrollToSection(organizerSectionRef);
+      return;
+    }
+
+    scrollToSection(returnTypeSectionRef);
   }
 
   const isVaultBusy =
@@ -1343,19 +2460,86 @@ export function TinaWorkspace() {
 
   return (
     <div className="space-y-5">
+      {restoredPacketFingerprint ? (
+        <Card className="border-emerald-300/18 bg-emerald-300/8 backdrop-blur-2xl">
+          <CardContent className="space-y-2 p-5">
+            <div className="flex items-center gap-2 text-sm font-medium text-white">
+              <ShieldCheck className="h-4 w-4 text-emerald-200" />
+              Tina loaded a saved packet back into today&apos;s workspace
+            </div>
+            <p className="text-sm leading-6 text-emerald-50">
+              This live workspace now matches saved packet{" "}
+              <span className="font-mono text-emerald-100">{restoredPacketFingerprint}</span>.
+              Look over the steps below before you keep going.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card className="border-emerald-300/14 bg-emerald-300/8 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
-        <CardContent className="grid gap-3 p-5 md:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100/80">Step 1</p>
-            <p className="mt-2 text-sm font-medium text-white">Add last year's return if you have it.</p>
+        <CardContent className="space-y-4 p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100/80">
+                Today with Tina
+              </p>
+              <h3 className="text-xl font-semibold tracking-tight text-white">
+                {currentChecklistFocusTitle}
+              </h3>
+              {currentChecklistFocus ? (
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100/80">
+                  <span className="rounded-full border border-emerald-200/20 bg-emerald-200/10 px-2.5 py-1">
+                    {getChecklistSourceLabel(currentChecklistFocus)}
+                  </span>
+                  <span>{getChecklistSourceSummary(currentChecklistFocus)}</span>
+                </div>
+              ) : null}
+              <p className="max-w-2xl text-sm leading-6 text-emerald-50">
+                {currentChecklistFocusSummary}
+              </p>
+              {currentChecklistFocus?.substituteHint ? (
+                <p className="max-w-2xl text-xs leading-5 text-emerald-100/80">
+                  If you do not have that exact paper, this also works: {currentChecklistFocus.substituteHint}
+                </p>
+              ) : null}
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-zinc-100">
+              {visibleChecklist.length > 0 ? (
+                <>
+                  Tina is only showing the next {visibleChecklist.length} ask
+                  {visibleChecklist.length === 1 ? "" : "s"} right now.
+                  {hiddenChecklistCount > 0 ? ` ${hiddenChecklistCount} more can wait.` : ""}
+                </>
+              ) : (
+                "The first asks are covered. Tina can move into the deeper review steps next."
+              )}
+            </div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100/80">Step 2</p>
-            <p className="mt-2 text-sm font-medium text-white">Answer the easy business questions below.</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100/80">Step 3</p>
-            <p className="mt-2 text-sm font-medium text-white">Bring the papers Tina asks for next.</p>
+          <div className="flex flex-wrap items-center gap-3">
+            {currentChecklistFocus ? (
+              <Button
+                type="button"
+                onClick={() => runChecklistAction(currentChecklistFocus)}
+                disabled={currentChecklistFocus.action === "upload" && isVaultBusy}
+              >
+                {currentChecklistFocus.action === "upload" ? (
+                  <FileUp className="h-4 w-4" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" />
+                )}
+                {getChecklistActionLabel(currentChecklistFocus)}
+              </Button>
+            ) : (
+              <Button type="button" onClick={() => setShowAdvancedTools(true)}>
+                <ChevronDown className="h-4 w-4" />
+                Open Tina&apos;s deeper review tools
+              </Button>
+            )}
+            {currentChecklistFocus?.action !== "upload" ? (
+              <p className="text-xs leading-5 text-emerald-100/80">
+                Tina will scroll you to the right spot instead of asking for another upload.
+              </p>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -1374,9 +2558,10 @@ export function TinaWorkspace() {
             </span>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-2xl border border-emerald-300/14 bg-emerald-300/8 px-4 py-3 text-sm leading-6 text-emerald-50">
-              You do not need to understand tax language here. If you have the file, add it. If you do not, Tina can still keep going.
-            </div>
+            <p className="text-sm leading-6 text-zinc-300">
+              If you have the file, add it here. If you do not, Tina can still keep going and ask
+              for more papers later.
+            </p>
 
             <div className="flex flex-wrap items-center gap-3">
               <input
@@ -1470,16 +2655,16 @@ export function TinaWorkspace() {
 
         <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
           <CardHeader className="space-y-3">
-            <CardTitle className="text-white">Workspace draft</CardTitle>
+            <CardTitle className="text-white">Saved progress</CardTitle>
             <p className="text-sm leading-6 text-zinc-300">
-              Tina is saving your answers on this device so you do not lose your place.
+              Tina keeps your place so you can come back without starting over.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
               <div className="flex items-center gap-2 text-sm font-medium text-white">
                 <Save className="h-4 w-4 text-emerald-200" />
-                Last local save
+                Last save
               </div>
               <p className="mt-2 text-sm text-zinc-300">{formatSavedAt(draft.savedAt)}</p>
               <p className="mt-2 text-xs leading-5 text-zinc-500">
@@ -1493,12 +2678,12 @@ export function TinaWorkspace() {
 
             <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
-                Checklist coverage
+                Starter list covered
               </p>
               <p className="mt-2 text-2xl font-semibold text-white">
                 {coveredChecklistCount}/{checklist.length}
               </p>
-              <p className="mt-1 text-sm text-zinc-300">Known bootstrap items already covered.</p>
+              <p className="mt-1 text-sm text-zinc-300">Tina already has this many of the first basics covered.</p>
             </div>
 
             <Button variant="outline" className="w-full border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8" onClick={resetDraft}>
@@ -1511,9 +2696,9 @@ export function TinaWorkspace() {
 
       <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-white">Papers Tina has saved</CardTitle>
+          <CardTitle className="text-white">Your saved papers</CardTitle>
           <p className="text-sm leading-6 text-zinc-300">
-            This is the simple paper list for Tina's vault. Tina keeps the papers you add tied to the job they help finish.
+            This is the paper shelf Tina is using right now. Each file stays tied to the job it helps finish.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -1696,7 +2881,8 @@ export function TinaWorkspace() {
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.95fr)]">
-        <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+        <div ref={organizerSectionRef}>
+          <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
           <CardHeader className="space-y-2">
             <CardTitle className="text-white">Step 2: Answer a few easy questions</CardTitle>
             <p className="text-sm leading-6 text-zinc-300">
@@ -1743,6 +2929,62 @@ export function TinaWorkspace() {
                 </select>
               </label>
 
+              {draft.profile.entityType === "single_member_llc" ||
+              draft.profile.entityType === "multi_member_llc" ? (
+                <label className="space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">LLC tax path</span>
+                  <p className="text-xs leading-5 text-zinc-400">
+                    How this LLC files federally. If nothing special was elected, pick the normal IRS default.
+                  </p>
+                  <select
+                    value={draft.profile.llcFederalTaxTreatment}
+                    onChange={(event) =>
+                      updateProfile(
+                        "llcFederalTaxTreatment",
+                        event.target.value as TinaLlcFederalTaxTreatment
+                      )
+                    }
+                    className="flex h-9 w-full rounded-[12px] border border-white/10 bg-white/5 px-3 py-1 text-sm text-white outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {LLC_TAX_TREATMENT_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value} className="bg-zinc-950 text-white">
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              {draft.profile.entityType === "multi_member_llc" &&
+              draft.profile.llcFederalTaxTreatment === "owner_return" ? (
+                <label className="space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Spouse community-property case</span>
+                  <p className="text-xs leading-5 text-zinc-400">
+                    Only answer yes if the only owners are spouses using the owner-return path in a community-property state.
+                  </p>
+                  <select
+                    value={
+                      draft.profile.llcCommunityPropertyStatus === "not_applicable"
+                        ? "unsure"
+                        : draft.profile.llcCommunityPropertyStatus
+                    }
+                    onChange={(event) =>
+                      updateProfile(
+                        "llcCommunityPropertyStatus",
+                        event.target.value as TinaLlcCommunityPropertyStatus
+                      )
+                    }
+                    className="flex h-9 w-full rounded-[12px] border border-white/10 bg-white/5 px-3 py-1 text-sm text-white outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {LLC_COMMUNITY_PROPERTY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value} className="bg-zinc-950 text-white">
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
               <label className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Accounting method</span>
                 <p className="text-xs leading-5 text-zinc-400">Most small businesses use cash. If you do not know, that is okay.</p>
@@ -1781,7 +3023,7 @@ export function TinaWorkspace() {
                 />
               </label>
 
-              <label className="space-y-2 md:col-span-2">
+              <label ref={naicsFieldRef} className="space-y-2 md:col-span-2">
                 <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">NAICS code or activity hint</span>
                 <p className="text-xs leading-5 text-zinc-400">A short description like "landscaping" is enough if you do not know the code.</p>
                 <Input
@@ -1794,7 +3036,7 @@ export function TinaWorkspace() {
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-zinc-200">
+              <label ref={idahoFieldRef} className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-zinc-200">
                 <Checkbox
                   checked={draft.profile.hasPayroll}
                   onChange={(event) => updateProfile("hasPayroll", event.target.checked)}
@@ -1855,10 +3097,12 @@ export function TinaWorkspace() {
               />
             </label>
           </CardContent>
-        </Card>
+          </Card>
+        </div>
 
         <div className="space-y-4">
-          <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+          <div ref={returnTypeSectionRef}>
+            <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
             <CardHeader className="space-y-3">
               <CardTitle className="text-white">What Tina thinks your return type is</CardTitle>
               <p className="text-sm leading-6 text-zinc-300">
@@ -1908,20 +3152,262 @@ export function TinaWorkspace() {
               )}
             </CardContent>
           </Card>
+          </div>
 
           <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
             <CardHeader className="space-y-2">
-              <CardTitle className="text-white">What Tina will ask for next</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-white">QuickBooks or your main book report</CardTitle>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                      quickbooksChecklistItem?.status === "covered"
+                        ? "border-emerald-300/18 bg-emerald-300/8 text-emerald-50"
+                        : "border-white/10 bg-white/5 text-zinc-200"
+                    )}
+                  >
+                    {quickbooksChecklistItem?.status === "covered" ? "covered" : "needed"}
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                      BOOKS_CONNECTION_STYLES[booksConnection.status]
+                    )}
+                  >
+                    {BOOKS_CONNECTION_LABELS[booksConnection.status]}
+                  </span>
+                </div>
+              </div>
               <p className="text-sm leading-6 text-zinc-300">
-                This is Tina's first simple list of papers to gather. She should keep this list short, clear, and easy to follow.
+                Tina needs one clear view of your business books. A QuickBooks export is best. A
+                profit-and-loss report is also okay.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                    Books lane
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-white">{booksConnection.summary}</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">{booksConnection.nextStep}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                    Tina&apos;s books sort
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-200">
+                      {getBooksImportStatusLabel(booksImport.status)}
+                    </span>
+                    {booksImport.lastRunAt ? (
+                      <span className="text-xs text-zinc-500">
+                        last sorted {formatSavedAt(booksImport.lastRunAt)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-sm font-medium text-white">{booksImport.summary}</p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-400">{booksImport.nextStep}</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-300/14 bg-emerald-300/8 px-4 py-3 text-sm leading-6 text-emerald-50">
+                Good files here are a QuickBooks export, profit-and-loss report, general ledger,
+                or another clean books file for this tax year.
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  onClick={() => quickbooksChecklistItem && beginChecklistUpload(quickbooksChecklistItem)}
+                  disabled={isVaultBusy || !quickbooksChecklistItem}
+                >
+                  {uploadState === "uploading" && activeUploadTarget === "quickbooks" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileUp className="h-4 w-4" />
+                  )}
+                  {quickbooksDocuments.length > 0 ? "Add another books file" : "Add QuickBooks or P&L"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={switchBooksLaneToUploads}
+                  disabled={booksImportState === "running"}
+                >
+                  Use uploads for now
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={planLiveQuickBooksLane}
+                  disabled={booksImportState === "running"}
+                >
+                  Plan live QuickBooks link
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={runBooksImportBuild}
+                  disabled={booksImportState === "running" || quickbooksDocuments.length === 0}
+                >
+                  {booksImportState === "running" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCcw className="h-4 w-4" />
+                  )}
+                  Let Tina sort these books
+                </Button>
+                <p className="text-xs leading-5 text-zinc-500">
+                  Tina will plug a real QuickBooks connection into this same spot later. For now,
+                  uploads work here.
+                </p>
+              </div>
+
+              {booksImportMessage ? (
+                <div
+                  className={cn(
+                    "rounded-2xl border px-4 py-3 text-sm leading-6",
+                    booksImportState === "error"
+                      ? "border-rose-300/18 bg-rose-300/8 text-rose-50"
+                      : "border-white/10 bg-black/15 text-zinc-200"
+                  )}
+                >
+                  {booksImportMessage}
+                </div>
+              ) : null}
+
+              {booksImport.documents.length > 0 ? (
+                <div className="space-y-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-white">What Tina sees in the books lane</p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">
+                        This is Tina&apos;s first clean bookkeeping view before the money story build.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                      {booksImport.coverageStart || booksImport.coverageEnd ? (
+                        <span>
+                          coverage {booksImport.coverageStart ?? "?"} through {booksImport.coverageEnd ?? "?"}
+                        </span>
+                      ) : null}
+                      {booksImport.moneyInTotal !== null || booksImport.moneyOutTotal !== null ? (
+                        <span>
+                          in {formatMoneyAmount(booksImport.moneyInTotal)} / out {formatMoneyAmount(booksImport.moneyOutTotal)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {booksImport.clueLabels.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {booksImport.clueLabels.map((label) => (
+                        <span
+                          key={label}
+                          className="rounded-full border border-amber-300/18 bg-amber-300/8 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-50"
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-3">
+                    {booksImport.documents.map((document) => (
+                      <div
+                        key={document.documentId}
+                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-white">{document.name}</p>
+                            <p className="mt-1 text-xs text-zinc-500">{document.summary}</p>
+                          </div>
+                          <span
+                            className={cn(
+                              "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                              BOOKS_IMPORT_DOCUMENT_STYLES[document.status]
+                            )}
+                          >
+                            {BOOKS_IMPORT_DOCUMENT_LABELS[document.status]}
+                          </span>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-3 text-xs text-zinc-400">
+                          {document.rowCount !== null ? <span>{document.rowCount} rows</span> : null}
+                          {document.coverageStart || document.coverageEnd ? (
+                            <span>
+                              {document.coverageStart ?? "?"} through {document.coverageEnd ?? "?"}
+                            </span>
+                          ) : null}
+                          {document.moneyIn !== null || document.moneyOut !== null ? (
+                            <span>
+                              in {formatMoneyAmount(document.moneyIn)} / out {formatMoneyAmount(document.moneyOut)}
+                            </span>
+                          ) : null}
+                          {document.lastReadAt ? <span>read {formatSavedAt(document.lastReadAt)}</span> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {quickbooksDocuments.length > 0 ? (
+                <div className="space-y-3">
+                  {quickbooksDocuments.map((document) => {
+                    const reading = findTinaDocumentReading(draft.documentReadings, document.id);
+                    return (
+                      <div
+                        key={document.id}
+                        className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-medium text-white">{document.name}</p>
+                            <p className="mt-1 text-xs text-zinc-500">
+                              Uploaded {formatSavedAt(document.uploadedAt)}
+                            </p>
+                          </div>
+                          <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-200">
+                            {reading?.status === "complete"
+                              ? "read"
+                              : reading?.status === "waiting_for_ai"
+                                ? "waiting to read"
+                                : "not read yet"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-sm leading-6 text-zinc-300">
+                  No books file here yet. If you do not know which file to choose, start with your
+                  profit-and-loss report for this tax year.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+            <CardHeader className="space-y-2">
+              <CardTitle className="text-white">Tina&apos;s next few asks</CardTitle>
+              <p className="text-sm leading-6 text-zinc-300">
+                Tina should keep this list short. The current step is shown above, so this list only
+                shows what may come right after it.
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
-              {checklist.map((item) => (
+              {upcomingChecklist.map((item) => (
                 <div key={item.id} className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-medium text-white">{item.label}</p>
                     <div className="flex items-center gap-2">
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-200">
+                        {getChecklistSourceLabel(item)}
+                      </span>
                       <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]", PRIORITY_STYLES[item.priority])}>
                         {item.priority}
                       </span>
@@ -1941,22 +3427,45 @@ export function TinaWorkspace() {
                           size="sm"
                           variant="outline"
                           className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
-                          onClick={() => beginChecklistUpload(item)}
-                          disabled={isVaultBusy}
+                          onClick={() => runChecklistAction(item)}
+                          disabled={item.action === "upload" ? isVaultBusy : false}
                         >
-                          {uploadState === "uploading" && activeUploadTarget === item.id ? (
+                          {item.action === "upload" &&
+                          uploadState === "uploading" &&
+                          activeUploadTarget === item.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
+                          ) : item.action === "upload" ? (
                             <FileUp className="h-4 w-4" />
+                          ) : (
+                            <ArrowRight className="h-4 w-4" />
                           )}
-                          Add this paper
+                          {getChecklistActionLabel(item)}
                         </Button>
                       ) : null}
                     </div>
                   </div>
+                  <p className="mt-2 text-xs leading-5 text-zinc-400">
+                    {getChecklistSourceSummary(item)}
+                  </p>
                   <p className="mt-2 text-sm leading-6 text-zinc-300">{item.reason}</p>
+                  {item.substituteHint ? (
+                    <p className="mt-2 text-xs leading-5 text-zinc-400">
+                      This also works: {item.substituteHint}
+                    </p>
+                  ) : null}
                 </div>
               ))}
+              {upcomingChecklist.length === 0 && neededChecklist.length > 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm leading-6 text-zinc-300">
+                  Finish the step at the top and Tina will show the next ask here.
+                </div>
+              ) : null}
+              {hiddenChecklistCount > 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm leading-6 text-zinc-300">
+                  Tina is holding back {hiddenChecklistCount} more ask
+                  {hiddenChecklistCount === 1 ? "" : "s"} until these first steps are done.
+                </div>
+              ) : null}
               {neededChecklist.length === 0 ? (
                 <div className="rounded-2xl border border-emerald-300/14 bg-emerald-300/8 px-4 py-3 text-sm leading-6 text-emerald-50">
                   Nice work. Tina has the first round of papers she needs and can keep moving.
@@ -1967,6 +3476,32 @@ export function TinaWorkspace() {
         </div>
       </section>
 
+      <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+        <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-white">Deeper review tools</p>
+            <p className="text-sm leading-6 text-zinc-300">
+              Tina can go much deeper, but most owners should not need all of that at once.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+            onClick={() => setShowAdvancedTools((current) => !current)}
+          >
+            {showAdvancedTools ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+            {showAdvancedTools ? "Hide deeper Tina tools" : "Show deeper Tina tools"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {showAdvancedTools ? (
+        <>
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,1fr)]">
         <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
           <CardHeader className="space-y-3">
@@ -3074,9 +4609,328 @@ export function TinaWorkspace() {
 
       <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
         <CardHeader className="space-y-2">
+          <CardTitle className="text-white">Federal business form packet</CardTitle>
+          <p className="text-sm leading-6 text-zinc-300">
+            This is Tina&apos;s IRS-facing business paperwork layer for the supported Schedule C lane. Tina only lets you download it when the required in-scope federal business forms are covered.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div
+            className={cn(
+              "rounded-2xl border px-4 py-4",
+              irsAuthorityStatus.level === "ready"
+                ? "border-emerald-300/18 bg-emerald-300/8"
+                : "border-amber-300/18 bg-amber-300/8"
+            )}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-white">IRS support check</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-200">
+                  {irsAuthorityStatus.summary}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-zinc-300">
+                  {irsAuthorityStatus.nextStep}
+                </p>
+              </div>
+              <span
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                  irsAuthorityStatus.level === "ready"
+                    ? "border-emerald-300/18 bg-emerald-300/8 text-emerald-50"
+                    : "border-amber-300/18 bg-amber-300/8 text-amber-100"
+                )}
+              >
+                {irsAuthorityStatusLabel}
+              </span>
+            </div>
+            <p className="mt-3 text-xs uppercase tracking-[0.14em] text-zinc-500">
+              {irsAuthoritySourceCount > 0
+                ? `${irsAuthoritySourceCount} watched IRS sources`
+                : `Registry is currently built for Tina's supported ${TINA_IRS_AUTHORITY_SUPPORTED_TAX_YEAR} Schedule C lane`}
+              {" | "}Verified {formatShortDate(TINA_IRS_AUTHORITY_REGISTRY_VERIFIED_AT)}
+            </p>
+          </div>
+
+          {irsAuthorityWatchStatus ? (
+            <div
+              className={cn(
+                "rounded-2xl border px-4 py-4",
+                irsAuthorityWatchStatus.level === "healthy"
+                  ? "border-emerald-300/18 bg-emerald-300/8"
+                  : "border-amber-300/18 bg-amber-300/8"
+              )}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-white">IRS freshness watch</p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-200">
+                    {irsAuthorityWatchStatus.summary}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">
+                    {irsAuthorityWatchStatus.nextStep}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                    irsAuthorityWatchStatus.level === "healthy"
+                      ? "border-emerald-300/18 bg-emerald-300/8 text-emerald-50"
+                      : "border-amber-300/18 bg-amber-300/8 text-amber-100"
+                  )}
+                >
+                  {irsWatchStatusLabel}
+                </span>
+              </div>
+              <p className="mt-3 text-xs uppercase tracking-[0.14em] text-zinc-500">
+                {irsAuthorityWatchStatus.checkedCount > 0
+                  ? `${irsAuthorityWatchStatus.checkedCount} watched IRS sources`
+                  : "No stored IRS watch run yet"}
+                {irsAuthorityWatchStatus.generatedAt
+                  ? ` | Last checked ${formatSavedAt(irsAuthorityWatchStatus.generatedAt)}`
+                  : ""}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                Form packet
+              </p>
+              <p className="mt-2 text-sm font-medium text-white">
+                {officialFormPacket.status === "complete"
+                  ? officialFormPacketExportReady
+                    ? "Built"
+                    : "Built, but not export-ready"
+                  : officialFormPacket.status === "stale"
+                    ? "Needs a fresh build"
+                    : officialFormPacket.lastRunAt
+                      ? "Waiting on draft checks"
+                      : "Not built yet"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                Forms inside
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-white">{officialFormCount}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                Mapped lines
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-white">{officialFormLineCount}</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+            <p className="text-sm font-medium text-white">{officialFormPacket.summary}</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">{officialFormPacket.nextStep}</p>
+            {officialFormPacket.lastRunAt ? (
+              <p className="mt-2 text-xs uppercase tracking-[0.16em] text-zinc-500">
+                Last built {formatSavedAt(officialFormPacket.lastRunAt)}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={runOfficialFormBuild} disabled={officialFormState === "running"}>
+              {officialFormState === "running" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4" />
+              )}
+              {officialFormPacket.status === "complete"
+                ? "Build again"
+                : "Build federal form packet"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+              onClick={() => void downloadOfficialFormPacket()}
+              disabled={
+                officialFormDownloadState === "running" || !officialFormPacketExportReady
+              }
+            >
+              {officialFormDownloadState === "running" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Download federal form packet (HTML)
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+              onClick={() => void downloadOfficialFormPacketPdf()}
+              disabled={
+                officialFormPdfState === "running" || !officialFormPacketExportReady
+              }
+            >
+              {officialFormPdfState === "running" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Download federal form packet (PDF)
+            </Button>
+            {officialFormMessage ? (
+              <p
+                className={cn(
+                  "text-sm",
+                  officialFormState === "error" ? "text-amber-200" : "text-zinc-300"
+                )}
+              >
+                {officialFormMessage}
+              </p>
+            ) : null}
+            {officialFormDownloadMessage ? (
+              <p
+                className={cn(
+                  "text-sm",
+                  officialFormDownloadState === "error" ? "text-amber-200" : "text-zinc-300"
+                )}
+              >
+                {officialFormDownloadMessage}
+              </p>
+            ) : null}
+            {officialFormPdfMessage ? (
+              <p
+                className={cn(
+                  "text-sm",
+                  officialFormPdfState === "error" ? "text-amber-200" : "text-zinc-300"
+                )}
+              >
+                {officialFormPdfMessage}
+              </p>
+            ) : null}
+          </div>
+
+          {officialFormPacket.forms.length > 0 ? (
+            <div className="space-y-4">
+              {officialFormPacket.forms.map((form) => (
+                <div
+                  key={form.id}
+                  className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-white">
+                        {form.formNumber} for {form.taxYear}
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-zinc-300">{form.summary}</p>
+                      <p className="mt-1 text-sm leading-6 text-zinc-400">{form.nextStep}</p>
+                    </div>
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                        OFFICIAL_FORM_STATUS_STYLES[form.status]
+                      )}
+                    >
+                      {OFFICIAL_FORM_STATUS_LABELS[form.status]}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {form.lines.map((line) => (
+                      <div
+                        key={line.id}
+                        className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-white">
+                              {line.lineNumber}: {line.label}
+                            </p>
+                            <p className="mt-1 text-sm leading-6 text-zinc-300">
+                              {line.summary}
+                            </p>
+                          </div>
+                          <span
+                            className={cn(
+                              "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                              OFFICIAL_FORM_LINE_STYLES[line.state]
+                            )}
+                          >
+                            {OFFICIAL_FORM_LINE_LABELS[line.state]}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-xl font-semibold text-white">
+                          {line.value || "Blank for now"}
+                        </p>
+                        {renderOfficialFormLineContext(form, line)}
+                      </div>
+                    ))}
+
+                    {form.supportSchedules.length > 0 ? (
+                      <div className="space-y-3">
+                        {form.supportSchedules.map((schedule) => (
+                          <div
+                            key={schedule.id}
+                            className="rounded-2xl border border-white/10 bg-[#11140f] px-4 py-4"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-medium text-white">{schedule.title}</p>
+                                <p className="mt-1 text-sm leading-6 text-zinc-300">
+                                  {schedule.summary}
+                                </p>
+                              </div>
+                              <span className="rounded-full border border-emerald-300/18 bg-emerald-300/8 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-50">
+                                Support sheet
+                              </span>
+                            </div>
+
+                            <div className="mt-4 space-y-3">
+                              {schedule.rows.map((row) => (
+                                <div
+                                  key={row.id}
+                                  className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4"
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-medium text-white">{row.label}</p>
+                                      <p className="mt-1 text-sm leading-6 text-zinc-300">
+                                        {row.summary}
+                                      </p>
+                                    </div>
+                                    <p className="text-lg font-semibold text-white">
+                                      {formatMoneyAmount(row.amount)}
+                                    </p>
+                                  </div>
+                                  {row.sourceDocumentIds.length > 0 ? (
+                                    <p className="mt-3 text-xs uppercase tracking-[0.14em] text-zinc-500">
+                                      Backed by {row.sourceDocumentIds.length} saved paper
+                                      {row.sourceDocumentIds.length === 1 ? "" : "s"}.
+                                    </p>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-sm leading-6 text-zinc-300">
+              Tina does not have a federal business form packet yet. She needs the Schedule C draft and package check first.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+        <CardHeader className="space-y-2">
           <CardTitle className="text-white">What still blocks the filing package</CardTitle>
           <p className="text-sm leading-6 text-zinc-300">
-            Tina uses this check to decide whether the package is blocked, still needs review, or is ready for CPA handoff.
+            Tina uses this check to decide whether the federal business packet is blocked, still needs review, or is ready for CPA handoff.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -3328,8 +5182,8 @@ export function TinaWorkspace() {
               type="button"
               variant="outline"
               className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
-              onClick={downloadCpaPacket}
-              disabled={cpaDownloadState === "running"}
+              onClick={() => void downloadCpaPacket()}
+              disabled={cpaDownloadState === "running" || cpaHandoff.status !== "complete"}
             >
               {cpaDownloadState === "running" ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -3337,6 +5191,20 @@ export function TinaWorkspace() {
                 <Save className="h-4 w-4" />
               )}
               Download packet notes
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+              onClick={() => void downloadReviewPacketHtml()}
+              disabled={htmlPacketState === "running" || cpaHandoff.status !== "complete"}
+            >
+              {htmlPacketState === "running" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Download review packet (HTML)
             </Button>
             {cpaHandoffMessage ? (
               <p
@@ -3356,6 +5224,16 @@ export function TinaWorkspace() {
                 )}
               >
                 {cpaDownloadMessage}
+              </p>
+            ) : null}
+            {htmlPacketMessage ? (
+              <p
+                className={cn(
+                  "text-sm",
+                  htmlPacketState === "error" ? "text-amber-200" : "text-zinc-300"
+                )}
+              >
+                {htmlPacketMessage}
               </p>
             ) : null}
           </div>
@@ -3402,6 +5280,625 @@ export function TinaWorkspace() {
               Tina has not laid out the CPA packet yet. Build it once the filing-package check is up to date.
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+        <CardHeader className="space-y-2">
+          <CardTitle className="text-white">Final signoff</CardTitle>
+          <p className="text-sm leading-6 text-zinc-300">
+            This is Tina&apos;s last calm checkpoint before you hand the packet to a real reviewer.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                Signoff state
+              </p>
+              <div className="mt-2">
+                <span
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                    FINAL_SIGNOFF_LEVEL_STYLES[finalSignoff.level]
+                  )}
+                >
+                  {FINAL_SIGNOFF_LEVEL_LABELS[finalSignoff.level]}
+                </span>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                Checks done
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-white">
+                {finalSignoffCheckedCount}/{finalSignoff.checks.length}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                Reviewer
+              </p>
+              <p className="mt-2 text-sm font-medium text-white">
+                {finalSignoff.reviewerName || "Not added yet"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                Confirmed
+              </p>
+              <p className="mt-2 text-sm font-medium text-white">
+                {finalSignoff.confirmedAt ? formatSavedAt(finalSignoff.confirmedAt) : "Not confirmed yet"}
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
+                {finalSignoff.confirmedPacketId && finalSignoff.confirmedPacketVersion
+                  ? `${finalSignoff.confirmedPacketId} (${finalSignoff.confirmedPacketVersion})`
+                  : "No packet revision pinned yet"}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+            <p className="text-sm font-medium text-white">{finalSignoff.summary}</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">{finalSignoff.nextStep}</p>
+            {finalSignoff.lastRunAt ? (
+              <p className="mt-2 text-xs uppercase tracking-[0.16em] text-zinc-500">
+                Last checked {formatSavedAt(finalSignoff.lastRunAt)}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={runFinalSignoffBuild} disabled={finalSignoffState === "running"}>
+              {finalSignoffState === "running" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ShieldCheck className="h-4 w-4" />
+              )}
+              {finalSignoff.status === "complete" ? "Check again" : "Check final signoff"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+              onClick={() => void downloadReviewBundle()}
+              disabled={bundleDownloadState === "running" || finalSignoff.status !== "complete"}
+            >
+              {bundleDownloadState === "running" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Download bundle package
+            </Button>
+            <Button
+              type="button"
+              variant={finalSignoff.confirmedAt ? "outline" : "default"}
+              className={
+                finalSignoff.confirmedAt
+                  ? "border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                  : undefined
+              }
+              onClick={() => {
+                if (finalSignoff.confirmedAt) {
+                  clearFinalSignoffConfirmation();
+                  setFinalSignoffMessage("Tina cleared the saved signoff confirmation.");
+                  return;
+                }
+
+                if (!canConfirmFinalSignoff) {
+                  setFinalSignoffMessage(
+                    "Tina still needs all signoff checks done and a reviewer name before confirmation."
+                  );
+                  return;
+                }
+
+                confirmFinalSignoff();
+                setFinalSignoffMessage("Tina saved the final signoff confirmation.");
+              }}
+            >
+              {finalSignoff.confirmedAt ? "Clear confirmation" : "Mark confirmed"}
+            </Button>
+            {finalSignoffMessage ? (
+              <p
+                className={cn(
+                  "text-sm",
+                  finalSignoffState === "error" ? "text-amber-200" : "text-zinc-300"
+                )}
+              >
+                {finalSignoffMessage}
+              </p>
+            ) : null}
+            {bundleDownloadMessage ? (
+              <p
+                className={cn(
+                  "text-sm",
+                  bundleDownloadState === "error" ? "text-amber-200" : "text-zinc-300"
+                )}
+              >
+                {bundleDownloadMessage}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-3">
+            {finalSignoff.checks.map((check) => (
+              <label
+                key={check.id}
+                className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-zinc-200"
+              >
+                <Checkbox
+                  checked={check.checked}
+                  onChange={(event) => updateFinalSignoffCheck(check.id, event.target.checked)}
+                  className="mt-0.5 border-white/20 bg-white/5"
+                />
+                <span className="space-y-1">
+                  <span className="block font-medium text-white">{check.label}</span>
+                  <span className="block text-sm leading-6 text-zinc-400">{check.helpText}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+            <label className="space-y-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Reviewer name
+              </span>
+              <Input
+                value={finalSignoff.reviewerName}
+                onChange={(event) => updateFinalSignoffReviewerName(event.target.value)}
+                placeholder="Who is doing the final human review?"
+                className="border-white/10 bg-black/20 text-white placeholder:text-zinc-500"
+              />
+            </label>
+            <label className="space-y-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Reviewer note
+              </span>
+              <Textarea
+                value={finalSignoff.reviewerNote}
+                onChange={(event) => updateFinalSignoffReviewerNote(event.target.value)}
+                placeholder="Any last plain-language note Tina should keep with the packet."
+                className="min-h-24 border-white/10 bg-black/20 text-white placeholder:text-zinc-500"
+              />
+            </label>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+        <CardHeader className="space-y-2">
+          <CardTitle className="text-white">Packet files Tina can hand over</CardTitle>
+          <p className="text-sm leading-6 text-zinc-300">
+            This is Tina&apos;s simple file map. It shows which packet files are ready, which ones are still waiting, and which ones should not be treated like final handoff pieces yet.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                Ready files
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-white">{artifactManifestReadyCount}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                Waiting files
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-white">{artifactManifestWaitingCount}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                Blocked files
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-white">{artifactManifestBlockedCount}</p>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+            <p className="text-sm font-medium text-white">{artifactManifest.summary}</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">{artifactManifest.nextStep}</p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              Saved packet history
+            </p>
+            <p className="mt-2 text-sm font-medium text-white">
+              {packetVersions.length === 0
+                ? "Tina has not saved a server packet version yet."
+                : `${packetVersions.length} packet revision${packetVersions.length === 1 ? "" : "s"} saved on the server.`}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-zinc-300">
+              {latestStoredPacketVersion
+                ? `Newest saved packet: ${latestStoredPacketVersion.packetId} (${latestStoredPacketVersion.packetVersion}). Tina saved it ${formatSavedAt(latestStoredPacketVersion.lastStoredAt)}.`
+                : "The first export or bundle download will pin a packet revision on the server so Tina and a reviewer can come back to the same packet later."}
+            </p>
+            {selectedPacketMessage ? (
+              <p
+                className={cn(
+                  "mt-3 text-sm",
+                  selectedPacketState === "error" ? "text-rose-200" : "text-zinc-300"
+                )}
+              >
+                {selectedPacketMessage}
+              </p>
+            ) : null}
+            {selectedPacketVersion && selectedPacketArtifactManifest ? (
+              <div className="mt-4 rounded-2xl border border-emerald-300/18 bg-emerald-300/8 px-4 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">Opened saved packet</p>
+                    <p className="mt-1 text-sm leading-6 text-zinc-300">
+                      Tina is showing the exact saved packet for {selectedPacketLabel}. This view is
+                      read-only, so you can inspect an older packet without changing today&apos;s draft.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                        selectedPacketMatchesLive
+                          ? "border-emerald-300/18 bg-emerald-300/8 text-emerald-100"
+                          : "border-amber-300/18 bg-amber-300/8 text-amber-100"
+                      )}
+                    >
+                      {selectedPacketMatchesLive ? "matches live packet" : "older saved packet"}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                      onClick={clearSelectedPacketVersion}
+                    >
+                      Hide snapshot
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                      Ready files then
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{selectedPacketReadyCount}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                      Waiting files then
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-white">
+                      {selectedPacketWaitingCount}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                      Blocked files then
+                    </p>
+                    <p className="mt-2 text-2xl font-semibold text-white">
+                      {selectedPacketBlockedCount}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 px-4 py-4">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">
+                      Saved {formatSavedAt(selectedPacketVersion.lastStoredAt)}
+                    </span>
+                    {selectedPacketVersion.draft.finalSignoff.confirmedAt ? (
+                      <span className="rounded-full border border-emerald-300/18 bg-emerald-300/8 px-2.5 py-1 text-emerald-100">
+                        Confirmed {formatSavedAt(selectedPacketVersion.draft.finalSignoff.confirmedAt)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-white">
+                    {selectedPacketArtifactManifest.summary}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">
+                    {selectedPacketArtifactManifest.nextStep}
+                  </p>
+                  {selectedPacketComparison && !selectedPacketMatchesLive ? (
+                    <div
+                      className={cn(
+                        "mt-4 rounded-2xl border px-4 py-4",
+                        PACKET_COMPARISON_STYLES[selectedPacketComparison.tone]
+                      )}
+                    >
+                      <p className="text-sm font-medium text-white">
+                        What changed since this packet was saved
+                      </p>
+                      <p className="mt-2 text-sm leading-6">{selectedPacketComparison.summary}</p>
+                      <p className="mt-2 text-xs leading-5 text-zinc-300">
+                        {selectedPacketComparison.nextStep}
+                      </p>
+                      {selectedPacketComparison.items.length > 0 ? (
+                        <div className="mt-4 space-y-3">
+                          {selectedPacketComparison.items.map((item) => (
+                            <div
+                              key={`${selectedPacketVersion.fingerprint}-${item.id}`}
+                              className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+                            >
+                              <p className="text-sm font-medium text-white">{item.title}</p>
+                              <p className="mt-2 text-sm leading-6 text-zinc-200">
+                                {item.summary}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className="mt-4 space-y-3">
+                    {selectedPacketArtifactManifest.items.map((item) => (
+                      <div
+                        key={`${selectedPacketVersion.fingerprint}-${item.id}`}
+                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-white">{item.title}</p>
+                            <p className="mt-1 text-xs uppercase tracking-[0.14em] text-zinc-500">
+                              {item.format} • {item.fileName}
+                            </p>
+                          </div>
+                          {renderArtifactDelivery(item)}
+                        </div>
+                        <p className="mt-3 text-sm leading-6 text-zinc-300">{item.summary}</p>
+                        <p className="mt-2 text-xs leading-5 text-zinc-500">{item.nextStep}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <Button
+                      asChild
+                      type="button"
+                      variant="outline"
+                      className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                    >
+                      <Link href={`/tina/packets/${selectedPacketVersion.fingerprint}`}>
+                        <FolderOpen className="h-4 w-4" />
+                        Open full review page
+                      </Link>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                      onClick={() =>
+                        void downloadReviewBundle(
+                          selectedPacketVersion.fingerprint,
+                          selectedPacketLabel ?? undefined
+                        )
+                      }
+                      disabled={bundleDownloadState === "running"}
+                    >
+                      <Save className="h-4 w-4" />
+                      Download this bundle again
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                      onClick={() =>
+                        void downloadReviewBook(
+                          selectedPacketVersion.fingerprint,
+                          selectedPacketLabel ?? undefined
+                        )
+                      }
+                      disabled={reviewBookState === "running"}
+                    >
+                      <Save className="h-4 w-4" />
+                      Download this handoff file
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                      onClick={() =>
+                        void downloadCpaPacket(
+                          selectedPacketVersion.fingerprint,
+                          selectedPacketLabel ?? undefined
+                        )
+                      }
+                      disabled={cpaDownloadState === "running"}
+                    >
+                      <Save className="h-4 w-4" />
+                      Download these CPA notes
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {packetVersions.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {packetVersions.slice(0, 5).map((packet) => {
+                  const packetLabel = `${packet.packetId} (${packet.packetVersion})`;
+                  return (
+                    <div
+                      key={packet.fingerprint}
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium text-white">{packet.packetId}</p>
+                          <p className="mt-1 text-xs uppercase tracking-[0.14em] text-zinc-500">
+                            {packet.packetVersion}
+                          </p>
+                        </div>
+                        <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
+                          {packet.packageLevel.replace(/_/g, " ")}
+                        </span>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-zinc-300">{packet.packageSummary}</p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                        <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">
+                          Saved {formatSavedAt(packet.lastStoredAt)}
+                        </span>
+                        {packet.reviewedAt ? (
+                          <span className="rounded-full border border-emerald-300/18 bg-emerald-300/8 px-2.5 py-1 text-emerald-100">
+                            {packet.reviewDecision.replace(/_/g, " ")} {formatSavedAt(packet.reviewedAt)}
+                          </span>
+                        ) : null}
+                        {packet.reviewerName ? (
+                          <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1">
+                            Reviewer: {packet.reviewerName}
+                          </span>
+                        ) : null}
+                        {packet.confirmedAt ? (
+                          <span className="rounded-full border border-emerald-300/18 bg-emerald-300/8 px-2.5 py-1 text-emerald-100">
+                            Confirmed {formatSavedAt(packet.confirmedAt)}
+                          </span>
+                        ) : null}
+                        {packet.origins.map((origin) => (
+                          <span
+                            key={`${packet.fingerprint}-${origin}`}
+                            className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1"
+                          >
+                            {formatPacketOriginLabel(origin)}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <Button
+                          asChild
+                          type="button"
+                          variant="outline"
+                          className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                        >
+                          <Link href={`/tina/packets/${packet.fingerprint}`}>
+                            <ExternalLink className="h-4 w-4" />
+                            Review page
+                          </Link>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                          onClick={() => void openPacketVersion(packet.fingerprint)}
+                          disabled={selectedPacketState === "loading"}
+                        >
+                          {selectedPacketState === "loading" &&
+                          openingPacketFingerprint === packet.fingerprint ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FolderOpen className="h-4 w-4" />
+                          )}
+                          {selectedPacketVersion?.fingerprint === packet.fingerprint
+                            ? "Opened"
+                            : "Open snapshot"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                          onClick={() => void downloadReviewBundle(packet.fingerprint, packetLabel)}
+                          disabled={bundleDownloadState === "running"}
+                        >
+                          <Save className="h-4 w-4" />
+                          Bundle again
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                          onClick={() => void downloadReviewPacketHtml(packet.fingerprint, packetLabel)}
+                          disabled={htmlPacketState === "running"}
+                        >
+                          <Save className="h-4 w-4" />
+                          Review packet again
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                          onClick={() => void downloadOfficialFormPacketPdf(packet.fingerprint, packetLabel)}
+                          disabled={officialFormPdfState === "running"}
+                        >
+                          <Save className="h-4 w-4" />
+                          PDF again
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+              onClick={() => void downloadReviewBook()}
+              disabled={
+                reviewBookState === "running" ||
+                draft.cpaHandoff.status !== "complete" ||
+                !officialFormPacketExportReady ||
+                draft.finalSignoff.status !== "complete"
+              }
+            >
+              {reviewBookState === "running" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              Download full handoff packet
+            </Button>
+            {fullHandoffPacketItem ? (
+              <p className="text-sm text-zinc-400">
+                Tina marks this file as <span className="text-zinc-200">{ARTIFACT_STATUS_LABELS[fullHandoffPacketItem.status]}</span> right now.
+              </p>
+            ) : null}
+            {reviewBookMessage ? (
+              <p
+                className={cn(
+                  "text-sm",
+                  reviewBookState === "error" ? "text-amber-200" : "text-zinc-300"
+                )}
+              >
+                {reviewBookMessage}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-3">
+            {artifactManifest.items.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">{item.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-zinc-300">{item.summary}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {renderArtifactDelivery(item)}
+                    <span
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                        ARTIFACT_STATUS_STYLES[item.status]
+                      )}
+                    >
+                      {ARTIFACT_STATUS_LABELS[item.status]}
+                    </span>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                  <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                    {item.format}
+                  </span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                    {item.fileName}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-zinc-400">{item.nextStep}</p>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
@@ -3480,13 +5977,62 @@ export function TinaWorkspace() {
         <CardHeader className="space-y-2">
           <CardTitle className="text-white">What Tina still has to prove</CardTitle>
           <p className="text-sm leading-6 text-zinc-300">
-            Each idea needs proof before it can affect the return. This is Tina&apos;s simple proof checklist.
+            Each idea needs proof before it can affect the federal return or reviewer packet. This is Tina&apos;s simple proof checklist.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm leading-6 text-zinc-300">
+            <span className="font-medium text-white">Federal return stays first.</span> State proof cards
+            only check whether Washington or another state changes the federal package or needs a
+            separate reviewer note.
+          </div>
+          {authorityBackgroundProgress.trackedTaskCount > 0 ? (
+            <div className="rounded-2xl border border-sky-300/18 bg-sky-300/8 px-4 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-white">Background research progress</p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-200">
+                    {authorityBackgroundProgress.completedTaskCount} of{" "}
+                    {authorityBackgroundProgress.trackedTaskCount} deeper passes complete.
+                    {authorityBackgroundProgress.remainingTaskCount > 0 &&
+                    authorityBackgroundProgress.estimatedRemainingMs !== null
+                      ? ` About ${formatEstimatedRemainingDuration(authorityBackgroundProgress.estimatedRemainingMs)} remaining.`
+                      : " Tina saved the deeper results."}
+                  </p>
+                </div>
+                <span className="rounded-full border border-sky-300/18 bg-black/20 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-sky-50">
+                  {authorityBackgroundProgress.progressPercent}% done
+                </span>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/20">
+                <div
+                  className="h-full rounded-full bg-sky-300/70 transition-all"
+                  style={{ width: `${authorityBackgroundProgress.progressPercent}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
           {researchDossiers.length > 0 ? (
             researchDossiers.map((dossier) => {
               const authorityWork = authorityWorkMap.get(dossier.id);
+              const researchRun = authorityWork?.researchRun ?? null;
+              const challengeRun = authorityWork?.challengeRun ?? null;
+              const researchBusy =
+                researchingIdeaId === dossier.id || researchRun?.status === "running";
+              const challengeBusy =
+                challengingIdeaId === dossier.id || challengeRun?.status === "running";
+              const researchDisabled =
+                researchBusy || (researchRun ? isTinaAuthorityBackgroundRunActive(researchRun) : false);
+              const challengeDisabled =
+                challengeBusy || (challengeRun ? isTinaAuthorityBackgroundRunActive(challengeRun) : false);
+              const researchRunSummary = researchRun
+                ? getAuthorityRunSummary(researchRun, "Tina will retry this authority pass after")
+                : null;
+              const challengeRunSummary = challengeRun
+                ? getAuthorityRunSummary(challengeRun, "Tina will retry this stress test after")
+                : null;
+              const isStateScopeDossier =
+                dossier.id === "wa-state-review" || dossier.id === "multistate-review";
 
               return (
                 <div key={dossier.id} className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
@@ -3514,6 +6060,13 @@ export function TinaWorkspace() {
                     </div>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-zinc-300">{dossier.summary}</p>
+                  {isStateScopeDossier ? (
+                    <div className="mt-3 rounded-2xl border border-sky-300/18 bg-sky-300/8 px-3 py-3 text-sm leading-6 text-zinc-200">
+                      Tina is checking this state issue only to protect the federal package or add
+                      a reviewer note. It should not become a federal return position unless the
+                      facts and primary authority clearly support that move.
+                    </div>
+                  ) : null}
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     {dossier.steps.map((step) => (
                       <div
@@ -3565,6 +6118,14 @@ export function TinaWorkspace() {
                         </span>
                         <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-zinc-300">
                           disclosure: {AUTHORITY_DISCLOSURE_DECISION_LABELS[authorityWork.disclosureDecision]}
+                        </span>
+                        <span
+                          className={cn(
+                            "rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.14em]",
+                            AUTHORITY_CHALLENGE_STYLES[authorityWork.challengeVerdict]
+                          )}
+                        >
+                          {AUTHORITY_CHALLENGE_LABELS[authorityWork.challengeVerdict]}
                         </span>
                       </div>
                       <p className="mt-3 text-sm leading-6 text-zinc-300">{authorityWork.summary}</p>
@@ -3659,26 +6220,109 @@ export function TinaWorkspace() {
                           type="button"
                           size="sm"
                           onClick={() => void runAuthorityResearch(dossier.id)}
-                          disabled={researchingIdeaId === dossier.id}
+                          disabled={researchDisabled}
                         >
-                          {researchingIdeaId === dossier.id ? (
+                          {researchBusy ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <RefreshCcw className="h-4 w-4" />
                           )}
-                          {researchingIdeaId === dossier.id
-                            ? "Researching..."
-                            : authorityWork.lastAiRunAt
-                              ? "Run again"
-                              : "Let Tina research this"}
+                          {researchRun
+                            ? getAuthorityRunButtonLabel(researchRun, {
+                                idleLabel: "Let Tina research this",
+                                rerunLabel: "Run again",
+                                queuedLabel: "Queued...",
+                                runningLabel: "Working...",
+                                rateLimitedLabel: "Waiting to retry...",
+                              })
+                            : "Let Tina research this"}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                          onClick={() => void runAuthorityChallenge(dossier.id)}
+                          disabled={challengeDisabled}
+                        >
+                          {challengeBusy ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <ShieldCheck className="h-4 w-4" />
+                          )}
+                          {challengeRun
+                            ? getAuthorityRunButtonLabel(challengeRun, {
+                                idleLabel: "Stress test this",
+                                rerunLabel: "Stress test again",
+                                queuedLabel: "Queued...",
+                                runningLabel: "Working...",
+                                rateLimitedLabel: "Waiting to retry...",
+                              })
+                            : "Stress test this"}
                         </Button>
                         {authorityWork.lastAiRunAt ? (
                           <p className="text-sm text-zinc-400">
                             Last AI run {formatSavedAt(authorityWork.lastAiRunAt)}
                           </p>
                         ) : null}
-                        {authorityMessage && researchingIdeaId === null ? (
-                          <p className="text-sm text-zinc-300">{authorityMessage}</p>
+                        {authorityWork.lastChallengeRunAt ? (
+                          <p className="text-sm text-zinc-400">
+                            Last stress test {formatSavedAt(authorityWork.lastChallengeRunAt)}
+                          </p>
+                        ) : null}
+                      </div>
+                      {researchRunSummary ? (
+                        <p className="mt-3 text-sm leading-6 text-zinc-300">{researchRunSummary}</p>
+                      ) : null}
+                      {challengeRunSummary ? (
+                        <p className="mt-2 text-sm leading-6 text-zinc-300">{challengeRunSummary}</p>
+                      ) : null}
+                      <div className="mt-4 rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium text-white">Why this idea might fail</p>
+                          <span
+                            className={cn(
+                              "rounded-full border px-2.5 py-1 text-[11px] uppercase tracking-[0.14em]",
+                              AUTHORITY_CHALLENGE_STYLES[authorityWork.challengeVerdict]
+                            )}
+                          >
+                            {AUTHORITY_CHALLENGE_LABELS[authorityWork.challengeVerdict]}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-zinc-300">
+                          {authorityWork.challengeMemo.trim().length > 0
+                            ? authorityWork.challengeMemo
+                            : "Tina has not tried to break this idea yet. Run the stress test to look for weak spots, narrow fact fits, and disclosure pressure."}
+                        </p>
+                        {authorityWork.challengeWarnings.length > 0 ? (
+                          <div className="mt-3">
+                            <p className="text-sm font-medium text-white">Weak spots Tina found</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {authorityWork.challengeWarnings.map((warning) => (
+                                <span
+                                  key={`${dossier.id}-warning-${warning}`}
+                                  className="rounded-full border border-amber-300/18 bg-amber-300/8 px-2.5 py-1 text-[11px] text-amber-50"
+                                >
+                                  {warning}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                        {authorityWork.challengeQuestions.length > 0 ? (
+                          <div className="mt-3">
+                            <p className="text-sm font-medium text-white">Questions a reviewer should answer</p>
+                            <div className="mt-2 space-y-2">
+                              {authorityWork.challengeQuestions.map((question) => (
+                                <p
+                                  key={`${dossier.id}-question-${question}`}
+                                  className="text-sm leading-6 text-zinc-300"
+                                >
+                                  {question}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
                         ) : null}
                       </div>
                       <div className="mt-4 grid gap-3 lg:grid-cols-2">
@@ -3917,6 +6561,8 @@ export function TinaWorkspace() {
           ))}
         </div>
       </section>
+        </>
+      ) : null}
     </div>
   );
 }

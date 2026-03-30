@@ -136,11 +136,16 @@ describe("buildTinaTaxAdjustmentSnapshot", () => {
           status: "reviewed",
           reviewerDecision: "use_it",
           disclosureDecision: "not_needed",
+          challengeVerdict: "survives",
           memo: "Looks supported.",
+          challengeMemo: "This still holds up after a stress test.",
           reviewerNotes: "Okay to use.",
           missingAuthority: [],
+          challengeWarnings: [],
+          challengeQuestions: [],
           citations: [],
           lastAiRunAt: null,
+          lastChallengeRunAt: "2026-03-27T01:05:00.000Z",
           updatedAt: "2026-03-27T01:05:00.000Z",
         },
       ],
@@ -176,6 +181,59 @@ describe("buildTinaTaxAdjustmentSnapshot", () => {
 
     expect(adjustment?.status).toBe("approved");
     expect(adjustment?.reviewerNotes).toBe("Keep this decision.");
+  });
+
+  it("rejects signal-based adjustments when Tina's stress test says the idea likely fails", () => {
+    const draft = buildDraft({
+      aiCleanup: {
+        lastRunAt: "2026-03-27T01:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [
+          {
+            id: "ai-cleanup-signal-1",
+            kind: "signal",
+            layer: "ai_cleanup",
+            label: "Sales tax clue",
+            amount: 1800,
+            status: "ready",
+            summary: "Looks like sales tax activity",
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            issueIds: [],
+            derivedFromLineIds: ["line-1"],
+            cleanupSuggestionIds: ["cleanup-1"],
+          },
+        ],
+      },
+      authorityWork: [
+        {
+          ideaId: "wa-state-review",
+          status: "ready_for_reviewer",
+          reviewerDecision: "use_it",
+          disclosureDecision: "needs_review",
+          challengeVerdict: "likely_fails",
+          memo: "Initial authority pass looked promising.",
+          challengeMemo: "The closer read suggests this likely fails for this fact pattern.",
+          reviewerNotes: "Do not carry this into the return.",
+          missingAuthority: [],
+          challengeWarnings: ["The state treatment does not fit this fact pattern cleanly."],
+          challengeQuestions: ["Was sales tax actually collected as an agent for the state here?"],
+          citations: [],
+          lastAiRunAt: "2026-03-27T01:05:00.000Z",
+          lastChallengeRunAt: "2026-03-27T01:06:00.000Z",
+          updatedAt: "2026-03-27T01:06:00.000Z",
+        },
+      ],
+    });
+
+    const snapshot = buildTinaTaxAdjustmentSnapshot(draft);
+    const adjustment = snapshot.adjustments[0];
+
+    expect(adjustment?.status).toBe("rejected");
+    expect(snapshot.summary).toContain("rejected");
+    expect(snapshot.nextStep).toContain("Leave rejected tax moves out of the return");
   });
 });
 

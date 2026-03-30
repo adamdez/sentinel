@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { createServerClient } from "@/lib/supabase";
+import { reconcileTinaDerivedWorkspace } from "@/tina/lib/reconcile-workspace";
 import { buildTinaWorkpaperSnapshot } from "@/tina/lib/workpapers";
 import { parseTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 
@@ -23,7 +24,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing draft payload" }, { status: 400 });
   }
 
-  const draft = parseTinaWorkspaceDraft(JSON.stringify((body as { draft: unknown }).draft));
+  const draft = reconcileTinaDerivedWorkspace(
+    parseTinaWorkspaceDraft(JSON.stringify((body as { draft: unknown }).draft))
+  );
   const workpapers = buildTinaWorkpaperSnapshot(draft);
 
   return NextResponse.json({ workpapers });

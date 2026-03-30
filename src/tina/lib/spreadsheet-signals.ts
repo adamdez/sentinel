@@ -285,6 +285,60 @@ function pickTextHeaders(stats: SpreadsheetColumnStats[]): string[] {
   return fallback ? [fallback.header] : [];
 }
 
+function clipSignalText(value: string, maxLength = 72): string {
+  const trimmed = value.replace(/\s+/g, " ").trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  return `${trimmed.slice(0, maxLength - 3).trimEnd()}...`;
+}
+
+function pickPreferredRowFields(row: Record<string, string>, textHeaders: string[]): string[] {
+  return textHeaders
+    .map((header) => row[header] ?? "")
+    .map((value) => value.replace(/\s+/g, " ").trim())
+    .filter((value, index, values) => value.length > 0 && values.indexOf(value) === index)
+    .slice(0, 2);
+}
+
+function buildKeywordExample(row: Record<string, string>, textHeaders: string[]): string | null {
+  const values = pickPreferredRowFields(row, textHeaders);
+  if (values.length === 0) return null;
+  if (values.length === 1) return clipSignalText(values[0]);
+  return clipSignalText(`${values[0]}: ${values[1]}`);
+}
+
+function collectKeywordExamples(args: {
+  rows: Record<string, string>[];
+  textHeaders: string[];
+  pattern: RegExp;
+  limit?: number;
+}): string[] {
+  const { rows, textHeaders, pattern, limit = 2 } = args;
+  const examples: string[] = [];
+
+  rows.forEach((row) => {
+    if (examples.length >= limit) return;
+
+    const rowText = textHeaders.map((header) => row[header] ?? "").join(" ");
+    if (!pattern.test(rowText.toLowerCase())) return;
+
+    const example = buildKeywordExample(row, textHeaders);
+    if (!example || examples.includes(example)) return;
+    examples.push(example);
+  });
+
+  return examples;
+}
+
+function buildClueValue(base: string, examples: string[]): string {
+  if (examples.length === 0) return base;
+  if (examples.length === 1) {
+    return `${base} Example: "${examples[0]}".`;
+  }
+
+  const [firstExample, secondExample] = examples;
+  return `${base} Examples: "${firstExample}" and "${secondExample}".`;
+}
+
 function detectKeywordClues(rows: Record<string, string>[], textHeaders: string[]): Array<{
   label: string;
   value: string;
@@ -292,12 +346,70 @@ function detectKeywordClues(rows: Record<string, string>[], textHeaders: string[
 }> {
   if (textHeaders.length === 0) return [];
 
+  const fixedAssetPattern =
+    /\b(equipment|fixed asset|fixed assets|asset schedule|depreciation|section 179|bonus depreciation|machine|machinery|placed in service)\b/;
+  const repairPattern = /\b(repair|repairs|maintenance|rebuild|service|retrofit|capitaliz)\b/;
+  const smallEquipmentPattern =
+    /\b(tool|tools|meter|meters|hose|hoses|nozzle|nozzles|filter|filters|attachment kit|attachments|accessory|accessories|field gear)\b/;
   const haystack = rows
     .flatMap((row) => textHeaders.map((header) => row[header] ?? ""))
     .join(" ")
     .toLowerCase();
 
   const clues: Array<{ label: string; value: string; confidence: TinaDocumentFactConfidence }> = [];
+
+  if (/\b(form 2553|s corp election|s-corp election|s corporation election)\b/.test(haystack)) {
+    clues.push({
+      label: "LLC election clue",
+      value: "This paper mentions a Form 2553 or S corporation election.",
+      confidence: "medium",
+    });
+  }
+
+  if (/\b(form 8832)\b/.test(haystack) && /\b(corporation|corporate|c corp|c-corp)\b/.test(haystack)) {
+    clues.push({
+      label: "LLC election clue",
+      value: "This paper mentions a Form 8832 corporation election.",
+      confidence: "medium",
+    });
+  }
+
+  if (/\b(1120-s|s corp|s-corp|s corporation)\b/.test(haystack)) {
+    clues.push({
+      label: "LLC tax treatment clue",
+      value: "This paper mentions S corporation return treatment for the LLC.",
+      confidence: "medium",
+    });
+  } else if (/\b(form 1120|c corp|c-corp|c corporation|corporation treatment|corporate treatment)\b/.test(haystack)) {
+    clues.push({
+      label: "LLC tax treatment clue",
+      value: "This paper mentions corporation return treatment for the LLC.",
+      confidence: "medium",
+    });
+  } else if (/\b(form 1065|schedule k-1|k-1|partnership return|partnership treatment|partnership)\b/.test(haystack)) {
+    clues.push({
+      label: "LLC tax treatment clue",
+      value: "This paper mentions partnership return treatment for the LLC.",
+      confidence: "medium",
+    });
+  } else if (/\b(schedule c|disregarded entity|owner return|sole proprietorship)\b/.test(haystack)) {
+    clues.push({
+      label: "LLC tax treatment clue",
+      value: "This paper mentions owner-return treatment for the LLC.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\bcommunity property\b/.test(haystack) &&
+    /\b(spouse|spouses|married couple|husband and wife)\b/.test(haystack)
+  ) {
+    clues.push({
+      label: "Community property clue",
+      value: "This paper mentions spouses and community-property treatment.",
+      confidence: "medium",
+    });
+  }
 
   if (/\b(payroll|wages|salary|employee|941|w-2)\b/.test(haystack)) {
     clues.push({
@@ -327,6 +439,53 @@ function detectKeywordClues(rows: Record<string, string>[], textHeaders: string[
     clues.push({
       label: "Inventory clue",
       value: "This paper mentions inventory or cost of goods.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    fixedAssetPattern.test(haystack)
+  ) {
+    clues.push({
+      label: "Fixed asset clue",
+      value: buildClueValue(
+        "This paper mentions equipment, depreciation, or other big-purchase treatment.",
+        collectKeywordExamples({
+          rows,
+          textHeaders,
+          pattern: fixedAssetPattern,
+        })
+      ),
+      confidence: "medium",
+    });
+  }
+
+  if (repairPattern.test(haystack)) {
+    clues.push({
+      label: "Repair clue",
+      value: buildClueValue(
+        "This paper mentions repairs, maintenance, or capitalization-sensitive spending.",
+        collectKeywordExamples({
+          rows,
+          textHeaders,
+          pattern: repairPattern,
+        })
+      ),
+      confidence: "medium",
+    });
+  }
+
+  if (smallEquipmentPattern.test(haystack)) {
+    clues.push({
+      label: "Small equipment clue",
+      value: buildClueValue(
+        "This paper mentions lower-dollar tools, accessories, or small equipment.",
+        collectKeywordExamples({
+          rows,
+          textHeaders,
+          pattern: smallEquipmentPattern,
+        })
+      ),
       confidence: "medium",
     });
   }

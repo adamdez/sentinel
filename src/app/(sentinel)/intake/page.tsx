@@ -35,6 +35,17 @@ interface QueueMetrics {
   duplicate_count: number;
 }
 
+async function getAuthHeaders() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (session?.access_token) {
+    headers["Authorization"] = `Bearer ${session.access_token}`;
+  }
+  return headers;
+}
+
 export default function IntakePage() {
   const [leads, setLeads] = useState<IntakeLead[]>([]);
   const [metrics, setMetrics] = useState<QueueMetrics>({
@@ -69,12 +80,7 @@ export default function IntakePage() {
       if (dateRange.from) params.append("from", dateRange.from);
       if (dateRange.to) params.append("to", dateRange.to);
 
-      // Get auth token
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (session?.access_token) {
-        headers["Authorization"] = `Bearer ${session.access_token}`;
-      }
+      const headers = await getAuthHeaders();
 
       const response = await fetch(`/api/intake/queue?${params.toString()}`, { headers });
       if (!response.ok) throw new Error("Failed to fetch intake leads");
@@ -116,6 +122,37 @@ export default function IntakePage() {
   const closeClaimModal = () => {
     setShowClaimModal(false);
     setSelectedLead(null);
+  };
+
+  const handleDeleteLead = async (lead: IntakeLead) => {
+    const label = lead.owner_name || lead.property_address || "this lead";
+    if (!window.confirm(`Delete ${label} from the PPL inbox?`)) {
+      return;
+    }
+
+    try {
+      setError(null);
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/intake/${lead.id}`, {
+        method: "DELETE",
+        headers,
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || "Failed to delete intake lead");
+      }
+
+      if (selectedLead?.id === lead.id) {
+        closeClaimModal();
+      }
+
+      await fetchLeads();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError(message);
+      console.error("[IntakePage] Delete error:", err);
+    }
   };
 
   return (
@@ -180,6 +217,7 @@ export default function IntakePage() {
           <IntakeLeadsTable
             leads={leads}
             onClaim={openClaimModal}
+            onDelete={handleDeleteLead}
             isLoading={loading}
           />
         )}
@@ -191,6 +229,7 @@ export default function IntakePage() {
           lead={selectedLead}
           onClose={closeClaimModal}
           onSuccess={handleClaimSuccess}
+          onDelete={handleDeleteLead}
         />
       )}
     </div>

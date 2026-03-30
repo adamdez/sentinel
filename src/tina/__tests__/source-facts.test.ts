@@ -25,6 +25,12 @@ describe("deriveTinaSourceFactsFromReading", () => {
       facts: [
         { id: "paper-type", label: "Paper type", value: "PDF", confidence: "high" },
         { id: "business-name", label: "Business name", value: "Tina Test LLC", confidence: "high" },
+        {
+          id: "llc-election",
+          label: "LLC election clue",
+          value: "Form 2553 election accepted for S corporation treatment.",
+          confidence: "high",
+        },
       ],
       detailLines: [],
       rowCount: null,
@@ -35,7 +41,10 @@ describe("deriveTinaSourceFactsFromReading", () => {
 
     const sourceFacts = deriveTinaSourceFactsFromReading(document, reading);
 
-    expect(sourceFacts).toHaveLength(1);
-    expect(sourceFacts[0]?.label).toBe("Business name");
+    expect(sourceFacts).toHaveLength(2);
+    expect(sourceFacts.map((fact) => fact.label)).toEqual([
+      "Business name",
+      "LLC election clue",
+    ]);
   });
 });

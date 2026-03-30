@@ -83,6 +83,25 @@ describe("buildTinaCpaPacketExport", () => {
         nextStep: "Hand it off",
         artifacts: [],
       },
+      authorityWork: [
+        {
+          ideaId: "wa-state-review",
+          status: "ready_for_reviewer" as const,
+          reviewerDecision: "need_more_support" as const,
+          disclosureDecision: "needs_review" as const,
+          challengeVerdict: "needs_care" as const,
+          memo: "Washington treatment may work, but Tina wants a reviewer look.",
+          challengeMemo: "The position survives for now, but the business facts need a tight fit.",
+          reviewerNotes: "",
+          missingAuthority: ["Need Washington support that matches this fact pattern."],
+          challengeWarnings: ["The Washington classification may be narrower than it first looks."],
+          challengeQuestions: ["Does the activity really fit the claimed Washington treatment?"],
+          citations: [],
+          lastAiRunAt: "2026-03-27T04:05:00.000Z",
+          lastChallengeRunAt: "2026-03-27T04:06:00.000Z",
+          updatedAt: "2026-03-27T04:06:00.000Z",
+        },
+      ],
       taxAdjustments: {
         lastRunAt: "2026-03-27T04:03:30.000Z",
         status: "complete" as const,
@@ -115,7 +134,88 @@ describe("buildTinaCpaPacketExport", () => {
     expect(exportFile.fileName).toContain("tina-sole-prop");
     expect(exportFile.fileName).toContain("2025");
     expect(exportFile.contents).toContain("# Tina CPA Review Packet");
+    expect(exportFile.contents).toContain("Packet ID: TINA-2025-");
     expect(exportFile.contents).toContain("Line 1 Gross receipts or sales");
     expect(exportFile.contents).toContain("2025-return.pdf");
+    expect(exportFile.contents).toContain("Stress test: needs care");
+    expect(exportFile.contents).toContain("Weak spot: The Washington classification may be narrower than it first looks.");
+    expect(exportFile.contents).toContain("Reviewer question: Does the activity really fit the claimed Washington treatment?");
+  });
+
+  it("uses the saved cpa handoff snapshot instead of recalculating packet sections", () => {
+    const base = createDefaultTinaWorkspaceDraft();
+    const draft = {
+      ...base,
+      profile: {
+        ...base.profile,
+        businessName: "Tina Sole Prop",
+        taxYear: "2025",
+        entityType: "sole_prop" as const,
+      },
+      cpaHandoff: {
+        ...base.cpaHandoff,
+        status: "complete" as const,
+        summary: "Saved handoff summary",
+        nextStep: "Use the saved packet.",
+        artifacts: [
+          {
+            id: "saved-artifact",
+            title: "Saved section",
+            status: "ready" as const,
+            summary: "Saved section summary",
+            includes: ["Saved bullet"],
+            relatedFieldIds: [],
+            relatedNoteIds: [],
+            relatedReadinessItemIds: [],
+            sourceDocumentIds: [],
+          },
+        ],
+      },
+      scheduleCDraft: {
+        ...base.scheduleCDraft,
+        status: "idle" as const,
+        fields: [],
+        notes: [],
+      },
+      reviewerFinal: {
+        ...base.reviewerFinal,
+        status: "idle" as const,
+        lines: [],
+      },
+      packageReadiness: {
+        ...base.packageReadiness,
+        status: "idle" as const,
+        level: "blocked" as const,
+        summary: "Raw draft not ready",
+        nextStep: "Do not recompute from this.",
+        items: [],
+      },
+    };
+
+    const exportFile = buildTinaCpaPacketExport(draft);
+
+    expect(exportFile.contents).toContain("Saved handoff summary");
+    expect(exportFile.contents).toContain("Saved section [ready]");
+    expect(exportFile.contents).toContain("Saved bullet");
+    expect(exportFile.contents).not.toContain("Raw draft not ready");
+  });
+
+  it("includes saved packet review trail when provided", () => {
+    const draft = createDefaultTinaWorkspaceDraft();
+
+    const exportFile = buildTinaCpaPacketExport(draft, {
+      packetReview: {
+        decision: "needs_follow_up",
+        reviewerName: "Pat Reviewer",
+        reviewerNote: "Need one more bank-fee check.",
+        reviewedAt: "2026-03-27T12:20:00.000Z",
+        events: [],
+      },
+    });
+
+    expect(exportFile.contents).toContain("## Saved packet review");
+    expect(exportFile.contents).toContain("Needs follow-up");
+    expect(exportFile.contents).toContain("Pat Reviewer");
+    expect(exportFile.contents).toContain("Need one more bank-fee check.");
   });
 });

@@ -110,12 +110,12 @@ export function buildTinaResearchDossierFromIdea(idea: TinaTaxIdeaLead): TinaRes
 
   const summary =
     idea.decisionBucket === "authoritative_and_usable"
-      ? "Tina has enough support for a reviewer to decide whether this should affect the return."
+      ? "Tina has enough support for a reviewer to decide whether this should affect the federal return or filing packet."
       : idea.decisionBucket === "usable_with_disclosure"
-        ? "Tina may be able to use this idea, but only with disclosure-level review."
+        ? "Tina may be able to use this idea, but only with disclosure-level review before it touches the federal package."
         : idea.decisionBucket === "reject"
-          ? "Tina should keep this idea out of the return unless new authority changes the analysis."
-          : "Tina still needs primary authority before this idea can move beyond research.";
+          ? "Tina should keep this idea out of the federal return unless new authority changes the analysis."
+          : "Tina still needs primary authority before this idea can move beyond research and affect the federal package.";
 
   return {
     id: idea.id,
@@ -124,7 +124,7 @@ export function buildTinaResearchDossierFromIdea(idea: TinaTaxIdeaLead): TinaRes
     summary,
     nextStep: idea.nextStep,
     discoveryPrompt: idea.searchPrompt,
-    authorityPrompt: `${idea.searchPrompt} Use primary authority only, explain whether disclosure is needed, and state whether this idea should stay out of the return.`,
+    authorityPrompt: `${idea.searchPrompt} Use primary authority only, explain whether disclosure is needed, and state whether this idea should stay out of the federal return. If a point matters only to a separate state filing, label it as a reviewer note instead of treating it like a federal return position.`,
     steps: buildSteps(idea),
     documentIds: idea.documentIds,
     factIds: idea.factIds,

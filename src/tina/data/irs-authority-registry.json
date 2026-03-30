@@ -1,0 +1,206 @@
+{
+  "version": 1,
+  "verifiedAt": "2026-03-28",
+  "supportedTaxYear": "2025",
+  "supportedLaneId": "schedule_c_single_member_llc",
+  "sources": [
+    {
+      "id": "irs-small-business-tax-center",
+      "title": "Small business and self-employed tax center",
+      "url": "https://www.irs.gov/businesses/small-businesses-self-employed",
+      "documentType": "hub_page",
+      "use": "core_runtime",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Always"],
+      "summary": "Tina starts here for the current IRS small-business hub, filing links, and federal business topic navigation."
+    },
+    {
+      "id": "irs-sole-proprietorships",
+      "title": "Sole proprietorships",
+      "url": "https://www.irs.gov/businesses/small-businesses-self-employed/sole-proprietorships",
+      "documentType": "topic_page",
+      "use": "core_runtime",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Supported Schedule C lane"],
+      "summary": "Tina uses this page to anchor the supported owner-return lane to the IRS sole-proprietor rules."
+    },
+    {
+      "id": "irs-forms-for-sole-proprietorship",
+      "title": "Forms for sole proprietorship",
+      "url": "https://www.irs.gov/businesses/small-businesses-self-employed/forms-for-sole-proprietorship",
+      "documentType": "forms_page",
+      "use": "core_runtime",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Supported Schedule C lane"],
+      "summary": "Tina uses this page as the IRS checklist for which federal business forms normally travel with the owner-return lane."
+    },
+    {
+      "id": "irs-schedule-c-instructions-2025",
+      "title": "Instructions for Schedule C (Form 1040) (2025)",
+      "url": "https://www.irs.gov/instructions/i1040sc",
+      "documentType": "instructions",
+      "use": "core_runtime",
+      "taxYear": "2025",
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Schedule C mapping", "Line instructions", "What is deductible"],
+      "summary": "This is Tina's core federal line-by-line authority for the supported 2025 Schedule C lane."
+    },
+    {
+      "id": "irs-schedule-se-instructions-2025",
+      "title": "Instructions for Schedule SE (Form 1040) (2025)",
+      "url": "https://www.irs.gov/instructions/i1040sse",
+      "documentType": "instructions",
+      "use": "core_runtime",
+      "taxYear": "2025",
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Self-employment tax", "Companion form coverage"],
+      "summary": "Tina watches this as the IRS companion authority for self-employment tax tied to the supported owner-return lane."
+    },
+    {
+      "id": "irs-form-4562-about",
+      "title": "About Form 4562, Depreciation and Amortization (Including Information on Listed Property)",
+      "url": "https://www.irs.gov/forms-pubs/about-form-4562",
+      "documentType": "about_form",
+      "use": "conditional_runtime",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Fixed assets", "Depreciation", "Section 179", "Listed property"],
+      "summary": "Tina uses this page to know when depreciation and listed-property reporting becomes part of the federal business packet."
+    },
+    {
+      "id": "irs-form-4562-instructions-2025",
+      "title": "Instructions for Form 4562 (2025)",
+      "url": "https://www.irs.gov/instructions/i4562",
+      "documentType": "instructions",
+      "use": "conditional_runtime",
+      "taxYear": "2025",
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Fixed assets", "Depreciation", "Section 179", "Listed property"],
+      "summary": "Tina uses these instructions when asset treatment or depreciation affects the supported Schedule C package."
+    },
+    {
+      "id": "irs-form-8829-about",
+      "title": "About Form 8829, Expenses for Business Use of Your Home",
+      "url": "https://www.irs.gov/forms-pubs/about-form-8829",
+      "documentType": "about_form",
+      "use": "conditional_runtime",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Home office", "Business-use-of-home"],
+      "summary": "Tina watches this page so home-office treatment does not get mistaken for an already-complete supported lane."
+    },
+    {
+      "id": "irs-form-8829-instructions-2025",
+      "title": "Instructions for Form 8829 (2025)",
+      "url": "https://www.irs.gov/instructions/i8829",
+      "documentType": "instructions",
+      "use": "conditional_runtime",
+      "taxYear": "2025",
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Home office", "Business-use-of-home"],
+      "summary": "Tina uses these instructions when actual home-office expenses need federal form coverage or a blocker note."
+    },
+    {
+      "id": "irs-form-8995-about",
+      "title": "About Form 8995, Qualified Business Income Deduction Simplified Computation",
+      "url": "https://www.irs.gov/forms-pubs/about-form-8995",
+      "documentType": "about_form",
+      "use": "conditional_runtime",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Qualified business income", "QBI deduction"],
+      "summary": "Tina watches this page so QBI-related companion forms do not quietly fall out of the federal packet."
+    },
+    {
+      "id": "irs-form-8995-instructions-2025",
+      "title": "Instructions for Form 8995 (2025)",
+      "url": "https://www.irs.gov/instructions/i8995",
+      "documentType": "instructions",
+      "use": "conditional_runtime",
+      "taxYear": "2025",
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Qualified business income", "QBI deduction"],
+      "summary": "Tina uses these instructions when QBI treatment matters to the supported federal owner-return lane."
+    },
+    {
+      "id": "irs-publication-334-about",
+      "title": "About Publication 334, Tax Guide for Small Business (For Individuals Who Use Schedule C)",
+      "url": "https://www.irs.gov/forms-pubs/about-publication-334",
+      "documentType": "publication",
+      "use": "supporting_reference",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Schedule C reference", "Small-business guide"],
+      "summary": "Tina uses Publication 334 as a broader IRS reference around the supported Schedule C owner-return lane."
+    },
+    {
+      "id": "irs-publication-587-about",
+      "title": "About Publication 587, Business Use of Your Home (Including Use by Daycare Providers)",
+      "url": "https://www.irs.gov/forms-pubs/about-publication-587",
+      "documentType": "publication",
+      "use": "supporting_reference",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Home office", "Business-use-of-home"],
+      "summary": "Tina keeps this publication in the registry because home-office questions are common and currently need honest IRS-backed scoping."
+    },
+    {
+      "id": "irs-form-1040-es-about",
+      "title": "About Form 1040-ES, Estimated Tax for Individuals",
+      "url": "https://www.irs.gov/forms-pubs/about-form-1040-es",
+      "documentType": "about_form",
+      "use": "supporting_reference",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Estimated tax", "Quarterly payments"],
+      "summary": "Tina watches this page so owner-return estimated-tax obligations stay visible around the supported business packet."
+    },
+    {
+      "id": "irs-recommended-reading-small-business",
+      "title": "Recommended reading for small businesses",
+      "url": "https://www.irs.gov/businesses/small-businesses-self-employed/recommended-reading-for-small-businesses",
+      "documentType": "topic_page",
+      "use": "supporting_reference",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Annual recertification", "Deeper IRS orientation"],
+      "summary": "Tina uses this page as the IRS-curated reading list for the small-business owner-return lane."
+    },
+    {
+      "id": "irs-post-release-changes",
+      "title": "Post-release changes to tax forms, instructions and publications",
+      "url": "https://www.irs.gov/forms-pubs/changes-to-current-forms-publications",
+      "documentType": "change_feed",
+      "use": "annual_watch",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Annual watch", "Freshness gate"],
+      "summary": "Tina watches this IRS change feed so updated forms or instructions can force a recertification pass before exports stay trusted."
+    },
+    {
+      "id": "irs-tax-calendar",
+      "title": "Tax Calendar",
+      "url": "https://www.irs.gov/businesses/small-businesses-self-employed/tax-calendar",
+      "documentType": "calendar",
+      "use": "annual_watch",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["Deadlines", "Filing season watch"],
+      "summary": "Tina watches the IRS business tax calendar for deadline-sensitive changes around the supported lane."
+    },
+    {
+      "id": "irs-e-news-subscriptions",
+      "title": "e-News subscriptions",
+      "url": "https://www.irs.gov/newsroom/e-news-subscriptions",
+      "documentType": "subscription",
+      "use": "annual_watch",
+      "taxYear": null,
+      "lanes": ["schedule_c_single_member_llc"],
+      "triggers": ["IRS update feed", "Filing season watch"],
+      "summary": "Tina keeps this IRS subscription hub in the registry so a future watcher can follow small-business update channels."
+    }
+  ]
+}

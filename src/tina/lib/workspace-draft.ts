@@ -1,8 +1,14 @@
 import type {
   TinaAiCleanupSnapshot,
+  TinaAuthorityBackgroundRun,
+  TinaAuthorityBackgroundRunStatus,
   TinaAuthorityCitation,
+  TinaAuthorityChallengeVerdict,
   TinaCpaHandoffArtifact,
   TinaCpaHandoffSnapshot,
+  TinaBooksConnectionSnapshot,
+  TinaBooksImportDocument,
+  TinaBooksImportSnapshot,
   TinaCleanupPlan,
   TinaCleanupSuggestion,
   TinaPackageReadinessItem,
@@ -17,6 +23,13 @@ import type {
   TinaDocumentReading,
   TinaDocumentReadingFact,
   TinaIssueQueue,
+  TinaFinalSignoffCheck,
+  TinaFinalSignoffSnapshot,
+  TinaOfficialFormDraft,
+  TinaOfficialFormLine,
+  TinaOfficialFormPacketSnapshot,
+  TinaOfficialFormSupportRow,
+  TinaOfficialFormSupportSchedule,
   TinaSourceFact,
   TinaReviewItem,
   TinaScheduleCDraftField,
@@ -34,15 +47,20 @@ import type {
 } from "@/tina/types";
 import { createDefaultTinaAiCleanupSnapshot } from "@/tina/lib/ai-cleanup";
 import { createDefaultTinaAuthorityWorkItem } from "@/tina/lib/authority-work";
+import { createDefaultTinaBooksConnection } from "@/tina/lib/books-connection";
+import { createDefaultTinaBooksImport } from "@/tina/lib/books-import";
 import { createDefaultTinaBootstrapReview } from "@/tina/lib/bootstrap-review";
 import { createDefaultTinaCpaHandoff } from "@/tina/lib/cpa-handoff";
 import { createDefaultTinaCleanupPlan } from "@/tina/lib/cleanup-plan";
+import { createDefaultTinaFinalSignoff } from "@/tina/lib/final-signoff";
 import { createDefaultTinaIssueQueue } from "@/tina/lib/issue-queue";
+import { createDefaultTinaOfficialFormPacket } from "@/tina/lib/official-form-packet";
 import { createDefaultTinaPackageReadiness } from "@/tina/lib/package-readiness";
 import { createDefaultTinaReviewerFinalSnapshot } from "@/tina/lib/reviewer-final";
 import { createDefaultTinaScheduleCDraft } from "@/tina/lib/schedule-c-draft";
 import { createDefaultTinaTaxAdjustmentSnapshot } from "@/tina/lib/tax-adjustments";
 import { createDefaultTinaWorkpaperSnapshot } from "@/tina/lib/workpapers";
+import { sanitizeTinaAiText, sanitizeTinaAiTextList } from "@/tina/lib/ai-text-normalization";
 
 export const TINA_WORKSPACE_STORAGE_KEY = "tina.workspace.v1";
 
@@ -51,6 +69,8 @@ export function createDefaultTinaProfile(): TinaBusinessTaxProfile {
     businessName: "",
     taxYear: String(new Date().getFullYear() - 1),
     entityType: "unsure",
+    llcFederalTaxTreatment: "default",
+    llcCommunityPropertyStatus: "not_applicable",
     formationState: "WA",
     formationDate: "",
     accountingMethod: "cash",
@@ -73,6 +93,8 @@ export function createDefaultTinaWorkspaceDraft(): TinaWorkspaceDraft {
     priorReturnDocumentId: null,
     documents: [],
     documentReadings: [],
+    booksConnection: createDefaultTinaBooksConnection(),
+    booksImport: createDefaultTinaBooksImport(),
     sourceFacts: [],
     bootstrapReview: createDefaultTinaBootstrapReview(),
     issueQueue: createDefaultTinaIssueQueue(),
@@ -82,8 +104,10 @@ export function createDefaultTinaWorkspaceDraft(): TinaWorkspaceDraft {
     taxAdjustments: createDefaultTinaTaxAdjustmentSnapshot(),
     reviewerFinal: createDefaultTinaReviewerFinalSnapshot(),
     scheduleCDraft: createDefaultTinaScheduleCDraft(),
+    officialFormPacket: createDefaultTinaOfficialFormPacket(),
     packageReadiness: createDefaultTinaPackageReadiness(),
     cpaHandoff: createDefaultTinaCpaHandoff(),
+    finalSignoff: createDefaultTinaFinalSignoff(),
     authorityWork: [],
     profile: createDefaultTinaProfile(),
   };
@@ -173,6 +197,90 @@ function normalizeDocumentFactConfidence(value: unknown): TinaDocumentFactConfid
   return value === "high" || value === "low" ? value : "medium";
 }
 
+function normalizeBooksConnection(value: unknown): TinaBooksConnectionSnapshot {
+  const fallback = createDefaultTinaBooksConnection();
+  if (typeof value !== "object" || value === null) return fallback;
+
+  const raw = value as Partial<TinaBooksConnectionSnapshot>;
+  return {
+    provider: "quickbooks",
+    status:
+      raw.status === "upload_only" ||
+      raw.status === "planning_live_sync" ||
+      raw.status === "connected" ||
+      raw.status === "needs_attention"
+        ? raw.status
+        : "not_connected",
+    summary: typeof raw.summary === "string" ? raw.summary : fallback.summary,
+    nextStep: typeof raw.nextStep === "string" ? raw.nextStep : fallback.nextStep,
+    connectedAt: typeof raw.connectedAt === "string" ? raw.connectedAt : null,
+    lastSyncAt: typeof raw.lastSyncAt === "string" ? raw.lastSyncAt : null,
+    companyName: typeof raw.companyName === "string" ? raw.companyName : "",
+    realmId: typeof raw.realmId === "string" ? raw.realmId : null,
+  };
+}
+
+function normalizeBooksImportDocument(value: unknown): TinaBooksImportDocument | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const raw = value as Partial<TinaBooksImportDocument>;
+  if (
+    typeof raw.documentId !== "string" ||
+    typeof raw.name !== "string" ||
+    typeof raw.summary !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    documentId: raw.documentId,
+    name: raw.name,
+    status:
+      raw.status === "needs_attention" || raw.status === "waiting" ? raw.status : "ready",
+    summary: raw.summary,
+    rowCount: typeof raw.rowCount === "number" ? raw.rowCount : null,
+    coverageStart: typeof raw.coverageStart === "string" ? raw.coverageStart : null,
+    coverageEnd: typeof raw.coverageEnd === "string" ? raw.coverageEnd : null,
+    moneyIn: typeof raw.moneyIn === "number" ? raw.moneyIn : null,
+    moneyOut: typeof raw.moneyOut === "number" ? raw.moneyOut : null,
+    clueLabels: Array.isArray(raw.clueLabels)
+      ? raw.clueLabels.filter((label): label is string => typeof label === "string")
+      : [],
+    lastReadAt: typeof raw.lastReadAt === "string" ? raw.lastReadAt : null,
+  };
+}
+
+function normalizeBooksImport(value: unknown): TinaBooksImportSnapshot {
+  const fallback = createDefaultTinaBooksImport();
+  if (typeof value !== "object" || value === null) return fallback;
+
+  const raw = value as Partial<TinaBooksImportSnapshot>;
+  const documents = Array.isArray(raw.documents)
+    ? raw.documents
+        .map((document) => normalizeBooksImportDocument(document))
+        .filter((document): document is TinaBooksImportDocument => document !== null)
+    : [];
+
+  return {
+    lastRunAt: typeof raw.lastRunAt === "string" ? raw.lastRunAt : null,
+    status:
+      raw.status === "stale" || raw.status === "running" || raw.status === "complete"
+        ? raw.status
+        : "idle",
+    summary: typeof raw.summary === "string" ? raw.summary : fallback.summary,
+    nextStep: typeof raw.nextStep === "string" ? raw.nextStep : fallback.nextStep,
+    documentCount: typeof raw.documentCount === "number" ? raw.documentCount : documents.length,
+    coverageStart: typeof raw.coverageStart === "string" ? raw.coverageStart : null,
+    coverageEnd: typeof raw.coverageEnd === "string" ? raw.coverageEnd : null,
+    moneyInTotal: typeof raw.moneyInTotal === "number" ? raw.moneyInTotal : null,
+    moneyOutTotal: typeof raw.moneyOutTotal === "number" ? raw.moneyOutTotal : null,
+    clueLabels: Array.isArray(raw.clueLabels)
+      ? raw.clueLabels.filter((label): label is string => typeof label === "string")
+      : [],
+    documents,
+  };
+}
+
 function normalizeAuthorityWorkStatus(value: unknown): TinaAuthorityWorkStatus {
   return value === "researching" ||
     value === "ready_for_reviewer" ||
@@ -194,6 +302,42 @@ function normalizeAuthorityDisclosureDecision(value: unknown): TinaAuthorityDisc
     : "unknown";
 }
 
+function normalizeAuthorityChallengeVerdict(value: unknown): TinaAuthorityChallengeVerdict {
+  return value === "did_not_finish" ||
+    value === "survives" ||
+    value === "needs_care" ||
+    value === "likely_fails"
+    ? value
+    : "not_run";
+}
+
+function normalizeAuthorityBackgroundRunStatus(value: unknown): TinaAuthorityBackgroundRunStatus {
+  return value === "queued" ||
+    value === "running" ||
+    value === "succeeded" ||
+    value === "failed" ||
+    value === "rate_limited"
+    ? value
+    : "idle";
+}
+
+function normalizeAuthorityBackgroundRun(value: unknown): TinaAuthorityBackgroundRun {
+  const fallback = createDefaultTinaAuthorityWorkItem("authority-run-fallback").researchRun;
+  if (typeof value !== "object" || value === null) return fallback;
+
+  const raw = value as Partial<TinaAuthorityBackgroundRun>;
+
+  return {
+    status: normalizeAuthorityBackgroundRunStatus(raw.status),
+    jobId: typeof raw.jobId === "string" ? raw.jobId : null,
+    queuedAt: typeof raw.queuedAt === "string" ? raw.queuedAt : null,
+    startedAt: typeof raw.startedAt === "string" ? raw.startedAt : null,
+    finishedAt: typeof raw.finishedAt === "string" ? raw.finishedAt : null,
+    retryAt: typeof raw.retryAt === "string" ? raw.retryAt : null,
+    error: typeof raw.error === "string" ? sanitizeTinaAiText(raw.error) : null,
+  };
+}
+
 function normalizeAuthorityCitation(value: unknown): TinaAuthorityCitation | null {
   if (typeof value !== "object" || value === null) return null;
 
@@ -202,7 +346,7 @@ function normalizeAuthorityCitation(value: unknown): TinaAuthorityCitation | nul
 
   return {
     id: raw.id,
-    title: typeof raw.title === "string" ? raw.title : "",
+    title: typeof raw.title === "string" ? sanitizeTinaAiText(raw.title) : "",
     url: typeof raw.url === "string" ? raw.url : "",
     sourceClass:
       raw.sourceClass === "primary_authority" ||
@@ -213,7 +357,7 @@ function normalizeAuthorityCitation(value: unknown): TinaAuthorityCitation | nul
         ? raw.sourceClass
         : "unknown",
     effect: raw.effect === "warns" || raw.effect === "background" ? raw.effect : "supports",
-    note: typeof raw.note === "string" ? raw.note : "",
+    note: typeof raw.note === "string" ? sanitizeTinaAiText(raw.note) : "",
   };
 }
 
@@ -224,22 +368,44 @@ function normalizeAuthorityWorkItem(value: unknown): TinaAuthorityWorkItem | nul
   if (typeof raw.ideaId !== "string") return null;
 
   const fallback = createDefaultTinaAuthorityWorkItem(raw.ideaId);
+  const reviewerDecision = normalizeAuthorityReviewerDecision(raw.reviewerDecision);
+
   return {
     ...fallback,
-    status: normalizeAuthorityWorkStatus(raw.status),
-    reviewerDecision: normalizeAuthorityReviewerDecision(raw.reviewerDecision),
+    status:
+      reviewerDecision === "do_not_use"
+        ? "rejected"
+        : normalizeAuthorityWorkStatus(raw.status),
+    reviewerDecision,
     disclosureDecision: normalizeAuthorityDisclosureDecision(raw.disclosureDecision),
-    memo: typeof raw.memo === "string" ? raw.memo : "",
-    reviewerNotes: typeof raw.reviewerNotes === "string" ? raw.reviewerNotes : "",
+    challengeVerdict: normalizeAuthorityChallengeVerdict(raw.challengeVerdict),
+    memo: typeof raw.memo === "string" ? sanitizeTinaAiText(raw.memo) : "",
+    challengeMemo: typeof raw.challengeMemo === "string" ? sanitizeTinaAiText(raw.challengeMemo) : "",
+    reviewerNotes: typeof raw.reviewerNotes === "string" ? sanitizeTinaAiText(raw.reviewerNotes) : "",
     missingAuthority: Array.isArray(raw.missingAuthority)
-      ? raw.missingAuthority.filter((item): item is string => typeof item === "string")
+      ? sanitizeTinaAiTextList(
+          raw.missingAuthority.filter((item): item is string => typeof item === "string")
+        )
+      : [],
+    challengeWarnings: Array.isArray(raw.challengeWarnings)
+      ? sanitizeTinaAiTextList(
+          raw.challengeWarnings.filter((item): item is string => typeof item === "string")
+        )
+      : [],
+    challengeQuestions: Array.isArray(raw.challengeQuestions)
+      ? sanitizeTinaAiTextList(
+          raw.challengeQuestions.filter((item): item is string => typeof item === "string")
+        )
       : [],
     citations: Array.isArray(raw.citations)
       ? raw.citations
           .map((citation) => normalizeAuthorityCitation(citation))
           .filter((citation): citation is TinaAuthorityCitation => citation !== null)
       : [],
+    researchRun: normalizeAuthorityBackgroundRun(raw.researchRun),
+    challengeRun: normalizeAuthorityBackgroundRun(raw.challengeRun),
     lastAiRunAt: typeof raw.lastAiRunAt === "string" ? raw.lastAiRunAt : null,
+    lastChallengeRunAt: typeof raw.lastChallengeRunAt === "string" ? raw.lastChallengeRunAt : null,
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : null,
   };
 }
@@ -692,6 +858,170 @@ function normalizeScheduleCDraft(value: unknown): TinaScheduleCDraftSnapshot {
   };
 }
 
+function normalizeOfficialFormLine(value: unknown): TinaOfficialFormLine | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const raw = value as Partial<TinaOfficialFormLine>;
+  if (
+    typeof raw.id !== "string" ||
+    typeof raw.lineNumber !== "string" ||
+    typeof raw.label !== "string" ||
+    typeof raw.value !== "string" ||
+    typeof raw.summary !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: raw.id,
+    lineNumber: raw.lineNumber,
+    label: raw.label,
+    value: raw.value,
+    state:
+      raw.state === "filled" || raw.state === "review" || raw.state === "blank"
+        ? raw.state
+        : "blank",
+    summary: raw.summary,
+    scheduleCDraftFieldIds: Array.isArray(raw.scheduleCDraftFieldIds)
+      ? raw.scheduleCDraftFieldIds.filter((id): id is string => typeof id === "string")
+      : [],
+    scheduleCDraftNoteIds: Array.isArray(raw.scheduleCDraftNoteIds)
+      ? raw.scheduleCDraftNoteIds.filter((id): id is string => typeof id === "string")
+      : [],
+    sourceDocumentIds: Array.isArray(raw.sourceDocumentIds)
+      ? raw.sourceDocumentIds.filter((id): id is string => typeof id === "string")
+      : [],
+  };
+}
+
+function normalizeOfficialFormSupportRow(value: unknown): TinaOfficialFormSupportRow | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const raw = value as Partial<TinaOfficialFormSupportRow>;
+  if (
+    typeof raw.id !== "string" ||
+    typeof raw.label !== "string" ||
+    typeof raw.summary !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: raw.id,
+    label: raw.label,
+    amount: typeof raw.amount === "number" ? raw.amount : null,
+    summary: raw.summary,
+    reviewerFinalLineIds: Array.isArray(raw.reviewerFinalLineIds)
+      ? raw.reviewerFinalLineIds.filter((id): id is string => typeof id === "string")
+      : [],
+    taxAdjustmentIds: Array.isArray(raw.taxAdjustmentIds)
+      ? raw.taxAdjustmentIds.filter((id): id is string => typeof id === "string")
+      : [],
+    sourceDocumentIds: Array.isArray(raw.sourceDocumentIds)
+      ? raw.sourceDocumentIds.filter((id): id is string => typeof id === "string")
+      : [],
+  };
+}
+
+function normalizeOfficialFormSupportSchedule(
+  value: unknown
+): TinaOfficialFormSupportSchedule | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const raw = value as Partial<TinaOfficialFormSupportSchedule>;
+  if (
+    typeof raw.id !== "string" ||
+    typeof raw.title !== "string" ||
+    typeof raw.summary !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: raw.id,
+    title: raw.title,
+    summary: raw.summary,
+    rows: Array.isArray(raw.rows)
+      ? raw.rows
+          .map((row) => normalizeOfficialFormSupportRow(row))
+          .filter((row): row is TinaOfficialFormSupportRow => row !== null)
+      : [],
+    sourceDocumentIds: Array.isArray(raw.sourceDocumentIds)
+      ? raw.sourceDocumentIds.filter((id): id is string => typeof id === "string")
+      : [],
+  };
+}
+
+function normalizeOfficialFormDraft(value: unknown): TinaOfficialFormDraft | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const raw = value as Partial<TinaOfficialFormDraft>;
+  if (
+    typeof raw.id !== "string" ||
+    typeof raw.formNumber !== "string" ||
+    typeof raw.title !== "string" ||
+    typeof raw.taxYear !== "string" ||
+    typeof raw.revisionYear !== "string" ||
+    typeof raw.summary !== "string" ||
+    typeof raw.nextStep !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: raw.id,
+    formNumber: raw.formNumber,
+    title: raw.title,
+    taxYear: raw.taxYear,
+    revisionYear: raw.revisionYear,
+    status:
+      raw.status === "ready" || raw.status === "needs_review" || raw.status === "blocked"
+        ? raw.status
+        : "blocked",
+    summary: raw.summary,
+    nextStep: raw.nextStep,
+    lines: Array.isArray(raw.lines)
+      ? raw.lines
+          .map((line) => normalizeOfficialFormLine(line))
+          .filter((line): line is TinaOfficialFormLine => line !== null)
+      : [],
+    supportSchedules: Array.isArray(raw.supportSchedules)
+      ? raw.supportSchedules
+          .map((schedule) => normalizeOfficialFormSupportSchedule(schedule))
+          .filter((schedule): schedule is TinaOfficialFormSupportSchedule => schedule !== null)
+      : [],
+    relatedNoteIds: Array.isArray(raw.relatedNoteIds)
+      ? raw.relatedNoteIds.filter((id): id is string => typeof id === "string")
+      : [],
+    sourceDocumentIds: Array.isArray(raw.sourceDocumentIds)
+      ? raw.sourceDocumentIds.filter((id): id is string => typeof id === "string")
+      : [],
+  };
+}
+
+function normalizeOfficialFormPacket(value: unknown): TinaOfficialFormPacketSnapshot {
+  const fallback = createDefaultTinaOfficialFormPacket();
+  if (typeof value !== "object" || value === null) return fallback;
+
+  const raw = value as Partial<TinaOfficialFormPacketSnapshot>;
+  const forms = Array.isArray(raw.forms)
+    ? raw.forms
+        .map((form) => normalizeOfficialFormDraft(form))
+        .filter((form): form is TinaOfficialFormDraft => form !== null)
+    : [];
+
+  return {
+    lastRunAt: typeof raw.lastRunAt === "string" ? raw.lastRunAt : null,
+    status:
+      raw.status === "stale" || raw.status === "running" || raw.status === "complete"
+        ? raw.status
+        : "idle",
+    summary: typeof raw.summary === "string" ? raw.summary : fallback.summary,
+    nextStep: typeof raw.nextStep === "string" ? raw.nextStep : fallback.nextStep,
+    forms,
+  };
+}
+
 function normalizePackageReadinessItem(value: unknown): TinaPackageReadinessItem | null {
   if (typeof value !== "object" || value === null) return null;
 
@@ -766,7 +1096,10 @@ function normalizeCpaHandoffArtifact(value: unknown): TinaCpaHandoffArtifact | n
   return {
     id: raw.id,
     title: raw.title,
-    status: raw.status === "waiting" || raw.status === "blocked" ? raw.status : "ready",
+    status:
+      raw.status === "ready" || raw.status === "waiting" || raw.status === "blocked"
+        ? raw.status
+        : "blocked",
     summary: raw.summary,
     includes: Array.isArray(raw.includes)
       ? raw.includes.filter((item): item is string => typeof item === "string")
@@ -806,6 +1139,65 @@ function normalizeCpaHandoff(value: unknown): TinaCpaHandoffSnapshot {
     summary: typeof raw.summary === "string" ? raw.summary : fallback.summary,
     nextStep: typeof raw.nextStep === "string" ? raw.nextStep : fallback.nextStep,
     artifacts,
+  };
+}
+
+function normalizeFinalSignoffCheck(value: unknown): TinaFinalSignoffCheck | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const raw = value as Partial<TinaFinalSignoffCheck>;
+  if (
+    typeof raw.id !== "string" ||
+    typeof raw.label !== "string" ||
+    typeof raw.helpText !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: raw.id,
+    label: raw.label,
+    helpText: raw.helpText,
+    checked: raw.checked === true,
+  };
+}
+
+function normalizeFinalSignoff(value: unknown): TinaFinalSignoffSnapshot {
+  const fallback = createDefaultTinaFinalSignoff();
+  if (typeof value !== "object" || value === null) return fallback;
+
+  const raw = value as Partial<TinaFinalSignoffSnapshot>;
+  const checks = Array.isArray(raw.checks)
+    ? raw.checks
+        .map((check) => normalizeFinalSignoffCheck(check))
+        .filter((check): check is TinaFinalSignoffCheck => check !== null)
+    : fallback.checks;
+
+  return {
+    lastRunAt: typeof raw.lastRunAt === "string" ? raw.lastRunAt : null,
+    status:
+      raw.status === "stale" || raw.status === "running" || raw.status === "complete"
+        ? raw.status
+        : "idle",
+    level: raw.level === "waiting" || raw.level === "ready" ? raw.level : "blocked",
+    summary: typeof raw.summary === "string" ? raw.summary : fallback.summary,
+    nextStep: typeof raw.nextStep === "string" ? raw.nextStep : fallback.nextStep,
+    checks,
+    reviewerName: typeof raw.reviewerName === "string" ? raw.reviewerName : "",
+    reviewerNote: typeof raw.reviewerNote === "string" ? raw.reviewerNote : "",
+    reviewPacketId: typeof raw.reviewPacketId === "string" ? raw.reviewPacketId : null,
+    reviewPacketVersion:
+      typeof raw.reviewPacketVersion === "string" ? raw.reviewPacketVersion : null,
+    reviewPacketFingerprint:
+      typeof raw.reviewPacketFingerprint === "string" ? raw.reviewPacketFingerprint : null,
+    confirmedAt: typeof raw.confirmedAt === "string" ? raw.confirmedAt : null,
+    confirmedPacketId: typeof raw.confirmedPacketId === "string" ? raw.confirmedPacketId : null,
+    confirmedPacketVersion:
+      typeof raw.confirmedPacketVersion === "string" ? raw.confirmedPacketVersion : null,
+    confirmedPacketFingerprint:
+      typeof raw.confirmedPacketFingerprint === "string"
+        ? raw.confirmedPacketFingerprint
+        : null,
   };
 }
 
@@ -934,6 +1326,8 @@ export function parseTinaWorkspaceDraft(raw: string | null): TinaWorkspaceDraft 
         typeof parsed.priorReturnDocumentId === "string" ? parsed.priorReturnDocumentId : null,
       documents: normalizedDocuments,
       documentReadings: normalizedReadings,
+      booksConnection: normalizeBooksConnection(parsed.booksConnection),
+      booksImport: normalizeBooksImport(parsed.booksImport),
       sourceFacts: normalizedSourceFacts,
       bootstrapReview: normalizeBootstrapReview(parsed.bootstrapReview),
       issueQueue: normalizeIssueQueue(parsed.issueQueue),
@@ -943,8 +1337,10 @@ export function parseTinaWorkspaceDraft(raw: string | null): TinaWorkspaceDraft 
       taxAdjustments: normalizeTaxAdjustments(parsed.taxAdjustments),
       reviewerFinal: normalizeReviewerFinal(parsed.reviewerFinal),
       scheduleCDraft: normalizeScheduleCDraft(parsed.scheduleCDraft),
+      officialFormPacket: normalizeOfficialFormPacket(parsed.officialFormPacket),
       packageReadiness: normalizePackageReadiness(parsed.packageReadiness),
       cpaHandoff: normalizeCpaHandoff(parsed.cpaHandoff),
+      finalSignoff: normalizeFinalSignoff(parsed.finalSignoff),
       authorityWork: normalizedAuthorityWork,
       profile: {
         ...createDefaultTinaProfile(),

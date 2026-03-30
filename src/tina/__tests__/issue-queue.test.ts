@@ -53,6 +53,7 @@ describe("buildTinaIssueQueue", () => {
       profile: {
         businessName: "Tina Test LLC",
         entityType: "single_member_llc",
+        llcFederalTaxTreatment: "owner_return",
       },
       sourceFacts: [
         {
@@ -78,6 +79,79 @@ describe("buildTinaIssueQueue", () => {
     );
     expect(issueQueue.records.find((record) => record.id === "filing-lane")?.status).toBe(
       "needs_attention"
+    );
+  });
+
+  it("blocks when explicit LLC organizer treatment disagrees with saved election papers", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Mismatch LLC",
+        entityType: "single_member_llc",
+        llcFederalTaxTreatment: "owner_return",
+      },
+      sourceFacts: [
+        {
+          id: "llc-election",
+          sourceDocumentId: "doc-election",
+          label: "LLC election clue",
+          value: "Form 2553 election accepted for S corporation treatment.",
+          confidence: "high",
+          capturedAt: "2026-03-28T18:20:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+
+    expect(issueQueue.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "llc-tax-treatment-conflict",
+          severity: "blocking",
+        }),
+      ])
+    );
+    expect(issueQueue.records.find((record) => record.id === "filing-lane")?.status).toBe(
+      "needs_attention"
+    );
+  });
+
+  it("summarizes multiple blocking LLC return-type conflicts without changing the calm review record", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Double Mismatch LLC",
+        entityType: "single_member_llc",
+        llcFederalTaxTreatment: "owner_return",
+      },
+      sourceFacts: [
+        {
+          id: "return-type",
+          sourceDocumentId: "prior-doc",
+          label: "Return type hint",
+          value: "Form 1120-S / LLC taxed as S-corp",
+          confidence: "high",
+          capturedAt: "2026-03-28T23:15:00.000Z",
+        },
+        {
+          id: "llc-election",
+          sourceDocumentId: "prior-doc",
+          label: "LLC election clue",
+          value: "Form 2553 election accepted for S corporation treatment.",
+          confidence: "high",
+          capturedAt: "2026-03-28T23:16:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+
+    expect(issueQueue.summary).toBe("Tina found 2 blocking conflicts in your saved papers and setup.");
+    expect(issueQueue.nextStep).toBe("Fix the blocking conflict first before trusting deeper tax prep.");
+    expect(issueQueue.records.find((record) => record.id === "filing-lane")).toEqual(
+      expect.objectContaining({
+        status: "needs_attention",
+        summary: "A saved paper hints the current return type may not be right.",
+      })
     );
   });
 
@@ -169,6 +243,129 @@ describe("buildTinaIssueQueue", () => {
     expect(booksRecord?.summary).toContain("$18,000 coming in");
     expect(booksRecord?.summary).toContain("$4,000 going out");
     expect(booksRecord?.summary).toContain("2024");
+  });
+
+  it("uses the normalized books snapshot to flag waiting files and partial-year coverage", () => {
+    const draft = buildDraft({
+      profile: {
+        taxYear: "2025",
+        formationDate: "2025-01-01",
+      },
+      documents: [
+        {
+          id: "books-doc-1",
+          name: "quarterly-p-and-l.xlsx",
+          size: 2048,
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          storagePath: "tax/quarterly-p-and-l.xlsx",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+        {
+          id: "books-doc-2",
+          name: "general-ledger.xlsx",
+          size: 2048,
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          storagePath: "tax/general-ledger.xlsx",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-26T21:16:00.000Z",
+        },
+        {
+          id: "bank-doc",
+          name: "bank.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/bank.csv",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Business bank and card statements",
+          uploadedAt: "2026-03-26T21:16:00.000Z",
+        },
+      ],
+      booksImport: {
+        lastRunAt: "2026-03-26T21:25:00.000Z",
+        status: "complete",
+        summary: "Tina stitched together 2 books files with coverage 2025-03-01 through 2025-10-31.",
+        nextStep: "Check the missing parts of the year next.",
+        documentCount: 2,
+        coverageStart: "2025-03-01",
+        coverageEnd: "2025-10-31",
+        moneyInTotal: 24000,
+        moneyOutTotal: 12000,
+        clueLabels: ["sales tax"],
+        documents: [
+          {
+            documentId: "books-doc-1",
+            name: "quarterly-p-and-l.xlsx",
+            status: "ready",
+            summary: "Ready enough",
+            rowCount: 60,
+            coverageStart: "2025-03-01",
+            coverageEnd: "2025-10-31",
+            moneyIn: 24000,
+            moneyOut: 12000,
+            clueLabels: ["sales tax"],
+            lastReadAt: "2026-03-26T21:24:00.000Z",
+          },
+          {
+            documentId: "books-doc-2",
+            name: "general-ledger.xlsx",
+            status: "waiting",
+            summary: "Still waiting on a first read.",
+            rowCount: null,
+            coverageStart: null,
+            coverageEnd: null,
+            moneyIn: null,
+            moneyOut: null,
+            clueLabels: [],
+            lastReadAt: null,
+          },
+        ],
+      },
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+
+    expect(issueQueue.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "books-files-still-waiting", category: "books" }),
+        expect.objectContaining({ id: "books-coverage-may-be-partial", category: "books" }),
+      ])
+    );
+
+    const booksRecord = issueQueue.records.find((record) => record.id === "books");
+    expect(booksRecord?.summary).toContain("Tina stitched together 2 books files");
+    expect(booksRecord?.summary).toContain("still sees something to check");
+  });
+
+  it("flags fixed-asset-style book clues that the organizer did not mark yet", () => {
+    const draft = buildDraft({
+      sourceFacts: [
+        {
+          id: "fact-fixed-assets",
+          sourceDocumentId: "books-doc",
+          label: "Fixed asset clue",
+          value: "This paper mentions equipment, depreciation, or other big-purchase treatment.",
+          confidence: "medium",
+          capturedAt: "2026-03-29T10:40:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+
+    expect(issueQueue.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "fixed-assets-clue",
+          category: "books",
+        }),
+      ])
+    );
   });
 });
 

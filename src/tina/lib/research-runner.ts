@@ -10,13 +10,27 @@ import {
   evaluateTinaTaxIdea,
 } from "@/tina/lib/research-policy";
 import type { TinaResearchDossier } from "@/tina/lib/research-dossiers";
+import {
+  buildTinaResearchGroundingLines,
+  getTinaResearchExecutionProfile,
+  normalizeTinaStoredResearchMemo,
+} from "@/tina/lib/research-runtime";
+import { sanitizeTinaAiText, sanitizeTinaAiTextList } from "@/tina/lib/ai-text-normalization";
+import {
+  hasTinaContractorSignal,
+  hasTinaFixedAssetSignal,
+  hasTinaIdahoSignal,
+  hasTinaInventorySignal,
+  hasTinaPayrollSignal,
+  hasTinaSalesTaxSignal,
+} from "@/tina/lib/source-fact-signals";
 import type { TinaWorkspaceDraft } from "@/tina/types";
 
 const TINA_RESEARCH_MODEL = process.env.TINA_AI_MODEL_RESEARCH ?? "gpt-5.4";
 
 const TinaResearchRunSchema = z.object({
   summary: z.string().min(1).max(260),
-  memo: z.string().min(1).max(2400),
+  memo: z.string().min(1).max(12_000),
   substantialAuthorityLikely: z.boolean(),
   reasonableBasisLikely: z.boolean(),
   needsDisclosure: z.boolean(),
@@ -43,18 +57,28 @@ function buildResearchPrompt(
   workItem: TinaAuthorityWorkItemView
 ): string {
   const profile = draft.profile;
+  const executionProfile = getTinaResearchExecutionProfile(dossier.id);
+  const payrollDetected = hasTinaPayrollSignal(profile, draft.sourceFacts);
+  const contractorDetected = hasTinaContractorSignal(profile, draft.sourceFacts);
+  const inventoryDetected = hasTinaInventorySignal(profile, draft.sourceFacts);
+  const fixedAssetDetected = hasTinaFixedAssetSignal(profile, draft.sourceFacts);
+  const salesTaxDetected = hasTinaSalesTaxSignal(profile, draft.sourceFacts);
+  const idahoDetected = hasTinaIdahoSignal(profile, draft.sourceFacts);
+  const groundingLines = buildTinaResearchGroundingLines(draft, dossier);
   const facts = [
     `Business name: ${profile.businessName || "Unknown"}`,
     `Tax year: ${profile.taxYear || "Unknown"}`,
     `Entity type: ${profile.entityType}`,
+    `LLC federal tax treatment: ${profile.llcFederalTaxTreatment}`,
+    `LLC community-property spouse path: ${profile.llcCommunityPropertyStatus}`,
     `Accounting method: ${profile.accountingMethod}`,
     `Washington business: ${profile.formationState === "WA" ? "Yes" : `No, formed in ${profile.formationState || "Unknown"}`}`,
-    `Payroll: ${profile.hasPayroll ? "Yes" : "No"}`,
-    `Contractors: ${profile.paysContractors ? "Yes" : "No"}`,
-    `Inventory: ${profile.hasInventory ? "Yes" : "No"}`,
-    `Fixed assets: ${profile.hasFixedAssets ? "Yes" : "No"}`,
-    `Sales tax: ${profile.collectsSalesTax ? "Yes" : "No"}`,
-    `Idaho activity: ${profile.hasIdahoActivity ? "Yes" : "No"}`,
+    `Payroll: ${payrollDetected ? "Yes" : "No"}`,
+    `Contractors: ${contractorDetected ? "Yes" : "No"}`,
+    `Inventory: ${inventoryDetected ? "Yes" : "No"}`,
+    `Fixed assets: ${fixedAssetDetected ? "Yes" : "No"}`,
+    `Sales tax: ${salesTaxDetected ? "Yes" : "No"}`,
+    `Idaho activity: ${idahoDetected ? "Yes" : "No"}`,
   ];
 
   const existingCitations =
@@ -75,9 +99,12 @@ function buildResearchPrompt(
     "You may inspect forums, community chatter, and secondary analysis for ideas.",
     "However, only primary authority should count as support for filing positions.",
     "Use plain language. Be concise but useful.",
+    "Stay tightly scoped to the saved business facts instead of surveying every possible edge case.",
     "If the support is weak, say so clearly.",
     "If disclosure may be needed, say so clearly.",
     "If the idea looks too risky or frivolous, say so clearly.",
+    "Keep the detailed memo concise and comfortably under 7,000 characters. Do not write a long treatise.",
+    "Do not put URLs, markdown links, or citation callouts inside the summary or memo. Save every source link for the citations array only.",
     "Return only grounded sources you actually found.",
     "",
     "Business facts:",
@@ -89,6 +116,8 @@ function buildResearchPrompt(
     `Reviewer question: ${workItem.reviewerQuestion}`,
     `Discovery prompt: ${dossier.discoveryPrompt}`,
     `Authority prompt: ${dossier.authorityPrompt}`,
+    ...(executionProfile.scopeNote ? ["", `Scope note: ${executionProfile.scopeNote}`] : []),
+    ...(groundingLines.length > 0 ? ["", "Saved-paper grounding:", ...groundingLines] : []),
     "",
     "Existing memo:",
     workItem.memo || "None yet.",
@@ -102,7 +131,7 @@ function buildResearchPrompt(
 }
 
 function sanitizeResearchMemo(summary: string, memo: string): string {
-  return `${summary}\n\n${memo}`.trim();
+  return normalizeTinaStoredResearchMemo({ summary, memo });
 }
 
 function toDisclosureDecision(parsed: TinaResearchRunParsed): TinaAuthorityResearchRunResult["disclosureDecision"] {
@@ -147,11 +176,11 @@ function normalizeCitations(parsed: TinaResearchRunParsed) {
         id:
           globalThis.crypto?.randomUUID?.() ??
           `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-        title: citation.title,
+        title: sanitizeTinaAiText(citation.title),
         url: citation.url,
         sourceClass: classification.sourceClass,
         effect,
-        note: citation.note,
+        note: sanitizeTinaAiText(citation.note),
       };
     })
     .filter((citation) => citation.title.trim().length > 0 && citation.url.trim().length > 0);
@@ -168,38 +197,45 @@ export async function runTinaAuthorityResearch(args: {
   }
 
   const client = new OpenAI({ apiKey });
+  const executionProfile = getTinaResearchExecutionProfile(args.dossier.id);
   const prompt = buildResearchPrompt(args.draft, args.dossier, args.workItem);
 
-  const response = await client.responses.parse({
-    model: TINA_RESEARCH_MODEL,
-    reasoning: { effort: "high" },
-    tools: [{ type: "web_search_preview", search_context_size: "high" }],
-    include: ["web_search_call.action.sources"],
-    text: {
-      format: zodTextFormat(TinaResearchRunSchema, "tina_research_run"),
+  const response = await client.responses.parse(
+    {
+      model: TINA_RESEARCH_MODEL,
+      reasoning: { effort: executionProfile.researchReasoningEffort },
+      tools: [{ type: "web_search_preview", search_context_size: executionProfile.searchContextSize }],
+      include: ["web_search_call.action.sources"],
+      text: {
+        format: zodTextFormat(TinaResearchRunSchema, "tina_research_run"),
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      input: [
+        {
+          role: "developer" as const,
+          content: [
+            {
+              type: "input_text" as const,
+              text: "Research deeply. Use broad search for ideas, but only let primary authority count as filing support.",
+            },
+          ],
+        },
+        {
+          role: "user" as const,
+          content: [
+            {
+              type: "input_text" as const,
+              text: prompt,
+            },
+          ],
+        },
+      ] as any,
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    input: [
-      {
-        role: "developer" as const,
-        content: [
-          {
-            type: "input_text" as const,
-            text: "Research deeply. Use broad search for ideas, but only let primary authority count as filing support.",
-          },
-        ],
-      },
-      {
-        role: "user" as const,
-        content: [
-          {
-            type: "input_text" as const,
-            text: prompt,
-          },
-        ],
-      },
-    ] as any,
-  });
+    {
+      maxRetries: 0,
+      timeout: executionProfile.researchTimeoutMs,
+    }
+  );
 
   const parsed = response.output_parsed;
   if (!parsed) {
@@ -225,7 +261,7 @@ export async function runTinaAuthorityResearch(args: {
   return {
     memo: sanitizeResearchMemo(parsed.summary, parsed.memo),
     citations,
-    missingAuthority: parsed.missingAuthority,
+    missingAuthority: sanitizeTinaAiTextList(parsed.missingAuthority),
     status: toWorkStatus(decision.bucket),
     reviewerDecision: toReviewerDecision(decision.bucket),
     disclosureDecision: toDisclosureDecision(parsed),

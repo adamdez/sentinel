@@ -5,7 +5,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 /**
- * Browser client — uses anon key, respects RLS policies.
+ * Browser client - uses anon key, respects RLS policies.
  * Safe to use in client components.
  */
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
@@ -21,17 +21,21 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 });
 
 /**
- * Server client — uses service role key, bypasses RLS.
+ * Server client - prefers service role key and always uses server-safe auth settings.
  * Only use in API routes and server actions.
  */
 export function createServerClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey || serviceRoleKey === "your_supabase_service_role_key") {
-    console.warn("[Supabase] Service role key not configured — using anon key");
-    return supabase;
+  const serverKey =
+    serviceRoleKey && serviceRoleKey !== "your_supabase_service_role_key"
+      ? serviceRoleKey
+      : supabaseAnonKey;
+
+  if (serverKey === supabaseAnonKey) {
+    console.warn("[Supabase] Service role key not configured - using anon key");
   }
 
-  return createClient<Database>(supabaseUrl, serviceRoleKey, {
+  return createClient<Database>(supabaseUrl, serverKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

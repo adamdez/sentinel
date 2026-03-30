@@ -46,6 +46,16 @@ function formatCount(count: number, singular: string, plural = `${singular}s`): 
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+function formatMoney(value: number | null): string {
+  if (value === null) return "No clear dollar total yet";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 function buildArtifact(args: {
   id: string;
   title: string;
@@ -76,7 +86,7 @@ function isFieldOrNoteItem(item: TinaPackageReadinessItem): boolean {
 
 export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSnapshot {
   const now = new Date().toISOString();
-  const lane = recommendTinaFilingLane(draft.profile);
+  const lane = recommendTinaFilingLane(draft.profile, draft.sourceFacts);
   const checklist = buildTinaChecklist(draft, lane);
 
   if (draft.reviewerFinal.status !== "complete") {
@@ -139,8 +149,30 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
     (total, item) => total + item.citations.length,
     0
   );
+  const stressTestCount = draft.authorityWork.filter((item) => item.lastChallengeRunAt).length;
+  const cautionStressTestCount = draft.authorityWork.filter(
+    (item) => item.challengeVerdict === "needs_care"
+  ).length;
+  const failedStressTestCount = draft.authorityWork.filter(
+    (item) => item.challengeVerdict === "likely_fails"
+  ).length;
+  const booksDocumentIds = draft.documents
+    .filter((document) => document.requestId === "quickbooks")
+    .map((document) => document.id);
+  const booksWaitingCount =
+    draft.booksImport.status === "complete"
+      ? draft.booksImport.documents.filter((document) => document.status === "waiting").length
+      : 0;
+  const booksAttentionCount =
+    draft.booksImport.status === "complete"
+      ? draft.booksImport.documents.filter((document) => document.status === "needs_attention").length
+      : 0;
 
   const allDocumentIds = draft.documents.map((document) => document.id);
+  const unreadDocumentCount = draft.documents.filter((document) => {
+    const reading = draft.documentReadings.find((item) => item.documentId === document.id);
+    return !reading || reading.status !== "complete";
+  }).length;
   const reviewerFinalDocumentIds = uniqueIds(
     draft.reviewerFinal.lines.flatMap((line) => line.sourceDocumentIds)
   );
@@ -148,6 +180,9 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
     ...draft.scheduleCDraft.fields.flatMap((field) => field.sourceDocumentIds),
     ...draft.scheduleCDraft.notes.flatMap((note) => note.sourceDocumentIds),
   ]);
+  const officialFormDocumentIds = uniqueIds(
+    draft.officialFormPacket.forms.flatMap((form) => form.sourceDocumentIds)
+  );
   const readinessDocumentIds = uniqueIds(
     draft.packageReadiness.items.flatMap((item) => item.sourceDocumentIds)
   );
@@ -160,10 +195,26 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
         : "ready";
 
   const sourceIndexStatus: TinaCpaHandoffArtifactStatus =
-    draft.documents.length === 0 || requiredChecklistItems.length > 0 ? "waiting" : "ready";
+    draft.documents.length === 0 || requiredChecklistItems.length > 0 || unreadDocumentCount > 0
+      ? "waiting"
+      : "ready";
+
+  const booksLaneStatus: TinaCpaHandoffArtifactStatus =
+    booksDocumentIds.length === 0
+      ? "waiting"
+      : draft.booksImport.status !== "complete"
+        ? "waiting"
+        : booksAttentionCount > 0
+          ? "blocked"
+          : booksWaitingCount > 0
+            ? "waiting"
+            : "ready";
 
   const workpaperTraceStatus: TinaCpaHandoffArtifactStatus =
-    draft.reviewerFinal.lines.length > 0 ? "ready" : "waiting";
+    draft.reviewerFinal.lines.length > 0 &&
+    (draft.scheduleCDraft.fields.length > 0 || draft.scheduleCDraft.notes.length > 0)
+      ? "ready"
+      : "waiting";
 
   const authorityStatus: TinaCpaHandoffArtifactStatus =
     authorityBlockedAdjustments.length > 0
@@ -178,6 +229,23 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       : fieldOrNoteBlockingItems.length > 0
         ? "blocked"
         : fieldOrNoteAttentionItems.length > 0
+          ? "waiting"
+          : "ready";
+
+  const officialFormBlocked = draft.officialFormPacket.forms.some((form) => form.status === "blocked");
+  const officialFormWaiting = draft.officialFormPacket.forms.some(
+    (form) => form.status === "needs_review"
+  );
+  const officialFormLineCount = draft.officialFormPacket.forms.reduce(
+    (total, form) => total + form.lines.length,
+    0
+  );
+  const officialFormStatus: TinaCpaHandoffArtifactStatus =
+    draft.officialFormPacket.status !== "complete" || draft.officialFormPacket.forms.length === 0
+      ? "waiting"
+      : officialFormBlocked
+        ? "blocked"
+        : officialFormWaiting
           ? "waiting"
           : "ready";
 
@@ -222,11 +290,44 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
           ? "Prior-year return is attached"
           : "Prior-year return is not attached yet",
         `${draft.documentReadings.filter((reading) => reading.status === "complete").length} paper read${draft.documentReadings.filter((reading) => reading.status === "complete").length === 1 ? "" : "s"} complete`,
+        unreadDocumentCount > 0
+          ? `${formatCount(unreadDocumentCount, "paper")} still unread`
+          : "Saved papers have Tina reads",
         requiredChecklistItems.length > 0
           ? `${formatCount(requiredChecklistItems.length, "required ask")} still open`
           : "Required paper asks are covered",
       ],
       sourceDocumentIds: allDocumentIds,
+    }),
+    buildArtifact({
+      id: "books-lane-summary",
+      title: "Books lane summary",
+      status: booksLaneStatus,
+      summary:
+        booksLaneStatus === "ready"
+          ? "Tina has a reviewer-usable first bookkeeping picture."
+          : booksLaneStatus === "blocked"
+            ? "Tina has a bookkeeping picture, but at least one books file still looks too fuzzy to trust."
+            : "Tina still needs more bookkeeping work before this lane feels reviewer-ready.",
+      includes: [
+        draft.booksConnection.summary,
+        draft.booksImport.summary,
+        draft.booksImport.coverageStart || draft.booksImport.coverageEnd
+          ? `Coverage: ${draft.booksImport.coverageStart ?? "?"} through ${draft.booksImport.coverageEnd ?? "?"}`
+          : "Coverage: Tina still needs a clearer date range",
+        `Money in: ${formatMoney(draft.booksImport.moneyInTotal)}`,
+        `Money out: ${formatMoney(draft.booksImport.moneyOutTotal)}`,
+        draft.booksImport.clueLabels.length > 0
+          ? `Clues: ${draft.booksImport.clueLabels.join(", ")}`
+          : "Clues: no extra bookkeeping clue chips yet",
+        booksWaitingCount > 0
+          ? `${formatCount(booksWaitingCount, "books file")} still waiting on a first read`
+          : "No books files are waiting on a first read",
+        booksAttentionCount > 0
+          ? `${formatCount(booksAttentionCount, "books file")} still need a cleaner export`
+          : "No books files are flagged as fuzzy right now",
+      ],
+      sourceDocumentIds: booksDocumentIds,
     }),
     buildArtifact({
       id: "workpaper-trace",
@@ -258,6 +359,15 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       includes: [
         formatCount(draft.authorityWork.length, "authority work item"),
         formatCount(citationCount, "citation"),
+        stressTestCount > 0
+          ? formatCount(stressTestCount, "stress test")
+          : "No saved stress tests yet",
+        cautionStressTestCount > 0
+          ? formatCount(cautionStressTestCount, "stress test that survived with caution")
+          : "No caution verdicts saved",
+        failedStressTestCount > 0
+          ? formatCount(failedStressTestCount, "stress test that likely failed")
+          : "No failed stress tests saved",
         formatCount(authorityBlockedAdjustments.length, "authority blocker"),
         formatCount(reviewAdjustments.length, "tax move waiting on review"),
       ],
@@ -291,6 +401,25 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
         ...fieldOrNoteAttentionItems.map((item) => item.id),
       ]),
       sourceDocumentIds: scheduleCDocumentIds,
+    }),
+    buildArtifact({
+      id: "official-form-packet",
+      title: "Federal business form packet",
+      status: officialFormStatus,
+      summary:
+        officialFormStatus === "ready"
+          ? "Tina has a year-specific federal business form packet ready to travel with the review bundle."
+          : officialFormStatus === "waiting"
+            ? "Tina can see the federal business form path, but it still needs a fresh build or review before a CPA should rely on it."
+            : "Tina should not treat the federal business form packet like stable IRS-facing paperwork yet because it still has blocked form lines or missing companion forms.",
+      includes: [
+        formatCount(draft.officialFormPacket.forms.length, "form"),
+        formatCount(officialFormLineCount, "mapped line"),
+        draft.officialFormPacket.lastRunAt
+          ? `Last built ${new Date(draft.officialFormPacket.lastRunAt).toISOString().slice(0, 10)}`
+          : "Not built yet",
+      ],
+      sourceDocumentIds: officialFormDocumentIds,
     }),
     buildArtifact({
       id: "open-items-list",

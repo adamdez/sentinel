@@ -26,6 +26,7 @@ interface IntakeLead {
 interface IntakeLeadsTableProps {
   leads: IntakeLead[];
   onClaim: (lead: IntakeLead) => void;
+  onDelete: (lead: IntakeLead) => void;
   isLoading?: boolean;
 }
 
@@ -52,6 +53,7 @@ function formatPhone(phone: string | null): string {
 export function IntakeLeadsTable({
   leads,
   onClaim,
+  onDelete,
   isLoading,
 }: IntakeLeadsTableProps) {
   return (
@@ -139,13 +141,22 @@ export function IntakeLeadsTable({
             </div>
 
             {/* Actions */}
-            <div className="col-span-1 flex justify-end">
+            <div className="col-span-1 flex justify-end gap-2">
+              {lead.status === "pending_review" ? (
+                <button
+                  onClick={() => onClaim(lead)}
+                  disabled={isLoading}
+                  className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                >
+                  Claim
+                </button>
+              ) : null}
               <button
-                onClick={() => onClaim(lead)}
+                onClick={() => onDelete(lead)}
                 disabled={isLoading}
-                className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="px-3 py-1.5 text-sm font-medium border border-destructive/30 text-destructive rounded hover:bg-destructive/10 disabled:opacity-50 transition-colors"
               >
-                Claim
+                Delete
               </button>
             </div>
           </div>

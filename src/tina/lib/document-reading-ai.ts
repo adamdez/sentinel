@@ -12,6 +12,9 @@ const TINA_ALLOWED_FACT_LABELS = [
   "Business name",
   "Tax year",
   "Return type hint",
+  "LLC tax treatment clue",
+  "LLC election clue",
+  "Community property clue",
   "State clue",
   "Accounting method clue",
   "Revenue clue",
@@ -100,6 +103,7 @@ function buildPrompt(document: TinaStoredDocument): string {
     "Do not guess, do not make up tax positions, and do not invent missing values.",
     "Use plain language because the owner should be able to understand the result.",
     "Focus on facts that help bootstrap a business tax workspace.",
+    "If a paper clearly shows how an LLC files federally, an LLC election, or a spouse/community-property owner path, capture that with the LLC-specific fact labels.",
     `Only use these fact labels when they apply: ${TINA_ALLOWED_FACT_LABELS.join(", ")}.`,
     `This paper was added for: ${label}.`,
   ].join(" ");

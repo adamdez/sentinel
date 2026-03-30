@@ -103,9 +103,9 @@ function buildMemoFocus(dossier: TinaResearchDossier): string {
     case "payroll-review":
       return "Confirm whether payroll records support the deduction and whether payroll changes the filing story.";
     case "wa-state-review":
-      return "Confirm Washington tax classification, deductions, exemptions, and whether sales tax handling matches the facts.";
+      return "Confirm whether Washington tax classification or sales-tax handling changes the federal package or needs a separate reviewer note.";
     case "multistate-review":
-      return "Confirm whether another state has filing rights and how that changes the package.";
+      return "Confirm whether another state's filing rights change the federal package or should stay as a separate reviewer note.";
     case "prior-year-carryovers":
       return "Confirm what must carry forward from last year and what still needs human review before it is reused.";
     default:
@@ -116,13 +116,13 @@ function buildMemoFocus(dossier: TinaResearchDossier): string {
 function buildReviewerQuestion(dossier: TinaResearchDossier): string {
   switch (dossier.status) {
     case "review_ready":
-      return "Would a reviewer feel comfortable letting this idea affect the return as drafted?";
+      return "Would a reviewer feel comfortable letting this idea affect the federal return as drafted?";
     case "needs_disclosure_review":
       return "If this idea is used, what disclosure or extra reviewer caution is required?";
     case "rejected":
-      return "Should this idea stay out of the return unless new facts change the answer?";
+      return "Should this idea stay out of the federal return unless new facts change the answer?";
     default:
-      return "What authority would make this idea safe enough to consider for the return?";
+      return "What authority would make this idea safe enough to consider for the federal return?";
   }
 }
 

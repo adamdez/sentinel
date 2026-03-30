@@ -15,8 +15,14 @@ interface IntakeLead {
   property_zip: string | null;
   county: string | null;
   apn: string | null;
+  source_channel: string;
+  source_vendor: string | null;
+  source_category: string | null;
+  status: "pending_review" | "claimed" | "rejected" | "duplicate";
+  received_at: string;
   duplicate_of_lead_id: string | null;
   duplicate_confidence: number | null;
+  review_notes: string | null;
 }
 
 interface Provider {
@@ -29,18 +35,21 @@ interface IntakeClaimModalProps {
   lead: IntakeLead;
   onClose: () => void;
   onSuccess: () => void;
+  onDelete: (lead: IntakeLead) => Promise<void> | void;
 }
 
 export function IntakeClaimModal({
   lead,
   onClose,
   onSuccess,
+  onDelete,
 }: IntakeClaimModalProps) {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string>("");
   const [assignToLogan, setAssignToLogan] = useState(false);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingProviders, setLoadingProviders] = useState(true);
 
@@ -143,6 +152,19 @@ export function IntakeClaimModal({
     return session?.access_token || "";
   };
 
+  const handleDelete = async () => {
+    try {
+      setDeleting(true);
+      setError(null);
+      await onDelete(lead);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError(message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const isDuplicate =
     lead.duplicate_confidence && lead.duplicate_confidence > 60;
 
@@ -159,7 +181,7 @@ export function IntakeClaimModal({
           </div>
           <button
             onClick={onClose}
-            disabled={loading}
+            disabled={loading || deleting}
             className="p-1 rounded hover:bg-muted disabled:opacity-50"
           >
             <X className="w-5 h-5" />
@@ -197,7 +219,7 @@ export function IntakeClaimModal({
             <select
               value={selectedProviderId}
               onChange={(e) => setSelectedProviderId(e.target.value)}
-              disabled={loadingProviders || loading}
+              disabled={loadingProviders || loading || deleting}
               className="w-full px-3 py-2 rounded border border-border bg-background text-foreground disabled:opacity-50"
             >
               <option value="">Select a provider...</option>
@@ -224,7 +246,7 @@ export function IntakeClaimModal({
                 onChange={(e) =>
                   setFormData({ ...formData, owner_name: e.target.value })
                 }
-                disabled={loading}
+                disabled={loading || deleting}
                 className="w-full px-3 py-2 rounded border border-border bg-background text-foreground disabled:opacity-50"
               />
             </div>
@@ -239,7 +261,7 @@ export function IntakeClaimModal({
                 onChange={(e) =>
                   setFormData({ ...formData, owner_phone: e.target.value })
                 }
-                disabled={loading}
+                disabled={loading || deleting}
                 className="w-full px-3 py-2 rounded border border-border bg-background text-foreground disabled:opacity-50"
               />
             </div>
@@ -256,7 +278,7 @@ export function IntakeClaimModal({
               onChange={(e) =>
                 setFormData({ ...formData, property_address: e.target.value })
               }
-              disabled={loading}
+              disabled={loading || deleting}
               className="w-full px-3 py-2 rounded border border-border bg-background text-foreground disabled:opacity-50"
             />
           </div>
@@ -272,7 +294,7 @@ export function IntakeClaimModal({
                 onChange={(e) =>
                   setFormData({ ...formData, property_city: e.target.value })
                 }
-                disabled={loading}
+                disabled={loading || deleting}
                 className="w-full px-3 py-2 rounded border border-border bg-background text-foreground disabled:opacity-50"
               />
             </div>
@@ -291,7 +313,7 @@ export function IntakeClaimModal({
                     property_state: e.target.value.toUpperCase(),
                   })
                 }
-                disabled={loading}
+                disabled={loading || deleting}
                 className="w-full px-3 py-2 rounded border border-border bg-background text-foreground disabled:opacity-50"
               />
             </div>
@@ -306,7 +328,7 @@ export function IntakeClaimModal({
                 onChange={(e) =>
                   setFormData({ ...formData, property_zip: e.target.value })
                 }
-                disabled={loading}
+                disabled={loading || deleting}
                 className="w-full px-3 py-2 rounded border border-border bg-background text-foreground disabled:opacity-50"
               />
             </div>
@@ -323,7 +345,7 @@ export function IntakeClaimModal({
                 onChange={(e) =>
                   setFormData({ ...formData, county: e.target.value })
                 }
-                disabled={loading}
+                disabled={loading || deleting}
                 className="w-full px-3 py-2 rounded border border-border bg-background text-foreground disabled:opacity-50"
               />
             </div>
@@ -338,7 +360,7 @@ export function IntakeClaimModal({
                 onChange={(e) =>
                   setFormData({ ...formData, apn: e.target.value })
                 }
-                disabled={loading}
+                disabled={loading || deleting}
                 className="w-full px-3 py-2 rounded border border-border bg-background text-foreground disabled:opacity-50"
               />
             </div>
@@ -351,7 +373,7 @@ export function IntakeClaimModal({
               id="assignToLogan"
               checked={assignToLogan}
               onChange={(e) => setAssignToLogan(e.target.checked)}
-              disabled={loading}
+              disabled={loading || deleting}
               className="w-4 h-4 rounded border-border"
             />
             <label
@@ -370,7 +392,7 @@ export function IntakeClaimModal({
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              disabled={loading}
+              disabled={loading || deleting}
               placeholder="Add any notes about this lead..."
               rows={3}
               className="w-full px-3 py-2 rounded border border-border bg-background text-foreground disabled:opacity-50 resize-none"
@@ -381,8 +403,15 @@ export function IntakeClaimModal({
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-muted/30">
           <button
+            onClick={handleDelete}
+            disabled={loading || deleting}
+            className="mr-auto px-4 py-2 rounded border border-destructive/30 text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+          >
+            {deleting ? "Deleting..." : "Delete Lead"}
+          </button>
+          <button
             onClick={onClose}
-            disabled={loading}
+            disabled={loading || deleting}
             className="px-4 py-2 rounded border border-border text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
           >
             Cancel
@@ -390,7 +419,7 @@ export function IntakeClaimModal({
 
           <button
             onClick={handleClaim}
-            disabled={loading || !selectedProviderId}
+            disabled={loading || deleting || !selectedProviderId}
             className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium"
           >
             {loading ? "Claiming..." : "Claim Lead"}
