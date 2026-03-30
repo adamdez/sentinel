@@ -1,5 +1,95 @@
 [
   {
+    "hash": "96feb8f5",
+    "date": "2026-03-30",
+    "message": "Fix unclaimed lead claiming and caller ID copy"
+  },
+  {
+    "hash": "33680b65",
+    "date": "2026-03-28",
+    "message": "fix: 3 critical bugs breaking inbound call flow"
+  },
+  {
+    "hash": "8e8cfcae",
+    "date": "2026-03-28",
+    "message": "feat: wire inbound call system — Jeff greeting, missed call SMS, webhook setup"
+  },
+  {
+    "hash": "352e4324",
+    "date": "2026-03-27",
+    "message": "fix: move intake page into (sentinel) route group for sidebar navigation"
+  },
+  {
+    "hash": "eb06c62e",
+    "date": "2026-03-27",
+    "message": "fix: resolve pre-existing TypeScript errors failing CI"
+  },
+  {
+    "hash": "26b1ef00",
+    "date": "2026-03-27",
+    "message": "fix: pipeline drag-and-drop fails when dropping on column or empty lane"
+  },
+  {
+    "hash": "76dd133b",
+    "date": "2026-03-27",
+    "message": "feat: remove scoring system from UI, change Active pill to pipeline blue"
+  },
+  {
+    "hash": "b2df85cc",
+    "date": "2026-03-27",
+    "message": "fix: move handleTogglePin useCallback above early return to fix React hooks ordering crash"
+  },
+  {
+    "hash": "e8f03019",
+    "date": "2026-03-27",
+    "message": "fix: remove non-existent direction column from call_sessions dashboard query"
+  },
+  {
+    "hash": "6458e81d",
+    "date": "2026-03-27",
+    "message": "fix: sync TypeScript types with lead pinning database schema"
+  },
+  {
+    "hash": "314686d3",
+    "date": "2026-03-27",
+    "message": "[cursor] Add lead detail pin action to client file header"
+  },
+  {
+    "hash": "246c9748",
+    "date": "2026-03-27",
+    "message": "[cursor] Add active lead pinning to queue and pipeline"
+  },
+  {
+    "hash": "3925294a",
+    "date": "2026-03-27",
+    "message": "feat: add lead pinning — DB columns, API endpoint, type + mapping"
+  },
+  {
+    "hash": "8b3d8515",
+    "date": "2026-03-27",
+    "message": "fix: move useEffect after fetchStatus definition to prevent client-side crash"
+  },
+  {
+    "hash": "c8c22ae1",
+    "date": "2026-03-27",
+    "message": "feat: PPL Intake Queue — full pipeline with Gmail auto-poll, claim workflow, and sidebar nav"
+  },
+  {
+    "hash": "7e4ad986",
+    "date": "2026-03-27",
+    "message": "Add real-time monitoring dashboard for intake queue testing"
+  },
+  {
+    "hash": "38dda690",
+    "date": "2026-03-27",
+    "message": "Add comprehensive API handoff documentation for intake queue UI build"
+  },
+  {
+    "hash": "7e40e778",
+    "date": "2026-03-27",
+    "message": "Add SMS alerts for PPL leads to Logan and Adam"
+  },
+  {
     "hash": "c92a15cf",
     "date": "2026-03-27",
     "message": "Phase 1-5: Special Lead Intake Queue Implementation"
@@ -33,95 +123,5 @@
     "hash": "7cbd976c",
     "date": "2026-03-26",
     "message": "feat: SMS webhook setup endpoint + SMS fields in disconnect-phone diagnostic"
-  },
-  {
-    "hash": "c56b07b4",
-    "date": "2026-03-26",
-    "message": "fix: inbound calls bypass Vapi — ring Logan directly, fix caller ID"
-  },
-  {
-    "hash": "0844202c",
-    "date": "2026-03-26",
-    "message": "fix: inbound call answer — attach event listeners, blocking claim, status polling"
-  },
-  {
-    "hash": "598fbf5e",
-    "date": "2026-03-25",
-    "message": "fix: remaining review issues — queue audit trail, after-hours guards, UI fixes"
-  },
-  {
-    "hash": "f3f4c761",
-    "date": "2026-03-25",
-    "message": "fix: four critical bugs in incoming call + jeff messages handling"
-  },
-  {
-    "hash": "d2cbf406",
-    "date": "2026-03-25",
-    "message": "feat: persistent Jeff messages panel with full history"
-  },
-  {
-    "hash": "c8297ff5",
-    "date": "2026-03-25",
-    "message": "feat: unlimited dial queue + red X remove + scrollable lists"
-  },
-  {
-    "hash": "3c0579a6",
-    "date": "2026-03-25",
-    "message": "feat: after-hours voicemail mode + incoming call popup + auto-open client file"
-  },
-  {
-    "hash": "380f7122",
-    "date": "2026-03-25",
-    "message": "fix: polish regular queue dialer — phoneIndex resets, better toasts"
-  },
-  {
-    "hash": "58e4d17f",
-    "date": "2026-03-25",
-    "message": "fix: regular queue dialer stays on lead after call — no auto-advance"
-  },
-  {
-    "hash": "4bfc9b09",
-    "date": "2026-03-25",
-    "message": "fix: bypass Inngest for bulk-bricked — process inline with batching"
-  },
-  {
-    "hash": "48106aec",
-    "date": "2026-03-25",
-    "message": "fix: add CRON_SECRET auth to bulk-bricked endpoint for easy triggering"
-  },
-  {
-    "hash": "27d296c8",
-    "date": "2026-03-25",
-    "message": "fix: persist Bricked AI data across page reloads + add bulk analysis endpoint"
-  },
-  {
-    "hash": "e02b9bf5",
-    "date": "2026-03-25",
-    "message": "feat: infer distress tags from import list name"
-  },
-  {
-    "hash": "6c51c7c1",
-    "date": "2026-03-25",
-    "message": "feat: add jeff-auto-redial cron — fires Jeff on due auto-cycle phones every 2 min"
-  },
-  {
-    "hash": "b1e9cf83",
-    "date": "2026-03-25",
-    "message": "[cursor] Dialer: style Add To Auto Cycle link emerald green"
-  },
-  {
-    "hash": "4907d00d",
-    "date": "2026-03-25",
-    "message": "fix: remove serverUrl and transferPlan rejected by Vapi API"
-  },
-  {
-    "hash": "992b87cc",
-    "date": "2026-03-25",
-    "message": "fix: surface Vapi errors in toast instead of silently swallowing them"
-  },
-  {
-    "hash": "cac0961a",
-    "date": "2026-03-25",
-    "message": "fix: bypass Inngest for outbound batch — call Vapi directly"
   }
 ]
