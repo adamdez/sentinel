@@ -14,6 +14,7 @@ import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import { extractProspectingSnapshot, sourceChannelLabel } from "@/lib/prospecting";
 import { deriveLeadActionSummary } from "@/lib/action-derivation";
+import { isLeadUnclaimed } from "@/lib/lead-ownership";
 import { sortLeadRows } from "./use-leads-sort";
 
 export type SortField = "score" | "priority" | "followUp" | "address" | "owner" | "status" | "equity";
@@ -545,7 +546,7 @@ export function useLeads() {
   // Segment filter
 
   const segmentedLeads = useMemo(() => {
-    if (segment === "all") return leadsWithAssigneeNames;
+    if (segment === "all") return leadsWithAssigneeNames.filter((l) => isLeadUnclaimed(l.assignedTo));
     if (segment === "mine") return leadsWithAssigneeNames.filter((l) => l.assignedTo === currentUser.id);
     return leadsWithAssigneeNames.filter((l) => l.assignedTo === segment);
   }, [leadsWithAssigneeNames, segment, currentUser.id]);
@@ -709,7 +710,7 @@ export function useLeads() {
     const base = filters.includeClosed
       ? leadsWithAssigneeNames
       : leadsWithAssigneeNames.filter((l) => l.status !== "closed");
-    const all = base.length;
+    const all = base.filter((l) => isLeadUnclaimed(l.assignedTo)).length;
     const mine = base.filter((l) => l.assignedTo === currentUser.id).length;
     const byMember: Record<string, number> = {};
     for (const m of teamMembers) {

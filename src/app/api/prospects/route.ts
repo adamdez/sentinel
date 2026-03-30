@@ -10,6 +10,7 @@ import { captureStageTransition } from "@/lib/conversion-tracking";
 import { compactObject, normalizeTagList } from "@/lib/prospecting";
 import { insertAttribution, extractDomain } from "@/lib/ads/queries/attribution";
 import { evaluateStageEntryPrerequisites, type StageEntryPrereqInput } from "@/lib/lead-guards";
+import { canUserClaimLead, normalizeAssignedUserId } from "@/lib/lead-ownership";
 import {
   computeQualificationScoreTotal,
   mergeQualificationScoreState,
@@ -380,6 +381,22 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Lead not found", detail: fetchErr?.message }, { status: 404 });
     }
 
+    const requestedAssignedTo = assigned_to !== undefined
+      ? normalizeAssignedUserId(assigned_to)
+      : undefined;
+    const currentAssignedTo = normalizeAssignedUserId(currentLead.assigned_to);
+    const isClaimMutation = requestedAssignedTo === user.id;
+
+    if (isClaimMutation && !canUserClaimLead({ assignedUserId: currentAssignedTo, claimantUserId: user.id })) {
+      return NextResponse.json(
+        {
+          error: "Lead already owned",
+          detail: "This lead is already assigned to another team member.",
+        },
+        { status: 409 },
+      );
+    }
+
     let estimatedValueForQualification: number | null = null;
     let propertyOwnerName: string | null = null;
     let propertyAddress: string | null = null;
@@ -517,10 +534,8 @@ export async function PATCH(req: NextRequest) {
 
     const effectiveAssignedTo =
       assigned_to !== undefined
-        ? (typeof assigned_to === "string" && assigned_to.trim() && assigned_to !== "unassigned"
-          ? assigned_to
-          : null)
-        : (currentLead.assigned_to ?? null);
+        ? (requestedAssignedTo ?? null)
+        : currentAssignedTo;
 
     const escalationRequested = qualificationRouteChanged && nextQualificationRoute === "escalate";
     if (escalationRequested && !effectiveAssignedTo) {
@@ -671,8 +686,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (assigned_to !== undefined) {
-      if (typeof assigned_to === "string" && assigned_to.trim() && assigned_to !== "unassigned") {
-        updateData.assigned_to = assigned_to;
+      if (requestedAssignedTo) {
+        updateData.assigned_to = requestedAssignedTo;
         updateData.claimed_at = nowIso;
         updateData.claim_expires_at = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
       } else {

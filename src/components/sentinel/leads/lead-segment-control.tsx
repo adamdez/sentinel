@@ -32,7 +32,7 @@ export function LeadSegmentControl({
 }: LeadSegmentControlProps) {
   const tabs: Tab[] = [
     { id: "mine", label: "My Leads", icon: UserCheck, count: counts.mine },
-    { id: "all", label: "Team Leads", icon: Users, count: counts.all },
+    { id: "all", label: "Unclaimed Leads", icon: Users, count: counts.all },
   ];
 
   // Admins see per-member tabs for OTHER team members (their own is "My Leads")

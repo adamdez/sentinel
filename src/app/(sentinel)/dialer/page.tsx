@@ -3304,7 +3304,7 @@ function DialerPageInner() {
                         "bg-muted"
                       }`} />
                       {callState === "dialing" && (transferStatus ?? "Dialing...")}
-                      {callState === "connected" && `Connected — ${timer.formatted} — Caller ID: Dominion Homes`}
+                      {callState === "connected" && `Connected — ${timer.formatted} — Outbound number in use`}
                       {callState === "ended" && `Ended — ${timer.formatted}`}
                     </div>
                   )}

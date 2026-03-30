@@ -108,7 +108,7 @@ export default function SettingsPage() {
               <Badge variant="outline" className="text-xs">Warm Transfer</Badge>
             </h3>
             <p className="text-xs text-muted-foreground/60 mb-3">
-              Twilio rings this number when you dial. Caller ID shows Dominion Homes.
+              Twilio rings this number when you dial. The outbound number is yours, but branded business name display depends on carrier support plus Twilio trust registration.
             </p>
             <div className="flex items-center gap-2">
               <Input

@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useProspects, type ProspectRow, type SortField, type SortDir } from "@/hooks/use-prospects";
 import { supabase } from "@/lib/supabase";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
+import { canUserClaimLead } from "@/lib/lead-ownership";
 import { useSentinelStore } from "@/lib/store";
 import { useModal } from "@/providers/modal-provider";
 import type { AIScore } from "@/lib/types";
@@ -363,12 +364,17 @@ export default function ProspectsPage() {
       // Fetch current lock_version for optimistic locking
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
-        .select("status, lock_version")
+        .select("status, lock_version, assigned_to")
         .eq("id", leadId)
         .single();
 
       if (fetchErr || !current) {
         toast.error("Claim failed: Could not fetch lead status. Refresh and try again.");
+        return;
+      }
+
+      if (!canUserClaimLead({ assignedUserId: current.assigned_to, claimantUserId: userId })) {
+        toast.error("Claim failed: This lead is already owned by someone else.");
         return;
       }
 

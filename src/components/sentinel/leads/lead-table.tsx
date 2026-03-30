@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { deleteLeadCustomerFile } from "@/lib/lead-write-helpers";
+import { canUserClaimLead } from "@/lib/lead-ownership";
 import {
   Tooltip,
   TooltipContent,
@@ -215,8 +216,17 @@ export function LeadTable({
   }, [selectedIds, onRefresh]);
 
   const handleBulkClaim = useCallback(async () => {
-    const count = selectedIds.size;
-    if (count === 0) return;
+    const selectedLeads = leads.filter((lead) => selectedIds.has(lead.id));
+    const claimableLeadIds = selectedLeads
+      .filter((lead) => canUserClaimLead({ assignedUserId: lead.assignedTo, claimantUserId: currentUserId }))
+      .map((lead) => lead.id);
+    const skippedCount = selectedLeads.length - claimableLeadIds.length;
+    const count = claimableLeadIds.length;
+    if (selectedLeads.length === 0) return;
+    if (count === 0) {
+      toast.error("None of the selected leads are unclaimed.");
+      return;
+    }
     setBulkClaiming(true);
     let succeeded = 0;
     let failed = 0;
@@ -227,7 +237,7 @@ export function LeadTable({
         setBulkClaiming(false);
         return;
       }
-      for (const id of selectedIds) {
+      for (const id of claimableLeadIds) {
         try {
           const res = await fetch("/api/prospects", {
             method: "PATCH",
@@ -249,14 +259,17 @@ export function LeadTable({
     } finally {
       setBulkClaiming(false);
       setSelectedIds(new Set());
-      if (failed > 0) {
-        toast.error(`Claimed ${succeeded}, failed ${failed}`);
+      if (failed > 0 || skippedCount > 0) {
+        const pieces = [`Claimed ${succeeded}`];
+        if (failed > 0) pieces.push(`failed ${failed}`);
+        if (skippedCount > 0) pieces.push(`skipped ${skippedCount} already-owned`);
+        toast.error(pieces.join(", "));
       } else {
         toast.success(`Claimed ${succeeded} lead${succeeded > 1 ? "s" : ""}`);
       }
       onRefresh?.();
     }
-  }, [selectedIds, currentUserId, onRefresh]);
+  }, [selectedIds, currentUserId, onRefresh, leads]);
 
   const handleBulkAddToAutoCycle = useCallback(async () => {
     const count = selectedIds.size;
