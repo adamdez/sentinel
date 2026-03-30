@@ -344,6 +344,11 @@ export function buildAssistantConfig(serverUrl: string): VapiAssistantConfig {
   };
 }
 
+function stripPersistOnlyFields(config: VapiAssistantConfig): Record<string, unknown> {
+  const { transferPlan: _transferPlan, ...persistable } = config;
+  return persistable;
+}
+
 // ── Outbound System Prompt ─────────────────────────────────────────────────
 
 const OUTBOUND_SYSTEM_PROMPT = `You are Jeff, calling on behalf of Dominion Home Deals, a local real estate company in Spokane, Washington. You are NOT a human — if asked directly, say "I'm Jeff, Dominion's assistant — not a real person, but I can get you to someone who can help."
@@ -631,7 +636,7 @@ export async function createOrUpdateAssistant(
 
   const method = existingId ? "PATCH" : "POST";
 
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     method,
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -639,6 +644,25 @@ export async function createOrUpdateAssistant(
     },
     body: JSON.stringify(config),
   });
+
+  if (!res.ok) {
+    const body = await res.text();
+    const needsPersistableRetry = body.includes("transferPlan should not exist");
+
+    if (!needsPersistableRetry) {
+      throw new Error(`Vapi ${method} assistant failed (${res.status}): ${body}`);
+    }
+
+    console.warn("[Vapi] Assistant persistence rejected transferPlan; retrying with persistable-only config");
+    res = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(stripPersistOnlyFields(config)),
+    });
+  }
 
   if (!res.ok) {
     const body = await res.text();
