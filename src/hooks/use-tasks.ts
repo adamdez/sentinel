@@ -17,6 +17,10 @@ export interface TaskItem {
   status: string;
   task_type: string;
   notes: string | null;
+  source_type?: string | null;
+  source_key?: string | null;
+  voice_session_id?: string | null;
+  jeff_interaction_id?: string | null;
   created_at: string;
   updated_at: string;
   // Joined context

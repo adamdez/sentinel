@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { syncTaskToLead, clearTaskFromLead } from "@/lib/task-lead-sync";
+import { syncJeffInteractionStatusFromTask } from "@/lib/jeff-interactions";
 
 /**
  * PATCH /api/tasks/[id] — update task fields
@@ -18,6 +19,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const allowed = [
       "title", "description", "assigned_to", "due_at", "priority",
       "status", "completed_at", "task_type", "lead_id", "deal_id", "contact_id",
+      "source_type", "source_key", "voice_session_id", "jeff_interaction_id", "notes",
     ];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,6 +64,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       }
     }
 
+    await syncJeffInteractionStatusFromTask(id, data.status);
+
     return NextResponse.json({ task: data });
   } catch (err) {
     console.error("[API/tasks/id] PATCH error:", err);
@@ -83,7 +87,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     // Fetch lead_id before deletion for sync
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: taskBefore } = await (sb.from("tasks") as any)
-      .select("lead_id")
+      .select("lead_id, jeff_interaction_id")
       .eq("id", id)
       .single();
 
@@ -94,6 +98,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     // Bidirectional sync: clear lead's next_action or promote next pending task
     if (taskBefore?.lead_id) {
       await clearTaskFromLead(sb, taskBefore.lead_id, id);
+    }
+
+    if (taskBefore?.jeff_interaction_id) {
+      await syncJeffInteractionStatusFromTask(id, "deleted", true, taskBefore.jeff_interaction_id);
     }
 
     return NextResponse.json({ success: true });

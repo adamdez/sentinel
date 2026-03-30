@@ -12,7 +12,10 @@
     "test:watch": "npx vitest",
     "test:smoke": "npx playwright test --config e2e/playwright.config.ts --project smoke",
     "typecheck": "tsc --noEmit",
-    "db:gen-types": "npx supabase gen types --lang=typescript --project-id imusghlptroddfeycpei > src/lib/supabase-generated-types.ts"
+    "db:link": "node scripts/supabase-cli.mjs link",
+    "db:migration:list": "node scripts/supabase-cli.mjs migration list",
+    "db:push": "node scripts/supabase-cli.mjs db push",
+    "db:gen-types": "node scripts/supabase-cli.mjs gen types --lang=typescript --project-id imusghlptroddfeycpei > src/lib/supabase-generated-types.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

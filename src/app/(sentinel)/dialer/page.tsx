@@ -3171,30 +3171,7 @@ function DialerPageInner() {
       </AnimatePresence>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <div className="lg:col-span-3">
-          {/* Jeff's Messages — highest priority */}
-          <JeffMessagesBanner onCallBack={handleJeffCallback} onLinked={refetchQueue} />
-
-          {/* Missed calls */}
-          {missedCalls.length > 0 && (
-            <GlassCard hover={false} className="!p-3 mb-3 border-amber-400/20 bg-amber-400/[0.02]">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 mb-2">
-                <PhoneIncoming className="h-3.5 w-3.5" />
-                Missed Calls ({missedCalls.length})
-              </h2>
-              <div className="space-y-1">
-                {missedCalls.map((mc) => (
-                  <div key={mc.id} className="flex items-center justify-between text-xs py-1">
-                    <span className="font-mono text-foreground/80">
-                      {(() => { const d = mc.phone.replace(/\D/g, "").slice(-10); return d.length === 10 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}` : mc.phone; })()}
-                    </span>
-                    <span className="text-muted-foreground/50">{(() => { const m = Math.floor((Date.now() - new Date(mc.time).getTime()) / 60000); return m < 1 ? "just now" : m < 60 ? `${m}m ago` : `${Math.floor(m/60)}h ago`; })()}</span>
-                  </div>
-                ))}
-              </div>
-            </GlassCard>
-          )}
-
+        <div className="lg:col-span-4">
           <GlassCard hover={false} className="!p-3">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
@@ -3246,7 +3223,7 @@ function DialerPageInner() {
             <p className="text-sm text-muted-foreground/50 mb-2">
               {autoCycleMode
                 ? "Ready-now leads float to the top, then the next retry due."
-                : "Only leads you explicitly add to Dial Queue appear here. Skip Trace Queue fills the durable phone roster before you call."}
+                : "This is your live calling stack. Add the right leads from Lead Queue, then call straight down the list."}
             </p>
 
             {displayedQueueLoading ? (
@@ -3258,7 +3235,7 @@ function DialerPageInner() {
             ) : displayedQueue.length === 0 ? (
               <div className="text-center py-6 space-y-3">
                 <Phone className="h-6 w-6 mx-auto text-muted-foreground/20" />
-                <p className="text-xs text-muted-foreground/50">No leads queued — select leads in Lead Queue and use Add to Dial Queue</p>
+                <p className="text-sm text-muted-foreground/60">No one is queued to call yet.</p>
                 <a href="/leads">
                   <button className="px-5 py-2 rounded-[10px] text-xs font-bold text-primary bg-primary/[0.10] border border-primary/25
                     hover:bg-primary/[0.18] hover:border-primary/35 shadow-[0_0_14px_var(--shadow-soft)]
@@ -3266,7 +3243,7 @@ function DialerPageInner() {
                     Go to Lead Queue
                   </button>
                 </a>
-                <p className="text-sm text-muted-foreground/60">Queued leads stay here until you remove them from the dial queue</p>
+                <p className="text-xs text-muted-foreground/50">Select leads and use Add to Dial Queue. Skip Trace Queue will fill the saved phone roster before you call.</p>
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-overlay-8 scrollbar-track-transparent">
@@ -3365,7 +3342,6 @@ function DialerPageInner() {
               </div>
             )}
           </GlassCard>
-          <UnlinkedCallsFolder onLinked={refetchQueue} />
         </div>
 
         <div className="lg:col-span-5">
@@ -3874,233 +3850,278 @@ function DialerPageInner() {
           </AnimatePresence>
         </div>
 
-        <div className="lg:col-span-4">
-          <SmsMessagesPanel onCallNumber={(phone) => {
-            const digits = phone.replace(/\D/g, "").slice(-10);
-            if (digits.length === 10 && deviceStatus === "ready") {
-              timer.start();
-              const formatted = `+1${digits}`;
-              deviceRef.current?.connect({ params: { To: formatted, From: voipCallerId || "" } });
-            }
-          }} />
-
-          {/* Last Call AI Summary */}
-          {currentLead && latestSummary && (
-            <GlassCard hover={false} className="!p-3 mb-3">
-              <div className="flex items-center gap-1.5 mb-2">
-                <Sparkles className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Last Call Summary</span>
-                {latestSummaryTime && (
-                  <span className="text-xs text-muted-foreground/40 ml-auto">
-                    {new Date(latestSummaryTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                  </span>
-                )}
-              </div>
-              <div className="text-sm text-muted-foreground/80 leading-relaxed whitespace-pre-line max-h-28 overflow-y-auto scrollbar-thin">
-                {latestSummary}
+        <div className="lg:col-span-3">
+          <div className="space-y-3 lg:sticky lg:top-24">
+            <GlassCard hover={false} className="!p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <MessageSquare className="h-3.5 w-3.5 text-primary" />
+                    Comms Rail
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground/65">
+                    Keep Jeff and SMS visible without taking over the calling lane.
+                  </p>
+                </div>
+                <a
+                  href="/settings/jeff-outbound"
+                  className="text-xs font-medium text-emerald-300/80 hover:text-emerald-200 transition-colors"
+                >
+                  Jeff Outbound
+                </a>
               </div>
             </GlassCard>
-          )}
 
-          <AnimatePresence mode="wait">
-            {callState !== "idle" ? (
-              <motion.div
-                key="disposition-panel"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                {callState === "connected" && currentLead && (
-                  <LiveAnswerIntelPanel
-                    lead={currentLead}
-                    dialedPhone={currentDialedPhone}
-                    onOpenDetail={() => setFileModalOpen(true)}
-                  />
-                )}
+            <JeffMessagesBanner onCallBack={handleJeffCallback} onLinked={refetchQueue} />
 
-                {/* ── Seller Memory: visible during and after call ── */}
-                {dialerSessionId && (
-                  <SellerMemoryPanel
-                    sessionId={dialerSessionId}
-                    className="mb-3"
-                  />
-                )}
+            <SmsMessagesPanel onCallNumber={(phone) => {
+              const digits = phone.replace(/\D/g, "").slice(-10);
+              if (digits.length === 10 && deviceStatus === "ready") {
+                timer.start();
+                const formatted = `+1${digits}`;
+                deviceRef.current?.connect({ params: { To: formatted, From: voipCallerId || "" } });
+              }
+            }} />
 
-                {/* ── Live Assist: brief-based prompts during active call ── */}
-                {callState === "connected" && (preCallBrief || liveCoach) && (
-                  <LiveAssistPanel
-                    brief={preCallBrief}
-                    coach={liveCoach}
-                    loading={liveCoachLoading}
-                    error={liveCoachError}
-                    className="mb-3"
-                    popoutOpen={coachPopoutOpen}
-                    onTogglePopout={() => setCoachPopoutOpen((value) => !value)}
-                  />
-                )}
-
-                {callState === "ended" && dialerSessionId ? (
-                  /* ── PostCallPanel: session-backed calls get publish path ── */
-                  <PostCallPanel
-                    sessionId={dialerSessionId}
-                    callLogId={currentCallLogId}
-                    userId={currentUser.id}
-                    timerElapsed={timer.elapsed}
-                    initialSummary={callNotes}
-                    initialMotivationLevel={currentLead?.motivation_level ?? null}
-                    initialSellerTimeline={currentLead?.seller_timeline ?? null}
-                    qualContext={currentLead ? {
-                      address: currentLead.properties?.address ?? null,
-                      decisionMakerConfirmed: currentLead.decision_maker_confirmed ?? false,
-                      conditionLevel: currentLead.condition_level ?? null,
-                      occupancyScore: currentLead.occupancy_score ?? null,
-                      hasOpenTask: false,
-                    } : null}
-                    phoneNumber={currentDialedPhone}
-                    leadId={currentLead?.id ?? null}
-                    autoCycleEnabled={autoCycleMode}
-                    onComplete={handlePostCallDone}
-                    onSkip={handlePostCallDone}
-                  />
-                ) : (
-                  /* ── Legacy disposition: live call or no-session fallback ── */
-                  <GlassCard hover={false} className="!p-3">
-                    <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                      <BarChart3 className="h-3.5 w-3.5 text-primary" />
-                      Disposition
-                      <span className="text-sm opacity-40 ml-auto">Keyboard shortcuts active</span>
-                    </h2>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mb-2.5 gap-2 border-overlay-12 text-muted-foreground hover:text-foreground hover:bg-overlay-4"
-                      onClick={() => setFileModalOpen(true)}
-                    >
-                      <Eye className="h-3 w-3" />
-                      Open Lead Detail
-                    </Button>
-
-                    <div className="grid grid-cols-1 gap-1.5">
-                      {DISPOSITIONS.map((d) => {
-                        const Icon = d.icon;
-                        return (
-                          <button
-                            key={d.key}
-                            onClick={() => handleDisposition(d.key)}
-                            disabled={dispositionPending}
-                            className={`flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all duration-150 border ${d.bgColor}`}
-                          >
-                            <span className="text-sm font-mono text-muted-foreground/55 w-3">{d.hotkey}</span>
-                            <Icon className={`h-4 w-4 ${d.color}`} />
-                            <span className="text-sm font-medium flex-1">{d.label}</span>
-                            <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      className="w-full mt-3 gap-2 text-xs"
-                      onClick={() => {
-                        const idx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
-                        setCurrentLead(displayedQueue[(idx + 1) % displayedQueue.length] ?? null);
-                        setPhoneIndex(0);
-                        setCallState("idle");
-                        setCallNotes("");
-                        timer.reset();
-                      }}
-                      disabled={displayedQueue.length <= 1}
-                    >
-                      <SkipForward className="h-3.5 w-3.5" />
-                      Next Lead
-                    </Button>
-                  </GlassCard>
-                )}
-
-                <div className="mt-3 flex items-center justify-center gap-2 px-3 py-2 rounded-[10px] border border-overlay-6 bg-overlay-2">
-                  <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="text-sm font-mono font-medium text-foreground">{timer.formatted}</span>
-                  <span className="text-xs text-muted-foreground/50 uppercase">
-                    {callState === "dialing" ? "Ringing" :
-                     callState === "connected" ? "Live" :
-                     "Ended"}
-                  </span>
-                </div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="call-history-panel"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                {/* ── Pre-call seller memory (idle state) ── */}
-                {currentLead && (
-                  <SellerMemoryPreview leadId={currentLead.id} className="mb-3" />
-                )}
-
-                <GlassCard hover={false} className="!p-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <History className="h-3.5 w-3.5 text-primary" />
-                      Call History
-                      <span className="text-sm font-normal text-muted-foreground/50 ml-1">
-                        {callHistory.length} recent
+            {missedCalls.length > 0 && (
+              <GlassCard hover={false} className="!p-3 border-amber-400/20 bg-amber-400/[0.02]">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 mb-2">
+                  <PhoneIncoming className="h-3.5 w-3.5" />
+                  Missed Calls ({missedCalls.length})
+                </h2>
+                <div className="space-y-1">
+                  {missedCalls.map((mc) => (
+                    <div key={mc.id} className="flex items-center justify-between text-xs py-1">
+                      <span className="font-mono text-foreground/80">
+                        {(() => { const d = mc.phone.replace(/\D/g, "").slice(-10); return d.length === 10 ? `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}` : mc.phone; })()}
                       </span>
-                    </h2>
-                    <div className="flex items-center gap-1">
-                      {(["all", "outbound", "inbound"] as const).map((f) => (
-                        <button
-                          key={f}
-                          type="button"
-                          onClick={() => setHistoryFilter(f)}
-                          className={`px-2.5 py-1 rounded-[8px] text-sm font-medium transition-all ${
-                            historyFilter === f
-                              ? "text-primary bg-primary/8 border border-primary/20"
-                              : "text-muted-foreground/60 hover:text-foreground border border-transparent"
-                          }`}
-                        >
-                          {f === "all" ? "All" : f === "outbound" ? "Outbound" : "Inbound"}
-                        </button>
-                      ))}
+                      <span className="text-muted-foreground/50">{(() => { const m = Math.floor((Date.now() - new Date(mc.time).getTime()) / 60000); return m < 1 ? "just now" : m < 60 ? `${m}m ago` : `${Math.floor(m/60)}h ago`; })()}</span>
                     </div>
-                  </div>
-
-                  {historyLoading ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
-                    </div>
-                  ) : callHistory.length === 0 ? (
-                    <div className="text-center py-6">
-                      <History className="h-6 w-6 mx-auto text-muted-foreground/20 mb-2" />
-                      <p className="text-xs text-muted-foreground/50">No calls yet — start dialing!</p>
-                    </div>
-                  ) : (
-                    <div className="max-h-[calc(100vh-420px)] overflow-y-auto scrollbar-thin space-y-1">
-                      {callHistory
-                        .filter((c) => historyFilter === "all" || c.direction === historyFilter)
-                        .map((entry) => (
-                          <CallHistoryRow
-                            key={entry.id}
-                            entry={entry}
-                            allHistory={callHistory}
-                            onDial={(phone) => {
-                              setManualPhone(phone.replace(/\D/g, "").replace(/^1/, "").slice(0, 10));
-                              window.scrollTo({ top: 0, behavior: "smooth" });
-                              toast.info(`${formatUsPhone(phone.replace(/\D/g, "").slice(-10))} loaded — hit Dial Now`);
-                            }}
-                          />
-                        ))}
-                    </div>
-                  )}
-                </GlassCard>
-              </motion.div>
+                  ))}
+                </div>
+              </GlassCard>
             )}
-          </AnimatePresence>
+
+            {/* Last Call AI Summary */}
+            {currentLead && latestSummary && (
+              <GlassCard hover={false} className="!p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Sparkles className="h-3 w-3 text-muted-foreground" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Last Call Summary</span>
+                  {latestSummaryTime && (
+                    <span className="text-xs text-muted-foreground/40 ml-auto">
+                      {new Date(latestSummaryTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm text-muted-foreground/80 leading-relaxed whitespace-pre-line max-h-28 overflow-y-auto scrollbar-thin">
+                  {latestSummary}
+                </div>
+              </GlassCard>
+            )}
+
+            <AnimatePresence mode="wait">
+              {callState !== "idle" ? (
+                <motion.div
+                  key="disposition-panel"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {callState === "connected" && currentLead && (
+                    <LiveAnswerIntelPanel
+                      lead={currentLead}
+                      dialedPhone={currentDialedPhone}
+                      onOpenDetail={() => setFileModalOpen(true)}
+                    />
+                  )}
+
+                  {/* ── Seller Memory: visible during and after call ── */}
+                  {dialerSessionId && (
+                    <SellerMemoryPanel
+                      sessionId={dialerSessionId}
+                      className="mb-3"
+                    />
+                  )}
+
+                  {/* ── Live Assist: brief-based prompts during active call ── */}
+                  {callState === "connected" && (preCallBrief || liveCoach) && (
+                    <LiveAssistPanel
+                      brief={preCallBrief}
+                      coach={liveCoach}
+                      loading={liveCoachLoading}
+                      error={liveCoachError}
+                      className="mb-3"
+                      popoutOpen={coachPopoutOpen}
+                      onTogglePopout={() => setCoachPopoutOpen((value) => !value)}
+                    />
+                  )}
+
+                  {callState === "ended" && dialerSessionId ? (
+                    /* ── PostCallPanel: session-backed calls get publish path ── */
+                    <PostCallPanel
+                      sessionId={dialerSessionId}
+                      callLogId={currentCallLogId}
+                      userId={currentUser.id}
+                      timerElapsed={timer.elapsed}
+                      initialSummary={callNotes}
+                      initialMotivationLevel={currentLead?.motivation_level ?? null}
+                      initialSellerTimeline={currentLead?.seller_timeline ?? null}
+                      qualContext={currentLead ? {
+                        address: currentLead.properties?.address ?? null,
+                        decisionMakerConfirmed: currentLead.decision_maker_confirmed ?? false,
+                        conditionLevel: currentLead.condition_level ?? null,
+                        occupancyScore: currentLead.occupancy_score ?? null,
+                        hasOpenTask: false,
+                      } : null}
+                      phoneNumber={currentDialedPhone}
+                      leadId={currentLead?.id ?? null}
+                      autoCycleEnabled={autoCycleMode}
+                      onComplete={handlePostCallDone}
+                      onSkip={handlePostCallDone}
+                    />
+                  ) : (
+                    /* ── Legacy disposition: live call or no-session fallback ── */
+                    <GlassCard hover={false} className="!p-3">
+                      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+                        <BarChart3 className="h-3.5 w-3.5 text-primary" />
+                        Disposition
+                        <span className="text-sm opacity-40 ml-auto">Keyboard shortcuts active</span>
+                      </h2>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mb-2.5 gap-2 border-overlay-12 text-muted-foreground hover:text-foreground hover:bg-overlay-4"
+                        onClick={() => setFileModalOpen(true)}
+                      >
+                        <Eye className="h-3 w-3" />
+                        Open Lead Detail
+                      </Button>
+
+                      <div className="grid grid-cols-1 gap-1.5">
+                        {DISPOSITIONS.map((d) => {
+                          const Icon = d.icon;
+                          return (
+                            <button
+                              key={d.key}
+                              onClick={() => handleDisposition(d.key)}
+                              disabled={dispositionPending}
+                              className={`flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all duration-150 border ${d.bgColor}`}
+                            >
+                              <span className="text-sm font-mono text-muted-foreground/55 w-3">{d.hotkey}</span>
+                              <Icon className={`h-4 w-4 ${d.color}`} />
+                              <span className="text-sm font-medium flex-1">{d.label}</span>
+                              <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        className="w-full mt-3 gap-2 text-xs"
+                        onClick={() => {
+                          const idx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
+                          setCurrentLead(displayedQueue[(idx + 1) % displayedQueue.length] ?? null);
+                          setPhoneIndex(0);
+                          setCallState("idle");
+                          setCallNotes("");
+                          timer.reset();
+                        }}
+                        disabled={displayedQueue.length <= 1}
+                      >
+                        <SkipForward className="h-3.5 w-3.5" />
+                        Next Lead
+                      </Button>
+                    </GlassCard>
+                  )}
+
+                  <div className="mt-3 flex items-center justify-center gap-2 px-3 py-2 rounded-[10px] border border-overlay-6 bg-overlay-2">
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-sm font-mono font-medium text-foreground">{timer.formatted}</span>
+                    <span className="text-xs text-muted-foreground/50 uppercase">
+                      {callState === "dialing" ? "Ringing" :
+                       callState === "connected" ? "Live" :
+                       "Ended"}
+                    </span>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="call-history-panel"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {/* ── Pre-call seller memory (idle state) ── */}
+                  {currentLead && (
+                    <SellerMemoryPreview leadId={currentLead.id} className="mb-3" />
+                  )}
+
+                  <GlassCard hover={false} className="!p-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <History className="h-3.5 w-3.5 text-primary" />
+                        Call History
+                        <span className="text-sm font-normal text-muted-foreground/50 ml-1">
+                          {callHistory.length} recent
+                        </span>
+                      </h2>
+                      <div className="flex items-center gap-1">
+                        {(["all", "outbound", "inbound"] as const).map((f) => (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setHistoryFilter(f)}
+                            className={`px-2.5 py-1 rounded-[8px] text-sm font-medium transition-all ${
+                              historyFilter === f
+                                ? "text-primary bg-primary/8 border border-primary/20"
+                                : "text-muted-foreground/60 hover:text-foreground border border-transparent"
+                            }`}
+                          >
+                            {f === "all" ? "All" : f === "outbound" ? "Outbound" : "Inbound"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {historyLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
+                      </div>
+                    ) : callHistory.length === 0 ? (
+                      <div className="text-center py-6">
+                        <History className="h-6 w-6 mx-auto text-muted-foreground/20 mb-2" />
+                        <p className="text-xs text-muted-foreground/50">No calls yet — start dialing!</p>
+                      </div>
+                    ) : (
+                      <div className="max-h-[calc(100vh-420px)] overflow-y-auto scrollbar-thin space-y-1">
+                        {callHistory
+                          .filter((c) => historyFilter === "all" || c.direction === historyFilter)
+                          .map((entry) => (
+                            <CallHistoryRow
+                              key={entry.id}
+                              entry={entry}
+                              allHistory={callHistory}
+                              onDial={(phone) => {
+                                setManualPhone(phone.replace(/\D/g, "").replace(/^1/, "").slice(0, 10));
+                                window.scrollTo({ top: 0, behavior: "smooth" });
+                                toast.info(`${formatUsPhone(phone.replace(/\D/g, "").slice(-10))} loaded — hit Dial Now`);
+                              }}
+                            />
+                          ))}
+                      </div>
+                    )}
+                  </GlassCard>
+
+                  <UnlinkedCallsFolder onLinked={refetchQueue} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 

@@ -16,6 +16,7 @@ import type { VapiWebhookPayload } from "@/providers/voice/types";
 import { createAgentRun, completeAgentRun } from "@/lib/control-plane";
 import { inngest } from "@/inngest/client";
 import { processAutoCycleOutcome, mapVapiDispositionToAutoCycle } from "@/lib/dialer/auto-cycle-outcome";
+import { syncJeffInteractionFromCompletedCall } from "@/lib/jeff-interactions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -350,7 +351,7 @@ async function handleEndOfCallReport(
   // Write a dialer_event for the completed AI call
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: session } = await (sb.from("voice_sessions") as any)
-    .select("id, lead_id, caller_type, callback_requested, duration_seconds, direction, from_number, to_number, status, run_id, auto_cycle_lead_id, auto_cycle_phone_id")
+    .select("id, lead_id, caller_type, callback_requested, callback_time, duration_seconds, direction, from_number, to_number, status, transferred_to, run_id, auto_cycle_lead_id, auto_cycle_phone_id")
     .eq("vapi_call_id", vapiCallId)
     .single();
 
@@ -407,6 +408,22 @@ async function handleEndOfCallReport(
     }
 
     const callsLogId = callsLogRow?.id ?? null;
+    const wasTransferred = endedReason === "assistant-forwarded-call";
+
+    await syncJeffInteractionFromCompletedCall({
+      voiceSessionId: session.id,
+      leadId: session.lead_id ?? null,
+      callsLogId,
+      direction: session.direction ?? null,
+      callerType: session.caller_type ?? null,
+      disposition,
+      callbackRequested: Boolean(session.callback_requested),
+      callbackTime: (session.callback_time as string | null) ?? null,
+      wasTransferred,
+      transferTarget: (session.transferred_to as string | null) ?? null,
+      summary: summaryText,
+      policyVersion: JEFF_OUTBOUND_POLICY_VERSION,
+    });
 
     // ── Write dialer_event ──────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -443,7 +460,6 @@ async function handleEndOfCallReport(
     }
 
     // Dispatch missed-call alert if caller wasn't transferred to Logan
-    const wasTransferred = endedReason === "assistant-forwarded-call";
     const isSellerOrUnknown = !session.caller_type || session.caller_type === "seller" || session.caller_type === "unknown";
     if (!wasTransferred && isSellerOrUnknown) {
       const fromNumber = message.call?.customer?.number ?? null;

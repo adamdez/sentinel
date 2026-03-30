@@ -4224,6 +4224,20 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const [taskSaving, setTaskSaving] = useState(false);
   const [activeTask, setActiveTask] = useState<TaskItem | null>(null);
   const [activeTaskLoading, setActiveTaskLoading] = useState(false);
+  const [jeffInteractions, setJeffInteractions] = useState<Array<{
+    id: string;
+    status: "needs_review" | "task_open" | "reviewed" | "resolved";
+    interaction_type: string;
+    summary: string | null;
+    callback_requested: boolean;
+    callback_due_at: string | null;
+    callback_timing_text: string | null;
+    transfer_outcome: string | null;
+    voice_session_id: string;
+    task_id: string | null;
+    task?: { id: string; title: string | null; status: string | null; due_at: string | null } | null;
+  }>>([]);
+  const [jeffInteractionsLoading, setJeffInteractionsLoading] = useState(false);
 
   const calling = twilioCallState === "dialing" || twilioCallState === "connected";
 
@@ -7072,6 +7086,31 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   useEffect(() => { fetchActiveTask(); }, [fetchActiveTask]);
 
+  const fetchJeffInteractions = useCallback(async () => {
+    if (!clientFile?.id) return;
+    setJeffInteractionsLoading(true);
+    try {
+      const { data: { session: sess } } = await supabase.auth.getSession();
+      const hdrs: Record<string, string> = sess?.access_token
+        ? { Authorization: `Bearer ${sess.access_token}` }
+        : {};
+      const res = await fetch(
+        `/api/voice/jeff/interactions?leadId=${clientFile.id}&limit=3`,
+        { headers: hdrs },
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setJeffInteractions(json.interactions ?? []);
+      }
+    } catch {
+      setJeffInteractions([]);
+    } finally {
+      setJeffInteractionsLoading(false);
+    }
+  }, [clientFile?.id]);
+
+  useEffect(() => { fetchJeffInteractions(); }, [fetchJeffInteractions]);
+
   const handleTaskSave = useCallback(async (result: QuickTaskResult) => {
     if (!clientFile?.id) return;
     setTaskSaving(true);
@@ -7132,6 +7171,24 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       toast.error("Failed to delete task");
     }
   }, [activeTask, fetchActiveTask]);
+
+  const handleJeffInteractionStatus = useCallback(async (interactionId: string, status: "reviewed" | "resolved") => {
+    try {
+      const { data: { session: sess } } = await supabase.auth.getSession();
+      const hdrs: Record<string, string> = sess?.access_token
+        ? { Authorization: `Bearer ${sess.access_token}`, "Content-Type": "application/json" }
+        : { "Content-Type": "application/json" };
+      await fetch("/api/voice/jeff/interactions", {
+        method: "PATCH",
+        headers: hdrs,
+        body: JSON.stringify({ id: interactionId, status }),
+      });
+      fetchJeffInteractions();
+      toast.success(status === "resolved" ? "Jeff follow-up resolved" : "Jeff follow-up reviewed");
+    } catch {
+      toast.error("Failed to update Jeff follow-up");
+    }
+  }, [fetchJeffInteractions]);
 
   const handleDial = useCallback((phoneNumber?: string) => {
 
@@ -8899,6 +8956,74 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                           )}
                         </div>
 
+                        <div className="px-4 pt-3">
+                          {jeffInteractionsLoading ? (
+                            <div className="rounded-xl border border-overlay-6 bg-overlay-2 p-3 flex items-center gap-2 text-xs text-muted-foreground/50">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading Jeff context…
+                            </div>
+                          ) : jeffInteractions.length > 0 ? (
+                            <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-3 space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5">
+                                  <Brain className="h-3.5 w-3.5 text-sky-300 shrink-0" />
+                                  <span className="text-xs font-semibold uppercase tracking-wider text-sky-200">Jeff Context</span>
+                                </div>
+                                <span className="text-[11px] text-sky-100/70">{jeffInteractions[0].status.replace("_", " ")}</span>
+                              </div>
+                              {jeffInteractions.map((interaction) => (
+                                <div key={interaction.id} className="rounded-lg border border-sky-500/10 bg-background/20 p-2.5 space-y-1.5">
+                                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                                    <Badge variant="outline">{interaction.interaction_type.replace("_", " ")}</Badge>
+                                    {interaction.callback_due_at ? (
+                                      <span className="text-amber-300/80">Due {formatDueDateLabel(interaction.callback_due_at).text}</span>
+                                    ) : null}
+                                    {interaction.transfer_outcome ? (
+                                      <span className="text-muted-foreground/60">{interaction.transfer_outcome.replace(/_/g, " ")}</span>
+                                    ) : null}
+                                  </div>
+                                  {interaction.summary ? (
+                                    <p className="text-xs text-foreground/85 leading-relaxed">{interaction.summary}</p>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground/60">AI-captured Jeff conversation. Review the linked task or recent call context.</p>
+                                  )}
+                                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                                    {interaction.task?.id ? (
+                                      <Link
+                                        href="/tasks"
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-colors"
+                                      >
+                                        <Pin className="h-3 w-3" /> Open Task
+                                      </Link>
+                                    ) : null}
+                                    <button
+                                      onClick={() => handleDial()}
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors"
+                                    >
+                                      <Phone className="h-3 w-3" /> Call Now
+                                    </button>
+                                    {interaction.status !== "reviewed" && interaction.status !== "resolved" ? (
+                                      <button
+                                        onClick={() => handleJeffInteractionStatus(interaction.id, "reviewed")}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-sky-200 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 transition-colors"
+                                      >
+                                        <CheckCircle2 className="h-3 w-3" /> Mark Reviewed
+                                      </button>
+                                    ) : null}
+                                    {interaction.status !== "resolved" && !interaction.task?.id ? (
+                                      <button
+                                        onClick={() => handleJeffInteractionStatus(interaction.id, "resolved")}
+                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-muted-foreground/70 bg-overlay-3 hover:bg-overlay-6 border border-overlay-6 transition-colors"
+                                      >
+                                        <CheckCircle className="h-3 w-3" /> Resolve
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+
                         <OverviewTab
                           cf={overviewClientFile}
                           computedArv={computedArv}
@@ -9168,6 +9293,4 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   );
 
 }
-
-
 

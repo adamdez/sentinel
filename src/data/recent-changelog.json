@@ -1,5 +1,25 @@
 [
   {
+    "hash": "322b12bb",
+    "date": "2026-03-30",
+    "message": "Add Jeff date range controls"
+  },
+  {
+    "hash": "9207e1a6",
+    "date": "2026-03-30",
+    "message": "Add inline Jeff call reviews"
+  },
+  {
+    "hash": "7dfe8acf",
+    "date": "2026-03-30",
+    "message": "Tighten Jeff outbound controls and activity"
+  },
+  {
+    "hash": "17d94608",
+    "date": "2026-03-30",
+    "message": "Fix PPL email intake pipeline and add Jeff outbound system"
+  },
+  {
     "hash": "30e589ed",
     "date": "2026-03-30",
     "message": "Tighten dialer pickup KPI classification"
@@ -103,25 +123,5 @@
     "hash": "38dda690",
     "date": "2026-03-27",
     "message": "Add comprehensive API handoff documentation for intake queue UI build"
-  },
-  {
-    "hash": "7e40e778",
-    "date": "2026-03-27",
-    "message": "Add SMS alerts for PPL leads to Logan and Adam"
-  },
-  {
-    "hash": "c92a15cf",
-    "date": "2026-03-27",
-    "message": "Phase 1-5: Special Lead Intake Queue Implementation"
-  },
-  {
-    "hash": "81774d6b",
-    "date": "2026-03-27",
-    "message": "feat: unmissable full-width inbound call banner on every page"
-  },
-  {
-    "hash": "705217fa",
-    "date": "2026-03-27",
-    "message": "fix: inbound calls ring browser instantly — never blocked by slow DB"
   }
 ]

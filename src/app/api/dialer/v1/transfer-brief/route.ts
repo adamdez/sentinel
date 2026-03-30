@@ -111,6 +111,7 @@ export async function GET(req: NextRequest) {
   let recentCalls: Array<Record<string, unknown>> = [];
   let openTasks: Array<Record<string, unknown>> = [];
   let leadUrl: string | null = null;
+  let jeffInteraction: Record<string, unknown> | null = null;
 
   if (leadId) {
     leadUrl = `/leads/${leadId}`;
@@ -187,6 +188,28 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Pull the linked Jeff interaction when present so later callback review
+  // sees the same handoff object the Jeff page and client file use.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: interaction } = await (sb.from("jeff_interactions") as any)
+    .select("id, interaction_type, status, summary, callback_requested, callback_due_at, callback_timing_text, transfer_outcome, task_id")
+    .eq("voice_session_id", session.id)
+    .maybeSingle();
+
+  if (interaction) {
+    jeffInteraction = {
+      id: interaction.id,
+      interactionType: interaction.interaction_type,
+      status: interaction.status,
+      summary: interaction.summary ?? null,
+      callbackRequested: Boolean(interaction.callback_requested),
+      callbackDueAt: interaction.callback_due_at ?? null,
+      callbackTimingText: interaction.callback_timing_text ?? null,
+      transferOutcome: interaction.transfer_outcome ?? null,
+      taskId: interaction.task_id ?? null,
+    };
+  }
+
   return NextResponse.json({
     brief: {
       voiceSessionId: session.id,
@@ -200,6 +223,7 @@ export async function GET(req: NextRequest) {
       transferReason: session.transfer_reason,
       callerType: session.caller_type,
       transferBrief: session.transfer_brief,
+      jeffInteraction,
       discoverySlots,
       jeffNotes,
       summary: session.summary,

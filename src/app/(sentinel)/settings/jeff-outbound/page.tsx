@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
+import { useModal } from "@/providers/modal-provider";
 
 type JeffSettings = {
   enabled: boolean;
@@ -113,6 +114,38 @@ type JeffActivity = {
     pausedPhonesExist: boolean;
     overduePhonesPiling: boolean;
   };
+};
+
+type JeffInteraction = {
+  id: string;
+  lead_id: string | null;
+  interaction_type: string;
+  status: "needs_review" | "task_open" | "reviewed" | "resolved";
+  summary: string | null;
+  callback_requested: boolean;
+  callback_due_at: string | null;
+  callback_timing_text: string | null;
+  transfer_outcome: string | null;
+  voice_session_id: string;
+  task_id: string | null;
+  lead?: {
+    id: string;
+    status: string | null;
+    assigned_to: string | null;
+    properties?: {
+      owner_name?: string | null;
+      address?: string | null;
+      city?: string | null;
+      state?: string | null;
+    } | null;
+  } | null;
+  task?: {
+    id: string;
+    title: string | null;
+    status: string | null;
+    due_at: string | null;
+    task_type: string | null;
+  } | null;
 };
 
 type ReviewDraft = {
@@ -236,11 +269,13 @@ function buildJeffRange(preset: JeffRangePreset) {
 }
 
 export default function JeffOutboundPage() {
+  const { openModal } = useModal();
   const [settings, setSettings] = useState<JeffSettings | null>(null);
   const [canControl, setCanControl] = useState(false);
   const [queue, setQueue] = useState<JeffQueueRow[]>([]);
   const [kpis, setKpis] = useState<JeffKpis | null>(null);
   const [reviews, setReviews] = useState<JeffReview[]>([]);
+  const [interactions, setInteractions] = useState<JeffInteraction[]>([]);
   const [activity, setActivity] = useState<JeffActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -260,12 +295,13 @@ export default function JeffOutboundPage() {
         from: new Date(`${rangeFrom}T00:00:00`).toISOString(),
         to: new Date(`${rangeTo}T23:59:59.999`).toISOString(),
       });
-      const [controlRes, queueRes, kpiRes, reviewRes, activityRes] = await Promise.all([
+      const [controlRes, queueRes, kpiRes, reviewRes, activityRes, interactionRes] = await Promise.all([
         fetch("/api/voice/jeff/control", { headers, cache: "no-store" }),
         fetch("/api/voice/jeff/queue", { headers, cache: "no-store" }),
         fetch(`/api/voice/jeff/kpis?${rangeParams}`, { headers, cache: "no-store" }),
         fetch("/api/voice/jeff/reviews?limit=20", { headers, cache: "no-store" }),
         fetch(`/api/voice/jeff-activity?${rangeParams}`, { headers, cache: "no-store" }),
+        fetch("/api/voice/jeff/interactions?unresolvedOnly=true&limit=20", { headers, cache: "no-store" }),
       ]);
 
       const controlJson = await controlRes.json();
@@ -273,6 +309,7 @@ export default function JeffOutboundPage() {
       const kpiJson = await kpiRes.json();
       const reviewJson = await reviewRes.json();
       const activityJson = await activityRes.json();
+      const interactionJson = await interactionRes.json();
 
       if (!controlRes.ok) throw new Error(controlJson.error ?? "Failed to load Jeff control");
       setSettings(controlJson.settings);
@@ -281,6 +318,7 @@ export default function JeffOutboundPage() {
       setKpis(kpiJson.kpis ?? null);
       setReviews(reviewJson.reviews ?? []);
       setActivity(activityJson ?? null);
+      setInteractions(interactionJson.interactions ?? []);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to load Jeff control center");
     } finally {
@@ -298,19 +336,23 @@ export default function JeffOutboundPage() {
       from: new Date(`${rangeFrom}T00:00:00`).toISOString(),
       to: new Date(`${rangeTo}T23:59:59.999`).toISOString(),
     });
-    const [kpiRes, reviewRes] = await Promise.all([
+    const [kpiRes, reviewRes, interactionRes] = await Promise.all([
       fetch(`/api/voice/jeff/kpis?${rangeParams}`, { headers, cache: "no-store" }),
       fetch("/api/voice/jeff/reviews?limit=20", { headers, cache: "no-store" }),
+      fetch("/api/voice/jeff/interactions?unresolvedOnly=true&limit=20", { headers, cache: "no-store" }),
     ]);
 
     const kpiJson = await kpiRes.json();
     const reviewJson = await reviewRes.json();
+    const interactionJson = await interactionRes.json();
 
     if (!kpiRes.ok) throw new Error(kpiJson.error ?? "Failed to refresh Jeff KPIs");
     if (!reviewRes.ok) throw new Error(reviewJson.error ?? "Failed to refresh Jeff reviews");
+    if (!interactionRes.ok) throw new Error(interactionJson.error ?? "Failed to refresh Jeff interactions");
 
     setKpis(kpiJson.kpis ?? null);
     setReviews(reviewJson.reviews ?? []);
+    setInteractions(interactionJson.interactions ?? []);
   }, [rangeFrom, rangeTo]);
 
   const applyRangePreset = useCallback((preset: JeffRangePreset) => {
@@ -517,6 +559,19 @@ export default function JeffOutboundPage() {
       setLaunchingQueue(false);
     }
   }, [callableQueue, canControl, load, settings]);
+
+  const updateInteractionStatus = useCallback(async (interactionId: string, status: JeffInteraction["status"]) => {
+    const res = await fetch("/api/voice/jeff/interactions", {
+      method: "PATCH",
+      headers: await sentinelAuthHeaders(),
+      body: JSON.stringify({ id: interactionId, status }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error ?? "Failed to update Jeff interaction");
+    }
+    await refreshJeffFeedback();
+  }, [refreshJeffFeedback]);
 
   const statusBadge = useMemo(() => {
     if (!settings) return null;
@@ -787,6 +842,94 @@ export default function JeffOutboundPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <GlassCard hover={false} className="xl:col-span-2 space-y-3">
+              <div className="flex items-center gap-2">
+                <ListChecks className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold">Jeff follow-up triage</h3>
+                <Badge variant="outline">{interactions.length} open</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground/70">
+                This is Jeff’s review layer, not a second callback queue. Tasks stay the human action inbox; this list keeps the AI handoff context tied to the right seller file.
+              </p>
+              <div className="space-y-2">
+                {interactions.length ? interactions.map((interaction) => (
+                  <div key={interaction.id} className="rounded-xl border border-border/15 bg-muted/5 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <div className="text-sm font-medium">
+                          {interaction.lead?.properties?.owner_name ?? (interaction.lead_id ? `Lead ${interaction.lead_id.slice(0, 8)}` : "Unknown lead")}
+                        </div>
+                        <div className="text-xs text-muted-foreground/60">
+                          {interaction.lead?.properties?.address ?? "Address unavailable"}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">{interaction.interaction_type.replace(/_/g, " ")}</Badge>
+                        <Badge variant="secondary">{interaction.status.replace(/_/g, " ")}</Badge>
+                      </div>
+                    </div>
+                    {interaction.summary ? (
+                      <p className="mt-2 text-sm text-foreground/85 leading-relaxed">{interaction.summary}</p>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground/70">
+                      {interaction.callback_due_at ? <span>Due {formatDateTime(interaction.callback_due_at)}</span> : null}
+                      {interaction.callback_timing_text ? <span>Asked for {interaction.callback_timing_text}</span> : null}
+                      {interaction.transfer_outcome ? <span>{interaction.transfer_outcome.replace(/_/g, " ")}</span> : null}
+                      {interaction.task?.id ? <span>Task {interaction.task.status ?? "pending"}</span> : <span>No task linked</span>}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {interaction.lead_id ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => openModal("client-file", { leadId: interaction.lead_id })}
+                        >
+                          Open client file
+                        </Button>
+                      ) : null}
+                      {interaction.task?.id ? (
+                        <Link
+                          href="/tasks"
+                          className="inline-flex items-center rounded-md border border-primary/20 bg-primary/10 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/20"
+                        >
+                          Open task
+                        </Link>
+                      ) : null}
+                      {interaction.status !== "reviewed" && interaction.status !== "resolved" ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => updateInteractionStatus(interaction.id, "reviewed").catch((error) => {
+                            toast.error(error instanceof Error ? error.message : "Failed to mark reviewed");
+                          })}
+                        >
+                          Mark reviewed
+                        </Button>
+                      ) : null}
+                      {interaction.status !== "resolved" && !interaction.task?.id ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => updateInteractionStatus(interaction.id, "resolved").catch((error) => {
+                            toast.error(error instanceof Error ? error.message : "Failed to resolve Jeff interaction");
+                          })}
+                        >
+                          Resolve
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                )) : (
+                  <div className="rounded-xl border border-dashed border-border/20 p-4 text-sm text-muted-foreground/70">
+                    No unresolved Jeff interactions in this window.
+                  </div>
+                )}
+              </div>
+            </GlassCard>
+
             <GlassCard hover={false} className="xl:col-span-2 space-y-3">
               <div className="flex items-center gap-2">
                 <PhoneCall className="h-4 w-4 text-primary" />
