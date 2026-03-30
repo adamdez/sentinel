@@ -1,9 +1,9 @@
 /**
- * Outbound Prep — bounded preparation layer for future AI-assisted outbound
- * warm-transfer pilot.
+ * Outbound Prep — bounded preparation and review layer that supports
+ * the live Jeff outbound system.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * IMPORTANT: PREP ONLY — NO LIVE CALLS
+ * IMPORTANT: PREP / REVIEW ONLY — NOT THE LIVE CONTROL CENTER
  * ─────────────────────────────────────────────────────────────────────────────
  * This module assembles hypothetical call-prep frames for review.
  * It does NOT place calls, trigger Twilio, or produce executable automation.
@@ -17,10 +17,10 @@
  *   seller page links, opener script reference, and a handoff-readiness verdict.
  *
  * WHY THIS EXISTS:
- *   1. Lets Adam evaluate pilot readiness across leads before authorizing automation.
+ *   1. Lets Adam evaluate Jeff readiness across leads before scaling outbound volume.
  *   2. Gives Logan a pre-call brief format for operator-led outbound.
  *   3. Establishes the review/annotation contract so quality evaluation runs
- *      on simulated frames before any live run produces real data.
+ *      on prep frames before any prompt or policy change is trusted broadly.
  *
  * DATA SOURCES (all read-side, no writes to CRM):
  *   - CRMLeadContext snapshot (qual signals, call history)

@@ -73,13 +73,13 @@ export default function CampaignsPage() {
             No campaigns configured.
           </p>
           <p className="text-xs text-muted-foreground/60 mb-4">
-            Campaigns will appear here when the outbound pilot is activated.
+            Campaigns will appear here when outbound programs are configured. Jeff outbound is controlled separately in settings.
           </p>
           <Link
-            href="/settings/outbound-pilot"
+            href="/settings/jeff-outbound"
             className="text-xs text-primary hover:underline"
           >
-            Go to Outbound Pilot Settings &rarr;
+            Go to Jeff Outbound &rarr;
           </Link>
         </GlassCard>
       )}

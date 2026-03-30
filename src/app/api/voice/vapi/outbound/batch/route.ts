@@ -17,6 +17,7 @@ import { getDialerUser, createDialerClient } from "@/lib/dialer/db";
 import { isDnc } from "@/lib/dnc-check";
 import { initiateOutboundCall, isBusinessHours } from "@/providers/voice/vapi-adapter";
 import { normalizePhoneForCompare } from "@/lib/dialer/auto-cycle";
+import { getJeffLaunchGate, getJeffQueueEntry, JEFF_OUTBOUND_POLICY_VERSION, updateJeffQueueEntry } from "@/lib/jeff-control";
 
 const MAX_BATCH_SIZE = 10;
 
@@ -48,16 +49,21 @@ export async function POST(req: NextRequest) {
 
   // ── Business hours gate ───────────────────────────────────────────────
   const hours = isBusinessHours();
-  if (!hours.isOpen) {
+  const gate = await getJeffLaunchGate("manual_priority", {
+    isBusinessHoursOpen: hours.isOpen,
+    nextOpenTime: hours.nextOpenTime,
+  });
+  if (!gate.allowed) {
     return NextResponse.json(
-      { error: `Outside business hours. Next open: ${hours.nextOpenTime}` },
+      { error: gate.reason ?? "Jeff batch is blocked." },
       { status: 403 },
     );
   }
 
-  if (leadIds.length > MAX_BATCH_SIZE) {
+  const maxBatchSize = Math.min(MAX_BATCH_SIZE, gate.settings.perRunMaxCalls);
+  if (leadIds.length > maxBatchSize) {
     return NextResponse.json(
-      { error: `Maximum ${MAX_BATCH_SIZE} leads per batch` },
+      { error: `Maximum ${maxBatchSize} leads per batch` },
       { status: 400 },
     );
   }
@@ -82,13 +88,14 @@ export async function POST(req: NextRequest) {
   const skipped: Array<{ leadId: string; reason: string }> = [];
 
   for (const lead of leads) {
+    const queueEntry = await getJeffQueueEntry(String(lead.id));
     const phones = (lead.lead_phones as Array<{ phone: string; is_primary: boolean; position: number }>) ?? [];
     const sorted = [...phones].sort((a, b) => {
       if (a.is_primary && !b.is_primary) return -1;
       if (!a.is_primary && b.is_primary) return 1;
       return (a.position ?? 999) - (b.position ?? 999);
     });
-    let bestPhone = sorted[0]?.phone;
+    let bestPhone = queueEntry?.selectedPhone ?? sorted[0]?.phone;
     const ownerName = (lead.properties as Record<string, unknown>)?.owner_name as string || "Unknown";
 
     // Fallback: check auto-cycle phones if lead_phones empty
@@ -192,7 +199,13 @@ export async function POST(req: NextRequest) {
         to_number: lead.phone,
         status: "ringing",
         caller_type: "seller",
-        metadata: { batch_id: batchId, initiated_by: user.id },
+        metadata: {
+          batch_id: batchId,
+          initiated_by: user.id,
+          source: "jeff-manual-batch",
+          jeff_lane: "manual_priority",
+          jeff_policy_version: gate.settings.policyVersion ?? JEFF_OUTBOUND_POLICY_VERSION,
+        },
         auto_cycle_lead_id: autoCycleLeadId,
         auto_cycle_phone_id: autoCyclePhoneId,
       })
@@ -215,6 +228,12 @@ export async function POST(req: NextRequest) {
         .update({ vapi_call_id: vapiCallId, status: "ai_handling" })
         .eq("id", session.id);
 
+      await updateJeffQueueEntry(lead.id, {
+        lastVoiceSessionId: session.id,
+        lastCallStatus: "ai_handling",
+        lastCalledAt: new Date().toISOString(),
+      });
+
       console.log("[outbound/batch] Call placed:", {
         leadId: lead.id.slice(0, 8),
         phone: `***${lead.phone.slice(-4)}`,
@@ -231,6 +250,12 @@ export async function POST(req: NextRequest) {
       await (sb.from("voice_sessions") as any)
         .update({ status: "failed" })
         .eq("id", session.id);
+
+      await updateJeffQueueEntry(lead.id, {
+        lastVoiceSessionId: session.id,
+        lastCallStatus: "failed",
+        lastCalledAt: new Date().toISOString(),
+      });
 
       // Put in skipped so the UI toast shows the actual error
       skipped.push({ leadId: lead.id, reason: `Vapi: ${msg}` });

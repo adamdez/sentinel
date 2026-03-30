@@ -149,6 +149,7 @@ export default function SettingsPage() {
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
+              { label: "Jeff Outbound", href: "/settings/jeff-outbound", desc: "Adam control center for outbound AI calls" },
               { label: "Prompt Registry", href: "/settings/prompt-registry", desc: "AI prompt versions and tracking" },
               { label: "Voice Registry", href: "/settings/voice-registry", desc: "Voice scripts and handoff rules" },
               { label: "Source Policies", href: "/settings/source-policies", desc: "Evidence source trust policies" },

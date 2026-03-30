@@ -753,7 +753,7 @@ function toE164(raw: string): string {
   return `+1${digits.slice(0, 10)}`;
 }
 
-type DialerMode = "queue" | "autoCycle" | "jeff";
+type DialerMode = "queue" | "autoCycle";
 
 function DialerPageInner() {
   const { currentUser, ghostMode } = useSentinelStore();
@@ -777,7 +777,7 @@ function DialerPageInner() {
   const [callState, setCallState] = useState<CallState>("idle");
   const [currentLead, setCurrentLead] = useState<QueueLead | null>(null);
   const [dialerMode, setDialerMode] = useState<DialerMode>("queue");
-  const autoCycleMode = dialerMode !== "queue";
+  const autoCycleMode = dialerMode === "autoCycle";
   const [queueSkipTracing, setQueueSkipTracing] = useState(false);
   const [currentDialedPhone, setCurrentDialedPhone] = useState<string | null>(null);
   const [currentCallLogId, setCurrentCallLogId] = useState<string | null>(null);
@@ -787,11 +787,6 @@ function DialerPageInner() {
   const [dispositionPending, setDispositionPending] = useState(false);
   const [smsLoading, setSmsLoading] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
-
-  // Jeff batch state
-  const [jeffSelectedLeads, setJeffSelectedLeads] = useState<Set<string>>(new Set());
-  const [jeffBatchInProgress, setJeffBatchInProgress] = useState(false);
-  const [jeffLeadStatuses, setJeffLeadStatuses] = useState<Map<string, JeffCallStatus>>(new Map());
 
   // Phone cycling roster — fetched from lead_phones API when a lead is loaded
   const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
@@ -1265,63 +1260,6 @@ function DialerPageInner() {
       toast.error("Could not remove");
     }
   }, [currentLead?.id, refetchAutoCycle]);
-
-  // ── Jeff batch handlers ──────────────────────────────────────────────
-  const jeffReadyLeads = useMemo(
-    () => autoCycleQueue.filter((l) => l.autoCycle.readyNow),
-    [autoCycleQueue],
-  );
-
-  const handleJeffToggle = useCallback((leadId: string) => {
-    setJeffSelectedLeads((prev) => {
-      const next = new Set(prev);
-      if (next.has(leadId)) next.delete(leadId);
-      else next.add(leadId);
-      return next;
-    });
-  }, []);
-
-  const handleJeffSelectAllReady = useCallback(() => {
-    setJeffSelectedLeads((prev) => {
-      const allReadyIds = new Set(jeffReadyLeads.map((l) => l.id));
-      const allSelected = jeffReadyLeads.every((l) => prev.has(l.id));
-      return allSelected ? new Set<string>() : allReadyIds;
-    });
-  }, [jeffReadyLeads]);
-
-  const handleSendJeff = useCallback(async () => {
-    if (jeffSelectedLeads.size === 0) return;
-    setJeffBatchInProgress(true);
-    try {
-      const res = await fetch("/api/voice/vapi/outbound/batch", {
-        method: "POST",
-        headers: await authHeaders(),
-        body: JSON.stringify({ leadIds: Array.from(jeffSelectedLeads) }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Could not send Jeff batch");
-        return;
-      }
-      const skippedIds = new Set((data.skipped ?? []).map((s: { leadId: string }) => s.leadId));
-      const newStatuses = new Map(jeffLeadStatuses);
-      for (const id of jeffSelectedLeads) {
-        newStatuses.set(id, skippedIds.has(id) ? "skipped" : "queued");
-      }
-      setJeffLeadStatuses(newStatuses);
-      setJeffSelectedLeads(new Set());
-      const queuedCount = jeffSelectedLeads.size - skippedIds.size;
-      if (queuedCount > 0) toast.success(`Jeff is calling ${queuedCount} lead${queuedCount === 1 ? "" : "s"}...`);
-      if (skippedIds.size > 0) {
-        const reasons = (data.skipped ?? []).map((s: { leadId: string; reason: string }) => s.reason).join(", ");
-        toast.warning(`${skippedIds.size} skipped: ${reasons}`);
-      }
-    } catch {
-      toast.error("Could not send Jeff batch");
-    } finally {
-      setJeffBatchInProgress(false);
-    }
-  }, [jeffSelectedLeads, jeffLeadStatuses]);
 
   // ── Incoming call handler — attached to provider-managed Device ──
   useEffect(() => {
@@ -3266,7 +3204,7 @@ function DialerPageInner() {
               </h2>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-0.5 rounded-[8px] border border-border/20 p-0.5">
-                  {([["queue", "Queue"], ["autoCycle", "Auto Cycle"], ["jeff", "Jeff"]] as const).map(([mode, label]) => (
+                  {([["queue", "Queue"], ["autoCycle", "Auto Cycle"]] as const).map(([mode, label]) => (
                     <button
                       key={mode}
                       onClick={() => setDialerMode(mode)}
@@ -3289,6 +3227,12 @@ function DialerPageInner() {
                 >
                   Refresh
                 </button>
+                <a
+                  href="/settings/jeff-outbound"
+                  className="text-sm text-emerald-300/80 hover:text-emerald-200 transition-colors"
+                >
+                  Jeff Outbound
+                </a>
                 {!autoCycleMode && dialerMode === "queue" && (
                   <button
                     onClick={handleSkipTraceQueue}

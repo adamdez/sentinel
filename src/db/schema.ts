@@ -919,3 +919,63 @@ export const featureFlags = pgTable("feature_flags", {
   createdAt:      timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt:      timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const jeffControlSettings = pgTable("jeff_control_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  controlKey: text("control_key").notNull().unique().default("primary"),
+  enabled: boolean("enabled").notNull().default(false),
+  mode: text("mode").notNull().default("manual_only"),
+  softPaused: boolean("soft_paused").notNull().default(false),
+  emergencyHalt: boolean("emergency_halt").notNull().default(false),
+  dailyMaxCalls: integer("daily_max_calls").notNull().default(120),
+  perRunMaxCalls: integer("per_run_max_calls").notNull().default(10),
+  businessHoursOnly: boolean("business_hours_only").notNull().default(true),
+  allowedStartHour: integer("allowed_start_hour").notNull().default(7),
+  allowedEndHour: integer("allowed_end_hour").notNull().default(20),
+  qualityReviewEnabled: boolean("quality_review_enabled").notNull().default(true),
+  policyVersion: text("policy_version").notNull().default("jeff-outbound-2026-03-30"),
+  notes: text("notes"),
+  metadata: jsonb("metadata").notNull().default({}),
+  updatedBy: uuid("updated_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_jeff_control_settings_key").on(table.controlKey),
+]);
+
+export const jeffQueueEntries = pgTable("jeff_queue_entries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  leadId: uuid("lead_id").notNull().references(() => leads.id, { onDelete: "cascade" }),
+  selectedPhone: text("selected_phone"),
+  queueTier: text("queue_tier").notNull().default("eligible"),
+  queueStatus: text("queue_status").notNull().default("active"),
+  approvedBy: uuid("approved_by"),
+  approvedAt: timestamp("approved_at", { withTimezone: true }).notNull().defaultNow(),
+  lastVoiceSessionId: uuid("last_voice_session_id"),
+  lastCallStatus: text("last_call_status"),
+  lastCalledAt: timestamp("last_called_at", { withTimezone: true }),
+  notes: text("notes"),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("uq_jeff_queue_lead").on(table.leadId),
+  index("idx_jeff_queue_entries_tier_status").on(table.queueTier, table.queueStatus, table.approvedAt),
+  index("idx_jeff_queue_entries_last_called").on(table.lastCalledAt),
+]);
+
+export const jeffQualityReviews = pgTable("jeff_quality_reviews", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  voiceSessionId: uuid("voice_session_id").notNull(),
+  reviewerId: uuid("reviewer_id").notNull(),
+  reviewTags: text("review_tags").array().notNull().default([]),
+  score: integer("score"),
+  notes: text("notes"),
+  policyVersion: text("policy_version").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("uq_jeff_quality_review").on(table.voiceSessionId, table.reviewerId),
+  index("idx_jeff_quality_reviews_session").on(table.voiceSessionId),
+  index("idx_jeff_quality_reviews_created").on(table.createdAt),
+]);

@@ -8,6 +8,7 @@ import {
 } from "@/providers/voice/vapi-functions";
 import type { TransferResult } from "@/providers/voice/vapi-functions";
 import { buildAssistantConfig, buildOutboundAssistantConfig, isBusinessHours } from "@/providers/voice/vapi-adapter";
+import { JEFF_OUTBOUND_POLICY_VERSION } from "@/lib/jeff-control";
 import { notifyMissedCall } from "@/lib/notify";
 import { sendTransferFailedSMS } from "@/providers/voice/vapi-sms";
 import { trackedDelivery } from "@/lib/delivery-tracker";
@@ -167,7 +168,7 @@ Keep it warm and brief — don't run the full discovery flow after hours. Just t
       triggerRef: message.call?.id ?? "unknown",
       leadId: undefined,
       model: "claude-sonnet-4-6",
-      promptVersion: isOutbound ? "outbound-v1" : "inbound-v1",
+      promptVersion: isOutbound ? JEFF_OUTBOUND_POLICY_VERSION : "inbound-v1",
       inputs: {
         callId: message.call?.id,
         fromNumber: message.call?.customer?.number ?? null,

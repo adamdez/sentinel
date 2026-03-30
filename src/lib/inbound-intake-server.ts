@@ -97,28 +97,30 @@ export async function processInboundCandidateToIntakeQueue(args: {
 
   const intakeLeadId = insertedIntakeLead?.id;
 
-  // Log the intake event
+  // Log the intake event (non-fatal — don't let event_log failure block the intake)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("event_log") as any).insert({
-    user_id: actorId,
-    action: "intake.queued",
-    entity_type: "intake_lead",
-    entity_id: intakeLeadId,
-    details: {
-      intake_lead_id: intakeLeadId,
-      source_channel: candidate.sourceChannel,
-      source_vendor: candidate.sourceVendor,
-      source_category: sourceCategory,
-      intake_method: candidate.intakeMethod,
-      duplicate_status: duplicate.level,
-      duplicate_of_lead_id: duplicate.leadId || null,
-      owner_name: candidate.ownerName,
-      phone: candidate.phone,
-      email: candidate.email,
-      county: candidate.county,
-      property_address: candidate.propertyAddress,
-    },
-  }).catch(() => {});
+  try {
+    await (sb.from("event_log") as any).insert({
+      user_id: actorId,
+      action: "intake.queued",
+      entity_type: "intake_lead",
+      entity_id: intakeLeadId,
+      details: {
+        intake_lead_id: intakeLeadId,
+        source_channel: candidate.sourceChannel,
+        source_vendor: candidate.sourceVendor,
+        source_category: sourceCategory,
+        intake_method: candidate.intakeMethod,
+        duplicate_status: duplicate.level,
+        duplicate_of_lead_id: duplicate.leadId || null,
+        owner_name: candidate.ownerName,
+        phone: candidate.phone,
+        email: candidate.email,
+        county: candidate.county,
+        property_address: candidate.propertyAddress,
+      },
+    });
+  } catch { /* non-fatal */ }
 
   // Send SMS alert to Logan + Adam for PPL leads
   // Map of known PPL sources that should trigger alerts

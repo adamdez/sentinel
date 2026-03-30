@@ -1,16 +1,16 @@
 "use client";
 
 /**
- * /settings/outbound-pilot — Outbound Pilot Preparation Surface
+ * /settings/outbound-pilot — Outbound Prep and Review Surface
  *
- * Adam-only review surface for evaluating future AI-assisted outbound
- * warm-transfer pilot readiness. NEVER places live calls.
+ * Adam-facing prep and review surface for Jeff outbound.
+ * This page does not own live Jeff start/stop controls.
  *
  * Surfaces:
  *   1. Pilot status banner (prep_only — always shown, cannot be changed here)
  *   2. Readiness summary: total frames, ready %, top fallback reasons
  *   3. Frame queue: filterable list of assembled prep frames with review controls
- *   4. Config notes: what would need to change to enable a live pilot
+ *   4. Config notes: how prep supports the live Jeff system
  *
  * BOUNDARY: No Twilio. No outbound calls. No cron. Read/review only.
  */
@@ -56,13 +56,11 @@ function PilotStatusBanner() {
       <ShieldAlert className="w-4 h-4 text-foreground mt-0.5 flex-shrink-0" />
       <div className="space-y-1 min-w-0">
         <p className="text-sm font-semibold text-foreground">
-          PREP ONLY — No live calls
+          Prep and review only
         </p>
         <p className="text-xs text-foreground/70 leading-relaxed">
-          This surface assembles and reviews hypothetical outbound warm-transfer prep frames.
-          No calls are placed, no Twilio connections are initiated, and no autonomous outbound
-          automation is active. Activating a live pilot requires an explicit database migration,
-          code change, and operator authorization.
+          This surface assembles and reviews outbound prep frames for Jeff. It is not the live
+          control center. Use Jeff Outbound settings for real start, stop, queue, and KPI control.
         </p>
       </div>
     </div>
@@ -76,7 +74,7 @@ function ReadinessSummaryCard({ summary }: { summary: PilotReadinessSummary }) {
     <GlassCard className="p-4 space-y-3">
       <div className="flex items-center gap-2">
         <BarChart2 className="w-4 h-4 text-muted-foreground/50" />
-        <h3 className="text-sm font-semibold text-foreground/80">Pilot Readiness Summary</h3>
+        <h3 className="text-sm font-semibold text-foreground/80">Jeff Prep Readiness</h3>
         <Badge variant="outline" className="text-xs border-border/30 text-foreground bg-muted/5">
           Hypothetical
         </Badge>
@@ -135,7 +133,7 @@ function PilotConfigNotes() {
     <GlassCard className="p-4 space-y-3">
       <div className="flex items-center gap-2">
         <FileText className="w-4 h-4 text-muted-foreground/50" />
-        <h3 className="text-sm font-semibold text-foreground/80">What changes for a live pilot</h3>
+        <h3 className="text-sm font-semibold text-foreground/80">How prep supports live Jeff</h3>
       </div>
       <div className="space-y-2 text-xs text-muted-foreground/70 leading-relaxed">
         <p>
@@ -190,8 +188,8 @@ function PilotConfigNotes() {
             .
           </li>
           <li>
-            <span className="font-medium text-muted-foreground/80">Adam authorization</span> — explicit
-            written authorization from Adam required before any live call is placed.
+            <span className="font-medium text-muted-foreground/80">Adam authorization</span> — Jeff
+            control changes and live launch policy still belong to Adam.
           </li>
         </ol>
       </div>
@@ -237,7 +235,7 @@ export default function OutboundPilotPage() {
   const summary = derivePilotReadiness(frames);
 
   return (
-    <PageShell title="Outbound Pilot Prep">
+    <PageShell title="Outbound Prep Review">
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 
         {/* ── Breadcrumb ── */}
@@ -246,7 +244,7 @@ export default function OutboundPilotPage() {
             <ArrowLeft className="w-3 h-3" /> Settings
           </Link>
           <ChevronRight className="w-3 h-3" />
-          <span className="text-muted-foreground/70">Outbound Pilot Prep</span>
+          <span className="text-muted-foreground/70">Outbound Prep Review</span>
         </div>
 
         {/* ── Page header ── */}
@@ -254,10 +252,10 @@ export default function OutboundPilotPage() {
           <div className="space-y-1">
             <h1 className="text-lg font-semibold text-foreground/90 flex items-center gap-2">
               <Phone className="w-4 h-4 text-muted-foreground/50" />
-              Outbound Pilot Prep
+              Outbound Prep Review
             </h1>
             <p className="text-xs text-muted-foreground/50">
-              Review assembled prep frames for future AI-assisted outbound warm-transfer pilot.
+              Review prep frames and readiness diagnostics that support live Jeff outbound.
               No calls are placed from this surface.
             </p>
           </div>

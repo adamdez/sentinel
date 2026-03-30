@@ -127,6 +127,17 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
+        // Parse date header defensively — non-standard RFC 2822 formats can throw
+        let receivedAt: string | null = null;
+        if (detail.date) {
+          try {
+            const parsed = new Date(detail.date);
+            receivedAt = isNaN(parsed.getTime()) ? null : parsed.toISOString();
+          } catch {
+            receivedAt = null;
+          }
+        }
+
         const candidate = normalizeInboundCandidate({
           sourceChannel: "email_intake",
           sourceVendor: match.providerName.toLowerCase().replace(/\s+/g, "_"),
@@ -147,8 +158,26 @@ export async function GET(req: NextRequest) {
             auto_polled: true,
             matched_provider: match.providerName,
           },
-          receivedAt: detail.date ? new Date(detail.date).toISOString() : null,
+          receivedAt,
         });
+
+        // Gate: only ingest emails that contain actual lead data.
+        // Require an owner/seller name — PPL lead emails always include one (labeled "Owner:", "Seller:", etc.).
+        // Phone/address alone isn't enough — signatures contain those too.
+        const hasLeadData = !!candidate.ownerName;
+        if (!hasLeadData) {
+          // Mark as read so we don't keep re-checking noise
+          await markAsRead(accessToken, message.id);
+          skipped++;
+          results.push({
+            messageId: message.id,
+            from: message.from,
+            subject: message.subject,
+            status: "skipped_no_lead_data",
+            provider: match.providerName,
+          });
+          continue;
+        }
 
         const result = await processInboundCandidateToIntakeQueue({
           sb,
@@ -178,12 +207,14 @@ export async function GET(req: NextRequest) {
           provider: match.providerName,
         });
       } catch (err) {
-        console.error(`[intake-email-poll] Failed to process message ${message.id}:`, err);
+        const errMsg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+        console.error(`[intake-email-poll] Failed to process message ${message.id}: ${errMsg}`);
         results.push({
           messageId: message.id,
           from: message.from,
           subject: message.subject,
           status: "error",
+          error: errMsg,
         });
       }
     }

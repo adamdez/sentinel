@@ -28,6 +28,7 @@ import { withCronTracking } from "@/lib/cron-run-tracker";
 import { initiateOutboundCall, isBusinessHours } from "@/providers/voice/vapi-adapter";
 import { scrubLead } from "@/lib/compliance";
 import { nextAttemptPlan } from "@/lib/dialer/auto-cycle";
+import { getJeffLaunchGate, JEFF_OUTBOUND_POLICY_VERSION, updateJeffQueueEntry } from "@/lib/jeff-control";
 
 const MAX_CALLS_PER_RUN = 10;
 const DELAY_BETWEEN_CALLS_MS = 3_000;
@@ -50,8 +51,12 @@ export async function GET(req: NextRequest) {
 
   // ── Business hours gate (belt + suspenders — schedule alone isn't enough) ──
   const hours = isBusinessHours();
-  if (!hours.isOpen) {
-    return NextResponse.json({ skipped: true, reason: `Outside business hours. Next: ${hours.nextOpenTime}` });
+  const gate = await getJeffLaunchGate("auto_retry", {
+    isBusinessHoursOpen: hours.isOpen,
+    nextOpenTime: hours.nextOpenTime,
+  });
+  if (!gate.allowed) {
+    return NextResponse.json({ skipped: true, reason: gate.reason ?? "Jeff auto-retry blocked." });
   }
 
   // ── Feature flag gate ────────────────────────────────────────────────
@@ -104,7 +109,7 @@ export async function GET(req: NextRequest) {
       .lte("next_due_at", now)
       .in("dialer_auto_cycle_leads.cycle_status", ["ready", "waiting"])
       .order("next_due_at", { ascending: true })
-      .limit(MAX_CALLS_PER_RUN);
+      .limit(Math.min(MAX_CALLS_PER_RUN, gate.settings.perRunMaxCalls));
 
     if (queryErr) {
       console.error("[jeff-auto-redial] Query failed:", queryErr.message);
@@ -200,6 +205,16 @@ export async function GET(req: NextRequest) {
         user_id: string;
       };
 
+      const leadGate = await getJeffLaunchGate("auto_retry", {
+        leadId,
+        isBusinessHoursOpen: hours.isOpen,
+        nextOpenTime: hours.nextOpenTime,
+      });
+      if (!leadGate.allowed) {
+        skipped.push({ leadId, phone, reason: leadGate.reason ?? "jeff_auto_blocked" });
+        continue;
+      }
+
       // Special intake suppression: Skip if lead came from intake queue and hasn't been approved
       // (next_action = 'review' means waiting for operator approval)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -269,6 +284,8 @@ export async function GET(req: NextRequest) {
             auto_cycle_lead_id: cycleLeadRow.id,
             attempt_number: (dp.attempt_count ?? 0) + 1,
             voicemail_drop: dp.voicemail_drop_next ?? false,
+            jeff_lane: "auto_retry",
+            jeff_policy_version: gate.settings.policyVersion ?? JEFF_OUTBOUND_POLICY_VERSION,
           },
           auto_cycle_lead_id: cycleLeadRow.id,
           auto_cycle_phone_id: dp.id,
@@ -290,6 +307,12 @@ export async function GET(req: NextRequest) {
         await (sb.from("voice_sessions") as any)
           .update({ vapi_call_id: vapiCallId, status: "ai_handling" })
           .eq("id", session.id);
+
+        await updateJeffQueueEntry(leadId, {
+          lastVoiceSessionId: session.id,
+          lastCallStatus: "ai_handling",
+          lastCalledAt: new Date().toISOString(),
+        });
 
         // Reset consecutive failure counter on successful API call
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -324,6 +347,12 @@ export async function GET(req: NextRequest) {
         await (sb.from("voice_sessions") as any)
           .update({ status: "failed" })
           .eq("id", session.id);
+
+        await updateJeffQueueEntry(leadId, {
+          lastVoiceSessionId: session.id,
+          lastCallStatus: "failed",
+          lastCalledAt: new Date().toISOString(),
+        });
 
         // ── CRITICAL: Advance the auto-cycle even on Vapi failure ────
         // Without this, the phone stays active with a past next_due_at,

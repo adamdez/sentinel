@@ -17,6 +17,7 @@ import { getDialerUser, createDialerClient } from "@/lib/dialer/db";
 import { isDnc } from "@/lib/dnc-check";
 import { initiateOutboundCall, isBusinessHours } from "@/providers/voice/vapi-adapter";
 import { normalizePhoneForCompare } from "@/lib/dialer/auto-cycle";
+import { getJeffLaunchGate, getJeffQueueEntry, JEFF_OUTBOUND_POLICY_VERSION, updateJeffQueueEntry } from "@/lib/jeff-control";
 
 function buildSiteUrl(req: NextRequest): string {
   const env = process.env.NEXT_PUBLIC_SITE_URL
@@ -46,14 +47,20 @@ export async function POST(req: NextRequest) {
 
   // ── Business hours gate ───────────────────────────────────────────────
   const hours = isBusinessHours();
-  if (!hours.isOpen) {
+  const gate = await getJeffLaunchGate("manual_priority", {
+    leadId,
+    isBusinessHoursOpen: hours.isOpen,
+    nextOpenTime: hours.nextOpenTime,
+  });
+  if (!gate.allowed) {
     return NextResponse.json(
-      { error: `Outside business hours. Next open: ${hours.nextOpenTime}` },
+      { error: gate.reason ?? "Jeff call is blocked." },
       { status: 403 },
     );
   }
 
   const sb = createDialerClient();
+  const queueEntry = await getJeffQueueEntry(leadId);
 
   // ── Fetch lead + phone ──────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,7 +78,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Use specified phone, or pick best from lead_phones (primary first, then lowest position)
-  let phone = body.phoneNumber;
+  let phone = body.phoneNumber ?? queueEntry?.selectedPhone ?? undefined;
   if (!phone) {
     const phones = (lead.lead_phones as Array<{ phone: string; is_primary: boolean; position: number }>) ?? [];
     const sorted = [...phones].sort((a, b) => {
@@ -156,7 +163,12 @@ export async function POST(req: NextRequest) {
       to_number: phone,
       status: "ringing",
       caller_type: "seller",
-      metadata: { initiated_by: user.id },
+      metadata: {
+        initiated_by: user.id,
+        source: "jeff-manual-single",
+        jeff_lane: "manual_priority",
+        jeff_policy_version: gate.settings.policyVersion ?? JEFF_OUTBOUND_POLICY_VERSION,
+      },
       auto_cycle_lead_id: autoCycleLeadId,
       auto_cycle_phone_id: autoCyclePhoneId,
     })
@@ -186,6 +198,14 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", voiceSessionId);
 
+    if (queueEntry) {
+      await updateJeffQueueEntry(leadId, {
+        lastVoiceSessionId: voiceSessionId,
+        lastCallStatus: "ai_handling",
+        lastCalledAt: new Date().toISOString(),
+      });
+    }
+
     const leadName = [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "Unknown";
     console.log("[outbound/call] Call initiated:", {
       leadId: leadId.slice(0, 8),
@@ -211,6 +231,14 @@ export async function POST(req: NextRequest) {
     await (sb.from("voice_sessions") as any)
       .update({ status: "failed" })
       .eq("id", voiceSessionId);
+
+    if (queueEntry) {
+      await updateJeffQueueEntry(leadId, {
+        lastVoiceSessionId: voiceSessionId,
+        lastCallStatus: "failed",
+        lastCalledAt: new Date().toISOString(),
+      });
+    }
 
     return NextResponse.json({ error: `Call initiation failed: ${msg}` }, { status: 500 });
   }

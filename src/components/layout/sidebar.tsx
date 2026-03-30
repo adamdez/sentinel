@@ -131,6 +131,7 @@ const adminSection: NavSection = {
   title: "Admin",
   items: [
     { label: "Analytics", href: "/analytics", icon: BarChart3 },
+    { label: "Jeff Outbound", href: "/settings/jeff-outbound", icon: Phone },
     { label: "Settings", href: "/settings", icon: Settings },
     { label: "Gmail", href: "/gmail", icon: Mail },
     { label: "Import", href: "/admin/import", icon: Upload },

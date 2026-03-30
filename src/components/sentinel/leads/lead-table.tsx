@@ -152,6 +152,7 @@ export function LeadTable({
   const [bulkClaiming, setBulkClaiming] = useState(false);
   const [bulkAutoCycling, setBulkAutoCycling] = useState(false);
   const [bulkQueueing, setBulkQueueing] = useState(false);
+  const [bulkJeffQueueing, setBulkJeffQueueing] = useState(false);
 
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
   const someSelected = selectedIds.size > 0;
@@ -367,22 +368,63 @@ export function LeadTable({
     }
   }, [selectedIds, onRefresh]);
 
-  const addToQueue = useCallback(async (leadId: string) => {
+  const handleBulkAddToJeffQueue = useCallback(async () => {
+    const count = selectedIds.size;
+    if (count === 0) return;
+    setBulkJeffQueueing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired. Please sign in again.");
+        return;
+      }
+
+      const res = await fetch("/api/voice/jeff/queue", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          leadIds: Array.from(selectedIds),
+          queueTier: "active",
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to add leads to Jeff queue");
+        return;
+      }
+
+      setSelectedIds(new Set());
+      toast.success(`Added ${count} lead${count === 1 ? "" : "s"} to Jeff Queue`);
+      onRefresh?.();
+    } finally {
+      setBulkJeffQueueing(false);
+    }
+  }, [selectedIds, onRefresh]);
+
+  const addToJeffQueue = useCallback(async (leadId: string) => {
     setQueuingId(leadId);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/leads/${leadId}/queue`, {
+      const res = await fetch("/api/voice/jeff/queue", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
+        body: JSON.stringify({
+          leadIds: [leadId],
+          queueTier: "active",
+        }),
       });
       if (!res.ok) throw new Error("Failed");
-      toast.success("Added to call queue");
+      toast.success("Added to Jeff Queue");
       onRefresh?.();
     } catch {
-      toast.error("Could not add to queue");
+      toast.error("Could not add to Jeff Queue");
     } finally {
       setQueuingId(null);
     }
@@ -446,6 +488,22 @@ export function LeadTable({
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs text-xs">
               Adds claimed leads to the dialer Auto Cycle queue (same list Jeff uses). Each lead must be yours, in Lead stage, and have a phone.
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleBulkAddToJeffQueue}
+                disabled={bulkJeffQueueing}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-violet-500/10 text-violet-300 border border-violet-500/25 hover:bg-violet-500/20 transition-colors disabled:opacity-50"
+              >
+                {bulkJeffQueueing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
+                Add to Jeff Queue ({selectedIds.size})
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs text-xs">
+              Adds the selected leads to Jeff&apos;s supervised queue so Adam can control exactly who Jeff is allowed to call.
             </TooltipContent>
           </Tooltip>
           <button
@@ -657,6 +715,18 @@ export function LeadTable({
 
             {/* Actions (call + delete only) */}
             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => addToJeffQueue(lead.id)}
+                    disabled={queuingId === lead.id}
+                    className="h-6 w-6 flex items-center justify-center rounded-md text-violet-300/80 hover:text-violet-200 hover:bg-violet-500/10 transition-colors disabled:opacity-40"
+                  >
+                    {queuingId === lead.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="text-xs">Add to Jeff Queue</TooltipContent>
+              </Tooltip>
               {lead.ownerPhone && (
                 <Tooltip>
                   <TooltipTrigger asChild>

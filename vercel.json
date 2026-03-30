@@ -72,6 +72,10 @@
     {
       "path": "/api/cron/jeff-auto-redial",
       "schedule": "*/2 16-23,0-2 * * 1-6"
+    },
+    {
+      "path": "/api/cron/intake-email-poll",
+      "schedule": "*/2 * * * *"
     }
   ]
 }
