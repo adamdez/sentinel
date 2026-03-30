@@ -3912,26 +3912,6 @@ function DialerPageInner() {
 
         <div className="lg:col-span-3">
           <div className="space-y-2 lg:sticky lg:top-24">
-            <GlassCard hover={false} className="!p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <MessageSquare className="h-3.5 w-3.5 text-primary" />
-                    Comms Rail
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground/60">
-                    Jeff, SMS, and missed-call awareness stay here while the calling lane stays clean.
-                  </p>
-                </div>
-                <a
-                  href="/settings/jeff-outbound"
-                  className="text-xs font-medium text-emerald-300/80 hover:text-emerald-200 transition-colors"
-                >
-                  Jeff Outbound
-                </a>
-              </div>
-            </GlassCard>
-
             <JeffMessagesBanner onCallBack={handleJeffCallback} onLinked={refetchQueue} />
 
             <SmsMessagesPanel onCallNumber={(phone) => {
