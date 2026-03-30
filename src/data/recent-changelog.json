@@ -1,5 +1,10 @@
 [
   {
+    "hash": "388e060f",
+    "date": "2026-03-30",
+    "message": "Add Jeff interaction follow-up flow and dialer cleanup"
+  },
+  {
     "hash": "322b12bb",
     "date": "2026-03-30",
     "message": "Add Jeff date range controls"
@@ -118,10 +123,5 @@
     "hash": "7e4ad986",
     "date": "2026-03-27",
     "message": "Add real-time monitoring dashboard for intake queue testing"
-  },
-  {
-    "hash": "38dda690",
-    "date": "2026-03-27",
-    "message": "Add comprehensive API handoff documentation for intake queue UI build"
   }
 ]

@@ -891,6 +891,7 @@ function DialerPageInner() {
     const p = searchParams.get("phone") ?? "";
     return p.replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
   });
+  const [manualDialExpanded, setManualDialExpanded] = useState(false);
   const [manualDialing, setManualDialing] = useState(false);
   const [manualCallLogId, setManualCallLogId] = useState<string | null>(null);
   const [manualSessionId, setManualSessionId] = useState<string | null>(null);
@@ -912,6 +913,7 @@ function DialerPageInner() {
   const [smsComposeOpen, setSmsComposeOpen] = useState(false);
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
+  const manualDialOpen = manualDialExpanded || manualStatus !== "idle" || smsComposeOpen;
 
   // Phone auto-match: when a manual call connects, look up the number
   const [phoneMatchResult, setPhoneMatchResult] = useState<{
@@ -2738,13 +2740,40 @@ function DialerPageInner() {
 
       {/* ── Quick Manual Dial ─────────────────────────────────────────── */}
       <GlassCard hover={false} className="!p-3 mb-3">
-        <div className="flex items-center gap-2 mb-2">
-          <Phone className="h-3 w-3 text-muted-foreground" />
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Manual Dial
-          </h2>
-        </div>
+        <button
+          type="button"
+          onClick={() => setManualDialExpanded((value) => !value)}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Phone className="h-3 w-3 text-muted-foreground" />
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Manual Dial
+              </h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground/65">
+              {manualDialOpen
+                ? "Use this for one-off calls that are outside the live queue."
+                : "Collapsed so the queue and active call lane stay first."}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {!manualDialOpen && (
+              <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground/60">
+                <span className="rounded-full border border-overlay-6 bg-overlay-3 px-2.5 py-1 font-mono">
+                  {formatUsPhone(manualPhone) || "(509) 555-1234"}
+                </span>
+              </div>
+            )}
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-overlay-6 bg-overlay-3 text-muted-foreground transition-colors hover:text-foreground">
+              <ChevronRight className={cn("h-4 w-4 transition-transform", manualDialOpen && "rotate-90")} />
+            </span>
+          </div>
+        </button>
 
+        {manualDialOpen && (
+          <div className="mt-3 border-t border-overlay-6 pt-3">
         <div className="flex items-center gap-3">
           <div className="flex-1 relative">
             <Input
@@ -2809,6 +2838,8 @@ function DialerPageInner() {
             </Button>
           )}
         </div>
+        </div>
+        )}
 
         {/* Inline SMS Compose */}
         <AnimatePresence>
@@ -3172,14 +3203,14 @@ function DialerPageInner() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-4">
-          <GlassCard hover={false} className="!p-3">
+          <GlassCard hover={false} className="!p-3 min-h-[520px]">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5 text-primary" />
                 {autoCycleMode ? "Auto Cycle" : "Dial Queue"}
                 <CallSequenceGuide />
               </h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
                 <div className="flex items-center gap-0.5 rounded-[8px] border border-border/20 p-0.5">
                   {([["queue", "Queue"], ["autoCycle", "Auto Cycle"]] as const).map(([mode, label]) => (
                     <button
@@ -3233,9 +3264,12 @@ function DialerPageInner() {
                 ))}
               </div>
             ) : displayedQueue.length === 0 ? (
-              <div className="text-center py-6 space-y-3">
-                <Phone className="h-6 w-6 mx-auto text-muted-foreground/20" />
-                <p className="text-sm text-muted-foreground/60">No one is queued to call yet.</p>
+              <div className="flex min-h-[400px] flex-col items-center justify-center text-center py-6 space-y-4">
+                <Phone className="h-8 w-8 mx-auto text-muted-foreground/20" />
+                <div className="space-y-1">
+                  <p className="text-base font-medium text-foreground/80">No one is queued to call yet.</p>
+                  <p className="text-sm text-muted-foreground/60">Pick the right leads in Lead Queue, add them here, then call straight down the stack.</p>
+                </div>
                 <a href="/leads">
                   <button className="px-5 py-2 rounded-[10px] text-xs font-bold text-primary bg-primary/[0.10] border border-primary/25
                     hover:bg-primary/[0.18] hover:border-primary/35 shadow-[0_0_14px_var(--shadow-soft)]
@@ -3243,10 +3277,10 @@ function DialerPageInner() {
                     Go to Lead Queue
                   </button>
                 </a>
-                <p className="text-xs text-muted-foreground/50">Select leads and use Add to Dial Queue. Skip Trace Queue will fill the saved phone roster before you call.</p>
+                <p className="max-w-sm text-xs text-muted-foreground/50">Select leads and use Add to Dial Queue. Skip Trace Queue fills the saved phone roster before you call.</p>
               </div>
             ) : (
-              <div className="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-overlay-8 scrollbar-track-transparent">
+              <div className="space-y-1.5 max-h-[66vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-overlay-8 scrollbar-track-transparent">
                 {displayedQueue.map((lead, idx) => {
                   const isActive = currentLead?.id === lead.id;
                   const rowNextAction = deriveNextActionVisibility({
@@ -3840,10 +3874,36 @@ function DialerPageInner() {
                 </GlassCard>
               </motion.div>
             ) : (
-              <GlassCard hover={false} className="flex items-center justify-center h-64">
-                <div className="text-center text-muted-foreground/40">
-                  <Phone className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Select a lead from the queue to begin</p>
+              <GlassCard hover={false} className="flex min-h-[520px] items-center justify-center">
+                <div className="max-w-sm text-center text-muted-foreground/40">
+                  <Phone className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  {displayedQueue.length > 0 ? (
+                    <>
+                      <p className="text-base text-foreground/80">Choose the next seller and start calling.</p>
+                      <p className="mt-2 text-sm text-muted-foreground/55">
+                        {displayedQueue[0]?.properties?.owner_name ?? "The next queued lead"} is ready in your live stack.
+                      </p>
+                      <Button
+                        type="button"
+                        className="mt-4 gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
+                        onClick={() => {
+                          const firstLead = displayedQueue[0];
+                          if (firstLead) {
+                            setCurrentLead(firstLead);
+                            setPhoneIndex(0);
+                          }
+                        }}
+                      >
+                        <Phone className="h-4 w-4" />
+                        Open next queued lead
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-base text-foreground/80">Your active call workspace appears here.</p>
+                      <p className="mt-2 text-sm text-muted-foreground/55">Queue a few leads first so this screen opens straight into the next call instead of dead space.</p>
+                    </>
+                  )}
                 </div>
               </GlassCard>
             )}
@@ -3851,7 +3911,7 @@ function DialerPageInner() {
         </div>
 
         <div className="lg:col-span-3">
-          <div className="space-y-3 lg:sticky lg:top-24">
+          <div className="space-y-2 lg:sticky lg:top-24">
             <GlassCard hover={false} className="!p-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -3859,8 +3919,8 @@ function DialerPageInner() {
                     <MessageSquare className="h-3.5 w-3.5 text-primary" />
                     Comms Rail
                   </p>
-                  <p className="mt-1 text-sm text-muted-foreground/65">
-                    Keep Jeff and SMS visible without taking over the calling lane.
+                  <p className="mt-1 text-xs text-muted-foreground/60">
+                    Jeff, SMS, and missed-call awareness stay here while the calling lane stays clean.
                   </p>
                 </div>
                 <a
