@@ -140,6 +140,16 @@ function ThreadDetail({
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const forceScrollRef = useRef(true);
+
+  const updateStickiness = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    shouldStickToBottomRef.current = distanceFromBottom < 80;
+  }, []);
 
   const fetchMessages = useCallback(async () => {
     const headers = await authHeaders();
@@ -159,7 +169,10 @@ function ThreadDetail({
   }, [fetchMessages]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (forceScrollRef.current || shouldStickToBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: forceScrollRef.current ? "auto" : "smooth" });
+      forceScrollRef.current = false;
+    }
   }, [messages]);
 
   const handleSend = async () => {
@@ -181,6 +194,7 @@ function ThreadDetail({
         toast.error(data.error ?? "Send failed");
       } else {
         setDraft("");
+        forceScrollRef.current = true;
         await fetchMessages();
       }
     } catch {
@@ -222,7 +236,11 @@ function ThreadDetail({
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto min-h-0 space-y-2 py-1 scrollbar-thin">
+      <div
+        ref={scrollContainerRef}
+        onScroll={updateStickiness}
+        className="flex-1 overflow-y-auto min-h-0 space-y-2 py-1 scrollbar-thin"
+      >
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/40" />

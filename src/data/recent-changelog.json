@@ -1,5 +1,10 @@
 [
   {
+    "hash": "6238a960",
+    "date": "2026-03-30",
+    "message": "Refine dialer layout hierarchy"
+  },
+  {
     "hash": "388e060f",
     "date": "2026-03-30",
     "message": "Add Jeff interaction follow-up flow and dialer cleanup"
@@ -118,10 +123,5 @@
     "hash": "c8c22ae1",
     "date": "2026-03-27",
     "message": "feat: PPL Intake Queue — full pipeline with Gmail auto-poll, claim workflow, and sidebar nav"
-  },
-  {
-    "hash": "7e4ad986",
-    "date": "2026-03-27",
-    "message": "Add real-time monitoring dashboard for intake queue testing"
   }
 ]
