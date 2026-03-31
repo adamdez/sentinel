@@ -269,6 +269,78 @@ describe("dial queue service", () => {
     expect(summary.phonesSaved).toBe(2);
   });
 
+  it("falls back when skip-trace state columns are missing but still traces queued leads", async () => {
+    const rows = [
+      {
+        id: "lead-1",
+        property_id: "prop-1",
+        assigned_to: "adam",
+        dial_queue_active: true,
+        properties: { address: "123 Main", city: "Spokane", state: "WA", zip: "99201", owner_name: "A Owner", owner_flags: {} },
+      },
+    ];
+
+    const sb = {
+      from(table: string) {
+        if (table !== "leads") throw new Error(`Unexpected table ${table}`);
+        return {
+          select(columns?: string) {
+            const includesSkipTraceStatus = typeof columns === "string" && columns.includes("skip_trace_status");
+            const buildChain = (currentRows: Array<Record<string, unknown>>) => ({
+              eq(column: string, value: unknown) {
+                return buildChain(currentRows.filter((row) => row[column] === value));
+              },
+              order() {
+                if (includesSkipTraceStatus) {
+                  return Promise.resolve({
+                    data: null,
+                    error: { message: "column leads.skip_trace_status does not exist", code: "42703" },
+                  });
+                }
+                return Promise.resolve({ data: [...currentRows], error: null });
+              },
+            });
+
+            return buildChain(rows);
+          },
+          update() {
+            return {
+              eq() {
+                return { error: null };
+              },
+            };
+          },
+        };
+      },
+    };
+
+    runSkipTraceIntelMock.mockResolvedValue({
+      ran: true,
+      reason: "completed",
+      phonesFound: 2,
+      emailsFound: 0,
+      newFactsCreated: 1,
+      phonesPromoted: 2,
+      saveFailures: 0,
+      saveErrors: [],
+      providers: ["tracerfy"],
+    });
+
+    const summary = await runSkipTraceForQueuedLeads({
+      sb: sb as never,
+      userId: "adam",
+    });
+
+    expect(runSkipTraceIntelMock).toHaveBeenCalledTimes(1);
+    expect(summary).toMatchObject({
+      checked: 1,
+      tracedNow: 1,
+      skippedAlreadyTraced: 0,
+      failed: 0,
+      phonesSaved: 2,
+    });
+  });
+
   it("continues queue skip trace when one lead throws unexpectedly", async () => {
     const sb = createMockSb([
       {

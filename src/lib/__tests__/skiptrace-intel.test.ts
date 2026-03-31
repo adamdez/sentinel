@@ -18,7 +18,10 @@ import { dualSkipTrace } from "@/lib/skip-trace";
 import { createArtifact, createFact } from "@/lib/intelligence";
 import { runSkipTraceIntel } from "@/lib/skiptrace-intel";
 
-function createSupabaseMock() {
+function createSupabaseMock(options?: {
+  missingSkipTraceColumns?: boolean;
+}) {
+  const missingSkipTraceColumns = options?.missingSkipTraceColumns ?? false;
   const properties = new Map<string, Record<string, unknown>>([
     ["prop-1", { id: "prop-1", owner_phone: null, owner_email: null, owner_flags: {} }],
   ]);
@@ -103,6 +106,12 @@ function createSupabaseMock() {
           return {
             async eq(_column: string, value: unknown) {
               leadUpdates.push({ id: String(value), values });
+              if (missingSkipTraceColumns) {
+                return {
+                  data: null,
+                  error: { message: "column leads.skip_trace_status does not exist", code: "42703" },
+                };
+              }
               return { data: null, error: null };
             },
           };
@@ -209,5 +218,29 @@ describe("runSkipTraceIntel", () => {
       skip_trace_status: "completed",
       skip_trace_last_error: null,
     });
+  });
+
+  it("still promotes phones when skip-trace status columns are missing on leads", async () => {
+    const { sb, phoneInserts, propertyUpdates } = createSupabaseMock({
+      missingSkipTraceColumns: true,
+    });
+    vi.mocked(createServerClient).mockReturnValue(sb as never);
+
+    const result = await runSkipTraceIntel({
+      leadId: "lead-1",
+      propertyId: "prop-1",
+      address: "1314 E Bridgeport Ave",
+      city: "Spokane",
+      state: "WA",
+      zip: "99207",
+      ownerName: "Ashley Hamilton",
+      reason: "queue_bulk",
+    });
+
+    expect(result.reason).toBe("completed");
+    expect(result.phonesPromoted).toBe(1);
+    expect(result.saveFailures).toBe(0);
+    expect(phoneInserts).toHaveLength(1);
+    expect(propertyUpdates).toHaveLength(1);
   });
 });

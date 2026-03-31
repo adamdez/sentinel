@@ -38,6 +38,52 @@ function getErrorMessage(error: unknown): string {
   return "unknown_error";
 }
 
+function isMissingSkipTraceColumnError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  const code = (
+    error && typeof error === "object" && "code" in error
+      ? (error as { code?: unknown }).code
+      : null
+  );
+
+  return code === "42703" || (
+    message.includes("skip_trace_status")
+    || message.includes("skip_trace_completed_at")
+    || message.includes("skip_trace_last_attempted_at")
+    || message.includes("skip_trace_last_error")
+  );
+}
+
+async function updateLeadSkipTraceStateBestEffort(
+  sb: ReturnType<typeof createServerClient>,
+  leadId: string,
+  values: Record<string, unknown>,
+  tag: string,
+): Promise<void> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (sb.from("leads") as any)
+      .update(values)
+      .eq("id", leadId);
+
+    if (!error) return;
+
+    if (isMissingSkipTraceColumnError(error)) {
+      console.warn(`${tag} Skip-trace state columns missing on leads; continuing without status write for lead ${leadId}`);
+      return;
+    }
+
+    console.error(`${tag} Failed to write skip-trace state for lead ${leadId}:`, error);
+  } catch (error) {
+    if (isMissingSkipTraceColumnError(error)) {
+      console.warn(`${tag} Skip-trace state columns missing on leads; continuing without status write for lead ${leadId}`);
+      return;
+    }
+
+    console.error(`${tag} Failed to write skip-trace state for lead ${leadId}:`, error);
+  }
+}
+
 let _founderIds: Set<string> | null = null;
 
 function getFounderIds(): Set<string> {
@@ -221,14 +267,11 @@ export async function runSkipTraceIntel(
 
   if (!ctx.address) {
     console.log(`${tag} Skipped - no address for lead ${ctx.leadId}`);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("leads") as any)
-      .update({
-        skip_trace_status: "failed",
-        skip_trace_last_attempted_at: new Date().toISOString(),
-        skip_trace_last_error: "missing_address",
-      })
-      .eq("id", ctx.leadId);
+    await updateLeadSkipTraceStateBestEffort(sb, ctx.leadId, {
+      skip_trace_status: "failed",
+      skip_trace_last_attempted_at: new Date().toISOString(),
+      skip_trace_last_error: "missing_address",
+    }, tag);
 
     return {
       ran: false,
@@ -260,14 +303,11 @@ export async function runSkipTraceIntel(
 
   const t0 = Date.now();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("leads") as any)
-    .update({
-      skip_trace_status: "running",
-      skip_trace_last_attempted_at: new Date().toISOString(),
-      skip_trace_last_error: null,
-    })
-    .eq("id", ctx.leadId);
+  await updateLeadSkipTraceStateBestEffort(sb, ctx.leadId, {
+    skip_trace_status: "running",
+    skip_trace_last_attempted_at: new Date().toISOString(),
+    skip_trace_last_error: null,
+  }, tag);
 
   const fingerprints = await collectFingerprints(sb, ctx.leadId, ctx.propertyId);
   console.log(`${tag} Fingerprints: ${fingerprints.phones.size} phones, ${fingerprints.emails.size} emails already known`);
@@ -284,13 +324,10 @@ export async function runSkipTraceIntel(
     });
   } catch (error) {
     console.error(`${tag} dualSkipTrace failed:`, error);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("leads") as any)
-      .update({
-        skip_trace_status: "failed",
-        skip_trace_last_error: "provider_error",
-      })
-      .eq("id", ctx.leadId);
+    await updateLeadSkipTraceStateBestEffort(sb, ctx.leadId, {
+      skip_trace_status: "failed",
+      skip_trace_last_error: "provider_error",
+    }, tag);
 
     return {
       ran: true,
@@ -486,14 +523,11 @@ export async function runSkipTraceIntel(
 
   await markDebounce(sb, ctx.propertyId);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("leads") as any)
-    .update({
-      skip_trace_status: saveFailures > 0 ? "partial_failure" : "completed",
-      skip_trace_completed_at: saveFailures > 0 ? null : new Date().toISOString(),
-      skip_trace_last_error: saveFailures > 0 ? saveErrors.join("; ").slice(0, 500) : null,
-    })
-    .eq("id", ctx.leadId);
+  await updateLeadSkipTraceStateBestEffort(sb, ctx.leadId, {
+    skip_trace_status: saveFailures > 0 ? "partial_failure" : "completed",
+    skip_trace_completed_at: saveFailures > 0 ? null : new Date().toISOString(),
+    skip_trace_last_error: saveFailures > 0 ? saveErrors.join("; ").slice(0, 500) : null,
+  }, tag);
 
   if (persistenceWarnings.length > 0) {
     console.warn(`${tag} Completed with intelligence persistence warnings: ${persistenceWarnings.join("; ")}`);

@@ -7,6 +7,7 @@ type SupabaseClientLike = {
 };
 
 const QUEUE_SKIP_TRACE_CONCURRENCY = 3;
+const QUEUE_SKIP_TRACE_PROPERTY_SELECT = "properties(id, address, city, state, zip, owner_name, owner_flags)";
 
 export interface QueueLeadSelection {
   id: string;
@@ -52,6 +53,115 @@ function getErrorMessage(error: unknown): string {
 function isMissingDialQueueColumnError(error: unknown): boolean {
   const message = getErrorMessage(error).toLowerCase();
   return message.includes("dial_queue_active") || message.includes("dial_queue_added_at") || message.includes("dial_queue_added_by");
+}
+
+function isMissingSkipTraceColumnError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes("skip_trace_status")
+    || message.includes("skip_trace_completed_at")
+    || message.includes("skip_trace_last_attempted_at")
+    || message.includes("skip_trace_last_error")
+  );
+}
+
+type QueueSkipTraceLeadRow = {
+  id: string;
+  property_id: string | null;
+  assigned_to: string | null;
+  skip_trace_status?: string | null;
+  properties?: {
+    id?: string | null;
+    address?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+    owner_name?: string | null;
+    owner_flags?: Record<string, unknown> | null;
+  } | null;
+};
+
+function buildQueueSkipTraceSelect(includeSkipTraceStatus: boolean): string {
+  return includeSkipTraceStatus
+    ? `id, property_id, assigned_to, skip_trace_status, ${QUEUE_SKIP_TRACE_PROPERTY_SELECT}`
+    : `id, property_id, assigned_to, ${QUEUE_SKIP_TRACE_PROPERTY_SELECT}`;
+}
+
+async function queryQueuedLeadsForSkipTrace(input: {
+  sb: SupabaseClientLike;
+  userId: string;
+}, options: {
+  includeDialQueueColumns: boolean;
+  includeSkipTraceStatus: boolean;
+}): Promise<{
+  data?: QueueSkipTraceLeadRow[] | null;
+  error?: { message?: string | null; code?: string | null } | null;
+}> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = ((input.sb.from("leads") as any)
+    .select(buildQueueSkipTraceSelect(options.includeSkipTraceStatus))
+    .eq("assigned_to", input.userId));
+
+  if (options.includeDialQueueColumns) {
+    query = query
+      .eq("dial_queue_active", true)
+      .order("dial_queue_added_at", { ascending: false });
+  } else {
+    query = query.order("updated_at", { ascending: false });
+  }
+
+  return query as Promise<{
+    data?: QueueSkipTraceLeadRow[] | null;
+    error?: { message?: string | null; code?: string | null } | null;
+  }>;
+}
+
+async function loadQueuedLeadsForSkipTrace(input: {
+  sb: SupabaseClientLike;
+  userId: string;
+}): Promise<QueueSkipTraceLeadRow[]> {
+  let result = await queryQueuedLeadsForSkipTrace(input, {
+    includeDialQueueColumns: true,
+    includeSkipTraceStatus: true,
+  });
+
+  if (!result.error) {
+    return (result.data ?? []) as QueueSkipTraceLeadRow[];
+  }
+
+  const missingDialQueueColumns = isMissingDialQueueColumnError(result.error);
+  const missingSkipTraceColumns = isMissingSkipTraceColumnError(result.error);
+
+  if (!missingDialQueueColumns && !missingSkipTraceColumns) {
+    throw new Error(result.error.message ?? "Failed to load queued leads for skip trace");
+  }
+
+  result = await queryQueuedLeadsForSkipTrace(input, {
+    includeDialQueueColumns: !missingDialQueueColumns,
+    includeSkipTraceStatus: !missingSkipTraceColumns,
+  });
+
+  if (!result.error) {
+    return (result.data ?? []) as QueueSkipTraceLeadRow[];
+  }
+
+  const fallbackMissingDialQueueColumns = missingDialQueueColumns || isMissingDialQueueColumnError(result.error);
+  const fallbackMissingSkipTraceColumns = missingSkipTraceColumns || isMissingSkipTraceColumnError(result.error);
+
+  if (fallbackMissingDialQueueColumns || fallbackMissingSkipTraceColumns) {
+    const finalFallback = await queryQueuedLeadsForSkipTrace(input, {
+      includeDialQueueColumns: false,
+      includeSkipTraceStatus: false,
+    });
+
+    if (!finalFallback.error) {
+      return (finalFallback.data ?? []) as QueueSkipTraceLeadRow[];
+    }
+
+    throw new Error(finalFallback.error.message ?? "Failed to load queued leads for skip trace");
+  }
+
+  throw new Error(result.error.message ?? "Failed to load queued leads for skip trace");
 }
 
 export function hasCompletedSkipTrace(input: QueueSkipTraceEligibility): boolean {
@@ -193,42 +303,7 @@ export async function runSkipTraceForQueuedLeads(input: {
   sb: SupabaseClientLike;
   userId: string;
 }): Promise<QueueSkipTraceSummary> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let { data, error } = await ((input.sb.from("leads") as any)
-    .select("id, property_id, assigned_to, skip_trace_status, properties(id, address, city, state, zip, owner_name, owner_flags)")
-    .eq("assigned_to", input.userId)
-    .eq("dial_queue_active", true)
-    .order("dial_queue_added_at", { ascending: false }));
-
-  if (error && isMissingDialQueueColumnError(error)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fallback = await ((input.sb.from("leads") as any)
-      .select("id, property_id, assigned_to, skip_trace_status, properties(id, address, city, state, zip, owner_name, owner_flags)")
-      .eq("assigned_to", input.userId)
-      .order("updated_at", { ascending: false }));
-    data = fallback.data;
-    error = fallback.error;
-  }
-
-  if (error) {
-    throw new Error(error.message ?? "Failed to load queued leads for skip trace");
-  }
-
-  const rows = (data ?? []) as Array<{
-    id: string;
-    property_id: string | null;
-    assigned_to: string | null;
-    skip_trace_status?: string | null;
-    properties?: {
-      id?: string | null;
-      address?: string | null;
-      city?: string | null;
-      state?: string | null;
-      zip?: string | null;
-      owner_name?: string | null;
-      owner_flags?: Record<string, unknown> | null;
-    } | null;
-  }>;
+  const rows = await loadQueuedLeadsForSkipTrace(input);
 
   const summary: QueueSkipTraceSummary = {
     checked: rows.length,
