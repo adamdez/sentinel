@@ -53,16 +53,54 @@ function createMockSb(rows: LeadRow[]) {
           return buildSelectChain(leads);
         },
         update(values: Record<string, unknown>) {
-          return {
-            async eq(column: string, value: unknown) {
-              const row = leads.find((candidate) => candidate[column] === value);
-              if (!row) {
-                return { error: { message: "not found" } };
-              }
+          let matchingRows = [...leads];
+          const applyUpdate = () => {
+            if (matchingRows.length === 0) {
+              return { error: { message: "not found" } };
+            }
+            for (const row of matchingRows) {
               Object.assign(row, values);
-              return { error: null };
+            }
+            return { error: null };
+          };
+
+          const chain = {
+            eq(column: string, value: unknown) {
+              matchingRows = matchingRows.filter((candidate) => candidate[column] === value);
+              return chain;
+            },
+            in(column: string, ids: unknown[]) {
+              matchingRows = matchingRows.filter((candidate) => ids.includes(candidate[column]));
+              return chain;
+            },
+            or(expression: string) {
+              const allowedAssignedTo = expression
+                .split(",")
+                .find((part) => part.startsWith("assigned_to.eq."))
+                ?.slice("assigned_to.eq.".length);
+
+              matchingRows = matchingRows.filter((candidate) => (
+                candidate.assigned_to == null
+                || (allowedAssignedTo != null && candidate.assigned_to === allowedAssignedTo)
+              ));
+              return chain;
+            },
+            async select() {
+              const result = applyUpdate();
+              return result.error
+                ? { data: null, error: result.error }
+                : {
+                    data: matchingRows.map((row) => ({ id: String(row.id) })),
+                    error: null,
+                  };
+            },
+            then(onFulfilled: (value: { error: { message: string } | null }) => unknown, onRejected?: (reason: unknown) => unknown) {
+              const result = applyUpdate();
+              return Promise.resolve(result).then(onFulfilled, onRejected);
             },
           };
+
+          return chain;
         },
         insert: async () => ({ error: null }),
       };
@@ -110,17 +148,27 @@ describe("dial queue service", () => {
             };
           },
           update(values: Record<string, unknown>) {
+            let matchingRows = [...rows];
             return {
-              async eq(column: string, value: unknown) {
-                const row = rows.find((candidate) => candidate[column] === value);
-                if (!row) return { error: { message: "not found" } };
-
+              in(column: string, ids: unknown[]) {
+                matchingRows = matchingRows.filter((candidate) => ids.includes(candidate[column]));
+                return this;
+              },
+              or() {
+                return this;
+              },
+              async select() {
+                if (matchingRows.length === 0) return { data: null, error: { message: "not found" } };
                 if ("dial_queue_active" in values) {
-                  return { error: { message: "column leads.dial_queue_active does not exist" } };
+                  return { data: null, error: { message: "column leads.dial_queue_active does not exist" } };
                 }
-
-                Object.assign(row, values);
-                return { error: null };
+                for (const row of matchingRows) {
+                  Object.assign(row, values);
+                }
+                return {
+                  data: matchingRows.map((row) => ({ id: String(row.id) })),
+                  error: null,
+                };
               },
             };
           },

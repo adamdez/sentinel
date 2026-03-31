@@ -85,6 +85,7 @@ export async function queueLeadIdsForUser(input: {
   const queuedIds: string[] = [];
   const conflictedIds: string[] = [];
   const missingIds: string[] = [];
+  const eligibleIds: string[] = [];
   const queuedAt = new Date().toISOString();
 
   for (const leadId of leadIds) {
@@ -99,35 +100,51 @@ export async function queueLeadIdsForUser(input: {
       continue;
     }
 
+    eligibleIds.push(leadId);
+  }
+
+  if (eligibleIds.length === 0) {
+    return { queuedIds, conflictedIds, missingIds };
+  }
+
+  const applyQueueUpdate = async (values: Record<string, unknown>) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let { error: updateErr } = await ((input.sb.from("leads") as any)
-      .update({
-        assigned_to: input.userId,
-        dial_queue_active: true,
-        dial_queue_added_at: queuedAt,
-        dial_queue_added_by: input.userId,
-        updated_at: queuedAt,
-      })
-      .eq("id", leadId));
+    return ((input.sb.from("leads") as any)
+      .update(values)
+      .in("id", eligibleIds)
+      .or(`assigned_to.is.null,assigned_to.eq.${input.userId}`)
+      .select("id")) as Promise<{
+        data?: Array<{ id: string }>;
+        error?: { message?: string | null } | null;
+      }>;
+  };
 
-    if (updateErr && isMissingDialQueueColumnError(updateErr)) {
-      // Compatibility path for prod schemas that do not yet have the
-      // explicit dial-queue columns.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const retry = await ((input.sb.from("leads") as any)
-        .update({
-          assigned_to: input.userId,
-          updated_at: queuedAt,
-        })
-        .eq("id", leadId));
-      updateErr = retry.error;
+  let updateResult = await applyQueueUpdate({
+    assigned_to: input.userId,
+    dial_queue_active: true,
+    dial_queue_added_at: queuedAt,
+    dial_queue_added_by: input.userId,
+    updated_at: queuedAt,
+  });
+
+  if (updateResult.error && isMissingDialQueueColumnError(updateResult.error)) {
+    updateResult = await applyQueueUpdate({
+      assigned_to: input.userId,
+      updated_at: queuedAt,
+    });
+  }
+
+  if (updateResult.error) {
+    throw new Error(updateResult.error.message ?? `Failed to queue ${eligibleIds.length} leads`);
+  }
+
+  const updatedIdSet = new Set((updateResult.data ?? []).map((row) => row.id));
+  for (const leadId of eligibleIds) {
+    if (updatedIdSet.has(leadId)) {
+      queuedIds.push(leadId);
+    } else {
+      conflictedIds.push(leadId);
     }
-
-    if (updateErr) {
-      throw new Error(updateErr.message ?? `Failed to queue lead ${leadId}`);
-    }
-
-    queuedIds.push(leadId);
   }
 
   return { queuedIds, conflictedIds, missingIds };

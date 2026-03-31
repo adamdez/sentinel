@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { deleteLeadCustomerFile } from "@/lib/lead-write-helpers";
 import { canUserClaimLead } from "@/lib/lead-ownership";
+import { runWithConcurrency } from "@/lib/async-batch";
 import {
   Tooltip,
   TooltipContent,
@@ -43,6 +44,7 @@ interface LeadTableProps {
 
 // Grid definition
 const GRID = "grid-cols-[28px_28px_1.8fr_minmax(140px,1fr)_90px_80px]";
+const BULK_ACTION_CONCURRENCY = 6;
 
 // Helpers
 
@@ -198,14 +200,17 @@ export function LeadTable({
     setBulkDeleting(true);
     let succeeded = 0;
     let failed = 0;
-    for (const id of selectedIds) {
+    const ids = Array.from(selectedIds);
+    const results = await runWithConcurrency(ids, BULK_ACTION_CONCURRENCY, async (id) => {
       try {
-        const result = await deleteLeadCustomerFile(id);
-        if (result.ok) succeeded++;
-        else failed++;
+        return await deleteLeadCustomerFile(id);
       } catch {
-        failed++;
+        return { ok: false as const, status: 500, error: "Unexpected delete failure" };
       }
+    });
+    for (const result of results) {
+      if (result.ok) succeeded++;
+      else failed++;
     }
     setBulkDeleting(false);
     setSelectedIds(new Set());
@@ -229,17 +234,16 @@ export function LeadTable({
       toast.error("None of the selected leads are unclaimed.");
       return;
     }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired. Please sign in again.");
+      return;
+    }
     setBulkClaiming(true);
     let succeeded = 0;
     let failed = 0;
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast.error("Session expired. Please sign in again.");
-        setBulkClaiming(false);
-        return;
-      }
-      for (const id of claimableLeadIds) {
+      const results = await runWithConcurrency(claimableLeadIds, BULK_ACTION_CONCURRENCY, async (id) => {
         try {
           const res = await fetch("/api/prospects", {
             method: "PATCH",
@@ -252,11 +256,14 @@ export function LeadTable({
               assigned_to: currentUserId,
             }),
           });
-          if (res.ok) succeeded++;
-          else failed++;
+          return res.ok;
         } catch {
-          failed++;
+          return false;
         }
+      });
+      for (const ok of results) {
+        if (ok) succeeded++;
+        else failed++;
       }
     } finally {
       setBulkClaiming(false);
@@ -285,7 +292,8 @@ export function LeadTable({
         toast.error("Session expired. Please sign in again.");
         return;
       }
-      for (const id of selectedIds) {
+      const ids = Array.from(selectedIds);
+      const results = await runWithConcurrency(ids, BULK_ACTION_CONCURRENCY, async (id) => {
         try {
           const res = await fetch("/api/dialer/v1/auto-cycle", {
             method: "POST",
@@ -295,11 +303,14 @@ export function LeadTable({
             },
             body: JSON.stringify({ leadId: id }),
           });
-          if (res.ok) succeeded++;
-          else failed++;
+          return res.ok;
         } catch {
-          failed++;
+          return false;
         }
+      });
+      for (const ok of results) {
+        if (ok) succeeded++;
+        else failed++;
       }
       setSelectedIds(new Set());
       if (succeeded > 0 && failed === 0) {

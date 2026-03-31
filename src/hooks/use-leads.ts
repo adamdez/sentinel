@@ -74,6 +74,83 @@ const DEFAULT_FILTERS: LeadFilters = {
   excludeSuppressed: false,
 };
 
+const LEAD_LIST_SELECT = [
+  "id",
+  "property_id",
+  "priority",
+  "status",
+  "assigned_to",
+  "next_follow_up_at",
+  "next_call_scheduled_at",
+  "follow_up_date",
+  "last_contact_at",
+  "created_at",
+  "promoted_at",
+  "motivation_level",
+  "seller_timeline",
+  "condition_level",
+  "decision_maker_confirmed",
+  "price_expectation",
+  "qualification_route",
+  "occupancy_score",
+  "equity_flexibility_score",
+  "qualification_score_total",
+  "source",
+  "tags",
+  "notes",
+  "total_calls",
+  "live_answers",
+  "voicemails_left",
+  "call_sequence_step",
+  "disposition_code",
+  "appointment_at",
+  "offer_amount",
+  "contract_at",
+  "assignment_fee_projected",
+  "conversion_gclid",
+  "seller_situation_summary_short",
+  "recommended_call_angle",
+  "top_fact_1",
+  "top_fact_2",
+  "top_fact_3",
+  "opportunity_score",
+  "contactability_score",
+  "confidence_score",
+  "dossier_url",
+  "pinned",
+  "pinned_at",
+  "pinned_by",
+].join(", ");
+
+const PROPERTY_LIST_SELECT = [
+  "id",
+  "apn",
+  "county",
+  "address",
+  "city",
+  "state",
+  "zip",
+  "owner_name",
+  "owner_phone",
+  "owner_email",
+  "owner_flags",
+  "estimated_value",
+  "equity_percent",
+  "bedrooms",
+  "bathrooms",
+  "sqft",
+  "property_type",
+  "year_built",
+  "lot_size",
+  "loan_balance",
+  "last_sale_price",
+  "last_sale_date",
+  "foreclosure_stage",
+  "default_amount",
+  "delinquent_amount",
+  "is_vacant",
+].join(", ");
+
 function scoreLabel(n: number | null): AIScore["label"] {
   if (n == null) return "unscored";
   if (n >= 85) return "platinum";
@@ -402,7 +479,7 @@ export function useLeads() {
       // Closed stays hidden by default in client filters so daily queue behavior remains intact.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: leadsRaw, error: leadsErr } = await (supabase.from("leads") as any)
-        .select("*")
+        .select(LEAD_LIST_SELECT)
         .neq("status", "prospect")
         .neq("status", "staging")
         .order("priority", { ascending: false });
@@ -430,79 +507,85 @@ export function useLeads() {
       const propsMap: Record<string, any> = {};
       const firstAttemptByLeadId: Record<string, string> = {};
 
-      if (propIds.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: propsData } = await (supabase.from("properties") as any)
-          .select("*")
-          .in("id", propIds);
+      const [
+        propsResult,
+        callsResult,
+        attrResult,
+        predResult,
+      ] = await Promise.all([
+        propIds.length > 0
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (supabase.from("properties") as any)
+              .select(PROPERTY_LIST_SELECT)
+              .in("id", propIds)
+          : Promise.resolve({ data: [], error: null }),
+        leadIds.length > 0
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (supabase.from("calls_log") as any)
+              .select("lead_id, started_at")
+              .in("lead_id", leadIds)
+              .order("started_at", { ascending: true })
+          : Promise.resolve({ data: [], error: null }),
+        leadIds.length > 0
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (supabase.from("ads_lead_attribution") as any)
+              .select(`
+                lead_id,
+                gclid,
+                market,
+                ads_campaigns(name),
+                ads_ad_groups(name),
+                ads_keywords(text)
+              `)
+              .in("lead_id", leadIds)
+          : Promise.resolve({ data: [], error: null }),
+        propIds.length > 0
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (supabase.from("scoring_predictions") as any)
+              .select("property_id, predictive_score")
+              .in("property_id", propIds)
+              .order("created_at", { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
+      ]);
 
-        if (propsData) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          for (const p of propsData as any[]) propsMap[p.id] = p;
+      if (propsResult.data) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const p of propsResult.data as any[]) {
+          if (p.owner_flags && typeof p.owner_flags === "object") {
+            const { pr_raw, deep_crawl, deep_skip, ...lightFlags } = p.owner_flags as Record<string, unknown>;
+            p.owner_flags = lightFlags;
+          }
+          propsMap[p.id] = p;
         }
       }
 
-      // Fetch earliest logged contact attempt per lead from calls_log.
-      // started_at is the best current proxy for first call/contact attempt.
-      if (leadIds.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: callRows, error: callsErr } = await (supabase.from("calls_log") as any)
-          .select("lead_id, started_at")
-          .in("lead_id", leadIds)
-          .order("started_at", { ascending: true });
-
-        if (callsErr) {
-          console.warn("[useLeads] calls_log fetch failed; falling back to lead timestamps:", callsErr);
-        } else if (callRows) {
-          for (const row of callRows as Array<{ lead_id: string | null; started_at: string | null }>) {
-            if (!row.lead_id || !row.started_at) continue;
-            if (!firstAttemptByLeadId[row.lead_id]) {
-              firstAttemptByLeadId[row.lead_id] = row.started_at;
-            }
+      if (callsResult.error) {
+        console.warn("[useLeads] calls_log fetch failed; falling back to lead timestamps:", callsResult.error);
+      } else if (callsResult.data) {
+        for (const row of callsResult.data as Array<{ lead_id: string | null; started_at: string | null }>) {
+          if (!row.lead_id || !row.started_at) continue;
+          if (!firstAttemptByLeadId[row.lead_id]) {
+            firstAttemptByLeadId[row.lead_id] = row.started_at;
           }
         }
       }
 
-      // Batch-fetch attribution data
       const attrMap: Record<string, any> = {};
-      if (leadIds.length > 0) {
+      if (attrResult.data) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: attrData } = await (supabase.from("ads_lead_attribution") as any)
-          .select(`
-            lead_id,
-            gclid,
-            market,
-            ads_campaigns(name),
-            ads_ad_groups(name),
-            ads_keywords(text)
-          `)
-          .in("lead_id", leadIds);
-
-        if (attrData) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          for (const a of attrData as any[]) {
-            attrMap[a.lead_id] = a;
-          }
+        for (const a of attrResult.data as any[]) {
+          attrMap[a.lead_id] = a;
         }
       }
 
-      // Batch-fetch predictive scores for blended priority
       const predMap: Record<string, number> = {};
-      if (propIds.length > 0) {
+      if (predResult.data) {
+        const seen = new Set<string>();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: predData } = await (supabase.from("scoring_predictions") as any)
-          .select("property_id, predictive_score")
-          .in("property_id", propIds)
-          .order("created_at", { ascending: false });
-
-        if (predData) {
-          const seen = new Set<string>();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          for (const p of predData as any[]) {
-            if (!seen.has(p.property_id)) {
-              predMap[p.property_id] = p.predictive_score;
-              seen.add(p.property_id);
-            }
+        for (const p of predResult.data as any[]) {
+          if (!seen.has(p.property_id)) {
+            predMap[p.property_id] = p.predictive_score;
+            seen.add(p.property_id);
           }
         }
       }
