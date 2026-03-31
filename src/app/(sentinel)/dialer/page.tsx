@@ -54,6 +54,7 @@ import { JeffMessagesBanner } from "@/components/sentinel/jeff-messages-banner";
 import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
 import type { LeadPhone } from "@/lib/dialer/types";
 import type { JeffCallStatus } from "@/lib/dialer/jeff-batch-types";
+import { resolveDialerPhoneSelection } from "@/lib/dialer/operator-auto-cycle";
 import { useTwilio } from "@/providers/twilio-provider";
 import {
   formatTalkTime,
@@ -791,14 +792,29 @@ function DialerPageInner() {
   // Phone cycling roster — fetched from lead_phones API when a lead is loaded
   const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
   const [phoneIndex, setPhoneIndex] = useState(0);
-  const phonesActiveCount = leadPhones.filter(p => p.status === "active").length;
-  const phonesAttempted = leadPhones.filter(p => p.status === "active" && p.last_called_at).length;
   const displayedQueue = autoCycleMode ? autoCycleQueue : queue;
   const displayedQueueLoading = autoCycleMode ? autoCycleLoading : queueLoading;
   const currentLeadAutoCycleEntry = autoCycleQueue.find((lead) => lead.id === currentLead?.id);
   const currentAutoCycleLead = (autoCycleMode
     ? currentLeadAutoCycleEntry
     : null) as AutoCycleQueueLead | undefined;
+  const phoneSelection = useMemo(
+    () =>
+      resolveDialerPhoneSelection({
+        autoCycleMode,
+        leadPhones,
+        phoneIndex,
+        nextPhoneId: currentAutoCycleLead?.autoCycle.nextPhoneId ?? null,
+        fallbackPhone: currentLead?.properties?.owner_phone ?? null,
+      }),
+    [autoCycleMode, currentAutoCycleLead?.autoCycle.nextPhoneId, currentLead?.properties?.owner_phone, leadPhones, phoneIndex],
+  );
+  const activeLeadPhones = phoneSelection.activePhones;
+  const selectedPhoneIndex = phoneSelection.selectedIndex;
+  const selectedLeadPhone = phoneSelection.selectedPhone;
+  const selectedDialPhone = phoneSelection.phone;
+  const phonesActiveCount = activeLeadPhones.length;
+  const phonesAttempted = activeLeadPhones.filter((phone) => phone.last_called_at).length;
 
   const { latestSummary, latestSummaryTime } = useCallNotes(currentLead?.id);
   const { brief: preCallBrief, loading: briefLoading, error: briefError, regenerate: retryBrief } = usePreCallBrief(currentLead?.id ?? null);
@@ -848,10 +864,7 @@ function DialerPageInner() {
           const data = await res.json();
           const phones: LeadPhone[] = data.phones ?? [];
           setLeadPhones(phones);
-          if (autoCycleMode && currentAutoCycleLead?.autoCycle.nextPhoneId) {
-            const idx = phones.findIndex((phone) => phone.id === currentAutoCycleLead.autoCycle.nextPhoneId);
-            setPhoneIndex(idx >= 0 ? idx : 0);
-          } else {
+          if (!autoCycleMode) {
             setPhoneIndex(0);
           }
         }
@@ -1676,15 +1689,10 @@ function DialerPageInner() {
     }
   }, [deviceStatus, voipCallerId, timer]);
 
-  const handleDial = useCallback(async (lead?: QueueLead) => {
-    const target = lead ?? currentLead;
+  const handleDial = useCallback(async () => {
+    const target = currentLead;
     if (!target) return;
-
-    // Phone cycling: use lead_phones roster if available, else fall back to owner_phone
-    const activePhones = leadPhones.filter(p => p.status === "active");
-    const phone = activePhones.length > 0
-      ? activePhones[phoneIndex]?.phone ?? activePhones[0]?.phone
-      : target.properties?.owner_phone;
+    const phone = selectedDialPhone;
     if (!phone) {
       toast.error("No phone number for this lead");
       return;
@@ -1860,14 +1868,11 @@ function DialerPageInner() {
       setCurrentDialedPhone(null);
       timer.reset();
     }
-  }, [currentLead, currentUser.id, ghostMode, timer, deviceStatus, voipCallerId]);
+  }, [currentLead, currentUser.id, deviceStatus, ghostMode, selectedDialPhone, timer, voipCallerId]);
 
   const handleSendText = useCallback(async () => {
     if (!currentLead) return;
-    const activePhones = leadPhones.filter((p) => p.status === "active");
-    const phone = activePhones.length > 0
-      ? activePhones[phoneIndex]?.phone ?? activePhones[0]?.phone
-      : currentLead.properties?.owner_phone;
+    const phone = selectedDialPhone;
     if (!phone) {
       toast.error("No phone number for this lead");
       return;
@@ -1898,7 +1903,7 @@ function DialerPageInner() {
     } finally {
       setSmsLoading(false);
     }
-  }, [currentLead, currentUser.id, leadPhones, phoneIndex]);
+  }, [currentLead, currentUser.id, selectedDialPhone]);
 
   // ── Lead card inline SMS send ──────────────────────────────────────
   const handleLeadSmsSend = useCallback(async (phone: string) => {
@@ -2253,7 +2258,6 @@ function DialerPageInner() {
       const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
       const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
       setCurrentLead(nextLead);
-      setPhoneIndex(0);
       refetchAutoCycle();
     } else if (!isTerminal && nextPhoneIdx < activePhones.length) {
       // Regular queue: cycle to next phone, stay on same lead
@@ -3298,7 +3302,12 @@ function DialerPageInner() {
                   return (
                     <button
                       key={lead.id}
-                      onClick={() => { setCurrentLead(lead); setPhoneIndex(0); }}
+                      onClick={() => {
+                        setCurrentLead(lead);
+                        if (!autoCycleMode) {
+                          setPhoneIndex(0);
+                        }
+                      }}
                       className={`w-full text-left rounded-[12px] p-2.5 transition-all duration-200 border ${
                         isActive
                           ? "bg-primary/5 border-primary/20 shadow-[0_0_12px_var(--shadow-soft)]"
@@ -3632,13 +3641,13 @@ function DialerPageInner() {
                     </AnimatePresence>
 
                     {/* Phone roster from lead_phones */}
-                    {callState === "idle" && leadPhones.filter(p => p.status === "active").length > 1 && (() => {
-                      const activePhones = leadPhones.filter(p => p.status === "active");
+                    {callState === "idle" && activeLeadPhones.length > 1 && (() => {
+                      const activePhones = activeLeadPhones;
                       return (
                         <div className="space-y-1.5 pb-1">
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-muted-foreground/50">
-                              Phone {phoneIndex + 1} of {activePhones.length}
+                              Phone {selectedPhoneIndex + 1} of {activePhones.length}
                               {phonesAttempted > 0 && ` · ${phonesAttempted} tried`}
                             </span>
                           </div>
@@ -3647,10 +3656,14 @@ function DialerPageInner() {
                               <button
                                 key={lp.id}
                                 type="button"
-                                onClick={() => setPhoneIndex(i)}
+                                onClick={() => {
+                                  if (!autoCycleMode) {
+                                    setPhoneIndex(i);
+                                  }
+                                }}
                                 className={cn(
                                   "h-7 px-2.5 rounded-[8px] text-sm font-mono border transition-all flex items-center gap-1.5",
-                                  i === phoneIndex
+                                  i === selectedPhoneIndex
                                     ? "bg-primary/15 border-primary/30 text-primary font-bold"
                                     : lp.last_called_at
                                       ? "bg-muted/8 border-border/20 text-muted-foreground/60"
@@ -3678,8 +3691,7 @@ function DialerPageInner() {
                           >
                             <Phone className="h-4 w-4" />
                             {(() => {
-                              const active = leadPhones.filter(p => p.status === "active");
-                              if (active.length > 0) return `Call ${formatUsPhone(active[phoneIndex]?.phone.replace(/\D/g, "").slice(-10) ?? "")}`;
+                              if (selectedLeadPhone) return `Call ${formatUsPhone(selectedLeadPhone.phone.replace(/\D/g, "").slice(-10))}`;
                               return currentLead.properties?.owner_phone ? "Call Now" : "No Phone";
                             })()}
                           </Button>
@@ -3689,7 +3701,9 @@ function DialerPageInner() {
                               const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
                               if (nextLead) {
                                 setCurrentLead(nextLead);
-                                setPhoneIndex(0);
+                                if (!autoCycleMode) {
+                                  setPhoneIndex(0);
+                                }
                               }
                             }}
                             variant="outline"
@@ -3880,7 +3894,9 @@ function DialerPageInner() {
                           const firstLead = displayedQueue[0];
                           if (firstLead) {
                             setCurrentLead(firstLead);
-                            setPhoneIndex(0);
+                            if (!autoCycleMode) {
+                              setPhoneIndex(0);
+                            }
                           }
                         }}
                       >
@@ -4044,7 +4060,9 @@ function DialerPageInner() {
                         onClick={() => {
                           const idx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
                           setCurrentLead(displayedQueue[(idx + 1) % displayedQueue.length] ?? null);
-                          setPhoneIndex(0);
+                          if (!autoCycleMode) {
+                            setPhoneIndex(0);
+                          }
                           setCallState("idle");
                           setCallNotes("");
                           timer.reset();
