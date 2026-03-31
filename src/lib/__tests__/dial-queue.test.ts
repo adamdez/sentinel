@@ -93,6 +93,51 @@ describe("dial queue service", () => {
     expect(result.missingIds).toEqual([]);
   });
 
+  it("falls back to assignment-only updates when dial queue columns are missing", async () => {
+    const rows = [
+      { id: "lead-1", assigned_to: null, property_id: "prop-1", status: "lead" },
+    ];
+
+    const sb = {
+      from(table: string) {
+        if (table !== "leads") throw new Error(`Unexpected table ${table}`);
+        return {
+          select() {
+            return {
+              in() {
+                return Promise.resolve({ data: rows, error: null });
+              },
+            };
+          },
+          update(values: Record<string, unknown>) {
+            return {
+              async eq(column: string, value: unknown) {
+                const row = rows.find((candidate) => candidate[column] === value);
+                if (!row) return { error: { message: "not found" } };
+
+                if ("dial_queue_active" in values) {
+                  return { error: { message: "column leads.dial_queue_active does not exist" } };
+                }
+
+                Object.assign(row, values);
+                return { error: null };
+              },
+            };
+          },
+        };
+      },
+    };
+
+    const result = await queueLeadIdsForUser({
+      sb: sb as never,
+      userId: "adam",
+      leadIds: ["lead-1"],
+    });
+
+    expect(result.queuedIds).toEqual(["lead-1"]);
+    expect(rows[0]?.assigned_to).toBe("adam");
+  });
+
   it("removes a lead from the dial queue without unassigning it", async () => {
     const row = {
       id: "lead-1",

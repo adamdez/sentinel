@@ -79,6 +79,13 @@ async function dialerAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
+function isMissingDialQueueColumnError(error: unknown): boolean {
+  const message = error && typeof error === "object" && "message" in error
+    ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+    : "";
+  return message.includes("dial_queue_active") || message.includes("dial_queue_added_at") || message.includes("dial_queue_added_by");
+}
+
 // ── Dialer Queue Hook ─────────────────────────────────────────────────
 
 export function useDialerQueue(limit = 7) {
@@ -91,7 +98,7 @@ export function useDialerQueue(limit = 7) {
     try {
       // Personal queue: explicitly queued leads only.
       // We still rank due work inside that queue, but membership itself is manual.
-      const queueRes = await withTimeout<any>(
+      let queueRes = await withTimeout<any>(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase.from("leads") as any)
           .select("*, properties(*)")
@@ -102,6 +109,19 @@ export function useDialerQueue(limit = 7) {
           .limit(limit + 40),
         10_000,
       );
+
+      if (queueRes.error && isMissingDialQueueColumnError(queueRes.error)) {
+        queueRes = await withTimeout<any>(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase.from("leads") as any)
+            .select("*, properties(*)")
+            .in("status", ["lead", "negotiation"])
+            .eq("assigned_to", currentUser.id)
+            .order("updated_at", { ascending: false })
+            .limit(limit + 40),
+          10_000,
+        );
+      }
 
       if (queueRes.error) {
         const err = queueRes.error;

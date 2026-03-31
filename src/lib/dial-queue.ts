@@ -38,6 +38,19 @@ export interface QueueSkipTraceSummary {
   }>;
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "";
+}
+
+function isMissingDialQueueColumnError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  return message.includes("dial_queue_active") || message.includes("dial_queue_added_at") || message.includes("dial_queue_added_by");
+}
+
 export function hasCompletedSkipTrace(input: QueueSkipTraceEligibility): boolean {
   const status = typeof input.skipTraceStatus === "string" ? input.skipTraceStatus.trim().toLowerCase() : "";
   if (status === "completed") return true;
@@ -60,7 +73,7 @@ export async function queueLeadIdsForUser(input: {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await ((input.sb.from("leads") as any)
-    .select("id, property_id, assigned_to, dial_queue_active, status")
+    .select("id, property_id, assigned_to, status")
     .in("id", leadIds));
 
   if (error) {
@@ -87,7 +100,7 @@ export async function queueLeadIdsForUser(input: {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: updateErr } = await ((input.sb.from("leads") as any)
+    let { error: updateErr } = await ((input.sb.from("leads") as any)
       .update({
         assigned_to: input.userId,
         dial_queue_active: true,
@@ -96,6 +109,19 @@ export async function queueLeadIdsForUser(input: {
         updated_at: queuedAt,
       })
       .eq("id", leadId));
+
+    if (updateErr && isMissingDialQueueColumnError(updateErr)) {
+      // Compatibility path for prod schemas that do not yet have the
+      // explicit dial-queue columns.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const retry = await ((input.sb.from("leads") as any)
+        .update({
+          assigned_to: input.userId,
+          updated_at: queuedAt,
+        })
+        .eq("id", leadId));
+      updateErr = retry.error;
+    }
 
     if (updateErr) {
       throw new Error(updateErr.message ?? `Failed to queue lead ${leadId}`);
@@ -148,11 +174,21 @@ export async function runSkipTraceForQueuedLeads(input: {
   userId: string;
 }): Promise<QueueSkipTraceSummary> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await ((input.sb.from("leads") as any)
+  let { data, error } = await ((input.sb.from("leads") as any)
     .select("id, property_id, assigned_to, skip_trace_status, properties(id, address, city, state, zip, owner_name, owner_flags)")
     .eq("assigned_to", input.userId)
     .eq("dial_queue_active", true)
     .order("dial_queue_added_at", { ascending: false }));
+
+  if (error && isMissingDialQueueColumnError(error)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fallback = await ((input.sb.from("leads") as any)
+      .select("id, property_id, assigned_to, skip_trace_status, properties(id, address, city, state, zip, owner_name, owner_flags)")
+      .eq("assigned_to", input.userId)
+      .order("updated_at", { ascending: false }));
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) {
     throw new Error(error.message ?? "Failed to load queued leads for skip trace");
