@@ -17,6 +17,13 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+function normalizeBearerHeader(authHeader: string | null | undefined): string | null {
+  if (!authHeader) return null;
+  const trimmed = authHeader.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith("Bearer ") ? trimmed : `Bearer ${trimmed}`;
+}
+
 /**
  * Creates the dialer domain DB client.
  *
@@ -24,11 +31,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * In Stage 3 extraction, this returns a client for a separate schema or DB.
  * In Stage 4 extraction, this is replaced with an HTTP client entirely.
  */
-export function createDialerClient(): SupabaseClient {
+export function createDialerClient(authHeader?: string | null): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const rawServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceRoleKey =
+    rawServiceRoleKey && rawServiceRoleKey !== "your_supabase_service_role_key"
+      ? rawServiceRoleKey
+      : null;
+  const key = serviceRoleKey ?? anonKey;
+  const normalizedAuthHeader = normalizeBearerHeader(authHeader);
 
   if (!url || !key) {
     throw new Error("[Dialer] Missing Supabase configuration (URL or key).");
@@ -39,6 +51,13 @@ export function createDialerClient(): SupabaseClient {
       persistSession: false,
       autoRefreshToken: false,
     },
+    global: !serviceRoleKey && normalizedAuthHeader
+      ? {
+          headers: {
+            Authorization: normalizedAuthHeader,
+          },
+        }
+      : undefined,
   });
 }
 
@@ -62,7 +81,7 @@ export async function getDialerUser(
 
   if (!token) return null;
 
-  const sb = createDialerClient();
+  const sb = createDialerClient(authHeader);
   const {
     data: { user },
     error,

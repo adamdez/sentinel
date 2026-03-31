@@ -15,7 +15,8 @@ import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import { queueLeadIdsForUser, removeLeadFromDialQueue } from "@/lib/dial-queue";
 
 export async function POST(req: NextRequest) {
-  const user = await getDialerUser(req.headers.get("authorization"));
+  const authHeader = req.headers.get("authorization");
+  const user = await getDialerUser(authHeader);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "leadIds is required" }, { status: 400 });
   }
 
-  const sb = createDialerClient();
+  const sb = createDialerClient(authHeader);
 
   try {
     const result = await queueLeadIdsForUser({ sb, userId: user.id, leadIds });
@@ -67,7 +68,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const user = await getDialerUser(req.headers.get("authorization"));
+  const authHeader = req.headers.get("authorization");
+  const user = await getDialerUser(authHeader);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const leadId = req.nextUrl.searchParams.get("leadId");
@@ -75,7 +77,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "leadId is required" }, { status: 400 });
   }
 
-  const sb = createDialerClient();
+  const sb = createDialerClient(authHeader);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: lead } = await (sb.from("leads") as any)
     .select("id, assigned_to, status")

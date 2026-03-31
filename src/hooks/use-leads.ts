@@ -151,6 +151,11 @@ const PROPERTY_LIST_SELECT = [
   "is_vacant",
 ].join(", ");
 
+const missingSelectColumnsCache: Record<"leads" | "properties", Set<string>> = {
+  leads: new Set<string>(),
+  properties: new Set<string>(),
+};
+
 function splitSelectColumns(select: string): string[] {
   return select
     .split(",")
@@ -178,7 +183,7 @@ async function selectWithMissingColumnFallback<T>(
   baseColumns: string[],
   buildQuery: (columns: string[]) => PromiseLike<{ data: T[] | null; error: unknown }>,
 ): Promise<{ data: T[] | null; missingColumns: string[]; error: unknown }> {
-  const columns = [...baseColumns];
+  const columns = baseColumns.filter((column) => !missingSelectColumnsCache[table].has(column));
   const missingColumns: string[] = [];
 
   while (columns.length > 0) {
@@ -202,6 +207,7 @@ async function selectWithMissingColumnFallback<T>(
 
     columns.splice(0, columns.length, ...nextColumns);
     missingColumns.push(missingColumn);
+    missingSelectColumnsCache[table].add(missingColumn);
     console.warn(`[useLeads] Missing ${table} column "${missingColumn}" detected; retrying without it.`);
   }
 
