@@ -65,24 +65,16 @@ function createMockSb(rows: LeadRow[]) {
           };
 
           const chain = {
-            eq(column: string, value: unknown) {
-              matchingRows = matchingRows.filter((candidate) => candidate[column] === value);
-              return chain;
-            },
             in(column: string, ids: unknown[]) {
               matchingRows = matchingRows.filter((candidate) => ids.includes(candidate[column]));
               return chain;
             },
-            or(expression: string) {
-              const allowedAssignedTo = expression
-                .split(",")
-                .find((part) => part.startsWith("assigned_to.eq."))
-                ?.slice("assigned_to.eq.".length);
-
-              matchingRows = matchingRows.filter((candidate) => (
-                candidate.assigned_to == null
-                || (allowedAssignedTo != null && candidate.assigned_to === allowedAssignedTo)
-              ));
+            is(column: string, value: unknown) {
+              matchingRows = matchingRows.filter((candidate) => candidate[column] === value);
+              return chain;
+            },
+            eq(column: string, value: unknown) {
+              matchingRows = matchingRows.filter((candidate) => candidate[column] === value);
               return chain;
             },
             async select() {
@@ -154,7 +146,12 @@ describe("dial queue service", () => {
                 matchingRows = matchingRows.filter((candidate) => ids.includes(candidate[column]));
                 return this;
               },
-              or() {
+              is(column: string, value: unknown) {
+                matchingRows = matchingRows.filter((candidate) => candidate[column] === value);
+                return this;
+              },
+              eq(column: string, value: unknown) {
+                matchingRows = matchingRows.filter((candidate) => candidate[column] === value);
                 return this;
               },
               async select() {
@@ -184,6 +181,64 @@ describe("dial queue service", () => {
 
     expect(result.queuedIds).toEqual(["lead-1"]);
     expect(rows[0]?.assigned_to).toBe("adam");
+  });
+
+  it("updates unclaimed and already-owned leads without relying on an or filter", async () => {
+    const rows = [
+      { id: "lead-1", assigned_to: null, property_id: "prop-1", status: "lead" },
+      { id: "lead-2", assigned_to: "adam", property_id: "prop-2", status: "lead" },
+    ];
+
+    const sb = {
+      from(table: string) {
+        if (table !== "leads") throw new Error(`Unexpected table ${table}`);
+        return {
+          select() {
+            return {
+              in() {
+                return Promise.resolve({ data: rows, error: null });
+              },
+            };
+          },
+          update(values: Record<string, unknown>) {
+            let matchingRows = [...rows];
+            return {
+              in(column: string, ids: unknown[]) {
+                matchingRows = matchingRows.filter((candidate) => ids.includes(candidate[column]));
+                return this;
+              },
+              is(column: string, value: unknown) {
+                matchingRows = matchingRows.filter((candidate) => candidate[column] === value);
+                return this;
+              },
+              eq(column: string, value: unknown) {
+                matchingRows = matchingRows.filter((candidate) => candidate[column] === value);
+                return this;
+              },
+              async select() {
+                for (const row of matchingRows) {
+                  Object.assign(row, values);
+                }
+                return {
+                  data: matchingRows.map((row) => ({ id: String(row.id) })),
+                  error: null,
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+
+    const result = await queueLeadIdsForUser({
+      sb: sb as never,
+      userId: "adam",
+      leadIds: ["lead-1", "lead-2"],
+    });
+
+    expect(result.queuedIds).toEqual(["lead-1", "lead-2"]);
+    expect(rows[0]?.assigned_to).toBe("adam");
+    expect(rows[1]?.assigned_to).toBe("adam");
   });
 
   it("removes a lead from the dial queue without unassigning it", async () => {

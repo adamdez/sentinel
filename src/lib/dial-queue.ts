@@ -199,6 +199,8 @@ export async function queueLeadIdsForUser(input: {
   const conflictedIds: string[] = [];
   const missingIds: string[] = [];
   const eligibleIds: string[] = [];
+  const unclaimedEligibleIds: string[] = [];
+  const ownedEligibleIds: string[] = [];
   const queuedAt = new Date().toISOString();
 
   for (const leadId of leadIds) {
@@ -214,44 +216,72 @@ export async function queueLeadIdsForUser(input: {
     }
 
     eligibleIds.push(leadId);
+    if (normalizeAssignedUserId(row.assigned_to) === input.userId) {
+      ownedEligibleIds.push(leadId);
+    } else {
+      unclaimedEligibleIds.push(leadId);
+    }
   }
 
   if (eligibleIds.length === 0) {
     return { queuedIds, conflictedIds, missingIds };
   }
 
-  const applyQueueUpdate = async (values: Record<string, unknown>) => {
+  const applyQueueUpdate = async (
+    ids: string[],
+    values: Record<string, unknown>,
+    assignmentFilter: "unclaimed" | "owned",
+  ) => {
+    if (ids.length === 0) {
+      return { data: [], error: null };
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return ((input.sb.from("leads") as any)
+    let query = ((input.sb.from("leads") as any)
       .update(values)
-      .in("id", eligibleIds)
-      .or(`assigned_to.is.null,assigned_to.eq.${input.userId}`)
-      .select("id")) as Promise<{
+      .in("id", ids));
+
+    query = assignmentFilter === "unclaimed"
+      ? query.is("assigned_to", null)
+      : query.eq("assigned_to", input.userId);
+
+    return query.select("id") as Promise<{
         data?: Array<{ id: string }>;
         error?: { message?: string | null } | null;
       }>;
   };
 
-  let updateResult = await applyQueueUpdate({
+  const queueValuesWithMetadata = {
     assigned_to: input.userId,
     dial_queue_active: true,
     dial_queue_added_at: queuedAt,
     dial_queue_added_by: input.userId,
     updated_at: queuedAt,
-  });
+  };
+  const queueValuesWithoutMetadata = {
+    assigned_to: input.userId,
+    updated_at: queuedAt,
+  };
 
-  if (updateResult.error && isMissingDialQueueColumnError(updateResult.error)) {
-    updateResult = await applyQueueUpdate({
-      assigned_to: input.userId,
-      updated_at: queuedAt,
-    });
-  }
+  const queueSubset = async (ids: string[], assignmentFilter: "unclaimed" | "owned") => {
+    let updateResult = await applyQueueUpdate(ids, queueValuesWithMetadata, assignmentFilter);
 
-  if (updateResult.error) {
-    throw new Error(updateResult.error.message ?? `Failed to queue ${eligibleIds.length} leads`);
-  }
+    if (updateResult.error && isMissingDialQueueColumnError(updateResult.error)) {
+      updateResult = await applyQueueUpdate(ids, queueValuesWithoutMetadata, assignmentFilter);
+    }
 
-  const updatedIdSet = new Set((updateResult.data ?? []).map((row) => row.id));
+    if (updateResult.error) {
+      throw new Error(updateResult.error.message ?? `Failed to queue ${ids.length} leads`);
+    }
+
+    return (updateResult.data ?? []).map((row) => row.id);
+  };
+
+  const updatedIdSet = new Set([
+    ...(await queueSubset(unclaimedEligibleIds, "unclaimed")),
+    ...(await queueSubset(ownedEligibleIds, "owned")),
+  ]);
+
   for (const leadId of eligibleIds) {
     if (updatedIdSet.has(leadId)) {
       queuedIds.push(leadId);
