@@ -119,6 +119,10 @@ type JeffActivity = {
 type JeffInteraction = {
   id: string;
   lead_id: string | null;
+  direction: string;
+  caller_phone: string | null;
+  caller_name: string | null;
+  property_address: string | null;
   interaction_type: string;
   status: "needs_review" | "task_open" | "reviewed" | "resolved";
   summary: string | null;
@@ -147,6 +151,19 @@ type JeffInteraction = {
     task_type: string | null;
   } | null;
 };
+
+function getInteractionDisplayName(interaction: JeffInteraction) {
+  return interaction.lead?.properties?.owner_name
+    ?? interaction.caller_name
+    ?? interaction.caller_phone
+    ?? (interaction.lead_id ? `Lead ${interaction.lead_id.slice(0, 8)}` : "Unknown caller");
+}
+
+function getInteractionDisplayAddress(interaction: JeffInteraction) {
+  return interaction.lead?.properties?.address
+    ?? interaction.property_address
+    ?? "Address unavailable";
+}
 
 type ReviewDraft = {
   score: string;
@@ -857,19 +874,27 @@ export default function JeffOutboundPage() {
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="space-y-1">
                         <div className="text-sm font-medium">
-                          {interaction.lead?.properties?.owner_name ?? (interaction.lead_id ? `Lead ${interaction.lead_id.slice(0, 8)}` : "Unknown lead")}
+                          {getInteractionDisplayName(interaction)}
                         </div>
                         <div className="text-xs text-muted-foreground/60">
-                          {interaction.lead?.properties?.address ?? "Address unavailable"}
+                          {getInteractionDisplayAddress(interaction)}
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">{interaction.direction}</Badge>
                         <Badge variant="outline">{interaction.interaction_type.replace(/_/g, " ")}</Badge>
                         <Badge variant="secondary">{interaction.status.replace(/_/g, " ")}</Badge>
                       </div>
                     </div>
                     {interaction.summary ? (
                       <p className="mt-2 text-sm text-foreground/85 leading-relaxed">{interaction.summary}</p>
+                    ) : null}
+                    {(interaction.caller_phone || interaction.caller_name || interaction.property_address) ? (
+                      <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground/70">
+                        {interaction.caller_phone ? <span>Caller {interaction.caller_phone}</span> : null}
+                        {interaction.caller_name ? <span>Name {interaction.caller_name}</span> : null}
+                        {interaction.property_address ? <span>Property {interaction.property_address}</span> : null}
+                      </div>
                     ) : null}
                     <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground/70">
                       {interaction.callback_due_at ? <span>Due {formatDateTime(interaction.callback_due_at)}</span> : null}

@@ -362,7 +362,21 @@ async function handleEndOfCallReport(
     // and follow-up workflows see every call — not just dialer calls.
     const endedReason = message.endedReason ?? null;
     const disposition = mapVapiEndedReasonToDisposition(endedReason, session.status, session.caller_type);
-    const summaryText = (message.summary ?? "").trim() || null;
+    const callerName = getExtractedFactValue(extractedFacts, "caller_name");
+    const propertyAddress = getExtractedFactValue(extractedFacts, "property_address");
+    const callbackTime = getExtractedFactValue(extractedFacts, "preferred_callback_time")
+      ?? ((session.callback_time as string | null) ?? null);
+    const summaryText = buildJeffInteractionSummary({
+      direction: session.direction ?? null,
+      callerPhone: session.from_number ?? null,
+      callerName,
+      propertyAddress,
+      callbackRequested: Boolean(session.callback_requested),
+      callbackTime,
+      transferredTo: (session.transferred_to as string | null) ?? null,
+      disposition,
+      rawSummary: (message.summary ?? "").trim() || null,
+    });
     const now = new Date().toISOString();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -390,6 +404,8 @@ async function handleEndOfCallReport(
           cost_cents:          message.cost ? Math.round(message.cost * 100) : null,
           from_number:         session.from_number,
           to_number:           session.to_number,
+          caller_name:         callerName,
+          property_address:    propertyAddress,
         },
       })
       .select("id")
@@ -416,13 +432,16 @@ async function handleEndOfCallReport(
       callsLogId,
       direction: session.direction ?? null,
       callerType: session.caller_type ?? null,
+      callerPhone: session.from_number ?? null,
+      callerName,
+      propertyAddress,
       disposition,
       callbackRequested: Boolean(session.callback_requested),
-      callbackTime: (session.callback_time as string | null) ?? null,
+      callbackTime,
       wasTransferred,
       transferTarget: (session.transferred_to as string | null) ?? null,
       summary: summaryText,
-      policyVersion: JEFF_OUTBOUND_POLICY_VERSION,
+      policyVersion: session.direction === "outbound" ? JEFF_OUTBOUND_POLICY_VERSION : "inbound-v1",
     });
 
     // ── Write dialer_event ──────────────────────────────────────
@@ -802,16 +821,76 @@ interface ExtractedFact {
   confidence: "low" | "medium" | "high";
 }
 
+function getExtractedFactValue(
+  facts: ExtractedFact[],
+  field: string,
+): string | null {
+  const match = facts.find((fact) => fact.field === field && fact.value?.trim());
+  return match?.value?.trim() ?? null;
+}
+
+function buildJeffInteractionSummary(input: {
+  direction: string | null;
+  callerPhone: string | null;
+  callerName: string | null;
+  propertyAddress: string | null;
+  callbackRequested: boolean;
+  callbackTime: string | null;
+  transferredTo: string | null;
+  disposition: string;
+  rawSummary: string | null;
+}) {
+  const subject = input.callerName?.trim() || input.callerPhone?.trim() || "Unknown caller";
+  const parts: string[] = [];
+
+  if (input.direction === "inbound") {
+    parts.push(`${subject} called in.`);
+    parts.push("Spoke briefly with Jeff.");
+  } else {
+    parts.push(`Jeff spoke with ${subject}.`);
+  }
+
+  if (input.propertyAddress?.trim()) {
+    parts.push(`Property address: ${input.propertyAddress.trim()}.`);
+  }
+
+  if (input.transferredTo?.trim()) {
+    const target = input.transferredTo.toLowerCase();
+    if (target.includes("logan")) {
+      parts.push("Transferred to Logan.");
+    } else if (target.includes("adam")) {
+      parts.push("Transferred to Adam.");
+    } else {
+      parts.push("Transferred to a human.");
+    }
+  } else if (input.callbackRequested) {
+    parts.push(
+      input.callbackTime?.trim()
+        ? `Requested a callback ${input.callbackTime.trim()}.`
+        : "Requested a callback.",
+    );
+  } else if (input.disposition === "error") {
+    parts.push("Call ended before a clean human handoff.");
+  }
+
+  if (input.rawSummary?.trim()) {
+    parts.push(input.rawSummary.trim().replace(/\s+/g, " "));
+  }
+
+  return parts.join(" ").trim() || null;
+}
+
 function extractCallFacts(
   summary?: string | null,
   transcript?: string | null,
 ): ExtractedFact[] {
   const facts: ExtractedFact[] = [];
-  const text = [summary, transcript].filter(Boolean).join("\n").toLowerCase();
+  const fullText = [summary, transcript].filter(Boolean).join("\n");
+  const text = fullText.toLowerCase();
   if (!text) return facts;
 
   // Property address mentions
-  const addressMatch = text.match(
+  const addressMatch = fullText.match(
     /(?:property|house|home|place)\s+(?:at|on|is)\s+(\d+\s+[a-z0-9\s]+(?:st|street|ave|avenue|rd|road|dr|drive|ln|lane|ct|court|way|blvd|boulevard))/i,
   );
   if (addressMatch) {
@@ -838,7 +917,7 @@ function extractCallFacts(
   }
 
   // Caller name extraction from transcript
-  const nameMatch = text.match(
+  const nameMatch = fullText.match(
     /(?:my name is|this is|i'm|i am)\s+([a-z]+(?:\s+[a-z]+)?)/i,
   );
   if (nameMatch && nameMatch[1].length > 2) {
@@ -853,7 +932,7 @@ function extractCallFacts(
   }
 
   // Callback preference
-  const callbackMatch = text.match(
+  const callbackMatch = fullText.match(
     /call (?:me )?back (?:at |around )?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i,
   );
   if (callbackMatch) {

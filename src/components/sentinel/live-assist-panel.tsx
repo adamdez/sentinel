@@ -8,10 +8,7 @@ import {
   ChevronUp,
   Copy,
   MessageSquareText,
-  Minimize2,
-  MoveUpRight,
   Shield,
-
 } from "lucide-react";
 import { toast } from "sonner";
 import type { PreCallBrief } from "@/hooks/use-pre-call-brief";
@@ -23,9 +20,7 @@ interface Props {
   loading?: boolean;
   error?: string | null;
   className?: string;
-  variant?: "docked" | "overlay";
-  popoutOpen?: boolean;
-  onTogglePopout?: () => void;
+  showHeader?: boolean;
 }
 
 const STAGE_LABELS: Record<string, string> = {
@@ -96,15 +91,198 @@ function statusLabel(status: string): string {
   return "Missing";
 }
 
+function LiveAssistPanelBody({
+  brief,
+  coach,
+  error,
+  nextBestQuestion,
+  guardrail,
+  primaryGoal,
+  nepqQuestions,
+  vossLabels,
+  structuredNotes,
+  discoveryRows,
+}: {
+  brief: PreCallBrief | null;
+  coach: LiveCoachState | null;
+  error: string | null;
+  nextBestQuestion: string;
+  guardrail: string;
+  primaryGoal: string;
+  nepqQuestions: [string, string, string];
+  vossLabels: [string, string, string];
+  structuredNotes: NonNullable<LiveCoachState["structuredLiveNotes"]>;
+  discoveryRows: Array<{
+    key: keyof NonNullable<LiveCoachState["discoveryMap"]>;
+    label: string;
+    emphasize?: boolean;
+    item: NonNullable<LiveCoachState["discoveryMap"]>[keyof NonNullable<LiveCoachState["discoveryMap"]>];
+    isPriority: boolean;
+  }>;
+}) {
+  return (
+    <div className="space-y-3">
+      {error && !coach && (
+        <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.06] p-3 flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-200/80">{error}</p>
+        </div>
+      )}
+
+      {(brief || coach) && (
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-[10px] border border-yellow-500/20 bg-yellow-500/[0.06] p-3">
+            <p className="text-xs uppercase tracking-wider text-yellow-300/70 mb-2">NEPQ Questions</p>
+            <ul className="space-y-2">
+              {nepqQuestions.map((q, i) => (
+                <li
+                  key={`nepq-${i}`}
+                  role="button"
+                  onClick={() => copyLine(q)}
+                  className="text-sm text-yellow-300 leading-snug cursor-pointer hover:text-yellow-200 transition-colors"
+                >
+                  {q}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="rounded-[10px] border border-yellow-500/20 bg-yellow-500/[0.06] p-3">
+            <p className="text-xs uppercase tracking-wider text-yellow-300/70 mb-2">Tactical Labels</p>
+            <ul className="space-y-2">
+              {vossLabels.map((label, i) => (
+                <li
+                  key={`voss-${i}`}
+                  role="button"
+                  onClick={() => copyLine(label)}
+                  className="text-sm text-yellow-300 leading-snug cursor-pointer hover:text-yellow-200 transition-colors italic"
+                >
+                  {label}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {coach && (
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="space-y-3">
+            <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground/55">Discovery Map</p>
+                <Pill
+                  label={`Gap: ${coach.highestPriorityGap.replace(/_/g, " ")}`}
+                  tone="accent"
+                />
+              </div>
+
+              <div className="space-y-2">
+                {discoveryRows.map(({ key, label, item, emphasize, isPriority }) => (
+                  <div
+                    key={key}
+                    className={`rounded-[8px] border p-2.5 ${
+                      isPriority
+                        ? "border-primary/25 bg-primary/[0.06]"
+                        : emphasize
+                          ? "border-overlay-8 bg-overlay-3"
+                          : "border-overlay-6 bg-overlay-2"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-sm ${emphasize ? "text-foreground font-medium" : "text-foreground/75"}`}>
+                        {label}
+                      </p>
+                      <Pill label={statusLabel(item.status)} tone={statusTone(item.status)} />
+                    </div>
+                    <p className="text-sm text-muted-foreground/70 mt-1 leading-snug">
+                      {item.value ?? "Still missing."}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+              <div className="flex items-center gap-1.5 mb-2 text-xs uppercase tracking-wider text-muted-foreground/55">
+                <MessageSquareText className="h-3 w-3" />
+                Structured Live Notes
+              </div>
+              {structuredNotes.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {structuredNotes.slice(0, 6).map((note) => (
+                    <li key={note.id} className="text-sm text-foreground/72 flex items-start gap-2">
+                      <span className="text-primary/40 mt-0.5">•</span>
+                      <span>{note.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground/40 italic">
+                  Structured notes will appear as the call develops.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="rounded-[10px] border border-primary/15 bg-primary/[0.05] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs uppercase tracking-wider text-primary/70">Next Best Question</p>
+                {nextBestQuestion && (
+                  <button
+                    type="button"
+                    onClick={() => copyLine(nextBestQuestion)}
+                    className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary"
+                  >
+                    <Copy className="h-3 w-3" />
+                    Copy
+                  </button>
+                )}
+              </div>
+              <p className="text-sm text-foreground/90 mt-1 leading-snug">
+                {nextBestQuestion || "The live coach is still collecting context."}
+              </p>
+              <p className="text-xs text-muted-foreground/45 mt-2 leading-snug">
+                Advisory only. The coach updates after the answer shows up in live notes or transcript capture.
+              </p>
+            </div>
+
+            <div className="grid gap-3">
+              <div className="rounded-[10px] border border-amber-500/15 bg-amber-500/[0.06] p-3">
+                <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-amber-200/80">
+                  <AlertTriangle className="h-3 w-3" />
+                  Guardrail
+                </div>
+                <p className="text-sm text-foreground/72 mt-1 leading-snug">
+                  {guardrail}
+                </p>
+              </div>
+
+              {primaryGoal && (
+                <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+                  <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground/55">
+                    <Shield className="h-3 w-3" />
+                    Call Goal
+                  </div>
+                  <p className="text-sm text-foreground/72 mt-1 leading-snug">{primaryGoal}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function LiveAssistPanel({
   brief,
   coach = null,
   loading = false,
   error = null,
   className = "",
-  variant = "docked",
-  popoutOpen = false,
-  onTogglePopout,
+  showHeader = true,
 }: Props) {
   const [expanded, setExpanded] = useState(true);
 
@@ -145,14 +323,29 @@ export function LiveAssistPanel({
 
   if (!brief && !coach && !loading && !error) return null;
 
+  const body = (
+    <div className={`${showHeader ? "px-3 pb-3 pt-2 border-t border-overlay-8" : "p-4"} space-y-3`}>
+      <LiveAssistPanelBody
+        brief={brief}
+        coach={coach}
+        error={error}
+        nextBestQuestion={nextBestQuestion}
+        guardrail={guardrail}
+        primaryGoal={primaryGoal}
+        nepqQuestions={nepqQuestions}
+        vossLabels={vossLabels}
+        structuredNotes={structuredNotes}
+        discoveryRows={discoveryRows}
+      />
+    </div>
+  );
+
+  if (!showHeader) {
+    return <div className={className}>{body}</div>;
+  }
+
   return (
-    <div
-      className={`rounded-xl border border-overlay-10 bg-overlay-3 overflow-hidden ${
-        variant === "overlay"
-          ? "shadow-[0_24px_80px_var(--shadow-heavy)] backdrop-blur-xl"
-          : ""
-      } ${className}`}
-    >
+    <div className={`rounded-xl border border-overlay-10 bg-overlay-3 overflow-hidden ${className}`}>
       <button
         type="button"
         onClick={() => setExpanded((value) => !value)}
@@ -165,180 +358,12 @@ export function LiveAssistPanel({
         <Pill label={STAGE_LABELS[stage] ?? "Situation"} tone="accent" />
         {sourceLabel && <Pill label={sourceLabel} tone="muted" />}
         {loading && <Pill label="Refreshing" tone="muted" />}
-        {onTogglePopout && (
-          <span
-            role="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onTogglePopout();
-            }}
-            className="inline-flex items-center justify-center rounded-[8px] border border-overlay-8 bg-overlay-3 p-1 text-muted-foreground/60 hover:text-foreground"
-            title={popoutOpen ? "Close pop-out coach" : "Pop out coach"}
-          >
-            {variant === "overlay" || popoutOpen
-              ? <Minimize2 className="h-3 w-3" />
-              : <MoveUpRight className="h-3 w-3" />}
-          </span>
-        )}
         {expanded
           ? <ChevronUp className="h-3 w-3 text-muted-foreground/40" />
           : <ChevronDown className="h-3 w-3 text-muted-foreground/40" />}
       </button>
 
-      {expanded && (
-        <div className="px-3 pb-3 pt-2 border-t border-overlay-8 space-y-3">
-          {error && !coach && (
-            <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.06] p-3 flex items-center gap-2">
-              <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-              <p className="text-sm text-amber-200/80">{error}</p>
-            </div>
-          )}
-
-          {/* Always-visible NEPQ + Voss coaching moves */}
-          {(brief || coach) && (
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-[10px] border border-yellow-500/20 bg-yellow-500/[0.06] p-3">
-                <p className="text-xs uppercase tracking-wider text-yellow-300/70 mb-2">NEPQ Questions</p>
-                <ul className="space-y-2">
-                  {nepqQuestions.map((q, i) => (
-                    <li
-                      key={`nepq-${i}`}
-                      role="button"
-                      onClick={() => copyLine(q)}
-                      className="text-sm text-yellow-300 leading-snug cursor-pointer hover:text-yellow-200 transition-colors"
-                    >
-                      {q}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="rounded-[10px] border border-yellow-500/20 bg-yellow-500/[0.06] p-3">
-                <p className="text-xs uppercase tracking-wider text-yellow-300/70 mb-2">Tactical Labels</p>
-                <ul className="space-y-2">
-                  {vossLabels.map((label, i) => (
-                    <li
-                      key={`voss-${i}`}
-                      role="button"
-                      onClick={() => copyLine(label)}
-                      className="text-sm text-yellow-300 leading-snug cursor-pointer hover:text-yellow-200 transition-colors italic"
-                    >
-                      {label}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {coach && (
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div className="space-y-3">
-                <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <p className="text-xs uppercase tracking-wider text-muted-foreground/55">Discovery Map</p>
-                    <Pill
-                      label={`Gap: ${coach.highestPriorityGap.replace(/_/g, " ")}`}
-                      tone="accent"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    {discoveryRows.map(({ key, label, item, emphasize, isPriority }) => (
-                      <div
-                        key={key}
-                        className={`rounded-[8px] border p-2.5 ${
-                          isPriority
-                            ? "border-primary/25 bg-primary/[0.06]"
-                            : emphasize
-                              ? "border-overlay-8 bg-overlay-3"
-                              : "border-overlay-6 bg-overlay-2"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className={`text-sm ${emphasize ? "text-foreground font-medium" : "text-foreground/75"}`}>
-                            {label}
-                          </p>
-                          <Pill label={statusLabel(item.status)} tone={statusTone(item.status)} />
-                        </div>
-                        <p className="text-sm text-muted-foreground/70 mt-1 leading-snug">
-                          {item.value ?? "Still missing."}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-                  <div className="flex items-center gap-1.5 mb-2 text-xs uppercase tracking-wider text-muted-foreground/55">
-                    <MessageSquareText className="h-3 w-3" />
-                    Structured Live Notes
-                  </div>
-                  {structuredNotes.length > 0 ? (
-                    <ul className="space-y-1.5">
-                      {structuredNotes.slice(0, 6).map((note) => (
-                        <li key={note.id} className="text-sm text-foreground/72 flex items-start gap-2">
-                          <span className="text-primary/40 mt-0.5">•</span>
-                          <span>{note.text}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-muted-foreground/40 italic">
-                      Structured notes will appear as the call develops.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="rounded-[10px] border border-primary/15 bg-primary/[0.05] p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs uppercase tracking-wider text-primary/70">Next Best Question</p>
-                    {nextBestQuestion && (
-                      <button
-                        type="button"
-                        onClick={() => copyLine(nextBestQuestion)}
-                        className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary"
-                      >
-                        <Copy className="h-3 w-3" />
-                        Copy
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-sm text-foreground/90 mt-1 leading-snug">
-                    {nextBestQuestion || "The live coach is still collecting context."}
-                  </p>
-                  <p className="text-xs text-muted-foreground/45 mt-2 leading-snug">
-                    Advisory only. The coach updates after the answer shows up in live notes or transcript capture.
-                  </p>
-                </div>
-
-                <div className="grid gap-3">
-                  <div className="rounded-[10px] border border-amber-500/15 bg-amber-500/[0.06] p-3">
-                    <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-amber-200/80">
-                      <AlertTriangle className="h-3 w-3" />
-                      Guardrail
-                    </div>
-                    <p className="text-sm text-foreground/72 mt-1 leading-snug">
-                      {guardrail}
-                    </p>
-                  </div>
-
-                  {primaryGoal && (
-                    <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-                      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground/55">
-                        <Shield className="h-3 w-3" />
-                        Call Goal
-                      </div>
-                      <p className="text-sm text-foreground/72 mt-1 leading-snug">{primaryGoal}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      {expanded && body}
     </div>
   );
 }

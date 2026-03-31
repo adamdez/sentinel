@@ -8,9 +8,10 @@ import { processInboundCandidateToIntakeQueue } from "@/lib/inbound-intake-serve
  * GET /api/cron/intake-email-poll
  *
  * Polls the PPL intake Gmail account (leads@dominionhomedeals.com) for unread emails.
- * Only processes emails from approved senders (configured per intake_provider).
- * Approved emails → intake_leads table (pending_review).
- * Non-matching emails → left unread in inbox.
+ * Every unread email is normalized and checked for lead data (requires owner/seller name).
+ * Sender patterns from intake_providers are used for provider tagging only, not as a gate.
+ * Emails with lead data -> intake_leads table (pending_review).
+ * Emails without lead data -> marked as read and skipped.
  *
  * Cron schedule: every 2 minutes
  * Auth: CRON_SECRET header
@@ -59,33 +60,26 @@ export async function GET(req: NextRequest) {
 
     const accessToken = await refreshAccessToken(gmail.encrypted_refresh_token);
 
-    // Step 2: Load approved sender patterns from active intake providers
+    // Step 2: Load sender patterns from active intake providers (for tagging, not gating)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: providers } = await (sb.from("intake_providers") as any)
       .select("id, name, approved_email_patterns")
       .eq("is_active", true);
 
-    if (!providers || providers.length === 0) {
-      return NextResponse.json({ skipped: true, reason: "No active intake providers" });
-    }
-
-    // Build a flat list of { pattern, providerName } for matching
-    const approvedPatterns: Array<{ pattern: string; providerName: string; providerId: string }> = [];
-    for (const provider of providers) {
-      const patterns = provider.approved_email_patterns as string[] | null;
-      if (patterns && patterns.length > 0) {
-        for (const pattern of patterns) {
-          approvedPatterns.push({
-            pattern: pattern.toLowerCase().trim(),
-            providerName: provider.name,
-            providerId: provider.id,
-          });
+    const senderPatterns: Array<{ pattern: string; providerName: string; providerId: string }> = [];
+    if (providers) {
+      for (const provider of providers) {
+        const patterns = provider.approved_email_patterns as string[] | null;
+        if (patterns && patterns.length > 0) {
+          for (const pattern of patterns) {
+            senderPatterns.push({
+              pattern: pattern.toLowerCase().trim(),
+              providerName: provider.name,
+              providerId: provider.id,
+            });
+          }
         }
       }
-    }
-
-    if (approvedPatterns.length === 0) {
-      return NextResponse.json({ skipped: true, reason: "No approved sender patterns configured" });
     }
 
     // Step 3: Fetch unread emails
@@ -94,27 +88,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, processed: 0, message: "No unread emails" });
     }
 
-    // Step 4: Match senders against approved patterns
+    // Step 4: Process every unread email — sender match is for tagging, not filtering
     let processed = 0;
     let skipped = 0;
-    const results: Array<{ messageId: string; from: string; subject: string; status: string; provider?: string }> = [];
+    const results: Array<Record<string, unknown>> = [];
 
     for (const message of unreadMessages) {
-      const senderEmail = extractEmail(message.from).toLowerCase();
-      const match = matchSender(senderEmail, approvedPatterns);
-
-      if (!match) {
-        skipped++;
-        results.push({
-          messageId: message.id,
-          from: message.from,
-          subject: message.subject,
-          status: "skipped_not_approved",
-        });
-        continue;
-      }
-
-      // Step 5: Fetch full message and process to intake queue
       try {
         const detail = await fetchMessageDetail(accessToken, message);
         if (!detail) {
@@ -138,9 +117,17 @@ export async function GET(req: NextRequest) {
           }
         }
 
+        // Try to match sender to a known provider (for tagging only)
+        const senderEmail = extractEmail(message.from).toLowerCase();
+        const providerMatch = matchSender(senderEmail, senderPatterns);
+        const providerName = providerMatch?.providerName ?? null;
+        const sourceVendor = providerName
+          ? providerName.toLowerCase().replace(/\s+/g, "_")
+          : inferVendorFromEmail(senderEmail);
+
         const candidate = normalizeInboundCandidate({
           sourceChannel: "email_intake",
-          sourceVendor: match.providerName.toLowerCase().replace(/\s+/g, "_"),
+          sourceVendor,
           sourceCampaign: detail.subject,
           intakeMethod: "gmail_auto_poll",
           rawSourceRef: detail.threadId || detail.id,
@@ -156,17 +143,16 @@ export async function GET(req: NextRequest) {
             body_text: detail.bodyText,
             body_html: detail.bodyHtml,
             auto_polled: true,
-            matched_provider: match.providerName,
+            matched_provider: providerName,
           },
           receivedAt,
         });
 
         // Gate: only ingest emails that contain actual lead data.
-        // Require an owner/seller name — PPL lead emails always include one (labeled "Owner:", "Seller:", etc.).
-        // Phone/address alone isn't enough — signatures contain those too.
-        const hasLeadData = !!candidate.ownerName;
-        if (!hasLeadData) {
-          // Mark as read so we don't keep re-checking noise
+        // Require an owner/seller name — PPL lead emails always include one
+        // (labeled "Owner:", "Seller:", "Name:", etc.).
+        // Phone/address alone isn't enough — email signatures contain those too.
+        if (!candidate.ownerName) {
           await markAsRead(accessToken, message.id);
           skipped++;
           results.push({
@@ -174,7 +160,7 @@ export async function GET(req: NextRequest) {
             from: message.from,
             subject: message.subject,
             status: "skipped_no_lead_data",
-            provider: match.providerName,
+            provider: providerName,
           });
           continue;
         }
@@ -195,7 +181,7 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        // Step 6: Mark as read so we don't re-process
+        // Mark as read so we don't re-process
         await markAsRead(accessToken, message.id);
         processed++;
 
@@ -204,7 +190,7 @@ export async function GET(req: NextRequest) {
           from: message.from,
           subject: message.subject,
           status: "ingested",
-          provider: match.providerName,
+          provider: providerName ?? "unknown",
         });
       } catch (err) {
         const errMsg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
@@ -240,15 +226,12 @@ export async function GET(req: NextRequest) {
 function extractEmail(fromHeader: string): string {
   const match = fromHeader.match(/<([^>]+)>/);
   if (match) return match[1];
-  // If no angle brackets, the whole thing might be the email
   return fromHeader.trim();
 }
 
 /**
- * Check if a sender email matches any approved pattern.
- * Patterns can be:
- *   - Full email: "john@leadhouse.com"
- *   - Domain wildcard: "@leadhouse.com" (matches any user at that domain)
+ * Check if a sender email matches any known provider pattern.
+ * Used for tagging only — not as a gate.
  */
 function matchSender(
   senderEmail: string,
@@ -256,16 +239,24 @@ function matchSender(
 ): { providerName: string; providerId: string } | null {
   for (const entry of patterns) {
     if (entry.pattern.startsWith("@")) {
-      // Domain match: "@leadhouse.com" matches "anyone@leadhouse.com"
       if (senderEmail.endsWith(entry.pattern)) {
         return { providerName: entry.providerName, providerId: entry.providerId };
       }
     } else {
-      // Exact email match
       if (senderEmail === entry.pattern) {
         return { providerName: entry.providerName, providerId: entry.providerId };
       }
     }
   }
   return null;
+}
+
+/**
+ * Best-effort vendor name from sender email domain when no provider pattern matches.
+ * e.g. "leads@leadhouse365.com" -> "leadhouse365"
+ */
+function inferVendorFromEmail(email: string): string {
+  const domain = email.split("@")[1];
+  if (!domain) return "unknown";
+  return domain.split(".")[0];
 }

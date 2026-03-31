@@ -24,6 +24,10 @@ export interface JeffInteractionRecord {
   voice_session_id: string;
   lead_id: string | null;
   calls_log_id: string | null;
+  direction: string;
+  caller_phone: string | null;
+  caller_name: string | null;
+  property_address: string | null;
   interaction_type: JeffInteractionType;
   status: JeffInteractionStatus;
   summary: string | null;
@@ -80,6 +84,10 @@ function normalizeRow(row: Record<string, unknown>): JeffInteractionListItem {
     voice_session_id: String(row.voice_session_id),
     lead_id: (row.lead_id as string | null) ?? null,
     calls_log_id: (row.calls_log_id as string | null) ?? null,
+    direction: (row.direction as string | null) ?? "outbound",
+    caller_phone: (row.caller_phone as string | null) ?? null,
+    caller_name: (row.caller_name as string | null) ?? null,
+    property_address: (row.property_address as string | null) ?? null,
     interaction_type: ((row.interaction_type as JeffInteractionType | null) ?? "fyi_only"),
     status: ((row.status as JeffInteractionStatus | null) ?? "needs_review"),
     summary: (row.summary as string | null) ?? null,
@@ -143,9 +151,12 @@ function buildJeffTaskShape(interaction: JeffInteractionRecord) {
   const isCallback = interaction.interaction_type === "callback_request" || interaction.interaction_type === "transfer_failed";
   const prefix = isCallback ? "Jeff callback" : "Jeff follow-up";
   const detail = interaction.summary?.trim() ? interaction.summary.trim() : "AI-captured Jeff seller conversation";
+  const subject = interaction.lead_id
+    ? detail
+    : [interaction.caller_name, interaction.caller_phone, interaction.property_address].filter(Boolean).join(" · ");
 
   return {
-    title: prefix,
+    title: interaction.lead_id ? prefix : `${prefix} ${subject ? `- ${subject}` : ""}`.trim(),
     description: detail,
     notes: detail,
     due_at: interaction.callback_due_at,
@@ -164,7 +175,7 @@ export function deriveJeffInteractionDecision(input: {
   transferTarget: string | null;
   summary: string | null;
 }) {
-  if (input.direction !== "outbound" || !input.leadId) {
+  if (!input.direction) {
     return { shouldTrack: false as const };
   }
 
@@ -208,7 +219,10 @@ export function deriveJeffInteractionDecision(input: {
     };
   }
 
-  if (HUMAN_FOLLOW_UP_DISPOSITIONS.has((input.disposition ?? "").toLowerCase())) {
+  if (
+    HUMAN_FOLLOW_UP_DISPOSITIONS.has((input.disposition ?? "").toLowerCase()) ||
+    (input.direction === "inbound" && Boolean(input.summary?.trim()))
+  ) {
     return {
       shouldTrack: true as const,
       interactionType: "follow_up_needed" as JeffInteractionType,
@@ -225,6 +239,10 @@ export async function upsertJeffInteraction(input: {
   voiceSessionId: string;
   leadId: string | null;
   callsLogId: string | null;
+  direction: string;
+  callerPhone: string | null;
+  callerName: string | null;
+  propertyAddress: string | null;
   interactionType: JeffInteractionType;
   status: JeffInteractionStatus;
   summary: string | null;
@@ -244,6 +262,10 @@ export async function upsertJeffInteraction(input: {
       voice_session_id: input.voiceSessionId,
       lead_id: input.leadId,
       calls_log_id: input.callsLogId,
+      direction: input.direction,
+      caller_phone: input.callerPhone,
+      caller_name: input.callerName,
+      property_address: input.propertyAddress,
       interaction_type: input.interactionType,
       status: input.status,
       summary: input.summary,
@@ -378,7 +400,7 @@ export async function updateJeffInteraction(id: string, patch: Partial<{
 export async function syncJeffTaskForInteraction(interaction: JeffInteractionRecord) {
   const sb = createServerClient();
   const assigneeId = await getPreferredJeffAssigneeId(sb, interaction.lead_id);
-  if (!assigneeId || !interaction.lead_id) {
+  if (!assigneeId) {
     await updateJeffInteraction(interaction.id, {
       status: "needs_review",
       taskId: null,
@@ -421,12 +443,15 @@ export async function syncJeffTaskForInteraction(interaction: JeffInteractionRec
           due_at: taskShape.due_at,
           task_type: taskShape.task_type,
           assigned_to: assigneeId,
+          lead_id: interaction.lead_id,
           voice_session_id: interaction.voice_session_id,
           jeff_interaction_id: interaction.id,
           updated_at: now,
         })
         .eq("id", taskId);
-      await syncTaskToLead(sb, interaction.lead_id, taskShape.title, taskShape.due_at);
+      if (interaction.lead_id) {
+        await syncTaskToLead(sb, interaction.lead_id, taskShape.title, taskShape.due_at);
+      }
     }
   } else {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -451,7 +476,7 @@ export async function syncJeffTaskForInteraction(interaction: JeffInteractionRec
       .select("id")
       .single();
     taskId = inserted?.id ?? null;
-    if (taskId) {
+    if (taskId && interaction.lead_id) {
       await syncTaskToLead(sb, interaction.lead_id, taskShape.title, taskShape.due_at);
     }
   }
@@ -469,6 +494,9 @@ export async function syncJeffInteractionFromCompletedCall(input: {
   callsLogId: string | null;
   direction: string | null;
   callerType: string | null;
+  callerPhone?: string | null;
+  callerName?: string | null;
+  propertyAddress?: string | null;
   disposition: string;
   callbackRequested: boolean;
   callbackTime: string | null;
@@ -490,6 +518,10 @@ export async function syncJeffInteractionFromCompletedCall(input: {
     voiceSessionId: input.voiceSessionId,
     leadId: input.leadId,
     callsLogId: input.callsLogId,
+    direction: input.direction ?? "outbound",
+    callerPhone: input.callerPhone ?? null,
+    callerName: input.callerName ?? null,
+    propertyAddress: input.propertyAddress ?? null,
     interactionType: decision.interactionType,
     status: decision.status,
     summary: input.summary,

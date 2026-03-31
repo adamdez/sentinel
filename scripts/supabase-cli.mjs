@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,6 +39,15 @@ if (rawArgs.length === 0) {
 
 if (!existsSync(supabaseDir)) {
   fail(`Missing Supabase directory at ${supabaseDir}`);
+}
+
+const validateResult = spawnSync(process.execPath, [path.join(repoRoot, "scripts", "validate-supabase-migrations.mjs")], {
+  cwd: repoRoot,
+  stdio: "inherit",
+});
+
+if (validateResult.status !== 0) {
+  process.exit(validateResult.status ?? 1);
 }
 
 const args = [...rawArgs];

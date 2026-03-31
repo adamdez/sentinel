@@ -1,5 +1,45 @@
 [
   {
+    "hash": "e739526e",
+    "date": "2026-03-31",
+    "message": "Harden queue skip trace processing"
+  },
+  {
+    "hash": "66c16e17",
+    "date": "2026-03-31",
+    "message": "Add async batch helper coverage"
+  },
+  {
+    "hash": "8242844d",
+    "date": "2026-03-31",
+    "message": "Fix intake SMS notifications, badge clearing, and contact creation"
+  },
+  {
+    "hash": "abbb156f",
+    "date": "2026-03-31",
+    "message": "Speed up bulk lead actions and lead loading"
+  },
+  {
+    "hash": "234395d6",
+    "date": "2026-03-31",
+    "message": "Harden dialer queue compatibility fallback"
+  },
+  {
+    "hash": "e406f100",
+    "date": "2026-03-31",
+    "message": "Handle missing dial queue columns in production"
+  },
+  {
+    "hash": "7696d376",
+    "date": "2026-03-31",
+    "message": "Fix dial queue success path toast"
+  },
+  {
+    "hash": "0e54051b",
+    "date": "2026-03-30",
+    "message": "Stop inbound media stream before Jeff fallback"
+  },
+  {
     "hash": "3fd85486",
     "date": "2026-03-30",
     "message": "Fix Jeff inbound caller handoff"
@@ -83,45 +123,5 @@
     "hash": "8e8cfcae",
     "date": "2026-03-28",
     "message": "feat: wire inbound call system — Jeff greeting, missed call SMS, webhook setup"
-  },
-  {
-    "hash": "352e4324",
-    "date": "2026-03-27",
-    "message": "fix: move intake page into (sentinel) route group for sidebar navigation"
-  },
-  {
-    "hash": "eb06c62e",
-    "date": "2026-03-27",
-    "message": "fix: resolve pre-existing TypeScript errors failing CI"
-  },
-  {
-    "hash": "26b1ef00",
-    "date": "2026-03-27",
-    "message": "fix: pipeline drag-and-drop fails when dropping on column or empty lane"
-  },
-  {
-    "hash": "76dd133b",
-    "date": "2026-03-27",
-    "message": "feat: remove scoring system from UI, change Active pill to pipeline blue"
-  },
-  {
-    "hash": "b2df85cc",
-    "date": "2026-03-27",
-    "message": "fix: move handleTogglePin useCallback above early return to fix React hooks ordering crash"
-  },
-  {
-    "hash": "e8f03019",
-    "date": "2026-03-27",
-    "message": "fix: remove non-existent direction column from call_sessions dashboard query"
-  },
-  {
-    "hash": "6458e81d",
-    "date": "2026-03-27",
-    "message": "fix: sync TypeScript types with lead pinning database schema"
-  },
-  {
-    "hash": "314686d3",
-    "date": "2026-03-27",
-    "message": "[cursor] Add lead detail pin action to client file header"
   }
 ]

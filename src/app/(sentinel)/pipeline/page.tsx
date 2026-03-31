@@ -43,6 +43,32 @@ const PIPELINE_LANES = [
   { id: "closed", title: "Closed", accent: "#a855f7", bg: "rgba(168,85,247,0.08)", border: "rgba(168,85,247,0.3)", text: "text-foreground" },
 ] as const;
 
+const PIPELINE_LEAD_SELECT = [
+  "id",
+  "property_id",
+  "status",
+  "pinned",
+  "pinned_at",
+  "pinned_by",
+  "assigned_to",
+  "source",
+  "next_call_scheduled_at",
+  "next_follow_up_at",
+  "follow_up_date",
+  "promoted_at",
+  "created_at",
+  "qualification_route",
+  "last_contact_at",
+  "next_action",
+  "priority",
+].join(", ");
+
+const PIPELINE_PROPERTY_SELECT = [
+  "id",
+  "address",
+  "owner_name",
+].join(", ");
+
 type LaneId = (typeof PIPELINE_LANES)[number]["id"];
 
 function getDisplayLane(status: string): LaneId | null {
@@ -122,7 +148,7 @@ export default function PipelinePage() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: leadsRaw, error: leadsErr } = await (supabase.from("leads") as any)
-        .select("*")
+        .select(PIPELINE_LEAD_SELECT)
         .eq("pinned", true)
         .neq("status", "dead")
         .order("priority", { ascending: false });
@@ -141,7 +167,7 @@ export default function PipelinePage() {
       if (propertyIds.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: propsData } = await (supabase.from("properties") as any)
-          .select("*")
+          .select(PIPELINE_PROPERTY_SELECT)
           .in("id", propertyIds);
         if (propsData) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

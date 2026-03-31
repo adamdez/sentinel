@@ -60,6 +60,66 @@ function useRingtone(active: boolean) {
   }, [active]);
 }
 
+function buildIncomingFaviconDataUrl() {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="16" fill="#07111f"/>
+      <path d="M21 17c2 0 3 1 4 3l3 7c1 2 0 4-2 5l-4 3c2 4 5 7 9 9l3-4c1-2 3-3 5-2l7 3c2 1 3 2 3 4 0 3-1 6-3 8-2 2-5 3-8 3-11 0-24-13-24-24 0-3 1-6 3-8 2-2 5-3 8-3z" fill="#f8fafc"/>
+      <circle cx="49" cy="15" r="9" fill="#ef4444"/>
+    </svg>
+  `.trim();
+
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+function useIncomingCallAttention(active: boolean, incomingFrom: string | null) {
+  const pathname = usePathname();
+  const originalTitleRef = useRef<string>("");
+  const originalFaviconRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const favicon = document.querySelector<HTMLLinkElement>("link[rel*='icon']");
+    if (!originalTitleRef.current) {
+      originalTitleRef.current = document.title;
+    }
+    if (favicon && originalFaviconRef.current == null) {
+      originalFaviconRef.current = favicon.href;
+    }
+
+    if (!active || pathname === "/dialer") {
+      document.title = originalTitleRef.current || document.title;
+      if (favicon && originalFaviconRef.current) {
+        favicon.href = originalFaviconRef.current;
+      }
+      return;
+    }
+
+    const callerLabel = formatPhone(incomingFrom);
+    const incomingTitle = `Incoming Call - ${callerLabel}`;
+    let alternate = false;
+
+    if (favicon) {
+      favicon.href = buildIncomingFaviconDataUrl();
+    }
+
+    document.title = incomingTitle;
+    const interval = window.setInterval(() => {
+      document.title = alternate ? incomingTitle : (originalTitleRef.current || "Sentinel");
+      alternate = !alternate;
+    }, 1000);
+
+    return () => {
+      window.clearInterval(interval);
+      document.title = originalTitleRef.current || document.title;
+      if (favicon && originalFaviconRef.current) {
+        favicon.href = originalFaviconRef.current;
+      }
+    };
+  }, [active, incomingFrom, pathname]);
+}
+
 export function FloatingCallPanel() {
   const {
     callState, callMeta, formatted, isMuted,
@@ -72,6 +132,7 @@ export function FloatingCallPanel() {
 
   // Play ringtone whenever there's an incoming call (any page except dialer)
   useRingtone(isIncoming && pathname !== "/dialer");
+  useIncomingCallAttention(isIncoming, incomingFrom);
 
   // Don't render on the dialer page — it manages its own call UI
   if (pathname === "/dialer") return null;
@@ -80,63 +141,62 @@ export function FloatingCallPanel() {
   if (isIncoming) {
     return (
       <>
-        {/* Dark overlay behind the banner */}
-        <div className="fixed inset-0 z-[9998] bg-black/40 pointer-events-none" />
+        <div className="fixed inset-0 z-[9998] bg-black/75 backdrop-blur-sm" />
 
-        {/* Full-width top banner */}
-        <div className="fixed top-0 left-0 right-0 z-[9999] animate-in slide-in-from-top duration-300">
-          <div className="relative overflow-hidden bg-emerald-600 shadow-2xl">
-            {/* Animated pulse background */}
-            <div className="absolute inset-0 bg-emerald-400/20 animate-pulse" />
-
-            <div className="relative mx-auto max-w-5xl px-4 py-4 sm:px-6">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                {/* Left: icon + caller info */}
-                <div className="flex items-center gap-4">
-                  <div className="relative">
-                    <div className="h-14 w-14 rounded-full flex items-center justify-center bg-white/20 ring-4 ring-white/30 animate-bounce">
-                      <PhoneIncoming className="h-7 w-7 text-white" />
+        <div className="fixed inset-0 z-[9999] animate-in fade-in duration-200">
+          <div className="flex h-full items-center justify-center p-4 sm:p-8">
+            <div className="relative w-full max-w-4xl overflow-hidden rounded-[28px] border border-emerald-400/30 bg-[#06131f]/95 shadow-[0_30px_120px_rgba(16,185,129,0.25)]">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(52,211,153,0.16),transparent_50%)]" />
+              <div className="relative grid gap-6 p-6 sm:p-8 lg:grid-cols-[1.4fr,auto] lg:items-center">
+                <div className="flex items-start gap-5">
+                  <div className="relative mt-1">
+                    <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/18 ring-4 ring-emerald-300/15">
+                      <PhoneIncoming className="h-10 w-10 text-emerald-200" />
                     </div>
-                    <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-white animate-ping" />
+                    <span className="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-emerald-300 animate-ping" />
                   </div>
-                  <div>
-                    <p className="text-lg font-bold text-white tracking-wide uppercase">
-                      Incoming Call
-                    </p>
-                    <p className="text-2xl font-mono font-bold text-white/95">
-                      {formatPhone(incomingFrom)}
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold uppercase tracking-[0.34em] text-emerald-200/75">
+                        Incoming Call
+                      </p>
+                      <h2 className="text-3xl font-semibold text-white sm:text-4xl">
+                        {formatPhone(incomingFrom)}
+                      </h2>
+                    </div>
+                    <p className="max-w-2xl text-sm leading-6 text-emerald-100/80 sm:text-base">
+                      Sentinel is ringing right now. Answer here or jump into the dialer for the full live-call workspace.
                     </p>
                   </div>
                 </div>
 
-                {/* Right: answer/reject buttons */}
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
                   <button
                     onClick={answerIncoming}
-                    className="flex items-center gap-2 rounded-xl px-8 py-3 text-base font-bold bg-white text-emerald-700 hover:bg-emerald-50 shadow-lg transition-all hover:scale-105 active:scale-95"
+                    className="flex min-w-[180px] items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-6 py-4 text-base font-semibold text-emerald-950 shadow-lg shadow-emerald-500/20 transition-all hover:-translate-y-0.5 hover:bg-emerald-200"
                   >
                     <Phone className="h-5 w-5" />
-                    Answer
+                    Answer now
                   </button>
                   <button
                     onClick={rejectIncoming}
-                    className="flex items-center gap-2 rounded-xl px-6 py-3 text-base font-bold bg-red-500/80 text-white hover:bg-red-500 shadow-lg transition-all hover:scale-105 active:scale-95"
+                    className="flex min-w-[180px] items-center justify-center gap-2 rounded-2xl border border-red-400/30 bg-red-500/15 px-6 py-4 text-base font-semibold text-red-100 transition-all hover:bg-red-500/25"
                   >
                     <PhoneOff className="h-5 w-5" />
                     Reject
                   </button>
                   <Link
                     href="/dialer"
-                    className="flex items-center gap-1.5 rounded-xl px-4 py-3 text-sm font-semibold bg-white/20 text-white hover:bg-white/30 transition-colors"
+                    className="flex min-w-[180px] items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/6 px-6 py-4 text-base font-semibold text-white/90 transition-all hover:bg-white/10"
                     title="Open in Dialer for full context"
                   >
-                    <ExternalLink className="h-4 w-4" />
-                    Dialer
+                    <ExternalLink className="h-5 w-5" />
+                    Open dialer
                   </Link>
                 </div>
               </div>
             </div>
-          </div>
+          </div>  
         </div>
       </>
     );

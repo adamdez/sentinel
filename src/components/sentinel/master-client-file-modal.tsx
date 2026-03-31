@@ -4227,6 +4227,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const [jeffInteractions, setJeffInteractions] = useState<Array<{
     id: string;
     status: "needs_review" | "task_open" | "reviewed" | "resolved";
+    direction: string;
+    caller_phone: string | null;
+    caller_name: string | null;
+    property_address: string | null;
     interaction_type: string;
     summary: string | null;
     callback_requested: boolean;
@@ -8973,6 +8977,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                               {jeffInteractions.map((interaction) => (
                                 <div key={interaction.id} className="rounded-lg border border-sky-500/10 bg-background/20 p-2.5 space-y-1.5">
                                   <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                                    <Badge variant="outline">{interaction.direction}</Badge>
                                     <Badge variant="outline">{interaction.interaction_type.replace("_", " ")}</Badge>
                                     {interaction.callback_due_at ? (
                                       <span className="text-amber-300/80">Due {formatDueDateLabel(interaction.callback_due_at).text}</span>
@@ -8986,6 +8991,13 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                                   ) : (
                                     <p className="text-xs text-muted-foreground/60">AI-captured Jeff conversation. Review the linked task or recent call context.</p>
                                   )}
+                                  {(interaction.caller_phone || interaction.caller_name || interaction.property_address) ? (
+                                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-sky-100/75">
+                                      {interaction.caller_phone ? <span>Caller {interaction.caller_phone}</span> : null}
+                                      {interaction.caller_name ? <span>Name {interaction.caller_name}</span> : null}
+                                      {interaction.property_address ? <span>Property {interaction.property_address}</span> : null}
+                                    </div>
+                                  ) : null}
                                   <div className="flex flex-wrap items-center gap-2 pt-1">
                                     {interaction.task?.id ? (
                                       <Link
@@ -9293,4 +9305,3 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   );
 
 }
-

@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
     new Set(
       allSessions
         .map((session: { lead_id?: string | null }) => session.lead_id)
-        .filter((leadId): leadId is string => typeof leadId === "string" && leadId.length > 0),
+        .filter((leadId: string | null | undefined): leadId is string => typeof leadId === "string" && leadId.length > 0),
     ),
   ).slice(0, 25);
 

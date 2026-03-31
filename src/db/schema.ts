@@ -994,6 +994,10 @@ export const jeffInteractions = pgTable("jeff_interactions", {
   voiceSessionId: uuid("voice_session_id").notNull(),
   leadId: uuid("lead_id").references(() => leads.id, { onDelete: "set null" }),
   callsLogId: uuid("calls_log_id"),
+  direction: text("direction").notNull().default("outbound"),
+  callerPhone: text("caller_phone"),
+  callerName: text("caller_name"),
+  propertyAddress: text("property_address"),
   interactionType: text("interaction_type").notNull(),
   status: text("status").notNull().default("needs_review"),
   summary: text("summary"),
@@ -1013,5 +1017,6 @@ export const jeffInteractions = pgTable("jeff_interactions", {
   uniqueIndex("uq_jeff_interactions_voice_session").on(table.voiceSessionId),
   index("idx_jeff_interactions_lead").on(table.leadId, table.createdAt),
   index("idx_jeff_interactions_status").on(table.status, table.createdAt),
+  index("idx_jeff_interactions_direction_status").on(table.direction, table.status, table.createdAt),
   index("idx_jeff_interactions_task").on(table.taskId),
 ]);

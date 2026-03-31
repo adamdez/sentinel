@@ -1,0 +1,4 @@
+-- Sentinel remote baseline marker.
+-- This file intentionally establishes a clean migration history root after
+-- rebaselining a drifted local/remote Supabase migration chain on 2026-03-30.
+-- The live schema already exists in the linked project.

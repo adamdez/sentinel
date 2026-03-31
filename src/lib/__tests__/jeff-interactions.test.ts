@@ -174,6 +174,44 @@ describe("deriveJeffInteractionDecision", () => {
     expect(result.shouldTrack).toBe(false);
   });
 
+  it("tracks inbound warm transfers without requiring a linked lead", () => {
+    const result = deriveJeffInteractionDecision({
+      direction: "inbound",
+      leadId: null,
+      callerType: "seller",
+      disposition: "completed",
+      callbackRequested: false,
+      callbackTime: null,
+      wasTransferred: true,
+      transferTarget: "logan",
+      summary: "Caller gave an address and Jeff transferred to Logan.",
+    });
+
+    expect(result.shouldTrack).toBe(true);
+    if (!result.shouldTrack) throw new Error("expected tracked result");
+    expect(result.interactionType).toBe("warm_transfer");
+    expect(result.shouldCreateTask).toBe(false);
+  });
+
+  it("creates inbound callback work without a linked lead", () => {
+    const result = deriveJeffInteractionDecision({
+      direction: "inbound",
+      leadId: null,
+      callerType: "unknown",
+      disposition: "completed",
+      callbackRequested: true,
+      callbackTime: "tomorrow at 2pm",
+      wasTransferred: false,
+      transferTarget: null,
+      summary: "Caller asked for Adam to call back tomorrow about 123 Main St.",
+    });
+
+    expect(result.shouldTrack).toBe(true);
+    if (!result.shouldTrack) throw new Error("expected tracked result");
+    expect(result.interactionType).toBe("callback_request");
+    expect(result.shouldCreateTask).toBe(true);
+  });
+
   it("does not reopen a resolved Jeff interaction when the linked task is already completed", async () => {
     const sb = createSupabaseMock({
       existingTask: { id: "task-1", status: "completed" },
@@ -186,6 +224,10 @@ describe("deriveJeffInteractionDecision", () => {
       voice_session_id: "voice-1",
       lead_id: "lead-1",
       calls_log_id: "call-1",
+      direction: "outbound",
+      caller_phone: "+15095550000",
+      caller_name: null,
+      property_address: null,
       interaction_type: "callback_request",
       status: "task_open",
       summary: "Seller asked for a callback tomorrow.",
@@ -209,5 +251,48 @@ describe("deriveJeffInteractionDecision", () => {
     expect(sb.tasksInsertSingle).not.toHaveBeenCalled();
     expect(sb.interactionsUpdateEq).toHaveBeenCalled();
     expect(sb.interactionsUpdateEq.mock.calls[0][0]).toBe("id");
+  });
+
+  it("creates an inbound Jeff task even when no lead is linked yet", async () => {
+    const sb = createSupabaseMock({
+      existingTask: null,
+      leadAssignee: null,
+      profiles: [
+        { id: "logan-id", email: "logan@dominionhomedeals.com" },
+        { id: "adam-id", email: "adam@dominionhomedeals.com" },
+      ],
+    });
+    vi.mocked(createServerClient).mockReturnValue(sb as never);
+
+    const interaction: JeffInteractionRecord = {
+      id: "interaction-2",
+      voice_session_id: "voice-2",
+      lead_id: null,
+      calls_log_id: "call-2",
+      direction: "inbound",
+      caller_phone: "+15095907091",
+      caller_name: "Pat Seller",
+      property_address: "123 Main St",
+      interaction_type: "callback_request",
+      status: "task_open",
+      summary: "5095907091 called in. Spoke briefly with Jeff. Property address: 123 Main St. Requested a callback tomorrow at 2pm.",
+      callback_requested: true,
+      callback_due_at: "2026-03-31T21:00:00.000Z",
+      callback_timing_text: "tomorrow at 2pm",
+      transfer_outcome: "callback_requested",
+      assigned_to: null,
+      task_id: null,
+      policy_version: "inbound-v1",
+      metadata: {},
+      reviewed_at: null,
+      resolved_at: null,
+      created_at: "2026-03-30T00:00:00.000Z",
+      updated_at: "2026-03-30T00:00:00.000Z",
+    };
+
+    const taskId = await syncJeffTaskForInteraction(interaction);
+
+    expect(taskId).toBe("new-task-1");
+    expect(sb.tasksInsertSingle).toHaveBeenCalled();
   });
 });

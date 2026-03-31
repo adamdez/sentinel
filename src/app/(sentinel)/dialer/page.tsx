@@ -48,7 +48,7 @@ import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import { PostCallPanel } from "@/components/sentinel/post-call-panel";
 import { SellerMemoryPanel } from "@/components/sentinel/seller-memory-panel";
 import { SellerMemoryPreview } from "@/components/sentinel/seller-memory-preview";
-import { LiveAssistPanel } from "@/components/sentinel/live-assist-panel";
+import { LiveCoachWindow } from "@/components/sentinel/live-coach-window";
 import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder";
 import { JeffMessagesBanner } from "@/components/sentinel/jeff-messages-banner";
 import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
@@ -802,7 +802,6 @@ function DialerPageInner() {
 
   const { latestSummary, latestSummaryTime } = useCallNotes(currentLead?.id);
   const { brief: preCallBrief, loading: briefLoading, error: briefError, regenerate: retryBrief } = usePreCallBrief(currentLead?.id ?? null);
-  const [coachPopoutOpen, setCoachPopoutOpen] = useState(false);
   const { coach: liveCoach, loading: liveCoachLoading, error: liveCoachError } = useLiveCoach({
     sessionId: dialerSessionId,
     enabled: callState === "connected" && !!dialerSessionId,
@@ -879,12 +878,6 @@ function DialerPageInner() {
     });
   }, [callState, dialerSessionId, currentLead]);
 
-  useEffect(() => {
-    if (callState !== "connected") {
-      setCoachPopoutOpen(false);
-    }
-  }, [callState]);
-
   // Quick Manual Dial state
   const searchParams = useSearchParams();
   const [manualPhone, setManualPhone] = useState(() => {
@@ -914,6 +907,12 @@ function DialerPageInner() {
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
   const manualDialOpen = manualDialExpanded || manualStatus !== "idle" || smsComposeOpen;
+  const queueCoachActive = callState === "connected";
+  const manualCoachActive = !queueCoachActive && manualStatus === "connected";
+  const activeCoachBrief = queueCoachActive ? preCallBrief : null;
+  const activeCoach = queueCoachActive ? liveCoach : manualCoachActive ? manualLiveCoach : null;
+  const activeCoachLoading = queueCoachActive ? liveCoachLoading : manualCoachActive ? manualLiveCoachLoading : false;
+  const activeCoachError = queueCoachActive ? liveCoachError : manualCoachActive ? manualLiveCoachError : null;
 
   // Phone auto-match: when a manual call connects, look up the number
   const [phoneMatchResult, setPhoneMatchResult] = useState<{
@@ -2965,15 +2964,6 @@ function DialerPageInner() {
           </GlassCard>
         )}
 
-        {(manualStatus === "connected" || (manualStatus === "ended" && !!manualSessionId)) && (
-          <LiveAssistPanel
-            brief={null}
-            coach={manualLiveCoach}
-            loading={manualLiveCoachLoading}
-            error={manualLiveCoachError}
-            className="mt-3"
-          />
-        )}
 
         {/* Manual dial PostCallPanel — session-backed publish path */}
         {manualStatus === "ended" && manualSessionId && (
@@ -3986,17 +3976,6 @@ function DialerPageInner() {
                   )}
 
                   {/* ── Live Assist: brief-based prompts during active call ── */}
-                  {callState === "connected" && (preCallBrief || liveCoach) && (
-                    <LiveAssistPanel
-                      brief={preCallBrief}
-                      coach={liveCoach}
-                      loading={liveCoachLoading}
-                      error={liveCoachError}
-                      className="mb-3"
-                      popoutOpen={coachPopoutOpen}
-                      onTogglePopout={() => setCoachPopoutOpen((value) => !value)}
-                    />
-                  )}
 
                   {callState === "ended" && dialerSessionId ? (
                     /* ── PostCallPanel: session-backed calls get publish path ── */
@@ -4165,19 +4144,14 @@ function DialerPageInner() {
         </div>
       </div>
 
-      {callState === "connected" && coachPopoutOpen && (preCallBrief || liveCoach) && (
-        <div className="fixed right-4 top-24 z-50 w-[380px] max-w-[calc(100vw-2rem)]">
-          <LiveAssistPanel
-            brief={preCallBrief}
-            coach={liveCoach}
-            loading={liveCoachLoading}
-            error={liveCoachError}
-            variant="overlay"
-            popoutOpen={coachPopoutOpen}
-            onTogglePopout={() => setCoachPopoutOpen(false)}
-          />
-        </div>
-      )}
+      <LiveCoachWindow
+        active={queueCoachActive || manualCoachActive}
+        brief={activeCoachBrief}
+        coach={activeCoach}
+        loading={activeCoachLoading}
+        error={activeCoachError}
+        fileModalOpen={fileModalOpen}
+      />
 
       {/* Master Client File Modal */}
       {currentLead && (

@@ -192,13 +192,17 @@ export async function GET(req: NextRequest) {
   // sees the same handoff object the Jeff page and client file use.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: interaction } = await (sb.from("jeff_interactions") as any)
-    .select("id, interaction_type, status, summary, callback_requested, callback_due_at, callback_timing_text, transfer_outcome, task_id")
+    .select("id, direction, caller_phone, caller_name, property_address, interaction_type, status, summary, callback_requested, callback_due_at, callback_timing_text, transfer_outcome, task_id")
     .eq("voice_session_id", session.id)
     .maybeSingle();
 
   if (interaction) {
     jeffInteraction = {
       id: interaction.id,
+      direction: interaction.direction ?? null,
+      callerPhone: interaction.caller_phone ?? null,
+      callerName: interaction.caller_name ?? null,
+      propertyAddress: interaction.property_address ?? null,
       interactionType: interaction.interaction_type,
       status: interaction.status,
       summary: interaction.summary ?? null,

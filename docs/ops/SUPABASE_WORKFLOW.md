@@ -34,11 +34,19 @@ Apply pending migrations to the linked project:
 npm run db:push
 ```
 
+`db:push` uses the Supabase Management API instead of the raw Postgres CLI path, so it does not depend on Docker or the remote database password on this machine.
+
 Generate updated Supabase types:
 
 ```bash
 npm run db:gen-types
 ```
+
+## Active migration rules
+
+- Active migrations in [`supabase/migrations`](C:/Users/adamd/Desktop/Sentinel/supabase/migrations) must use a unique 14-digit timestamp prefix, for example `20260331010702_remote_baseline.sql`.
+- Legacy pre-rebaseline migrations live in [`supabase/migrations_legacy/20260330_pre_rebaseline`](C:/Users/adamd/Desktop/Sentinel/supabase/migrations_legacy/20260330_pre_rebaseline) for reference only.
+- The wrapper now validates migration filenames before any `db:*` command runs so date-only prefixes cannot silently drift the history again.
 
 ## Jeff-specific note
 

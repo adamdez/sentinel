@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "vercel": {
+      "type": "http",
+      "url": "https://mcp.vercel.com",
+      "meta": {
+        "description": "Vercel MCP server for local agent access to Sentinel project",
+        "capabilities": [
+          "inspect deployments",
+          "pull runtime logs",
+          "debug production issues"
+        ],
+        "projectContext": {
+          "projectName": "sentinel",
+          "projectId": "prj_muwdaUKJPJvBEJ6tnG1Ls73bYNND",
+          "teamId": "team_xUA92zJqANVb932qFcVTKtfB"
+        },
+        "authMethod": "oauth",
+        "authNote": "Uses OAuth/browser connector auth - no hardcoded API tokens"
+      }
+    }
+  }
+}

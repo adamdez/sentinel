@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "db:link": "node scripts/supabase-cli.mjs link",
     "db:migration:list": "node scripts/supabase-cli.mjs migration list",
-    "db:push": "node scripts/supabase-cli.mjs db push",
+    "db:push": "node scripts/supabase-remote-push.mjs",
     "db:gen-types": "node scripts/supabase-cli.mjs gen types --lang=typescript --project-id imusghlptroddfeycpei > src/lib/supabase-generated-types.ts"
   },
   "dependencies": {
