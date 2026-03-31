@@ -7,7 +7,10 @@ const MAX_INBOUND_PAYLOAD_BYTES = 256 * 1024;
 
 function isAuthorizedLeadHouseRequest(req: NextRequest): boolean {
   const configuredSecret = process.env.LEAD_HOUSE_INTAKE_SECRET ?? process.env.INBOUND_INTAKE_SECRET ?? "";
-  const providedSecret = req.nextUrl.searchParams.get("secret")?.trim() ?? "";
+  const providedSecret =
+    req.nextUrl.searchParams.get("secret")?.trim()
+    ?? req.headers.get("x-intake-secret")?.trim()
+    ?? "";
 
   return configuredSecret.length > 0 && providedSecret === configuredSecret;
 }
