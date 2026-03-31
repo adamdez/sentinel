@@ -151,6 +151,63 @@ const PROPERTY_LIST_SELECT = [
   "is_vacant",
 ].join(", ");
 
+function splitSelectColumns(select: string): string[] {
+  return select
+    .split(",")
+    .map((column) => column.trim())
+    .filter(Boolean);
+}
+
+function isMissingColumnError(error: unknown): error is { code?: string; message?: string } {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: string; message?: string };
+  return candidate.code === "42703" || candidate.code === "PGRST204";
+}
+
+function extractMissingColumnName(error: { message?: string }, table: string): string | null {
+  const message = error.message ?? "";
+  const qualifiedMatch = message.match(new RegExp(`column\\s+${table}\\.([a-zA-Z0-9_]+)\\s+does not exist`, "i"));
+  if (qualifiedMatch?.[1]) return qualifiedMatch[1];
+  const unqualifiedMatch = message.match(/Could not find the '([a-zA-Z0-9_]+)' column/i);
+  if (unqualifiedMatch?.[1]) return unqualifiedMatch[1];
+  return null;
+}
+
+async function selectWithMissingColumnFallback<T>(
+  table: "leads" | "properties",
+  baseColumns: string[],
+  buildQuery: (columns: string[]) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<{ data: T[] | null; missingColumns: string[]; error: unknown }> {
+  const columns = [...baseColumns];
+  const missingColumns: string[] = [];
+
+  while (columns.length > 0) {
+    const { data, error } = await buildQuery(columns);
+    if (!error) {
+      return { data, missingColumns, error: null };
+    }
+    if (!isMissingColumnError(error)) {
+      return { data: null, missingColumns, error };
+    }
+
+    const missingColumn = extractMissingColumnName(error, table);
+    if (!missingColumn) {
+      return { data: null, missingColumns, error };
+    }
+
+    const nextColumns = columns.filter((column) => column !== missingColumn);
+    if (nextColumns.length === columns.length) {
+      return { data: null, missingColumns, error };
+    }
+
+    columns.splice(0, columns.length, ...nextColumns);
+    missingColumns.push(missingColumn);
+    console.warn(`[useLeads] Missing ${table} column "${missingColumn}" detected; retrying without it.`);
+  }
+
+  return { data: [], missingColumns, error: null };
+}
+
 function scoreLabel(n: number | null): AIScore["label"] {
   if (n == null) return "unscored";
   if (n >= 85) return "platinum";
@@ -477,12 +534,18 @@ export function useLeads() {
     try {
       // Fetch inbox-stage leads plus closed records for compact recovery/discovery.
       // Closed stays hidden by default in client filters so daily queue behavior remains intact.
+      const leadColumns = splitSelectColumns(LEAD_LIST_SELECT);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: leadsRaw, error: leadsErr } = await (supabase.from("leads") as any)
-        .select(LEAD_LIST_SELECT)
-        .neq("status", "prospect")
-        .neq("status", "staging")
-        .order("priority", { ascending: false });
+      const { data: leadsRaw, error: leadsErr } = await selectWithMissingColumnFallback<any>(
+        "leads",
+        leadColumns,
+        (columns) =>
+          (supabase.from("leads") as any)
+            .select(columns.join(", "))
+            .neq("status", "prospect")
+            .neq("status", "staging")
+            .order("priority", { ascending: false }),
+      );
 
       if (leadsErr) {
         console.error("[useLeads] Fetch failed:", leadsErr);
@@ -507,6 +570,7 @@ export function useLeads() {
       const propsMap: Record<string, any> = {};
       const firstAttemptByLeadId: Record<string, string> = {};
 
+      const propertyColumns = splitSelectColumns(PROPERTY_LIST_SELECT);
       const [
         propsResult,
         callsResult,
@@ -514,10 +578,15 @@ export function useLeads() {
         predResult,
       ] = await Promise.all([
         propIds.length > 0
-          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (supabase.from("properties") as any)
-              .select(PROPERTY_LIST_SELECT)
-              .in("id", propIds)
+          ? selectWithMissingColumnFallback<any>(
+              "properties",
+              propertyColumns,
+              (columns) =>
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (supabase.from("properties") as any)
+                  .select(columns.join(", "))
+                  .in("id", propIds),
+            )
           : Promise.resolve({ data: [], error: null }),
         leadIds.length > 0
           ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -547,6 +616,10 @@ export function useLeads() {
               .order("created_at", { ascending: false })
           : Promise.resolve({ data: [], error: null }),
       ]);
+
+      if (propsResult.error) {
+        console.warn("[useLeads] properties fetch degraded:", propsResult.error);
+      }
 
       if (propsResult.data) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
