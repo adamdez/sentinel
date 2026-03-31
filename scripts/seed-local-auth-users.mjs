@@ -35,7 +35,7 @@ const { Client } = pg;
 const DEV_USERS = [
   {
     email: "adam@dominionhomedeals.com",
-    password: "SentinelLocal!2026",
+    password: "Dominion2026!",
     full_name: "Adam DesJardin",
     role: "admin",
     personal_cell: "+15095907091",
@@ -43,7 +43,7 @@ const DEV_USERS = [
   },
   {
     email: "logan@dominionhomedeals.com",
-    password: "SentinelLocal!2026",
+    password: "Dominion2026!",
     full_name: "Logan D.",
     role: "admin",
     personal_cell: "+15096669518",
@@ -51,8 +51,8 @@ const DEV_USERS = [
   },
   {
     email: "nathan@dominionhomedeals.com",
-    password: "SentinelLocal!2026",
-    full_name: "Nathan Guest",
+    password: "Dominion2026!",
+    full_name: "user 1",
     role: "agent",
     personal_cell: "+12087589246",
     twilio_phone_number: "+12087589246",
@@ -175,7 +175,7 @@ async function main() {
   }
 
   console.log("Seeded local auth users and aligned lead ownership.");
-  console.log("Login password for seeded users: SentinelLocal!2026");
+  console.log("Login password for seeded users: Dominion2026!");
 }
 
 main().catch((error) => {
