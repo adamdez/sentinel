@@ -1,9 +1,12 @@
 import { canUserClaimLead, normalizeAssignedUserId } from "@/lib/lead-ownership";
 import { runSkipTraceIntel } from "@/lib/skiptrace-intel";
+import { runWithConcurrency } from "@/lib/async-batch";
 
 type SupabaseClientLike = {
   from: (table: string) => any;
 };
+
+const QUEUE_SKIP_TRACE_CONCURRENCY = 3;
 
 export interface QueueLeadSelection {
   id: string;
@@ -236,86 +239,140 @@ export async function runSkipTraceForQueuedLeads(input: {
     details: [],
   };
 
-  for (const row of rows) {
+  const results = await runWithConcurrency(rows, QUEUE_SKIP_TRACE_CONCURRENCY, async (row) => {
     const alreadyTraced = hasCompletedSkipTrace({
       skipTraceStatus: row.skip_trace_status,
       ownerFlags: row.properties?.owner_flags,
     });
 
     if (alreadyTraced) {
-      summary.skippedAlreadyTraced += 1;
-      summary.details.push({
-        leadId: row.id,
-        status: "skipped",
-        reason: "already_traced",
+      return {
+        tracedNow: 0,
+        skippedAlreadyTraced: 1,
+        failed: 0,
         phonesSaved: 0,
-      });
-      continue;
+        detail: {
+          leadId: row.id,
+          status: "skipped",
+          reason: "already_traced",
+          phonesSaved: 0,
+        } as QueueSkipTraceSummary["details"][number],
+      };
     }
 
     if (!row.property_id || !row.properties?.address) {
-      summary.failed += 1;
-      summary.details.push({
-        leadId: row.id,
-        status: "failed",
-        reason: "missing_address",
+      return {
+        tracedNow: 0,
+        skippedAlreadyTraced: 0,
+        failed: 1,
         phonesSaved: 0,
-      });
-      continue;
+        detail: {
+          leadId: row.id,
+          status: "failed",
+          reason: "missing_address",
+          phonesSaved: 0,
+        } as QueueSkipTraceSummary["details"][number],
+      };
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await ((input.sb.from("leads") as any)
-      .update({
-        skip_trace_status: "running",
-        skip_trace_last_attempted_at: new Date().toISOString(),
-        skip_trace_last_error: null,
-      })
-      .eq("id", row.id));
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await ((input.sb.from("leads") as any)
+        .update({
+          skip_trace_status: "running",
+          skip_trace_last_attempted_at: new Date().toISOString(),
+          skip_trace_last_error: null,
+        })
+        .eq("id", row.id));
 
-    const result = await runSkipTraceIntel({
-      leadId: row.id,
-      propertyId: row.property_id,
-      address: row.properties.address ?? undefined,
-      city: row.properties.city ?? undefined,
-      state: row.properties.state ?? undefined,
-      zip: row.properties.zip ?? undefined,
-      ownerName: row.properties.owner_name ?? undefined,
-      reason: "queue_bulk",
-      force: false,
-    });
-
-    if (result.reason === "completed" && (result.saveFailures ?? 0) === 0) {
-      summary.tracedNow += 1;
-      summary.phonesSaved += result.phonesPromoted;
-      summary.details.push({
+      const result = await runSkipTraceIntel({
         leadId: row.id,
-        status: "traced",
-        reason: "completed",
+        propertyId: row.property_id,
+        address: row.properties.address ?? undefined,
+        city: row.properties.city ?? undefined,
+        state: row.properties.state ?? undefined,
+        zip: row.properties.zip ?? undefined,
+        ownerName: row.properties.owner_name ?? undefined,
+        reason: "queue_bulk",
+        force: false,
+      });
+
+      if (result.reason === "completed" && (result.saveFailures ?? 0) === 0) {
+        return {
+          tracedNow: 1,
+          skippedAlreadyTraced: 0,
+          failed: 0,
+          phonesSaved: result.phonesPromoted,
+          detail: {
+            leadId: row.id,
+            status: "traced",
+            reason: "completed",
+            phonesSaved: result.phonesPromoted,
+          } as QueueSkipTraceSummary["details"][number],
+        };
+      }
+
+      if (result.reason === "debounced") {
+        return {
+          tracedNow: 0,
+          skippedAlreadyTraced: 1,
+          failed: 0,
+          phonesSaved: 0,
+          detail: {
+            leadId: row.id,
+            status: "skipped",
+            reason: "debounced_recent_run",
+            phonesSaved: 0,
+          } as QueueSkipTraceSummary["details"][number],
+        };
+      }
+
+      return {
+        tracedNow: 0,
+        skippedAlreadyTraced: 0,
+        failed: 1,
         phonesSaved: result.phonesPromoted,
-      });
-      continue;
-    }
+        detail: {
+          leadId: row.id,
+          status: "failed",
+          reason: result.reason,
+          phonesSaved: result.phonesPromoted,
+        } as QueueSkipTraceSummary["details"][number],
+      };
+    } catch (error) {
+      const message = getErrorMessage(error) || "unexpected_error";
+      console.error(`[dial-queue] queued skip trace failed for lead ${row.id}:`, error);
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await ((input.sb.from("leads") as any)
+          .update({
+            skip_trace_status: "failed",
+            skip_trace_last_error: message.slice(0, 500),
+          })
+          .eq("id", row.id));
+      } catch {}
 
-    if (result.reason === "debounced") {
-      summary.skippedAlreadyTraced += 1;
-      summary.details.push({
-        leadId: row.id,
-        status: "skipped",
-        reason: "debounced_recent_run",
+      return {
+        tracedNow: 0,
+        skippedAlreadyTraced: 0,
+        failed: 1,
         phonesSaved: 0,
-      });
-      continue;
+        detail: {
+          leadId: row.id,
+          status: "failed",
+          reason: message,
+          phonesSaved: 0,
+        } as QueueSkipTraceSummary["details"][number],
+      };
     }
+  });
 
-    summary.failed += 1;
-    summary.phonesSaved += result.phonesPromoted;
-    summary.details.push({
-      leadId: row.id,
-      status: "failed",
-      reason: result.reason,
-      phonesSaved: result.phonesPromoted,
-    });
+  for (const result of results) {
+    summary.tracedNow += result.tracedNow;
+    summary.skippedAlreadyTraced += result.skippedAlreadyTraced;
+    summary.failed += result.failed;
+    summary.phonesSaved += result.phonesSaved;
+    summary.details.push(result.detail);
   }
 
   return summary;

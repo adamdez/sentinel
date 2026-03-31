@@ -268,4 +268,54 @@ describe("dial queue service", () => {
     expect(summary.failed).toBe(1);
     expect(summary.phonesSaved).toBe(2);
   });
+
+  it("continues queue skip trace when one lead throws unexpectedly", async () => {
+    const sb = createMockSb([
+      {
+        id: "lead-1",
+        property_id: "prop-1",
+        assigned_to: "adam",
+        dial_queue_active: true,
+        skip_trace_status: "not_started",
+        properties: { address: "123 Main", city: "Spokane", state: "WA", zip: "99201", owner_name: "A Owner", owner_flags: {} },
+      },
+      {
+        id: "lead-2",
+        property_id: "prop-2",
+        assigned_to: "adam",
+        dial_queue_active: true,
+        skip_trace_status: "not_started",
+        properties: { address: "999 Oak", city: "Spokane", state: "WA", zip: "99201", owner_name: "B Owner", owner_flags: {} },
+      },
+    ]);
+
+    runSkipTraceIntelMock.mockImplementation(async ({ leadId }: { leadId: string }) => {
+      if (leadId === "lead-1") {
+        throw new Error("artifact write failed");
+      }
+      return {
+        ran: true,
+        reason: "completed",
+        phonesFound: 2,
+        emailsFound: 0,
+        newFactsCreated: 1,
+        phonesPromoted: 1,
+        saveFailures: 0,
+        saveErrors: [],
+        providers: ["tracerfy"],
+      };
+    });
+
+    const summary = await runSkipTraceForQueuedLeads({
+      sb: sb as never,
+      userId: "adam",
+    });
+
+    expect(runSkipTraceIntelMock).toHaveBeenCalledTimes(2);
+    expect(summary.checked).toBe(2);
+    expect(summary.tracedNow).toBe(1);
+    expect(summary.failed).toBe(1);
+    expect(summary.phonesSaved).toBe(1);
+    expect(summary.details.some((detail) => detail.reason === "artifact write failed")).toBe(true);
+  });
 });

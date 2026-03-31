@@ -6,11 +6,11 @@
  *   - POST /api/leads/[id]/queue (dialer queue)
  *   - POST /api/properties/promote-to-lead (promotion)
  *
- * Write path: dualSkipTrace → dossier_artifact → filtered fact_assertions.
+ * Write path: dualSkipTrace -> dossier_artifact -> filtered fact_assertions.
  * Fingerprints existing phones/emails from properties, lead_phones, and
- * fact_assertions before creating new facts — no duplicates.
+ * fact_assertions before creating new facts, so duplicates are not re-saved.
  *
- * Debounce: skips if a successful intel skiptrace ran within DEBOUNCE_HOURS
+ * Debounce: skips if a successful intel skip trace ran within DEBOUNCE_HOURS
  * for the same property (checked via owner_flags.skip_trace_intel_at).
  */
 
@@ -20,8 +20,6 @@ import { createArtifact, createFact } from "@/lib/intelligence";
 
 const DEBOUNCE_HOURS = 4;
 
-// ── Shared normalizer (matches skip-trace.ts internal normalizePhone) ──
-
 export function normalizePhoneForDedup(raw: string): string {
   return raw.replace(/\D/g, "").slice(-10);
 }
@@ -30,7 +28,15 @@ export function normalizeEmailForDedup(raw: string): string {
   return raw.toLowerCase().trim();
 }
 
-// ── Founder check ──────────────────────────────────────────────────────
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) return message;
+  }
+  return "unknown_error";
+}
 
 let _founderIds: Set<string> | null = null;
 
@@ -39,16 +45,16 @@ function getFounderIds(): Set<string> {
   const raw = process.env.FOUNDER_USER_IDS ?? "";
   const ids = raw
     .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
   _founderIds = new Set(ids);
   return _founderIds;
 }
 
 /**
  * Should skip-trace fire for this assignment transition?
- *   - null → non-null (first claim)
- *   - any → founder UUID (reassignment to Logan/Adam)
+ *   - null -> non-null (first claim)
+ *   - any -> founder UUID (reassignment to Logan/Adam)
  */
 export function shouldTriggerSkiptrace(
   prevAssignedTo: string | null,
@@ -59,8 +65,6 @@ export function shouldTriggerSkiptrace(
   const assignedToFounder = getFounderIds().has(nextAssignedTo);
   return becameOwned || assignedToFounder;
 }
-
-// ── Fingerprint collection ─────────────────────────────────────────────
 
 interface ExistingFingerprints {
   phones: Set<string>;
@@ -89,17 +93,23 @@ async function collectFingerprints(
     if (typeof prop.owner_email === "string" && prop.owner_email.trim()) {
       emails.add(normalizeEmailForDedup(prop.owner_email));
     }
+
     const flags = (prop.owner_flags ?? {}) as Record<string, unknown>;
     const allPhones = flags.all_phones as Array<{ number?: string }> | undefined;
     if (Array.isArray(allPhones)) {
-      for (const p of allPhones) {
-        if (typeof p.number === "string") phones.add(normalizePhoneForDedup(p.number));
+      for (const phone of allPhones) {
+        if (typeof phone.number === "string") {
+          phones.add(normalizePhoneForDedup(phone.number));
+        }
       }
     }
+
     const allEmails = flags.all_emails as Array<{ email?: string }> | undefined;
     if (Array.isArray(allEmails)) {
-      for (const e of allEmails) {
-        if (typeof e.email === "string") emails.add(normalizeEmailForDedup(e.email));
+      for (const email of allEmails) {
+        if (typeof email.email === "string") {
+          emails.add(normalizeEmailForDedup(email.email));
+        }
       }
     }
   }
@@ -112,7 +122,9 @@ async function collectFingerprints(
 
   if (Array.isArray(leadPhoneRows)) {
     for (const row of leadPhoneRows) {
-      if (typeof row.phone === "string") phones.add(normalizePhoneForDedup(row.phone));
+      if (typeof row.phone === "string") {
+        phones.add(normalizePhoneForDedup(row.phone));
+      }
     }
   }
 
@@ -125,20 +137,18 @@ async function collectFingerprints(
     .in("review_status", ["pending", "accepted"]);
 
   if (Array.isArray(facts)) {
-    for (const f of facts) {
-      const val = f.fact_value as string;
-      if (f.fact_type === "primary_phone" || f.fact_type === "phone_number") {
-        phones.add(normalizePhoneForDedup(val));
+    for (const fact of facts) {
+      const value = fact.fact_value as string;
+      if (fact.fact_type === "primary_phone" || fact.fact_type === "phone_number") {
+        phones.add(normalizePhoneForDedup(value));
       } else {
-        emails.add(normalizeEmailForDedup(val));
+        emails.add(normalizeEmailForDedup(value));
       }
     }
   }
 
   return { phones, emails };
 }
-
-// ── Debounce check ─────────────────────────────────────────────────────
 
 async function isDebounced(
   sb: ReturnType<typeof createServerClient>,
@@ -176,8 +186,6 @@ async function markDebounce(
     .eq("id", propertyId);
 }
 
-// ── Main entry point ───────────────────────────────────────────────────
-
 export interface SkipTraceIntelContext {
   leadId: string;
   propertyId: string;
@@ -186,7 +194,7 @@ export interface SkipTraceIntelContext {
   state?: string;
   zip?: string;
   ownerName?: string;
-  reason: string; // e.g. "promotion", "claim", "queue", "reassignment"
+  reason: string;
   force?: boolean;
 }
 
@@ -204,7 +212,6 @@ export interface SkipTraceIntelResult {
 
 /**
  * Run skip-trace through the intel pipeline with dedup.
- * Fire-and-forget safe — catches internally and logs.
  */
 export async function runSkipTraceIntel(
   ctx: SkipTraceIntelContext,
@@ -213,7 +220,7 @@ export async function runSkipTraceIntel(
   const tag = `[SkipTraceIntel:${ctx.reason}]`;
 
   if (!ctx.address) {
-    console.log(`${tag} Skipped — no address for lead ${ctx.leadId}`);
+    console.log(`${tag} Skipped - no address for lead ${ctx.leadId}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("leads") as any)
       .update({
@@ -222,12 +229,33 @@ export async function runSkipTraceIntel(
         skip_trace_last_error: "missing_address",
       })
       .eq("id", ctx.leadId);
-    return { ran: false, reason: "no_address", phonesFound: 0, emailsFound: 0, newFactsCreated: 0, phonesPromoted: 0, saveFailures: 0, saveErrors: [], providers: [] };
+
+    return {
+      ran: false,
+      reason: "no_address",
+      phonesFound: 0,
+      emailsFound: 0,
+      newFactsCreated: 0,
+      phonesPromoted: 0,
+      saveFailures: 0,
+      saveErrors: [],
+      providers: [],
+    };
   }
 
   if (!ctx.force && await isDebounced(sb, ctx.propertyId)) {
-    console.log(`${tag} Debounced — skip-trace ran within ${DEBOUNCE_HOURS}h for property ${ctx.propertyId}`);
-    return { ran: false, reason: "debounced", phonesFound: 0, emailsFound: 0, newFactsCreated: 0, phonesPromoted: 0, saveFailures: 0, saveErrors: [], providers: [] };
+    console.log(`${tag} Debounced - skip trace ran within ${DEBOUNCE_HOURS}h for property ${ctx.propertyId}`);
+    return {
+      ran: false,
+      reason: "debounced",
+      phonesFound: 0,
+      emailsFound: 0,
+      newFactsCreated: 0,
+      phonesPromoted: 0,
+      saveFailures: 0,
+      saveErrors: [],
+      providers: [],
+    };
   }
 
   const t0 = Date.now();
@@ -241,11 +269,9 @@ export async function runSkipTraceIntel(
     })
     .eq("id", ctx.leadId);
 
-  // 1. Collect existing fingerprints
   const fingerprints = await collectFingerprints(sb, ctx.leadId, ctx.propertyId);
   console.log(`${tag} Fingerprints: ${fingerprints.phones.size} phones, ${fingerprints.emails.size} emails already known`);
 
-  // 2. Run dual skip-trace (unchanged)
   let result: SkipTraceResult;
   try {
     result = await dualSkipTrace({
@@ -256,8 +282,8 @@ export async function runSkipTraceIntel(
       zip: ctx.zip,
       owner_name: ctx.ownerName,
     });
-  } catch (err) {
-    console.error(`${tag} dualSkipTrace failed:`, err);
+  } catch (error) {
+    console.error(`${tag} dualSkipTrace failed:`, error);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("leads") as any)
       .update({
@@ -265,107 +291,139 @@ export async function runSkipTraceIntel(
         skip_trace_last_error: "provider_error",
       })
       .eq("id", ctx.leadId);
-    return { ran: true, reason: "provider_error", phonesFound: 0, emailsFound: 0, newFactsCreated: 0, phonesPromoted: 0, saveFailures: 0, saveErrors: [], providers: [] };
+
+    return {
+      ran: true,
+      reason: "provider_error",
+      phonesFound: 0,
+      emailsFound: 0,
+      newFactsCreated: 0,
+      phonesPromoted: 0,
+      saveFailures: 0,
+      saveErrors: [],
+      providers: [],
+    };
   }
 
   console.log(`${tag} Providers returned: ${result.totalPhoneCount} phones, ${result.totalEmailCount} emails [${result.providers.join("+")}] in ${Date.now() - t0}ms`);
 
-  // 3. Store raw artifact (full payload, always — even if zero new facts)
-  const artifactId = await createArtifact({
-    leadId: ctx.leadId,
-    propertyId: ctx.propertyId,
-    sourceType: `skiptrace_${ctx.reason}`,
-    sourceLabel: `Skip trace (${result.providers.join(", ")}) — ${ctx.reason}`,
-    rawExcerpt: JSON.stringify({
-      phones: result.phones,
-      emails: result.emails,
-      persons: result.persons,
-      primaryPhone: result.primaryPhone,
-      primaryEmail: result.primaryEmail,
-      isLitigator: result.isLitigator,
-      hasDncNumbers: result.hasDncNumbers,
-    }).slice(0, 10000),
-    // captured_by is UUID (user ref) — null for automated processes
-    // source_type + source_label carry the provenance instead
-    capturedBy: undefined,
-  });
+  let artifactId: string | null = null;
+  const persistenceWarnings: string[] = [];
+  const recordPersistenceWarning = (label: string, error: unknown) => {
+    const message = `${label}:${getErrorMessage(error)}`.slice(0, 500);
+    persistenceWarnings.push(message);
+    console.error(`${tag} ${label}:`, error);
+  };
 
-  // 4. Filtered fact creation — skip numbers/emails already in client file
+  try {
+    artifactId = await createArtifact({
+      leadId: ctx.leadId,
+      propertyId: ctx.propertyId,
+      sourceType: `skiptrace_${ctx.reason}`,
+      sourceLabel: `Skip trace (${result.providers.join(", ")}) - ${ctx.reason}`,
+      rawExcerpt: JSON.stringify({
+        phones: result.phones,
+        emails: result.emails,
+        persons: result.persons,
+        primaryPhone: result.primaryPhone,
+        primaryEmail: result.primaryEmail,
+        isLitigator: result.isLitigator,
+        hasDncNumbers: result.hasDncNumbers,
+      }).slice(0, 10000),
+      capturedBy: undefined,
+    });
+  } catch (error) {
+    recordPersistenceWarning("artifact_persist_failed", error);
+  }
+
   let newFacts = 0;
   const providerLabel = result.providers.join("+");
+  type PersistFactInput = Omit<Parameters<typeof createFact>[0], "artifactId">;
+
+  const persistFact = async (input: PersistFactInput): Promise<boolean> => {
+    if (!artifactId) return false;
+    try {
+      await createFact({
+        artifactId,
+        ...input,
+      });
+      return true;
+    } catch (error) {
+      recordPersistenceWarning(`fact_${input.factType}_persist_failed`, error);
+      return false;
+    }
+  };
 
   if (result.primaryPhone && !fingerprints.phones.has(normalizePhoneForDedup(result.primaryPhone))) {
-    await createFact({
-      artifactId,
+    fingerprints.phones.add(normalizePhoneForDedup(result.primaryPhone));
+    if (await persistFact({
       leadId: ctx.leadId,
       factType: "primary_phone",
       factValue: result.primaryPhone,
       confidence: "medium",
       promotedField: "phone",
-      assertedBy: undefined, // UUID column — provenance tracked via sourceType on artifact
-    });
-    fingerprints.phones.add(normalizePhoneForDedup(result.primaryPhone));
-    newFacts++;
+      assertedBy: undefined,
+    })) {
+      newFacts++;
+    }
   }
 
   if (result.primaryEmail && !fingerprints.emails.has(normalizeEmailForDedup(result.primaryEmail))) {
-    await createFact({
-      artifactId,
+    fingerprints.emails.add(normalizeEmailForDedup(result.primaryEmail));
+    if (await persistFact({
       leadId: ctx.leadId,
       factType: "primary_email",
       factValue: result.primaryEmail,
       confidence: "medium",
       promotedField: "email",
-      assertedBy: undefined, // UUID column — provenance tracked via sourceType on artifact
-    });
-    fingerprints.emails.add(normalizeEmailForDedup(result.primaryEmail));
-    newFacts++;
+      assertedBy: undefined,
+    })) {
+      newFacts++;
+    }
   }
 
   if (result.isLitigator) {
-    await createFact({
-      artifactId,
+    if (await persistFact({
       leadId: ctx.leadId,
       factType: "litigator_flag",
       factValue: "true",
       confidence: "high",
-      assertedBy: undefined, // UUID column — provenance tracked via sourceType on artifact
-    });
-    newFacts++;
+      assertedBy: undefined,
+    })) {
+      newFacts++;
+    }
   }
 
   for (const phone of result.phones.slice(0, 5)) {
-    const norm = normalizePhoneForDedup(phone.number);
-    if (fingerprints.phones.has(norm)) continue;
-    fingerprints.phones.add(norm);
-    await createFact({
-      artifactId,
+    const normalizedPhone = normalizePhoneForDedup(phone.number);
+    if (fingerprints.phones.has(normalizedPhone)) continue;
+    fingerprints.phones.add(normalizedPhone);
+    if (await persistFact({
       leadId: ctx.leadId,
       factType: "phone_number",
       factValue: phone.number,
       confidence: phone.confidence >= 80 ? "high" : phone.confidence >= 50 ? "medium" : "low",
       assertedBy: undefined,
-    });
-    newFacts++;
+    })) {
+      newFacts++;
+    }
   }
 
   for (const email of result.emails.slice(0, 4)) {
-    const norm = normalizeEmailForDedup(email.email);
-    if (fingerprints.emails.has(norm)) continue;
-    fingerprints.emails.add(norm);
-    await createFact({
-      artifactId,
+    const normalizedEmail = normalizeEmailForDedup(email.email);
+    if (fingerprints.emails.has(normalizedEmail)) continue;
+    fingerprints.emails.add(normalizedEmail);
+    if (await persistFact({
       leadId: ctx.leadId,
       factType: "email",
       factValue: email.email,
       confidence: email.deliverable ? "medium" : "low",
       assertedBy: undefined,
-    });
-    newFacts++;
+    })) {
+      newFacts++;
+    }
   }
 
-  // 5. Promote new phones into lead_phones (contact file)
-  //    Uses upsert with ignoreDuplicates — UNIQUE(lead_id, phone) is the safety net.
   let phonesPromoted = 0;
   let saveFailures = 0;
   const saveErrors: string[] = [];
@@ -379,30 +437,25 @@ export async function runSkipTraceIntel(
   }
 
   if (phonesToPromote.length > 0) {
-    // Fetch existing phones for this lead to dedup with normalization
-    // (imports may store as "5098799347", skip-trace as "+15098799347")
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingPhones } = await (sb.from("lead_phones") as any)
       .select("phone, position")
       .eq("lead_id", ctx.leadId);
 
     const existingNormalized = new Set(
-      (existingPhones ?? []).map((p: { phone: string }) => normalizePhoneForDedup(p.phone))
+      (existingPhones ?? []).map((phone: { phone: string }) => normalizePhoneForDedup(phone.phone))
     );
 
     let nextPosition = Math.max(
       -1,
-      ...(existingPhones ?? []).map((p: { position: number }) => p.position ?? -1)
+      ...(existingPhones ?? []).map((phone: { position: number }) => phone.position ?? -1),
     ) + 1;
 
-    for (const p of phonesToPromote) {
-      const normalizedPhone = normalizePhoneForDedup(p.number);
-
-      // Skip if already exists under any format
+    for (const phone of phonesToPromote) {
+      const normalizedPhone = normalizePhoneForDedup(phone.number);
       if (existingNormalized.has(normalizedPhone)) continue;
 
-      // Format as +1XXXXXXXXXX for consistency
-      const formattedPhone = normalizedPhone.length === 10 ? `+1${normalizedPhone}` : p.number;
+      const formattedPhone = normalizedPhone.length === 10 ? `+1${normalizedPhone}` : phone.number;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (sb.from("lead_phones") as any)
@@ -410,20 +463,18 @@ export async function runSkipTraceIntel(
           lead_id: ctx.leadId,
           property_id: ctx.propertyId,
           phone: formattedPhone,
-          label: p.isPrimary ? "primary" : "mobile",
-          source: `skiptrace:${p.source}`,
+          label: phone.isPrimary ? "primary" : "mobile",
+          source: `skiptrace:${phone.source}`,
           status: "active",
-          is_primary: p.isPrimary && nextPosition === 0,
+          is_primary: phone.isPrimary && nextPosition === 0,
           position: nextPosition,
         });
 
       if (!error) {
         phonesPromoted++;
-        existingNormalized.add(normalizedPhone); // track within this batch too
+        existingNormalized.add(normalizedPhone);
         nextPosition++;
-      } else if (error.code === "23505") {
-        // UNIQUE constraint violation — race condition safety net
-      } else {
+      } else if (error.code !== "23505") {
         console.error(`${tag} lead_phones insert failed:`, error.message);
         saveFailures++;
         saveErrors.push(error.message);
@@ -433,7 +484,6 @@ export async function runSkipTraceIntel(
     console.log(`${tag} Promoted ${phonesPromoted} phones to lead_phones for lead ${ctx.leadId}`);
   }
 
-  // 6. Mark debounce timestamp
   await markDebounce(sb, ctx.propertyId);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -444,6 +494,10 @@ export async function runSkipTraceIntel(
       skip_trace_last_error: saveFailures > 0 ? saveErrors.join("; ").slice(0, 500) : null,
     })
     .eq("id", ctx.leadId);
+
+  if (persistenceWarnings.length > 0) {
+    console.warn(`${tag} Completed with intelligence persistence warnings: ${persistenceWarnings.join("; ")}`);
+  }
 
   console.log(`${tag} Complete for lead ${ctx.leadId}: ${newFacts} new facts, ${phonesPromoted} phones promoted (${result.totalPhoneCount} phones, ${result.totalEmailCount} emails total) in ${Date.now() - t0}ms`);
 
