@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { unwrapVendorPayload } from "@/lib/inbound-vendor-payload";
+import { buildNormalizedVendorCandidate } from "@/lib/inbound-vendor-route";
 
 describe("unwrapVendorPayload", () => {
   it("keeps flat vendor payloads unchanged", () => {
@@ -36,26 +37,56 @@ describe("unwrapVendorPayload", () => {
       message: "TIMELINE: ASAP",
     });
   });
+});
 
-  it("prefers nested lead fields while preserving top-level vendor metadata", () => {
-    const payload = {
-      source_vendor: "lead_house",
-      source_channel: "vendor_inbound",
+describe("buildNormalizedVendorCandidate", () => {
+  it("builds a normalized candidate from nested Lead House payloads", () => {
+    const candidate = buildNormalizedVendorCandidate({
       data: {
-        campaign: "Test Funnel",
+        "LEAD INFO": {
+          name: "Lead House Test",
+          phone: "+1 321 456 7890",
+          address: "4705 North Fruit Hill Road",
+          city: "Spokane",
+          state: "WA",
+          zip: "99217",
+          message: "TIMELINE: ASAP",
+        },
       },
-      "LEAD INFO": {
-        name: "Lead House Test",
-        phone: "+13214567890",
-      },
-    };
-
-    expect(unwrapVendorPayload(payload)).toMatchObject({
-      source_vendor: "lead_house",
-      source_channel: "vendor_inbound",
-      campaign: "Test Funnel",
-      name: "Lead House Test",
-      phone: "+13214567890",
+    }, {
+      sourceVendor: "lead_house",
+      sourceChannel: "vendor_inbound",
+      intakeMethod: "lead_house_webhook",
     });
+
+    expect(candidate.ownerName).toBe("Lead House Test");
+    expect(candidate.phone).toBe("3214567890");
+    expect(candidate.propertyAddress).toBe("4705 North Fruit Hill Road");
+    expect(candidate.propertyCity).toBe("Spokane");
+    expect(candidate.propertyState).toBe("WA");
+    expect(candidate.propertyZip).toBe("99217");
+    expect(candidate.sourceVendor).toBe("lead_house");
+    expect(candidate.sourceChannel).toBe("vendor_inbound");
+    expect(candidate.intakeMethod).toBe("lead_house_webhook");
+  });
+
+  it("preserves top-level vendor metadata when nested lead info is present", () => {
+    const candidate = buildNormalizedVendorCandidate({
+      source_campaign: "Test Funnel",
+      data: {
+        "LEAD INFO": {
+          name: "Lead House Test",
+          phone: "+1 321 456 7890",
+          address: "4705 North Fruit Hill Road",
+        },
+      },
+    }, {
+      sourceVendor: "lead_house",
+      sourceChannel: "vendor_inbound",
+    });
+
+    expect(candidate.sourceCampaign).toBe("Test Funnel");
+    expect(candidate.sourceVendor).toBe("lead_house");
+    expect(candidate.sourceChannel).toBe("vendor_inbound");
   });
 });
