@@ -73,12 +73,15 @@ function getPacificParts(date: Date) {
   const formatter = getPacificFormatter();
   const parts = formatter.formatToParts(date);
   const pick = (type: string) => Number.parseInt(parts.find((part) => part.type === type)?.value ?? "0", 10);
+  const hour = pick("hour");
 
   return {
     year: pick("year"),
     month: pick("month"),
     day: pick("day"),
-    hour: pick("hour"),
+    // Some ICU builds represent midnight as 24:00 instead of 00:00.
+    // Treat that as the same start-of-day hour so Pacific date math stays stable in CI.
+    hour: hour === 24 ? 0 : hour,
     minute: pick("minute"),
     second: pick("second"),
   };
