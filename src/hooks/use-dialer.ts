@@ -79,6 +79,52 @@ async function dialerAuthHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
+async function fetchQueueRowsForUser(userId: string, limit: number) {
+  // Prefer explicit queue membership when the schema supports it.
+  let response = await withTimeout<any>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase.from("leads") as any)
+      .select("*, properties(*)")
+      .in("status", ["lead", "negotiation"])
+      .eq("assigned_to", userId)
+      .eq("dial_queue_active", true)
+      .order("dial_queue_added_at", { ascending: false })
+      .limit(limit + 40),
+    10_000,
+  );
+
+  if (!response.error) {
+    return response;
+  }
+
+  if (isMissingDialQueueColumnError(response.error)) {
+    response = await withTimeout<any>(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase.from("leads") as any)
+        .select("*, properties(*)")
+        .eq("assigned_to", userId)
+        .order("updated_at", { ascending: false })
+        .limit(limit + 60),
+      10_000,
+    );
+  }
+
+  if (!response.error) {
+    return response;
+  }
+
+  // Final compatibility fallback: avoid ordering/extra filters that may rely
+  // on columns missing from older production schemas.
+  return withTimeout<any>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase.from("leads") as any)
+      .select("*, properties(*)")
+      .eq("assigned_to", userId)
+      .limit(limit + 60),
+    10_000,
+  );
+}
+
 function isMissingDialQueueColumnError(error: unknown): boolean {
   const message = error && typeof error === "object" && "message" in error
     ? String((error as { message?: unknown }).message ?? "").toLowerCase()
@@ -98,30 +144,7 @@ export function useDialerQueue(limit = 7) {
     try {
       // Personal queue: explicitly queued leads only.
       // We still rank due work inside that queue, but membership itself is manual.
-      let queueRes = await withTimeout<any>(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase.from("leads") as any)
-          .select("*, properties(*)")
-          .in("status", ["lead", "negotiation"])
-          .eq("assigned_to", currentUser.id)
-          .eq("dial_queue_active", true)
-          .order("dial_queue_added_at", { ascending: false })
-          .limit(limit + 40),
-        10_000,
-      );
-
-      if (queueRes.error && isMissingDialQueueColumnError(queueRes.error)) {
-        queueRes = await withTimeout<any>(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase.from("leads") as any)
-            .select("*, properties(*)")
-            .in("status", ["lead", "negotiation"])
-            .eq("assigned_to", currentUser.id)
-            .order("updated_at", { ascending: false })
-            .limit(limit + 40),
-          10_000,
-        );
-      }
+      const queueRes = await fetchQueueRowsForUser(currentUser.id, limit);
 
       if (queueRes.error) {
         const err = queueRes.error;
