@@ -108,6 +108,26 @@ function inferEmail(rawText: string | null): string | null {
   return cleanEmail(match);
 }
 
+// Spokane County & Kootenai County cities and zip codes for county inference
+const SPOKANE_ZIPS = new Set(["99001","99003","99004","99005","99006","99009","99011","99012","99016","99018","99019","99020","99021","99022","99023","99025","99026","99027","99029","99030","99031","99036","99037","99039","99110","99148","99170","99173","99201","99202","99203","99204","99205","99206","99207","99208","99209","99210","99211","99212","99213","99214","99215","99216","99217","99218","99219","99220","99223","99224","99228","99251","99252","99256","99258","99260"]);
+const KOOTENAI_ZIPS = new Set(["83801","83810","83814","83815","83835","83843","83854","83858","83864","83869","83871","83876"]);
+const SPOKANE_CITIES = new Set(["spokane","spokane valley","liberty lake","cheney","airway heights","medical lake","millwood","deer park","colbert","mead","nine mile falls","greenacres","otis orchards","veradale","newman lake","four lakes","marshall","latah","fairfield","rockford","spangle","waverly"]);
+const KOOTENAI_CITIES = new Set(["coeur d'alene","post falls","hayden","rathdrum","dalton gardens","spirit lake","athol","hauser","worley","harrison","huetter"]);
+
+function inferCountyFromCityOrZip(city: string | null, zip: string | null): string | null {
+  if (zip) {
+    const z = zip.trim().slice(0, 5);
+    if (SPOKANE_ZIPS.has(z)) return "spokane";
+    if (KOOTENAI_ZIPS.has(z)) return "kootenai";
+  }
+  if (city) {
+    const c = city.trim().toLowerCase();
+    if (SPOKANE_CITIES.has(c)) return "spokane";
+    if (KOOTENAI_CITIES.has(c)) return "kootenai";
+  }
+  return null;
+}
+
 function inferCounty(rawText: string | null): string | null {
   if (!rawText) return null;
   const county = rawText.match(/\b(Spokane|Kootenai)\b/i)?.[1] ?? null;
@@ -133,7 +153,9 @@ export function normalizeInboundCandidate(input: InboundIntakeInput): Normalized
   const propertyAddress = cleanString(input.propertyAddress) ?? inferAddress(rawText);
   const phone = cleanPhone(cleanString(input.phone) ?? inferPhone(rawText));
   const email = cleanEmail(cleanString(input.email) ?? inferEmail(rawText));
-  const county = cleanString(input.county)?.toLowerCase() ?? inferCounty(rawText);
+  const county = cleanString(input.county)?.toLowerCase()
+    ?? inferCountyFromCityOrZip(input.propertyCity ?? null, input.propertyZip ?? null)
+    ?? inferCounty(rawText);
   const warnings: string[] = [];
 
   let score = 0.1;

@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { findDuplicateCandidate, requireImportUser, updateExistingRecordFromImport } from "@/lib/imports-server";
 import { inboundCandidateToRecord, withDuplicateStatus, type NormalizedInboundCandidate } from "@/lib/inbound-intake";
-import { notifyNewInboundLead, notifyPPLLeadIntake } from "@/lib/notify";
+import { notifyNewInboundLead, notifyIntakeLeadArrived } from "@/lib/notify";
 import { trackedDelivery } from "@/lib/delivery-tracker";
 
 type SupabaseLike = ReturnType<typeof createServerClient>;
@@ -122,24 +122,15 @@ export async function processInboundCandidateToIntakeQueue(args: {
     });
   } catch { /* non-fatal */ }
 
-  // Send SMS alert to Logan + Adam for PPL leads
-  // Map of known PPL sources that should trigger alerts
-  const pplSources = ["lead_house", "leadhouse", "ppl_partner_a", "ppl_partner_b"];
-  const isPPLSource = candidate.sourceVendor
-    ? pplSources.some(ppl => candidate.sourceVendor!.toLowerCase().includes(ppl.toLowerCase()))
-    : false;
-
-  if (isPPLSource) {
-    // Fire SMS alert (fire-and-forget)
-    notifyPPLLeadIntake({
-      ownerName: candidate.ownerName,
-      phone: candidate.phone,
-      propertyAddress: candidate.propertyAddress,
-      sourceProvider: sourceCategory,
-      intakeLeadId: intakeLeadId || "",
-      receivedAt: candidate.receivedAt,
-    }).catch(() => {});
-  }
+  // Send SMS alert to Logan + Adam for every intake lead — speed-to-lead matters
+  notifyIntakeLeadArrived({
+    ownerName: candidate.ownerName,
+    phone: candidate.phone,
+    propertyAddress: candidate.propertyAddress,
+    sourceProvider: sourceCategory,
+    intakeLeadId: intakeLeadId || "",
+    receivedAt: candidate.receivedAt,
+  }).catch(() => {});
 
   return {
     intakeLeadId,

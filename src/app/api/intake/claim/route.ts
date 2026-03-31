@@ -125,37 +125,51 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 2: Create or update contact record (optional if phone provided)
+    // Step 2: Create or find contact record (optional if phone provided)
     let contact = null;
     if (owner_phone) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const nameParts = (owner_name || "Unknown").split(" ");
       const firstName = nameParts[0] || "Unknown";
       const lastName = nameParts.slice(1).join(" ") || "Contact";
+      const contactEmail = intakeLead.owner_email || null;
 
+      // First try to find existing contact by phone
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: contactData, error: contactError } = await (sb.from("contacts") as any)
-        .upsert(
-          {
+      const { data: existing } = await (sb.from("contacts") as any)
+        .select("*")
+        .eq("phone", owner_phone)
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        contact = existing;
+        // Backfill email if the existing contact doesn't have one
+        if (!existing.email && contactEmail) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (sb.from("contacts") as any)
+            .update({ email: contactEmail })
+            .eq("id", existing.id);
+        }
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: newContact, error: contactError } = await (sb.from("contacts") as any)
+          .insert({
             phone: owner_phone,
             first_name: firstName,
             last_name: lastName,
-            email: intakeLead.owner_email || null,
+            email: contactEmail,
             contact_type: "owner",
             source: sourceCategory,
-          },
-          {
-            onConflict: "phone",
-          }
-        )
-        .select()
-        .single();
+          })
+          .select()
+          .single();
 
-      if (contactError) {
-        console.error("[Intake Claim] Contact creation failed:", contactError);
-        // Don't fail — contact is optional
+        if (contactError) {
+          console.error("[Intake Claim] Contact creation failed:", contactError);
+          // Don't fail — contact is optional
+        }
+        contact = newContact;
       }
-      contact = contactData;
     }
 
     // Step 3: Create lead record with special intake markers

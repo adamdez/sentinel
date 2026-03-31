@@ -310,11 +310,11 @@ export function notifyNewInboundLead(data: {
 }
 
 /**
- * #6b: PPL lead intake alert.
- * Triggered instantly when a PPL lead comes in via webhook/email/API.
- * Sends SMS to both Logan and Adam.
+ * #6b: Intake lead alert — any new lead entering the intake queue.
+ * Triggered instantly when a lead arrives via webhook/email/API.
+ * Sends SMS to both Logan and Adam for speed-to-lead.
  */
-export function notifyPPLLeadIntake(data: {
+export function notifyIntakeLeadArrived(data: {
   ownerName: string | null;
   phone: string | null;
   propertyAddress: string | null;
@@ -327,8 +327,11 @@ export function notifyPPLLeadIntake(data: {
   const ph = data.phone ? ` (${data.phone})` : "";
   const time = new Date(data.receivedAt).toLocaleTimeString("en-US", { timeZone: "America/Los_Angeles" });
 
-  return sendSMS(`🎯 PPL LEAD RECEIVED!\n${who}${ph}${addr}\nProvider: ${data.sourceProvider}\nTime: ${time}\nReview & claim in Sentinel ➡️ INTAKE`);
+  return sendSMS(`🎯 NEW LEAD IN INTAKE!\n${who}${ph}${addr}\nSource: ${data.sourceProvider}\nTime: ${time}\nReview & claim in Sentinel ➡️ INTAKE`);
 }
+
+/** @deprecated Use notifyIntakeLeadArrived instead */
+export const notifyPPLLeadIntake = notifyIntakeLeadArrived;
 
 /**
  * #7: Weekly health report (Monday 9am).
