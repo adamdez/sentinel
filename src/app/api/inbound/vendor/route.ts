@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { normalizeInboundCandidate } from "@/lib/inbound-intake";
 import { authorizeInboundRequest, processInboundCandidateToIntakeQueue } from "@/lib/inbound-intake-server";
+import { isVendorPayloadRecord, readVendorString, unwrapVendorPayload } from "@/lib/inbound-vendor-payload";
 
 const MAX_INBOUND_PAYLOAD_BYTES = 256 * 1024;
 
@@ -18,31 +19,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Inbound payload too large" }, { status: 413 });
     }
 
-    const body = await req.json();
-    const sourceChannel =
-      typeof body.source_channel === "string" && body.source_channel.trim().length > 0
-        ? body.source_channel
-        : "vendor_inbound";
+    const rawBody = await req.json();
+    const body = unwrapVendorPayload(rawBody);
+    const sourceChannel = readVendorString(body, "source_channel") ?? "vendor_inbound";
 
     const candidate = normalizeInboundCandidate({
       sourceChannel,
-      sourceVendor: typeof body.source_vendor === "string" ? body.source_vendor : "vendor",
-      sourceCampaign: typeof body.source_campaign === "string" ? body.source_campaign : body.campaign ?? null,
-      intakeMethod: typeof body.intake_method === "string" ? body.intake_method : "vendor_post",
-      rawSourceRef: typeof body.raw_source_ref === "string" ? body.raw_source_ref : body.lead_id ?? body.reference_id ?? null,
-      ownerName: body.owner_name ?? body.name ?? body.full_name ?? null,
-      phone: body.phone ?? body.contact_phone ?? body.phone_number ?? null,
-      email: body.email ?? body.contact_email ?? null,
-      propertyAddress: body.property_address ?? body.address ?? body.property ?? null,
-      propertyCity: body.city ?? null,
-      propertyState: body.state ?? null,
-      propertyZip: body.zip ?? body.postal_code ?? null,
-      county: body.county ?? null,
-      apn: body.apn ?? body.parcel_number ?? null,
-      notes: body.notes ?? body.message ?? body.description ?? null,
-      rawText: body.message ?? body.description ?? null,
-      rawPayload: body && typeof body === "object" ? body as Record<string, unknown> : null,
-      receivedAt: typeof body.received_at === "string" ? body.received_at : null,
+      sourceVendor: readVendorString(body, "source_vendor") ?? "vendor",
+      sourceCampaign: readVendorString(body, "source_campaign") ?? readVendorString(body, "campaign"),
+      intakeMethod: readVendorString(body, "intake_method") ?? "vendor_post",
+      rawSourceRef: readVendorString(body, "raw_source_ref") ?? readVendorString(body, "lead_id") ?? readVendorString(body, "reference_id"),
+      ownerName: readVendorString(body, "owner_name") ?? readVendorString(body, "name") ?? readVendorString(body, "full_name"),
+      phone: readVendorString(body, "phone") ?? readVendorString(body, "contact_phone") ?? readVendorString(body, "phone_number"),
+      email: readVendorString(body, "email") ?? readVendorString(body, "contact_email"),
+      propertyAddress: readVendorString(body, "property_address") ?? readVendorString(body, "address") ?? readVendorString(body, "property"),
+      propertyCity: readVendorString(body, "city"),
+      propertyState: readVendorString(body, "state"),
+      propertyZip: readVendorString(body, "zip") ?? readVendorString(body, "postal_code"),
+      county: readVendorString(body, "county"),
+      apn: readVendorString(body, "apn") ?? readVendorString(body, "parcel_number"),
+      notes: readVendorString(body, "notes") ?? readVendorString(body, "message") ?? readVendorString(body, "description"),
+      rawText: readVendorString(body, "message") ?? readVendorString(body, "description"),
+      rawPayload: isVendorPayloadRecord(rawBody) ? rawBody : null,
+      receivedAt: readVendorString(body, "received_at"),
     });
 
     const result = await processInboundCandidateToIntakeQueue({
