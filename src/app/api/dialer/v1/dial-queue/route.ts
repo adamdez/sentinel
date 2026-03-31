@@ -32,17 +32,27 @@ export async function POST(req: NextRequest) {
   try {
     const result = await queueLeadIdsForUser({ sb, userId: user.id, leadIds });
 
+    // Keep queueing success from being masked by an audit-log failure.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("dialer_events") as any).insert({
-      event_type: "queue.added",
-      user_id: user.id,
-      metadata: {
-        queued_count: result.queuedIds.length,
-        conflicted_count: result.conflictedIds.length,
-        missing_count: result.missingIds.length,
-        lead_ids: result.queuedIds,
-      },
-    });
+    (sb.from("dialer_events") as any)
+      .insert({
+        event_type: "queue.added",
+        user_id: user.id,
+        metadata: {
+          queued_count: result.queuedIds.length,
+          conflicted_count: result.conflictedIds.length,
+          missing_count: result.missingIds.length,
+          lead_ids: result.queuedIds,
+        },
+      })
+      .then(({ error: eventError }: { error: { message?: string | null } | null }) => {
+        if (eventError) {
+          console.error("[dial-queue] queue add event log failed:", eventError.message ?? eventError);
+        }
+      })
+      .catch((eventError: unknown) => {
+        console.error("[dial-queue] queue add event log failed:", eventError);
+      });
 
     return NextResponse.json({
       ok: true,
