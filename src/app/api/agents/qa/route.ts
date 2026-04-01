@@ -12,7 +12,7 @@ export const maxDuration = 30;
  * Trigger QA analysis on a specific call.
  * Informational only — produces quality rating and coaching flags.
  *
- * Body: { callLogId: string, leadId: string }
+ * Body: { callLogId: string, leadId?: string }
  */
 export async function POST(req: NextRequest) {
   const sb = createServerClient();
@@ -25,16 +25,39 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { callLogId, leadId } = body;
 
-    if (!callLogId || !leadId) {
+    if (!callLogId) {
       return NextResponse.json(
-        { error: "callLogId and leadId are required" },
+        { error: "callLogId is required" },
         { status: 400 },
+      );
+    }
+
+    // Resolve lead ownership from the call row when possible so callers do not
+    // need to provide a second id that can drift out of sync.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: callRow } = await (sb.from("calls_log") as any)
+      .select("id, lead_id")
+      .eq("id", callLogId)
+      .maybeSingle();
+
+    if (!callRow) {
+      return NextResponse.json(
+        { error: `Call ${callLogId} not found` },
+        { status: 404 },
+      );
+    }
+
+    const resolvedLeadId = (callRow.lead_id as string | null) ?? leadId;
+    if (!resolvedLeadId) {
+      return NextResponse.json(
+        { error: `Call ${callLogId} has no linked lead` },
+        { status: 422 },
       );
     }
 
     const result = await runQAAgent({
       callLogId,
-      leadId,
+      leadId: resolvedLeadId,
       triggerType: "manual",
       triggerRef: `operator:${user.id}`,
     });

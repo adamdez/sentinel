@@ -20,7 +20,7 @@ export function QualificationGaps({ cf }: QualificationGapsProps) {
     { label: "Asking price", filled: cf.priceExpectation != null && cf.priceExpectation > 0 },
     { label: "Decision maker confirmed", filled: cf.decisionMakerConfirmed === true },
     { label: "Property condition", filled: cf.conditionLevel != null && cf.conditionLevel > 0 },
-    { label: "Next action scheduled", filled: !!(cf.nextCallScheduledAt ?? cf.followUpDate) },
+    { label: "Next action scheduled", filled: !!(cf.nextCallScheduledAt ?? cf.nextActionDueAt ?? cf.followUpDate) },
     { label: "Recent contact", filled: !!cf.lastContactAt && (Date.now() - new Date(cf.lastContactAt).getTime()) < 14 * 24 * 60 * 60 * 1000 },
     { label: "Valid phone number", filled: !!cf.ownerPhone },
   ];

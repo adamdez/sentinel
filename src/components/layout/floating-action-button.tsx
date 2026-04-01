@@ -24,7 +24,7 @@ export function FloatingActionButton() {
           <Plus className="h-5 w-5" />
         </motion.button>
       </TooltipTrigger>
-      <TooltipContent side="left">New Prospect</TooltipContent>
+      <TooltipContent side="left">New Lead</TooltipContent>
     </Tooltip>
   );
 }

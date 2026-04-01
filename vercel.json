@@ -50,8 +50,8 @@
       "schedule": "0 16 * * 1"
     },
     {
-      "path": "/api/cron/refresh-scores",
-      "schedule": "45 14 * * *"
+      "path": "/api/cron/agent-health",
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/cron/stale-dispo",
@@ -62,16 +62,8 @@
       "schedule": "0 18 * * 1-6"
     },
     {
-      "path": "/api/cron/county-refresh",
-      "schedule": "0 11 * * *"
-    },
-    {
       "path": "/api/cron/campaign-dialer",
       "schedule": "*/15 * * * 1-6"
-    },
-    {
-      "path": "/api/cron/jeff-auto-redial",
-      "schedule": "*/2 16-23,0-2 * * 1-6"
     },
     {
       "path": "/api/cron/intake-email-poll",

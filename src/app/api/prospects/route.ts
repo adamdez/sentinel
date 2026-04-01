@@ -19,6 +19,7 @@ import {
   type QualificationScoreState,
 } from "@/lib/qualification-workflow";
 import { refreshZillowEstimateForLeadAssignment } from "@/lib/zillow-estimate";
+import { inngest } from "@/inngest/client";
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 // ── P0: Surface missing escalation config at first request ──
@@ -933,14 +934,15 @@ export async function PATCH(req: NextRequest) {
       import("@/lib/control-plane").then(({ getFeatureFlag }) =>
         getFeatureFlag("agent.research.enabled").then((flag) => {
           if (!flag?.enabled) return;
-          import("@/agents/research").then(({ runResearchAgent }) => {
-            runResearchAgent({
+          void inngest.send({
+            name: "agent/research.requested",
+            data: {
               leadId: lead_id,
               propertyId: currentLead.property_id as string,
               triggeredBy: user.id,
-            }).catch((err) => {
-              console.error("[prospects/PATCH] Auto-research on claim failed:", err);
-            });
+            },
+          }).catch((err) => {
+            console.error("[prospects/PATCH] Auto-research queue failed:", err);
           });
         }),
       ).catch((err) => {

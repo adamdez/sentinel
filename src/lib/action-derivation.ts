@@ -46,6 +46,11 @@ export interface ActionDerivationInput {
   lastContactAt?: string | null;
   totalCalls?: number | null;
 
+  /** Operator-set next step (e.g. "Drive by") — overrides call-based rules when present */
+  nextAction?: string | null;
+  /** When the operator-set next action is due */
+  nextActionDueAt?: string | null;
+
   /** Lead creation time — used for speed-to-lead detection */
   createdAt?: string | null;
   /** When lead was promoted to active pipeline (prospect→lead) */
@@ -94,6 +99,7 @@ function hoursSince(isoDate: string | null | undefined, now: Date): number | nul
  *
  * Rule cascade (first match wins, ordered by urgency):
  *
+ *  0. VARIES  — Drive by override (when next_action starts with "Drive by")
  *  1. CRITICAL — Overdue callback or follow-up
  *  2. CRITICAL — Uncontacted active lead >24h old (speed-to-lead failure)
  *  3. HIGH    — Stale contact (>7d, active status, not dead/closed)
@@ -128,6 +134,42 @@ export function deriveLeadActionSummary(input: ActionDerivationInput): ActionSum
       urgency: "low",
       actionType: "review",
       isActionable: status === "prospect",
+    };
+  }
+
+  // ── Drive By override ──
+  // When the operator explicitly set a non-phone next step, honor it
+  // before the call-based rules fire.
+  const nextActionNorm = (input.nextAction ?? "").toLowerCase();
+  if (nextActionNorm.startsWith("drive by")) {
+    const dueMs = parseMs(input.nextActionDueAt);
+    if (dueMs !== null) {
+      if (dueMs < nowMs) {
+        const overdueDays = Math.max(1, Math.ceil((nowMs - dueMs) / (1000 * 60 * 60 * 24)));
+        return {
+          action: `Drive by \u2014 ${overdueDays}d overdue`,
+          reason: `Scheduled drive by was due ${overdueDays} day${overdueDays === 1 ? "" : "s"} ago.`,
+          urgency: "critical",
+          actionType: "task",
+          isActionable: true,
+        };
+      }
+      const daysUntil = Math.floor((dueMs - nowMs) / (1000 * 60 * 60 * 24));
+      const label = daysUntil === 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`;
+      return {
+        action: `Drive by \u2014 ${label}`,
+        reason: `Drive by scheduled ${label}. Plan the route.`,
+        urgency: daysUntil === 0 ? "high" : "normal",
+        actionType: "task",
+        isActionable: daysUntil === 0,
+      };
+    }
+    return {
+      action: "Drive by \u2014 no date set",
+      reason: "Drive by is the next step but no due date was set. Set a date or complete the drive by.",
+      urgency: "normal",
+      actionType: "task",
+      isActionable: true,
     };
   }
 

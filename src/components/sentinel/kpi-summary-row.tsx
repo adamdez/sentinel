@@ -100,7 +100,7 @@ export function KpiSummaryRow({ period }: { period: TimePeriod }) {
     const lead = stages.find((s) => s.stage === "lead")?.count ?? 0;
     const negotiation = stages.find((s) => s.stage === "negotiation")?.count ?? 0;
     const parts: string[] = [];
-    if (prospect > 0) parts.push(`${prospect} prospect`);
+    if (prospect > 0) parts.push(`${prospect} new`);
     if (lead > 0) parts.push(`${lead} lead`);
     if (negotiation > 0) parts.push(`${negotiation} negotiation`);
     return parts.length > 0 ? parts.join(", ") : "No active leads";
@@ -115,7 +115,7 @@ export function KpiSummaryRow({ period }: { period: TimePeriod }) {
     },
     {
       icon: Layers,
-      label: "Pipeline (Current)",
+      label: "Active",
       value: String(kpis.active_pipeline),
       subtitle: pipelineSubtitle,
     },

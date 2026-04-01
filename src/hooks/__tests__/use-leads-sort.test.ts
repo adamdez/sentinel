@@ -25,45 +25,45 @@ function buildLead(overrides: Partial<SortableLeadRow> & Pick<SortableLeadRow, "
 describe("sortLeadRows", () => {
   it("floats active leads above higher-scoring inactive leads", () => {
     const leads = [
-      buildLead({ id: "unpinned-hot", pinned: false, score: { composite: 99 } }),
-      buildLead({ id: "pinned-cold", pinned: true, score: { composite: 10 } }),
+      buildLead({ id: "inactive-hot", pinned: false, score: { composite: 99 } }),
+      buildLead({ id: "active-cold", pinned: true, score: { composite: 10 } }),
     ];
 
     expect(sortLeadRows(leads, "score", "desc").map((lead) => lead.id)).toEqual([
-      "pinned-cold",
-      "unpinned-hot",
+      "active-cold",
+      "inactive-hot",
     ]);
   });
 
   it("applies active-first ordering before follow-up urgency", () => {
     const leads = [
       buildLead({
-        id: "unpinned-overdue",
+        id: "inactive-overdue",
         pinned: false,
         totalCalls: 2,
         lastContactAt: "2026-03-09T10:00:00Z",
         nextCallScheduledAt: "2026-03-10T10:00:00Z",
       }),
-      buildLead({ id: "pinned-no-action", pinned: true }),
+      buildLead({ id: "active-no-action", pinned: true }),
     ];
 
     expect(sortLeadRows(leads, "followUp", "asc").map((lead) => lead.id)).toEqual([
-      "pinned-no-action",
-      "unpinned-overdue",
+      "active-no-action",
+      "inactive-overdue",
     ]);
   });
 
   it("keeps the existing score order within the active group", () => {
     const leads = [
-      buildLead({ id: "pinned-low", pinned: true, score: { composite: 30 } }),
-      buildLead({ id: "pinned-high", pinned: true, score: { composite: 80 } }),
-      buildLead({ id: "unpinned-top", pinned: false, score: { composite: 100 } }),
+      buildLead({ id: "active-low", pinned: true, score: { composite: 30 } }),
+      buildLead({ id: "active-high", pinned: true, score: { composite: 80 } }),
+      buildLead({ id: "inactive-top", pinned: false, score: { composite: 100 } }),
     ];
 
     expect(sortLeadRows(leads, "score", "desc").map((lead) => lead.id)).toEqual([
-      "pinned-high",
-      "pinned-low",
-      "unpinned-top",
+      "active-high",
+      "active-low",
+      "inactive-top",
     ]);
   });
 });

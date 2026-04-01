@@ -46,7 +46,7 @@ const SCORE_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  prospect: "Prospect",
+  prospect: "New",
   lead: "Lead",
   negotiation: "Negotiation",
   disposition: "Disposition",
@@ -500,7 +500,7 @@ export function GlobalSearch() {
                   <>
                     <div className="px-3 pt-2 pb-1">
                       <span className="text-sm font-semibold uppercase tracking-widest text-muted-foreground/50">
-                        In Your Pipeline
+                        Active Leads
                       </span>
                     </div>
                     {results.map((rec, i) => {

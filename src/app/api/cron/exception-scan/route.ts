@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
 
     // Auto-trigger Follow-Up Agent for top stale leads (fire-and-forget)
     // Limits to 5 leads per scan to control costs. Drafts go to review_queue.
-    const followUpFlag = await getFeatureFlag("agent.follow_up.enabled");
+    const followUpFlag = await getFeatureFlag("agent.follow-up.enabled");
     if (followUpFlag?.enabled) {
       const staleLeads = [
         ...report.critical.filter(e => e.category === "stale_contact" || e.category === "overdue_follow_up"),

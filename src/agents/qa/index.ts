@@ -101,15 +101,34 @@ export async function runQAAgent(input: QAAgentInput): Promise<QAResult> {
     return emptyResult(input, "Agent disabled via feature flag");
   }
 
+  const sb = createServerClient();
+
+  // Preflight the call before creating a traced run so obviously invalid
+  // payloads do not create noisy run history.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: preflightCall } = await (sb.from("calls_log") as any)
+    .select("id, lead_id")
+    .eq("id", input.callLogId)
+    .maybeSingle();
+
+  if (!preflightCall) {
+    return emptyResult(input, `Call ${input.callLogId} no longer exists. QA skipped before run creation.`);
+  }
+
+  const effectiveInput: QAAgentInput = {
+    ...input,
+    leadId: (preflightCall.lead_id as string | null) ?? input.leadId,
+  };
+
   // Create traced run
   const runId = await createAgentRun({
     agentName: "qa",
-    triggerType: input.triggerType === "post_call" ? "event" : input.triggerType === "manual" ? "operator_request" : "cron",
-    triggerRef: input.callLogId,
-    leadId: input.leadId,
+    triggerType: effectiveInput.triggerType === "post_call" ? "event" : effectiveInput.triggerType === "manual" ? "operator_request" : "cron",
+    triggerRef: effectiveInput.callLogId,
+    leadId: effectiveInput.leadId,
     model: "deterministic",
     promptVersion: QA_AGENT_VERSION,
-    inputs: { callLogId: input.callLogId, leadId: input.leadId },
+    inputs: { callLogId: effectiveInput.callLogId, leadId: effectiveInput.leadId },
   });
 
   if (!runId) {
@@ -123,19 +142,24 @@ export async function runQAAgent(input: QAAgentInput): Promise<QAResult> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: call } = await (sb.from("calls_log") as any)
       .select("id, lead_id, disposition, duration, notes, direction, recording_url, created_at")
-      .eq("id", input.callLogId)
+      .eq("id", effectiveInput.callLogId)
       .single();
 
     if (!call) {
-      await completeAgentRun({ runId, status: "failed", error: "Call not found" });
-      return emptyResult(input, `Call ${input.callLogId} not found`, runId);
+      await completeAgentRun({
+        runId,
+        status: "cancelled",
+        error: "Call not found",
+        outputs: { skipped: true, reason: "call_not_found" },
+      });
+      return emptyResult(effectiveInput, `Call ${effectiveInput.callLogId} no longer exists. QA skipped.`, runId);
     }
 
     // ── Load dialer session data (if exists) ────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: sessions } = await (sb.from("dialer_sessions") as any)
       .select("id, transcript_chunks, ai_notes, duration_seconds, ended_at")
-      .eq("call_log_id", input.callLogId)
+      .eq("call_log_id", effectiveInput.callLogId)
       .order("created_at", { ascending: false })
       .limit(1);
 
@@ -145,8 +169,18 @@ export async function runQAAgent(input: QAAgentInput): Promise<QAResult> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: lead } = await (sb.from("leads") as any)
       .select("id, status, next_action, next_action_due_at")
-      .eq("id", input.leadId)
+      .eq("id", effectiveInput.leadId)
       .single();
+
+    if (!lead) {
+      await completeAgentRun({
+        runId,
+        status: "cancelled",
+        error: "Lead not found",
+        outputs: { skipped: true, reason: "lead_not_found" },
+      });
+      return emptyResult(effectiveInput, `Lead ${effectiveInput.leadId} no longer exists. QA skipped.`, runId);
+    }
 
     // ── Compute metrics ─────────────────────────────────────────────
     const durationSeconds = call.duration ?? session?.duration_seconds ?? 0;
@@ -287,8 +321,8 @@ export async function runQAAgent(input: QAAgentInput): Promise<QAResult> {
 
     const result: QAResult = {
       runId,
-      callLogId: input.callLogId,
-      leadId: input.leadId,
+      callLogId: effectiveInput.callLogId,
+      leadId: effectiveInput.leadId,
       overallRating,
       score,
       metrics,
@@ -308,7 +342,7 @@ export async function runQAAgent(input: QAAgentInput): Promise<QAResult> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await completeAgentRun({ runId, status: "failed", error: msg });
-    return emptyResult(input, `QA analysis failed: ${msg}`, runId);
+    return emptyResult(effectiveInput, `QA analysis failed: ${msg}`, runId);
   }
 }
 

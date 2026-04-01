@@ -396,22 +396,12 @@ export async function POST(req: NextRequest) {
     try {
       const sbAfter = createServerClient();
 
-      // 1. Try to match caller to an existing lead via contacts table
-      // leads table has no phone column — phone lives on contacts, linked via leads.contact_id
+      // 1. Match caller to an existing lead via unified phone lookup (all phone tables)
       let matchedLeadId: string | null = null;
       if (fromNumber) {
-        const normalized = fromNumber.replace(/\D/g, "");
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: contacts } = await (sbAfter.from("contacts") as any)
-          .select("id, leads!contact_id(id)")
-          .or(`phone.eq.${fromNumber},phone.eq.+${normalized},phone.eq.${normalized},phone.eq.+1${normalized.slice(-10)}`)
-          .limit(1);
-        if (contacts && contacts.length > 0) {
-          const linkedLeads = contacts[0].leads;
-          if (Array.isArray(linkedLeads) && linkedLeads.length > 0) {
-            matchedLeadId = linkedLeads[0].id;
-          }
-        }
+        const { unifiedPhoneLookup } = await import("@/lib/dialer/phone-lookup");
+        const match = await unifiedPhoneLookup(fromNumber, sbAfter);
+        matchedLeadId = match.leadId;
       }
 
       // 2. Create call_session with the pre-generated UUID
@@ -441,6 +431,24 @@ export async function POST(req: NextRequest) {
           dialer_session_id: sessionId,
         });
       if (clErr) console.error("[inbound] after() calls_log insert failed:", clErr.message);
+
+      // 4. If truly unknown caller, create a draft contact so they're findable next time
+      if (!matchedLeadId && fromNumber) {
+        try {
+          const { upsertContact } = await import("@/lib/upsert-contact");
+          await upsertContact(sbAfter, {
+            phone: fromNumber,
+            first_name: "Unknown",
+            last_name: "Caller",
+            source: "inbound_unknown",
+            contact_type: "unknown_inbound",
+          });
+          console.log("[inbound] Draft contact created for unknown caller:", fromNumber.slice(-4));
+        } catch (contactErr) {
+          // Non-fatal — don't let contact creation failure break call logging
+          console.error("[inbound] Draft contact creation failed:", contactErr);
+        }
+      }
 
       console.log("[inbound] after() DB work complete:", {
         sessionId: sessionId.slice(0, 8),
@@ -480,26 +488,15 @@ async function handleMissedInbound({
   const sb = createServerClient();
   const now = new Date();
 
-  // ── 1. Attempt to match lead by phone ─────────────────────────────────────
+  // ── 1. Match lead by phone via unified lookup (all phone tables) ──────────
   let leadId: string | null = null;
   let leadName = "Unknown caller";
 
   if (fromNumber) {
-    // Normalize: strip spaces/dashes for comparison
-    const normalized = fromNumber.replace(/\D/g, "");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: contacts } = await (sb.from("contacts") as any)
-      .select("id, first_name, last_name, phone, leads(id)")
-      .or(
-        `phone.eq.${fromNumber},phone.eq.+${normalized},phone.eq.${normalized}`
-      )
-      .limit(1);
-
-    if (contacts && contacts.length > 0) {
-      const contact = contacts[0];
-      leadId = contact.leads?.[0]?.id ?? null;
-      leadName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Lead";
-    }
+    const { unifiedPhoneLookup } = await import("@/lib/dialer/phone-lookup");
+    const match = await unifiedPhoneLookup(fromNumber, sb);
+    leadId = match.leadId;
+    if (match.ownerName) leadName = match.ownerName;
   }
 
   // ── 2. Create urgent callback task ────────────────────────────────────────
@@ -591,16 +588,12 @@ async function handleAnsweredInbound({
   const sb = createServerClient();
   const now = new Date();
 
-  // Attempt to match lead by phone via contacts table
+  // Match lead by phone via unified lookup (all phone tables)
   let leadId: string | null = null;
   if (fromNumber) {
-    const normalized = fromNumber.replace(/\D/g, "");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: contacts } = await (sb.from("contacts") as any)
-      .select("id, leads(id)")
-      .or(`phone.eq.${fromNumber},phone.eq.+${normalized},phone.eq.${normalized}`)
-      .limit(1);
-    if (contacts && contacts.length > 0) leadId = contacts[0].leads?.[0]?.id ?? null;
+    const { unifiedPhoneLookup } = await import("@/lib/dialer/phone-lookup");
+    const match = await unifiedPhoneLookup(fromNumber, sb);
+    leadId = match.leadId;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -674,21 +667,13 @@ async function handleMissedTransfer({
       .eq("id", voiceSessionId);
   }
 
-  // If we don't have a lead from the session, try matching by phone
+  // If we don't have a lead from the session, try unified phone lookup
   if (!leadId && originalFrom) {
-    const normalized = originalFrom.replace(/\D/g, "");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: contacts } = await (sb.from("contacts") as any)
-      .select("id, first_name, last_name, phone, leads(id)")
-      .or(`phone.eq.${originalFrom},phone.eq.+${normalized},phone.eq.${normalized}`)
-      .limit(1);
-
-    if (contacts && contacts.length > 0) {
-      const contact = contacts[0];
-      leadId = contact.leads?.[0]?.id ?? null;
-      if (leadName === "Unknown caller") {
-        leadName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Caller";
-      }
+    const { unifiedPhoneLookup } = await import("@/lib/dialer/phone-lookup");
+    const match = await unifiedPhoneLookup(originalFrom, sb);
+    leadId = match.leadId;
+    if (leadName === "Unknown caller" && match.ownerName) {
+      leadName = match.ownerName;
     }
   }
 

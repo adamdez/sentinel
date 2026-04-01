@@ -96,7 +96,7 @@ export function IntakeGuideSection({ cf }: { cf: ClientFile }) {
         "If they're ready now: move to qualification and verbal offer framing.",
       ],
       fields: [
-        { label: "Follow-up Date", filled: !!cf.nextCallScheduledAt || !!cf.followUpDate },
+        { label: "Follow-up Date", filled: !!(cf.nextCallScheduledAt || cf.nextActionDueAt || cf.followUpDate) },
       ],
     },
   ];

@@ -31,6 +31,8 @@ export async function POST(
     disposition: string;
     notes?: string;
     durationSec?: number;
+    next_action?: string;
+    next_action_due_at?: string;
   };
   try {
     body = await req.json();
@@ -105,7 +107,20 @@ export async function POST(
 
   if (rpcErr) {
     console.error("[LogCall] lead counter update failed:", rpcErr);
-    // Non-fatal — the call was logged even if counters didn't update
+  }
+
+  if (body.next_action) {
+    const patch: Record<string, string | null> = { next_action: body.next_action };
+    if (body.next_action_due_at) {
+      patch.next_action_due_at = body.next_action_due_at;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: patchErr } = await (sb.from("leads") as any)
+      .update(patch)
+      .eq("id", leadId);
+    if (patchErr) {
+      console.error("[LogCall] next_action patch failed:", patchErr);
+    }
   }
 
   // Audit log (non-blocking)

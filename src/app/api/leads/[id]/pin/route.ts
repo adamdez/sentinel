@@ -5,7 +5,7 @@ import { requireAuth } from "@/lib/api-auth";
 /**
  * POST /api/leads/[id]/pin
  *
- * Toggle pin state on a lead. Pinned leads appear in the Pipeline kanban.
+ * Toggle active state on a lead. Active leads appear in the Pipeline board.
  * Body: { pinned: true } or { pinned: false }
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -37,13 +37,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .single();
 
     if (error) {
-      console.error("[Pin] Update failed:", error);
+      console.error("[Active] Update failed:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data);
   } catch (err) {
-    console.error("[Pin] Unexpected error:", err);
+    console.error("[Active] Unexpected error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

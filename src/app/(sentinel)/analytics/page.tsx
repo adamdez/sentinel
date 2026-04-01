@@ -468,7 +468,7 @@ function PipelineTable({ rows }: { rows: PipelineHealthRow[] }) {
           <tr className="border-b border-overlay-6 text-muted-foreground/50">
             <th className="text-left py-1.5 pr-3 font-medium">Market</th>
             <th className="text-right py-1.5 px-2 font-medium">Active</th>
-            <th className="text-right py-1.5 px-2 font-medium">Prospect</th>
+            <th className="text-right py-1.5 px-2 font-medium">New</th>
             <th className="text-right py-1.5 px-2 font-medium">Lead</th>
             <th className="text-right py-1.5 px-2 font-medium">Negotiation</th>
             <th className="text-right py-1.5 px-2 font-medium">Disposition</th>

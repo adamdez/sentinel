@@ -30,7 +30,8 @@ export type AttentionFocus =
   | "unassigned_hot"
   | "slow_or_missing"
   | "needs_qualification"
-  | "escalated_review";
+  | "escalated_review"
+  | "drive_by";
 
 const SPEED_TO_LEAD_SLA_MS = 15 * 60 * 1000;
 const IMPORTANT_SCORE_THRESHOLD = 65;
@@ -154,6 +155,8 @@ const LEAD_LIST_SELECT = [
   "contactability_score",
   "confidence_score",
   "dossier_url",
+  "next_action",
+  "next_action_due_at",
   "pinned",
   "pinned_at",
   "pinned_by",
@@ -380,6 +383,11 @@ function isEscalatedReviewAttention(lead: LeadRow): boolean {
   return lead.status !== "dead" && lead.status !== "closed";
 }
 
+function isDriveByLead(lead: LeadRow): boolean {
+  if (!lead.nextAction) return false;
+  return lead.nextAction.toLowerCase().startsWith("drive by");
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null, attribution: any = null): LeadRow {
   const composite = raw.priority ?? null;
@@ -511,7 +519,8 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null,
     contactabilityScore: raw.contactability_score != null ? Number(raw.contactability_score) : null,
     confidenceScore: raw.confidence_score != null ? Number(raw.confidence_score) : null,
     dossierUrl: raw.dossier_url ?? null,
-    // Pin state
+    nextAction: raw.next_action ?? null,
+    nextActionDueAt: raw.next_action_due_at ?? null,
     pinned: raw.pinned === true,
     pinnedAt: raw.pinned_at ?? null,
     pinnedBy: raw.pinned_by ?? null,
@@ -912,6 +921,9 @@ export function useLeads() {
         if (attentionFocus === "escalated_review") {
           return isEscalatedReviewAttention(l);
         }
+        if (attentionFocus === "drive_by") {
+          return isDriveByLead(l);
+        }
         return true;
       });
     }
@@ -973,6 +985,7 @@ export function useLeads() {
     let slowOrMissing = 0;
     let needsQualification = 0;
     let escalatedReview = 0;
+    let driveBy = 0;
 
     for (const l of segmentedLeads) {
       const isNewInbound = isNewInboundNeedsAttention(l, dayStartMs, dayEndMs);
@@ -999,6 +1012,9 @@ export function useLeads() {
       if (isEscalatedReviewAttention(l)) {
         escalatedReview++;
       }
+      if (isDriveByLead(l)) {
+        driveBy++;
+      }
     }
 
     return {
@@ -1008,6 +1024,7 @@ export function useLeads() {
       slowOrMissing,
       needsQualification,
       escalatedReview,
+      driveBy,
     };
   }, [segmentedLeads]);
 

@@ -7,6 +7,8 @@ import {
   XCircle,
   ClipboardList,
   Activity,
+  AlertTriangle,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -16,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import type { AgentHealthSummary } from "@/lib/agent-health";
 
 type ReviewTab = "pending" | "approved" | "rejected";
 
@@ -39,6 +42,24 @@ interface AgentRunRow {
   status: string;
   started_at: string;
   completed_at: string | null;
+  error?: string | null;
+}
+
+function failureTone(severity: "critical" | "high" | "medium"): string {
+  if (severity === "critical") return "border-red-500/25 bg-red-500/8";
+  if (severity === "high") return "border-amber-500/25 bg-amber-500/8";
+  return "border-border/20 bg-muted/10";
+}
+
+function statusTone(successRate: number, failed: number): string {
+  if (failed === 0 || successRate >= 90) return "border-green-500/20 bg-green-500/5";
+  if (successRate >= 60) return "border-amber-500/20 bg-amber-500/5";
+  return "border-red-500/20 bg-red-500/5";
+}
+
+function formatError(error?: string | null): string {
+  if (!error) return "No error text recorded";
+  return error.length > 180 ? `${error.slice(0, 177)}...` : error;
 }
 
 function agentBadgeClass(name: string): string {
@@ -92,6 +113,18 @@ export function AgentReviewQueuePanel() {
     },
   });
 
+  const healthQuery = useQuery({
+    queryKey: ["agent-health", 48],
+    queryFn: async () => {
+      const res = await fetch("/api/control-plane/agent-health?window_hours=48&limit=300", {
+        headers: await sentinelAuthHeaders(false),
+      });
+      if (!res.ok) throw new Error("Failed to load agent health");
+      const json = (await res.json()) as { summary: AgentHealthSummary };
+      return json.summary;
+    },
+  });
+
   const patchMutation = useMutation({
     mutationFn: async (body: { id: string; status: "approved" | "rejected"; review_notes?: string }) => {
       const res = await fetch("/api/control-plane/review-queue", {
@@ -139,9 +172,75 @@ export function AgentReviewQueuePanel() {
     if (pb !== pa) return pb - pa;
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
+  const health = healthQuery.data;
 
   return (
     <div className="space-y-4">
+      <GlassCard hover={false} className={cn("!p-4", health ? statusTone(health.totals.successRate, health.totals.failed) : "border-border/20")}>
+        <div className="flex flex-wrap items-start gap-3 justify-between">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground/60" />
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/70">
+                Agent Health
+              </h3>
+            </div>
+            {healthQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground/60 flex items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading agent health...
+              </p>
+            ) : healthQuery.error ? (
+              <p className="text-sm text-red-300">{(healthQuery.error as Error).message}</p>
+            ) : health ? (
+              <>
+                <p className="text-sm font-medium text-foreground">{health.headline}</p>
+                <p className="text-xs text-muted-foreground/70">
+                  Last {health.windowHours}h: {health.totals.completed} completed, {health.totals.failed} failed, {health.totals.cancelled} cancelled, {health.totals.running} still running.
+                </p>
+              </>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {health ? (
+              <>
+                <Badge variant="outline" className="text-sm">
+                  {health.totals.successRate}% success
+                </Badge>
+                <Link href="/admin/health" className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary">
+                  System health
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              </>
+            ) : null}
+          </div>
+        </div>
+
+        {health && health.causes.length > 0 ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {health.causes.slice(0, 4).map((cause) => (
+              <div key={cause.key} className={cn("rounded-lg border p-3", failureTone(cause.severity))}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{cause.label}</p>
+                    <p className="mt-1 text-xs text-muted-foreground/80">{cause.detail}</p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0">
+                    {cause.count}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-xs text-foreground/85">{cause.action}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground/60">
+                  Agents: {cause.agents.join(", ")}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : health && !healthQuery.isLoading ? (
+          <p className="mt-3 text-sm text-muted-foreground/65">No recurring failure pattern in the current window.</p>
+        ) : null}
+      </GlassCard>
+
       <GlassCard hover={false} className="!p-3">
         <div className="flex flex-wrap items-center gap-2">
           {(
@@ -302,17 +401,34 @@ export function AgentReviewQueuePanel() {
             <Loader2 className="h-3 w-3 animate-spin" /> Loading…
           </p>
         ) : runsQuery.data && runsQuery.data.length > 0 ? (
-          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+          <div className="space-y-2 max-h-72 overflow-y-auto">
             {runsQuery.data.map((r) => (
               <div
                 key={r.id}
-                className="flex items-center justify-between gap-2 rounded-md border border-overlay-4 px-2 py-1 text-sm"
+                className="rounded-md border border-overlay-4 px-3 py-2 text-sm"
               >
-                <span className={cn("font-medium truncate", agentBadgeClass(r.agent_name))}>{r.agent_name}</span>
-                <span className="text-muted-foreground/50 shrink-0">{r.status}</span>
-                <span className="text-muted-foreground/35 shrink-0">
-                  {new Date(r.started_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className={cn("font-medium truncate", agentBadgeClass(r.agent_name))}>{r.agent_name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "shrink-0 text-xs font-medium",
+                      r.status === "failed" ? "text-red-300" : r.status === "completed" ? "text-green-300" : "text-muted-foreground/60",
+                    )}>
+                      {r.status}
+                    </span>
+                    <span className="text-muted-foreground/35 shrink-0">
+                      {new Date(r.started_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                </div>
+                {r.status === "failed" ? (
+                  <div className="mt-2 rounded-md border border-red-500/15 bg-red-500/5 px-2 py-1.5">
+                    <div className="flex items-start gap-2 text-xs text-red-100/90">
+                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-red-300" />
+                      <p>{formatError(r.error)}</p>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

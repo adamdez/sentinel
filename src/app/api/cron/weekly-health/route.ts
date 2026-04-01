@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { notifyWeeklyHealth } from "@/lib/notify";
 import { withCronTracking } from "@/lib/cron-run-tracker";
+import { summarizeAgentHealth, type AgentRunHealthRow } from "@/lib/agent-health";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
     // ── 1. Agent fleet health (7-day window) ────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: agentRuns } = await (sb.from("agent_runs") as any)
-      .select("agent_name, status, duration_ms, cost_cents")
+      .select("id, agent_name, status, duration_ms, cost_cents, error, started_at, completed_at")
       .gte("started_at", sevenDaysAgo);
 
     const agentHealth: Record<string, AgentStats> = {};
@@ -55,6 +56,7 @@ export async function GET(req: NextRequest) {
     for (const stats of Object.values(agentHealth)) {
       if (stats.completed > 0) stats.avgDurationMs = Math.round(stats.avgDurationMs / stats.completed);
     }
+    const fleetSummary = summarizeAgentHealth((agentRuns ?? []) as AgentRunHealthRow[], 24 * 7, now.toISOString());
 
     // ── 2. Pipeline velocity ────────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -203,6 +205,7 @@ export async function GET(req: NextRequest) {
       weekEnding: report.weekEnding,
       summary: report.summary,
       agentHealth: report.agentHealth,
+      fleetSummary,
       pipeline: report.pipeline,
       intelligence: report.intelligence,
       voice: report.voice,

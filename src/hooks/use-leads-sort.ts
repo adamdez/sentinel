@@ -6,6 +6,7 @@ type SortDir = "asc" | "desc";
 
 export interface SortableLeadRow {
   id: string;
+  /** Maps to DB `pinned` — represents "Active" work-bucket membership */
   pinned: boolean;
   score: {
     composite: number;
@@ -60,6 +61,7 @@ export function sortLeadRows<T extends SortableLeadRow>(
   }
 
   copy.sort((a, b) => {
+    // Active leads always float to the top regardless of sort field
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
 
     switch (sortField) {

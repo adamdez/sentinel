@@ -337,7 +337,7 @@ export default function WarRoomPage() {
             { href: "/dialer",          label: "Dialer",          icon: Phone },
             { href: "/dialer/inbound",  label: "Inbound",         icon: PhoneIncoming },
             { href: "/dialer/review",   label: "Weekly Review",   icon: TrendingUp },
-            { href: "/pipeline",        label: "Pipeline",        icon: ArrowRight },
+            { href: "/pipeline",        label: "Active",          icon: ArrowRight },
           ].map(({ href, label, icon: Icon }) => (
             <Link
               key={href}

@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { runResearchAgent } from "@/agents/research";
 
 export const runtime = "nodejs";
-export const maxDuration = 120; // Research agent can take longer due to LLM call
+export const maxDuration = 300; // Research agent can take longer due to external research + LLM synthesis
 
 /**
  * POST /api/agents/research

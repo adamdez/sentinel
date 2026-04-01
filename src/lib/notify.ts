@@ -1,3 +1,5 @@
+import type { AgentHealthSummary } from "@/lib/agent-health";
+
 /**
  * Direct Notification Dispatcher — Slack + Twilio SMS
  *
@@ -341,6 +343,7 @@ export function notifyWeeklyHealth(data: {
   weekEnding: string;
   summary: string;
   agentHealth: Record<string, { total: number; completed: number; failed: number; totalCostCents: number }>;
+  fleetSummary?: AgentHealthSummary;
   pipeline: { leadsCreated: number; callsLogged: number; stageTransitions: number; tasksCompleted: number };
   intelligence: { artifactsCreated: number; factsCreated: number; dossiersCreated: number; reviewItemsProcessed: number };
   voice: { totalCalls: number; transferred: number; sellerCalls: number; callbacksRequested: number };
@@ -368,6 +371,14 @@ export function notifyWeeklyHealth(data: {
     }
   }
 
+  if (data.fleetSummary?.causes.length) {
+    lines.push("", "*What actually broke:*");
+    for (const cause of data.fleetSummary.causes.slice(0, 3)) {
+      lines.push(`  - ${cause.label} (${cause.count})`);
+      lines.push(`    ${cause.action}`);
+    }
+  }
+
   // Quick wins
   if (data.quickWins.length > 0) {
     lines.push("", `*Quick wins (${data.quickWins.length}):*`);
@@ -376,6 +387,27 @@ export function notifyWeeklyHealth(data: {
     }
   }
 
+  return sendSlack(lines.join("\n"));
+}
+
+export function notifyAgentFleetAlert(data: {
+  windowHours: number;
+  successRate: number;
+  totalRuns: number;
+  failedRuns: number;
+  causes: AgentHealthSummary["causes"];
+}): Promise<NotifyResult> {
+  const lines = [
+    `*Agent Fleet Alert*`,
+    `${data.failedRuns} failed of ${data.totalRuns} runs in the last ${data.windowHours}h (${data.successRate}% success).`,
+  ];
+
+  for (const cause of data.causes.slice(0, 3)) {
+    lines.push(`- ${cause.label} (${cause.count})`);
+    lines.push(`  ${cause.action}`);
+  }
+
+  lines.push("Open Sentinel -> System Health for provider checks and live failure detail.");
   return sendSlack(lines.join("\n"));
 }
 

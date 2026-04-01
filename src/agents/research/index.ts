@@ -420,6 +420,8 @@ export async function runResearchAgent(
       temperature: 0.3,
       maxTokens: 8192,
       model: RESEARCH_AGENT_MODEL,
+      timeoutMs: 90_000,
+      maxRetries: 0,
     });
 
     // ── Parse response ──────────────────────────────────────────────────

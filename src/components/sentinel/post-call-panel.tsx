@@ -23,7 +23,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   CheckCircle2, Loader2, SkipForward,
   Phone, PhoneOff, Voicemail, CalendarCheck,
-  DollarSign, Skull, X, ArrowRight, ChevronLeft, Flag,
+  DollarSign, Skull, X, ArrowRight, ChevronLeft, ChevronRight, Flag,
   AlertTriangle, Sparkles, PhoneMissed,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -60,6 +60,31 @@ function toLocalDateTimeInput(iso?: string): string {
   const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
   return local.toISOString().slice(0, 16);
 }
+
+function daysFromNow9am(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(9, 0, 0, 0);
+  return d.toISOString();
+}
+
+interface DispoDefault {
+  nextAction: string;
+  daysOut: number;
+}
+
+const DISPO_DEFAULTS: Partial<Record<PublishDisposition, DispoDefault>> = {
+  no_answer:  { nextAction: "Call back",  daysOut: 1 },
+  voicemail:  { nextAction: "Call back",  daysOut: 3 },
+  dead_phone: { nextAction: "Drive by",   daysOut: 1 },
+};
+
+const STEP3_TASK_DEFAULTS: Partial<Record<PublishDisposition, { type: "callback" | "follow_up" | "drive_by"; when: "tomorrow" | "in_3_days" }>> = {
+  completed:  { type: "follow_up",  when: "in_3_days" },
+  offer_made: { type: "follow_up",  when: "in_3_days" },
+  follow_up:  { type: "callback",   when: "in_3_days" },
+  appointment:{ type: "callback",   when: "in_3_days" },
+};
 
 function deriveStructureFromSummary(summaryText: string): PostCallStructureInput {
   const lines = summaryText
@@ -108,6 +133,12 @@ const NEXT_STEP_DISPOS = new Set<PublishDisposition>(["follow_up", "appointment"
 const QUAL_CONFIRM_DISPOS = new Set<PublishDisposition>([
   "completed", "not_interested", "offer_made", "follow_up", "appointment",
 ]);
+
+const AUTO_ADVANCE_DISPOS = new Set<PublishDisposition>([
+  "no_answer", "voicemail", "dead_phone", "disqualified", "dead_lead",
+]);
+
+const AUTO_ADVANCE_DELAY_MS = 1200;
 
 const TIMELINE_CHIPS: { value: string; label: string }[] = [
   { value: "immediate", label: "Immediate" },
@@ -208,6 +239,7 @@ export function PostCallPanel({
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null); // dispo label shown briefly on success
+  const [savedDispo, setSavedDispo] = useState<PublishDisposition | null>(null);
   /** Compact confirmation lines after publish — no API snapshot; local truth only */
   const [publishSnapshot, setPublishSnapshot] = useState<{
     nextStep: string | null;
@@ -249,6 +281,7 @@ export function PostCallPanel({
   const [nextAction, setNextAction] = useState("");
   const [nextActionDueAt, setNextActionDueAt] = useState("");
 
+  const [step3DetailsOpen, setStep3DetailsOpen] = useState(false);
   // Qual checklist overrides — operator-toggled confirmations
   const [qualOverrides, setQualOverrides] = useState<Partial<Record<QualItemKey, boolean>>>({});
   // Objection tags collected from PostCallDraftPanel (confirm or skip path)
@@ -591,6 +624,7 @@ export function PostCallPanel({
         : null);
     setPublishing(false);
     setSaved(label);
+    setSavedDispo(dispo);
     setPublishSnapshot({
       nextStep,
       dueLine,
@@ -599,6 +633,8 @@ export function PostCallPanel({
     setPromoteFactsInfo(null);
     if (!leadId) {
       setTimeout(() => onComplete(), 850);
+    } else if (AUTO_ADVANCE_DISPOS.has(dispo)) {
+      setTimeout(() => onComplete(), AUTO_ADVANCE_DELAY_MS);
     }
   };
 
@@ -674,26 +710,33 @@ export function PostCallPanel({
     setStructuredDraft(null);
     setDraft(null);
     setDraftDone(false);
-    setNextAction("");
-    setNextActionDueAt("");
     draftFired.current = false;
     setSummaryRunId(null);
     summaryRunPromise.current = null;
     setDraftRunId(null);
     setObjectionTags([]);
+
+    const defaults = DISPO_DEFAULTS[dispo];
+    if (defaults) {
+      setNextAction(defaults.nextAction);
+      setNextActionDueAt(daysFromNow9am(defaults.daysOut));
+    } else {
+      setNextAction("");
+      setNextActionDueAt("");
+    }
+
     if (NEXT_STEP_DISPOS.has(dispo)) {
-      // Step 1 → Step 2 (date) → Step 3 (qual confirm)
       setPendingDispo(dispo);
-      setCallbackAt("");
+      setCallbackAt(dispo === "appointment" ? "" : toLocalDateTimeInput(daysFromNow9am(3)));
       setQualStep(false);
       setQualFromDate(false);
     } else if (QUAL_CONFIRM_DISPOS.has(dispo)) {
-      // Step 1 → Step 3 (qual confirm), skip date step
       setPendingDispo(dispo);
       setQualStep(true);
       setQualFromDate(false);
+    } else if (defaults) {
+      handlePublish(dispo);
     } else {
-      // no_answer / voicemail / disqualified — one-tap publish
       handlePublish(dispo);
     }
   };
@@ -779,14 +822,17 @@ export function PostCallPanel({
       const tag = (e.target as HTMLElement).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") e.stopPropagation();
     }}>
-      {/* ── Success confirmation (briefly shown before auto-advance) ── */}
+      {/* ── Success confirmation ── */}
       {saved ? (
         <div className="flex flex-col items-stretch gap-3 py-3 px-1">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
             <p className="text-sm font-semibold text-foreground">Saved · {saved}</p>
+            {savedDispo && AUTO_ADVANCE_DISPOS.has(savedDispo) && leadId && (
+              <span className="text-xs text-muted-foreground/50 ml-auto">advancing…</span>
+            )}
           </div>
-          {publishSnapshot && (
+          {publishSnapshot && (publishSnapshot.nextStep || publishSnapshot.dueLine) && (
             <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 px-3 py-2 space-y-1 text-xs">
               {publishSnapshot.nextStep && (
                 <p>
@@ -800,97 +846,102 @@ export function PostCallPanel({
                   <span className="text-foreground">{publishSnapshot.dueLine}</span>
                 </p>
               )}
-              {publishSnapshot.taskCreated && (
-                <p className="text-muted-foreground">Callback task created</p>
-              )}
-              {!publishSnapshot.nextStep && !publishSnapshot.dueLine && !publishSnapshot.taskCreated && (
-                <p className="text-muted-foreground">Call history and lead file updated.</p>
-              )}
             </div>
           )}
-          {publishQaFindings.length > 0 && (
-            <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.05] p-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-200 shrink-0" />
-                <p className="text-sm font-semibold text-amber-100">
-                  QA found {publishQaFindings.length} review item{publishQaFindings.length === 1 ? "" : "s"}
-                </p>
-              </div>
-              <div className="space-y-2">
-                {publishQaFindings.slice(0, 3).map((finding, index) => (
-                  <div
-                    key={`${finding.check_type}-${index}`}
-                    className={`rounded-[8px] border px-2.5 py-2 ${getQaSeverityTone(finding.severity)}`}
-                  >
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className="text-xs font-semibold uppercase tracking-wide">
-                        {getQaSeverityLabel(finding.severity)}
-                      </span>
-                      <span className="text-xs font-semibold">
-                        {QA_CHECK_LABELS[finding.check_type] ?? finding.check_type}
-                      </span>
-                      {finding.ai_derived && (
-                        <span className="inline-flex items-center gap-1 text-[11px] italic opacity-80">
-                          <Sparkles className="h-2.5 w-2.5" />
-                          AI-derived
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm leading-snug opacity-90">{finding.finding}</p>
-                  </div>
-                ))}
-              </div>
-              {publishQaFindings.length > 3 && (
-                <p className="text-xs text-amber-100/80">
-                  {publishQaFindings.length - 3} more item{publishQaFindings.length - 3 === 1 ? "" : "s"} in Call QA.
-                </p>
-              )}
-            </div>
-          )}
-          {leadId ? (
-            <>
-              <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3 space-y-2">
-                <p className="text-sm uppercase tracking-wide text-muted-foreground font-semibold">
-                  Intelligence
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full gap-1.5 text-xs border-primary/25 text-primary hover:bg-primary/10"
-                  disabled={promoteFactsBusy}
-                  onClick={() => void handlePromoteFacts()}
-                >
-                  {promoteFactsBusy ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-3.5 w-3.5" />
-                  )}
-                  Promote Call Facts
-                </Button>
-                {promoteFactsInfo != null && (
-                  <p className="text-sm text-muted-foreground">
-                    Promoted {promoteFactsInfo.promoted} fact{promoteFactsInfo.promoted === 1 ? "" : "s"} to the
-                    intelligence pipeline.
-                  </p>
-                )}
-                {promoteFactsInfo != null && promoteFactsInfo.contradictions > 0 && (
-                  <div className="flex items-start gap-2 rounded-md border border-border/25 bg-muted/[0.06] px-2 py-1.5 text-sm text-foreground/90">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                    <span>
-                      {promoteFactsInfo.contradictions} fact
-                      {promoteFactsInfo.contradictions === 1 ? "" : "s"} conflict with existing accepted data —
-                      review in the dossier / review queue.
-                    </span>
-                  </div>
-                )}
-              </div>
-              <Button size="sm" className="w-full gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm" onClick={onComplete}>
-                Next Lead
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </>
+          {savedDispo && AUTO_ADVANCE_DISPOS.has(savedDispo) && leadId ? (
+            <button
+              onClick={onComplete}
+              className="text-xs text-muted-foreground/40 hover:text-foreground/60 transition-colors text-center"
+            >
+              Skip wait — next lead now
+            </button>
           ) : (
-            <p className="text-sm text-muted-foreground/50 text-center">Moving to next lead…</p>
+            <>
+              {publishQaFindings.length > 0 && (
+                <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.05] p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-200 shrink-0" />
+                    <p className="text-sm font-semibold text-amber-100">
+                      QA found {publishQaFindings.length} review item{publishQaFindings.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {publishQaFindings.slice(0, 3).map((finding, index) => (
+                      <div
+                        key={`${finding.check_type}-${index}`}
+                        className={`rounded-[8px] border px-2.5 py-2 ${getQaSeverityTone(finding.severity)}`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-xs font-semibold uppercase tracking-wide">
+                            {getQaSeverityLabel(finding.severity)}
+                          </span>
+                          <span className="text-xs font-semibold">
+                            {QA_CHECK_LABELS[finding.check_type] ?? finding.check_type}
+                          </span>
+                          {finding.ai_derived && (
+                            <span className="inline-flex items-center gap-1 text-[11px] italic opacity-80">
+                              <Sparkles className="h-2.5 w-2.5" />
+                              AI-derived
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm leading-snug opacity-90">{finding.finding}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {publishQaFindings.length > 3 && (
+                    <p className="text-xs text-amber-100/80">
+                      {publishQaFindings.length - 3} more item{publishQaFindings.length - 3 === 1 ? "" : "s"} in Call QA.
+                    </p>
+                  )}
+                </div>
+              )}
+              {leadId ? (
+                <>
+                  <Button size="sm" className="w-full gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm" onClick={onComplete}>
+                    Next Lead
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Button>
+                  <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3 space-y-2">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground/50 font-semibold">
+                      Intelligence
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full gap-1.5 text-xs border-primary/25 text-primary hover:bg-primary/10"
+                      disabled={promoteFactsBusy}
+                      onClick={() => void handlePromoteFacts()}
+                    >
+                      {promoteFactsBusy ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" />
+                      )}
+                      Promote Call Facts
+                    </Button>
+                    {promoteFactsInfo != null && (
+                      <p className="text-sm text-muted-foreground">
+                        Promoted {promoteFactsInfo.promoted} fact{promoteFactsInfo.promoted === 1 ? "" : "s"} to the
+                        intelligence pipeline.
+                      </p>
+                    )}
+                    {promoteFactsInfo != null && promoteFactsInfo.contradictions > 0 && (
+                      <div className="flex items-start gap-2 rounded-md border border-border/25 bg-muted/[0.06] px-2 py-1.5 text-sm text-foreground/90">
+                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        <span>
+                          {promoteFactsInfo.contradictions} fact
+                          {promoteFactsInfo.contradictions === 1 ? "" : "s"} conflict with existing accepted data —
+                          review in the dossier / review queue.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground/50 text-center">Moving to next lead…</p>
+              )}
+            </>
           )}
         </div>
       ) : (
@@ -918,12 +969,6 @@ export function PostCallPanel({
       {error && (
         <p className="text-sm text-foreground mb-2 px-1">{error}</p>
       )}
-
-      <div className="mb-3 rounded-[10px] border border-overlay-8 bg-overlay-2 px-3 py-2">
-        <p className="text-sm text-foreground/85">
-          Nothing is saved until you finish this closeout{summary.trim() ? " (live notes are draft until then)" : ""}.
-        </p>
-      </div>
 
       {qualStep && pendingDispo && pendingMeta ? (
         /* ── Step 3: qualification confirm ──────────────────── */
@@ -975,47 +1020,6 @@ export function PostCallPanel({
             />
           )}
 
-          {/* ── Minimal structured corrections (no extra console) ─────── */}
-          <div className="mb-3 rounded-[10px] border border-overlay-5 bg-overlay-2 p-2.5 space-y-1.5">
-            <p className="text-sm uppercase tracking-wider text-muted-foreground/45">Post-call structure</p>
-            <textarea
-              value={structuredDraft?.promises_made ?? ""}
-              onChange={(e) => updateStructuredField("promises_made", e.target.value)}
-              placeholder="Promises made (optional)"
-              maxLength={200}
-              rows={1}
-              disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
-            />
-            <textarea
-              value={structuredDraft?.objection ?? ""}
-              onChange={(e) => updateStructuredField("objection", e.target.value)}
-              placeholder="Primary objection (optional)"
-              maxLength={200}
-              rows={1}
-              disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
-            />
-            <textarea
-              value={structuredDraft?.next_task_suggestion ?? ""}
-              onChange={(e) => updateStructuredField("next_task_suggestion", e.target.value)}
-              placeholder="Suggested next action (optional)"
-              maxLength={200}
-              rows={1}
-              disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
-            />
-            <textarea
-              value={structuredDraft?.callback_timing_hint ?? ""}
-              onChange={(e) => updateStructuredField("callback_timing_hint", e.target.value)}
-              placeholder="Best callback timing phrase (optional)"
-              maxLength={120}
-              rows={1}
-              disabled={publishing}
-              className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
-            />
-          </div>
-
           {NEXT_STEP_DISPOS.has(pendingDispo) && (
             <div className="mb-3">
               <label className="block text-sm text-muted-foreground/60 mb-1.5 px-0.5">
@@ -1035,49 +1039,6 @@ export function PostCallPanel({
               />
             </div>
           )}
-
-          {/* ── Qual gap strip ────────────────────────────────── */}
-          {/* Non-blocking — shows which items are still unknown after this call.
-              Uses live operator values (qualMotivation, qualTimeline) merged with
-              any context snapshot fields passed via qualContext. */}
-          <QualGapStripCompact
-            input={{
-              address:                qualContext?.address ?? null,
-              decisionMakerConfirmed: qualContext?.decisionMakerConfirmed ?? false,
-              sellerTimeline:         qualTimeline,
-              conditionLevel:         qualContext?.conditionLevel ?? null,
-              occupancyScore:         qualContext?.occupancyScore ?? null,
-              motivationLevel:        qualMotivation,
-              hasOpenTask:            qualContext?.hasOpenTask ?? false,
-            } satisfies QualCheckInput}
-            overrides={qualOverrides}
-            onToggle={(key, confirmed) => setQualOverrides((prev) => ({ ...prev, [key]: confirmed }))}
-            showNextQuestion={true}
-            className="mb-3 rounded-[10px] bg-white/[0.015] border border-overlay-4 p-2.5"
-          />
-
-          {/* Distress signals discovered on this call */}
-          <div className="mb-3">
-            <label className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-1.5 block">Distress Signals Discovered</label>
-            <div className="flex flex-wrap gap-1.5">
-              {["probate", "pre_foreclosure", "tax_lien", "bankruptcy", "divorce", "vacant", "absentee", "inherited", "condemned", "water_shutoff"].map((signal) => (
-                <button
-                  key={signal}
-                  onClick={() => setDistressSignals((prev) =>
-                    prev.includes(signal) ? prev.filter((s) => s !== signal) : [...prev, signal]
-                  )}
-                  disabled={publishing}
-                  className={`px-2 py-0.5 rounded-[8px] text-xs font-medium border transition-all ${
-                    distressSignals.includes(signal)
-                      ? "bg-primary/20 border-primary/40 text-primary"
-                      : "bg-overlay-3 border-overlay-6 text-muted-foreground/50 hover:border-white/[0.14]"
-                  } disabled:opacity-50`}
-                >
-                  {signal.replace(/_/g, " ")}
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* Motivation level */}
           <div className="flex items-center gap-1.5 mb-1.5 px-0.5">
@@ -1136,30 +1097,129 @@ export function PostCallPanel({
           </div>
 
           {/* ── Next task (chip-based, hard enforcement) ───────── */}
-          <div className={`mb-3 rounded-[10px] border p-2.5 space-y-1.5 ${
-            !nextAction.trim()
-              ? "border-amber-500/25 bg-amber-500/[0.04]"
-              : "border-primary/10 bg-primary/[0.03]"
-          }`}>
-            <p className={`text-xs uppercase tracking-wider font-semibold ${!nextAction.trim() ? "text-amber-400" : "text-primary/60"}`}>
-              {!nextAction.trim() ? "Next Task — Required" : "Next Task"}
-            </p>
-            {nextAction.trim() ? (
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-foreground/80">{nextAction}</span>
-                <button onClick={() => { setNextAction(""); setNextActionDueAt(""); }} className="text-[10px] text-muted-foreground/40 hover:text-foreground/60">Change</button>
+          {(() => {
+            const taskDefaults = pendingDispo ? STEP3_TASK_DEFAULTS[pendingDispo] : undefined;
+            return (
+              <div className={`mb-3 rounded-[10px] border p-2.5 space-y-1.5 ${
+                !nextAction.trim()
+                  ? "border-amber-500/25 bg-amber-500/[0.04]"
+                  : "border-primary/10 bg-primary/[0.03]"
+              }`}>
+                <p className={`text-xs uppercase tracking-wider font-semibold ${!nextAction.trim() ? "text-amber-400" : "text-primary/60"}`}>
+                  {!nextAction.trim() ? "Next Task — Required" : "Next Task"}
+                </p>
+                {nextAction.trim() ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-foreground/80">{nextAction}</span>
+                    <button onClick={() => { setNextAction(""); setNextActionDueAt(""); }} className="text-[10px] text-muted-foreground/40 hover:text-foreground/60">Change</button>
+                  </div>
+                ) : (
+                  <QuickTaskSetter
+                    compact
+                    defaultType={taskDefaults?.type}
+                    defaultWhen={taskDefaults?.when}
+                    onSave={(result) => {
+                      setNextAction(result.title);
+                      setNextActionDueAt(result.dueAt ? new Date(result.dueAt).toISOString() : "");
+                    }}
+                    onCancel={() => {}}
+                  />
+                )}
               </div>
-            ) : (
-              <QuickTaskSetter
-                compact
-                onSave={(result) => {
-                  setNextAction(result.title);
-                  setNextActionDueAt(result.dueAt ? new Date(result.dueAt).toISOString() : "");
-                }}
-                onCancel={() => {}}
-              />
+            );
+          })()}
+
+          {/* Collapsible details: structured corrections, qual gaps, distress signals */}
+          <button
+            type="button"
+            onClick={() => setStep3DetailsOpen((v) => !v)}
+            className="flex items-center gap-1.5 w-full mb-2 px-1 py-1 text-xs text-muted-foreground/40 hover:text-muted-foreground/70 transition-colors"
+          >
+            <ChevronRight className={`h-3 w-3 transition-transform ${step3DetailsOpen ? "rotate-90" : ""}`} />
+            <span className="uppercase tracking-wider font-semibold">Details</span>
+            {(distressSignals.length > 0 || (structuredDraft?.promises_made ?? "").trim() || (structuredDraft?.objection ?? "").trim()) && (
+              <span className="h-1.5 w-1.5 rounded-full bg-primary/60" />
             )}
-          </div>
+          </button>
+          {step3DetailsOpen && (
+            <div className="mb-3 space-y-3">
+              <div className="rounded-[10px] border border-overlay-5 bg-overlay-2 p-2.5 space-y-1.5">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground/45">Post-call structure</p>
+                <textarea
+                  value={structuredDraft?.promises_made ?? ""}
+                  onChange={(e) => updateStructuredField("promises_made", e.target.value)}
+                  placeholder="Promises made (optional)"
+                  maxLength={200}
+                  rows={1}
+                  disabled={publishing}
+                  className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+                />
+                <textarea
+                  value={structuredDraft?.objection ?? ""}
+                  onChange={(e) => updateStructuredField("objection", e.target.value)}
+                  placeholder="Primary objection (optional)"
+                  maxLength={200}
+                  rows={1}
+                  disabled={publishing}
+                  className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+                />
+                <textarea
+                  value={structuredDraft?.next_task_suggestion ?? ""}
+                  onChange={(e) => updateStructuredField("next_task_suggestion", e.target.value)}
+                  placeholder="Suggested next action (optional)"
+                  maxLength={200}
+                  rows={1}
+                  disabled={publishing}
+                  className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+                />
+                <textarea
+                  value={structuredDraft?.callback_timing_hint ?? ""}
+                  onChange={(e) => updateStructuredField("callback_timing_hint", e.target.value)}
+                  placeholder="Best callback timing phrase (optional)"
+                  maxLength={120}
+                  rows={1}
+                  disabled={publishing}
+                  className="w-full resize-none rounded-[8px] border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20 disabled:opacity-50"
+                />
+              </div>
+              <QualGapStripCompact
+                input={{
+                  address:                qualContext?.address ?? null,
+                  decisionMakerConfirmed: qualContext?.decisionMakerConfirmed ?? false,
+                  sellerTimeline:         qualTimeline,
+                  conditionLevel:         qualContext?.conditionLevel ?? null,
+                  occupancyScore:         qualContext?.occupancyScore ?? null,
+                  motivationLevel:        qualMotivation,
+                  hasOpenTask:            qualContext?.hasOpenTask ?? false,
+                } satisfies QualCheckInput}
+                overrides={qualOverrides}
+                onToggle={(key, confirmed) => setQualOverrides((prev) => ({ ...prev, [key]: confirmed }))}
+                showNextQuestion={true}
+                className="rounded-[10px] bg-white/[0.015] border border-overlay-4 p-2.5"
+              />
+              <div>
+                <label className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-1.5 block">Distress Signals</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {["probate", "pre_foreclosure", "tax_lien", "bankruptcy", "divorce", "vacant", "absentee", "inherited", "condemned", "water_shutoff"].map((signal) => (
+                    <button
+                      key={signal}
+                      onClick={() => setDistressSignals((prev) =>
+                        prev.includes(signal) ? prev.filter((s) => s !== signal) : [...prev, signal]
+                      )}
+                      disabled={publishing}
+                      className={`px-2 py-0.5 rounded-[8px] text-xs font-medium border transition-all ${
+                        distressSignals.includes(signal)
+                          ? "bg-primary/20 border-primary/40 text-primary"
+                          : "bg-overlay-3 border-overlay-6 text-muted-foreground/50 hover:border-white/[0.14]"
+                      } disabled:opacity-50`}
+                    >
+                      {signal.replace(/_/g, " ")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           <Button
             onClick={handleQualConfirm}
@@ -1174,7 +1234,6 @@ export function PostCallPanel({
             Complete Closeout
           </Button>
 
-          {/* Flag AI output — only shown when extraction ran */}
           {extractRunId && (
             <button
               type="button"
@@ -1263,6 +1322,7 @@ export function PostCallPanel({
               <QuickTaskSetter
                 compact
                 defaultType="callback"
+                defaultWhen="in_3_days"
                 onSave={(result) => {
                   setNextAction(result.title);
                   setNextActionDueAt(result.dueAt ? new Date(result.dueAt).toISOString() : "");

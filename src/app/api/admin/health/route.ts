@@ -209,6 +209,12 @@ export async function GET(req: NextRequest) {
         });
         if (!res.ok) {
           const err = await res.text().catch(() => "");
+          if (res.status === 429) {
+            return { ok: false, detail: `HTTP 429: rate limited or spend cap reached (${err.slice(0, 100)})` };
+          }
+          if (res.status === 401 || res.status === 403) {
+            return { ok: false, detail: `HTTP ${res.status}: auth or billing issue (${err.slice(0, 100)})` };
+          }
           return { ok: false, detail: `HTTP ${res.status}: ${err.slice(0, 100)}` };
         }
         return { ok: true, detail: "API responding" };
@@ -219,6 +225,43 @@ export async function GET(req: NextRequest) {
   }
 
   // ── 9. OpenAI ─────────────────────────────────────────────────────
+  if (process.env.FIRECRAWL_API_KEY) {
+    checks.push(
+      checkService("Firecrawl", async () => {
+        const res = await fetch("https://api.firecrawl.dev/v2/team/credit-usage", {
+          headers: {
+            Authorization: `Bearer ${process.env.FIRECRAWL_API_KEY!}`,
+          },
+        });
+        if (!res.ok) {
+          const err = await res.text().catch(() => "");
+          if (res.status === 402) {
+            return { ok: false, detail: `HTTP 402: credits exhausted (${err.slice(0, 100)})` };
+          }
+          if (res.status === 401 || res.status === 403) {
+            return { ok: false, detail: `HTTP ${res.status}: auth or billing issue (${err.slice(0, 100)})` };
+          }
+          return { ok: false, detail: `HTTP ${res.status}: ${err.slice(0, 100)}` };
+        }
+        const data = await res.json().catch(() => null) as {
+          success?: boolean;
+          data?: { remainingCredits?: number; planCredits?: number };
+        } | null;
+        const remainingCredits = Number(data?.data?.remainingCredits ?? 0);
+        const planCredits = Number(data?.data?.planCredits ?? 0);
+        if (remainingCredits <= 0) {
+          return { ok: false, detail: `0 credits remaining out of ${planCredits || "unknown"} plan credits` };
+        }
+        if (remainingCredits < 100) {
+          return { ok: false, detail: `${remainingCredits} credits remaining out of ${planCredits || "unknown"} plan credits` };
+        }
+        return { ok: true, detail: `${remainingCredits} credits remaining` };
+      }),
+    );
+  } else {
+    checks.push(Promise.resolve(unconfigured("Firecrawl", "FIRECRAWL_API_KEY")));
+  }
+
   if (process.env.OPENAI_API_KEY) {
     checks.push(
       checkService("OpenAI", async () => {

@@ -285,12 +285,28 @@ async function handleStatusUpdate(
 
   if (mappedStatus) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("voice_sessions") as any)
+    const { data: session } = await (sb.from("voice_sessions") as any)
       .update({
         status: mappedStatus,
         ...(mappedStatus === "completed" ? { ended_at: new Date().toISOString() } : {}),
       })
-      .eq("vapi_call_id", vapiCallId);
+      .eq("vapi_call_id", vapiCallId)
+      .select("id, run_id")
+      .maybeSingle();
+
+    if (mappedStatus === "completed" && session?.run_id) {
+      completeAgentRun({
+        runId: session.run_id,
+        status: "completed",
+        outputs: {
+          callId: vapiCallId,
+          terminalEvent: "status-update",
+          terminalStatus: mappedStatus,
+        },
+      }).catch((err) => {
+        console.error("[vapi/webhook] completeAgentRun from status-update failed:", err instanceof Error ? err.message : String(err));
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });
@@ -618,7 +634,7 @@ async function handleHang(
   // Mark session as completed if still in ai_handling
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: session } = await (sb.from("voice_sessions") as any)
-    .select("id, status, lead_id, from_number, caller_type")
+    .select("id, status, lead_id, from_number, caller_type, run_id")
     .eq("vapi_call_id", vapiCallId)
     .single();
 
@@ -665,6 +681,21 @@ async function handleHang(
           callTimestamp: new Date().toISOString(),
         })
       );
+    }
+
+    if (session.run_id) {
+      completeAgentRun({
+        runId: session.run_id,
+        status: "completed",
+        outputs: {
+          callId: vapiCallId,
+          terminalEvent: "hang",
+          terminalStatus: "completed",
+          reason: "caller_hung_up_during_ai",
+        },
+      }).catch((err) => {
+        console.error("[vapi/webhook] completeAgentRun from hang failed:", err instanceof Error ? err.message : String(err));
+      });
     }
   }
 
@@ -737,21 +768,12 @@ async function resolveVoiceSession(
   const toNumber = call?.phoneNumber?.number ?? call?.phoneNumber?.twilioPhoneNumber ?? null;
   const callSid = call?.phoneCallProviderId ?? null;
 
-  // Try to match lead by phone via contacts table (leads has no phone column)
+  // Match caller to a lead via unified phone lookup (searches all phone tables)
   let leadId: string | null = null;
   if (fromNumber) {
-    const normalized = fromNumber.replace(/\D/g, "");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: contacts } = await (sb.from("contacts") as any)
-      .select("id, leads!contact_id(id)")
-      .or(`phone.eq.${fromNumber},phone.eq.+${normalized},phone.eq.${normalized}`)
-      .limit(1);
-    if (contacts && contacts.length > 0) {
-      const linkedLeads = contacts[0].leads;
-      if (Array.isArray(linkedLeads) && linkedLeads.length > 0) {
-        leadId = linkedLeads[0].id;
-      }
-    }
+    const { unifiedPhoneLookup } = await import("@/lib/dialer/phone-lookup");
+    const match = await unifiedPhoneLookup(fromNumber, sb);
+    leadId = match.leadId;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

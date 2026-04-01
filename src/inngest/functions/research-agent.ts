@@ -5,7 +5,7 @@ export const researchAgentJob = inngest.createFunction(
   {
     id: "research-agent",
     retries: 3,
-    concurrency: { limit: 5, key: "event.data.leadId" },
+    concurrency: { limit: 2 },
     triggers: [{ event: "agent/research.requested" }],
   },
   async ({ event, step }) => {

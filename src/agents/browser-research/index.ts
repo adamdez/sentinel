@@ -16,6 +16,10 @@ import { createArtifact, createFact } from "@/lib/intelligence";
 const FIRECRAWL_AGENT_URL = "https://api.firecrawl.dev/v2/agent";
 const FIRECRAWL_STATUS_URL = "https://api.firecrawl.dev/v2/agent";
 const AGENT_NAME = "browser-research";
+const FIRECRAWL_CREDIT_COOLDOWN_MS = 60 * 60 * 1000;
+
+let firecrawlBlockedUntil = 0;
+let firecrawlBlockedReason = "";
 
 const INVESTIGATION_SCHEMA = {
   type: "object",
@@ -140,6 +144,57 @@ export interface ResearchResult {
   errors: string[];
 }
 
+function getFirecrawlAvailability(): { available: true } | { available: false; reason: string } {
+  if (Date.now() < firecrawlBlockedUntil) {
+    return {
+      available: false,
+      reason: firecrawlBlockedReason || "Firecrawl agent temporarily disabled after a billing failure.",
+    };
+  }
+  return { available: true };
+}
+
+function blockFirecrawlForCredits(reason: string) {
+  firecrawlBlockedUntil = Date.now() + FIRECRAWL_CREDIT_COOLDOWN_MS;
+  firecrawlBlockedReason = reason;
+}
+
+async function checkFirecrawlCredits(apiKey: string): Promise<{ available: boolean; reason?: string }> {
+  try {
+    const res = await fetch("https://api.firecrawl.dev/v2/team/credit-usage", {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+    if (!res.ok) {
+      const err = await res.text().catch(() => "");
+      if (res.status === 402) {
+        const reason = `Firecrawl credits exhausted: ${err.slice(0, 220)}`;
+        blockFirecrawlForCredits(reason);
+        return { available: false, reason };
+      }
+      if (res.status === 401 || res.status === 403) {
+        return { available: false, reason: `Firecrawl auth or billing issue: ${err.slice(0, 220)}` };
+      }
+      return { available: true };
+    }
+
+    const data = await res.json().catch(() => null) as {
+      data?: { remainingCredits?: number; planCredits?: number };
+    } | null;
+    const remainingCredits = Number(data?.data?.remainingCredits ?? 0);
+    const planCredits = Number(data?.data?.planCredits ?? 0);
+    if (remainingCredits <= 0) {
+      const reason = `Firecrawl credits exhausted: ${remainingCredits} credits remaining out of ${planCredits || "unknown"} plan credits`;
+      blockFirecrawlForCredits(reason);
+      return { available: false, reason };
+    }
+    return { available: true };
+  } catch {
+    return { available: true };
+  }
+}
+
 /**
  * Run autonomous web research for a lead via Firecrawl /agent.
  * Returns structured findings persisted as artifacts + facts.
@@ -148,6 +203,35 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
   const flag = await getFeatureFlag("agent.research.enabled");
   if (!flag?.enabled) {
     return { runId: "", artifactsCreated: 0, factsExtracted: 0, sourcesSearched: 0, findings: [], errors: ["Feature flag disabled"] };
+  }
+
+  const availability = getFirecrawlAvailability();
+  if (!availability.available) {
+    return {
+      runId: "",
+      artifactsCreated: 0,
+      factsExtracted: 0,
+      sourcesSearched: 0,
+      findings: [],
+      errors: [availability.reason],
+    };
+  }
+
+  const firecrawlKey = process.env.FIRECRAWL_API_KEY;
+  if (!firecrawlKey) {
+    return { runId: "", artifactsCreated: 0, factsExtracted: 0, sourcesSearched: 0, findings: [], errors: ["FIRECRAWL_API_KEY not set"] };
+  }
+
+  const creditStatus = await checkFirecrawlCredits(firecrawlKey);
+  if (!creditStatus.available) {
+    return {
+      runId: "",
+      artifactsCreated: 0,
+      factsExtracted: 0,
+      sourcesSearched: 0,
+      findings: [],
+      errors: [creditStatus.reason ?? "Firecrawl unavailable"],
+    };
   }
 
   const runId = await createAgentRun({
@@ -159,12 +243,6 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
 
   if (!runId) {
     return { runId: "", artifactsCreated: 0, factsExtracted: 0, sourcesSearched: 0, findings: [], errors: ["Dedup: already running"] };
-  }
-
-  const firecrawlKey = process.env.FIRECRAWL_API_KEY;
-  if (!firecrawlKey) {
-    await completeAgentRun({ runId, status: "failed", error: "FIRECRAWL_API_KEY not set" });
-    return { runId, artifactsCreated: 0, factsExtracted: 0, sourcesSearched: 0, findings: [], errors: ["FIRECRAWL_API_KEY not set"] };
   }
 
   const errors: string[] = [];
@@ -192,6 +270,11 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
 
     if (!submitRes.ok) {
       const errText = await submitRes.text().catch(() => "");
+      if (submitRes.status === 402 && /insufficient credits/i.test(errText)) {
+        const reason = `Firecrawl credits exhausted: ${errText.slice(0, 220)}`;
+        blockFirecrawlForCredits(reason);
+        throw new Error(reason);
+      }
       throw new Error(`Firecrawl Agent submit failed: ${submitRes.status} ${errText}`);
     }
 
@@ -273,7 +356,13 @@ export async function runBrowserResearch(input: BrowserResearchInput): Promise<R
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     errors.push(msg);
-    await completeAgentRun({ runId, status: "failed", error: msg });
+    const creditFailure = /firecrawl credits exhausted|insufficient credits/i.test(msg);
+    await completeAgentRun({
+      runId,
+      status: creditFailure ? "cancelled" : "failed",
+      error: msg,
+      outputs: creditFailure ? { skipped: true, reason: "firecrawl_credits_exhausted" } : undefined,
+    });
     return { runId, artifactsCreated, factsExtracted, sourcesSearched: 0, findings, errors };
   }
 }

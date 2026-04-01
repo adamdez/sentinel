@@ -1,5 +1,80 @@
 [
   {
+    "hash": "20a7be6a",
+    "date": "2026-03-31",
+    "message": "Fix intake queue audit write crashes"
+  },
+  {
+    "hash": "6f888bfc",
+    "date": "2026-03-31",
+    "message": "Fix PPL intake queue action layout"
+  },
+  {
+    "hash": "2c8a4bf2",
+    "date": "2026-03-31",
+    "message": "Improve PPL intake queue operations"
+  },
+  {
+    "hash": "00f1583f",
+    "date": "2026-03-31",
+    "message": "Fix bulk dial queue updates"
+  },
+  {
+    "hash": "44146377",
+    "date": "2026-03-31",
+    "message": "Fix Pacific KPI date math in CI"
+  },
+  {
+    "hash": "0410cb71",
+    "date": "2026-03-31",
+    "message": "Allow Lead House secret via header or URL"
+  },
+  {
+    "hash": "3e48039c",
+    "date": "2026-03-31",
+    "message": "Add partner-friendly Lead House intake route"
+  },
+  {
+    "hash": "711a8f18",
+    "date": "2026-03-31",
+    "message": "Accept nested Lead House vendor payloads"
+  },
+  {
+    "hash": "805cc439",
+    "date": "2026-03-31",
+    "message": "Fix operator auto cycle phone selection"
+  },
+  {
+    "hash": "f0280d68",
+    "date": "2026-03-31",
+    "message": "Update local auth seed and display names"
+  },
+  {
+    "hash": "fcc511ab",
+    "date": "2026-03-31",
+    "message": "Add repo enablement tooling and harden dial queue"
+  },
+  {
+    "hash": "fb313015",
+    "date": "2026-03-31",
+    "message": "Set up local Supabase workflow and seed path"
+  },
+  {
+    "hash": "3658bd01",
+    "date": "2026-03-31",
+    "message": "Harden leads page against schema drift"
+  },
+  {
+    "hash": "e8fce09c",
+    "date": "2026-03-31",
+    "message": "Repair queue skip trace client file saves"
+  },
+  {
+    "hash": "26f5a61a",
+    "date": "2026-03-31",
+    "message": "Ship pending dialer and Supabase updates"
+  },
+  {
     "hash": "e739526e",
     "date": "2026-03-31",
     "message": "Harden queue skip trace processing"
@@ -48,80 +123,5 @@
     "hash": "ff6c6969",
     "date": "2026-03-30",
     "message": "Fix Vapi assistant setup fallback"
-  },
-  {
-    "hash": "7d516ce4",
-    "date": "2026-03-30",
-    "message": "Remove redundant comms rail tile"
-  },
-  {
-    "hash": "c4d80324",
-    "date": "2026-03-30",
-    "message": "Fix SMS thread auto-scroll resets"
-  },
-  {
-    "hash": "6238a960",
-    "date": "2026-03-30",
-    "message": "Refine dialer layout hierarchy"
-  },
-  {
-    "hash": "388e060f",
-    "date": "2026-03-30",
-    "message": "Add Jeff interaction follow-up flow and dialer cleanup"
-  },
-  {
-    "hash": "322b12bb",
-    "date": "2026-03-30",
-    "message": "Add Jeff date range controls"
-  },
-  {
-    "hash": "9207e1a6",
-    "date": "2026-03-30",
-    "message": "Add inline Jeff call reviews"
-  },
-  {
-    "hash": "7dfe8acf",
-    "date": "2026-03-30",
-    "message": "Tighten Jeff outbound controls and activity"
-  },
-  {
-    "hash": "17d94608",
-    "date": "2026-03-30",
-    "message": "Fix PPL email intake pipeline and add Jeff outbound system"
-  },
-  {
-    "hash": "30e589ed",
-    "date": "2026-03-30",
-    "message": "Tighten dialer pickup KPI classification"
-  },
-  {
-    "hash": "926a9080",
-    "date": "2026-03-30",
-    "message": "Collapse dialer scoreboard by default"
-  },
-  {
-    "hash": "5906e7e3",
-    "date": "2026-03-30",
-    "message": "Add manual dial queue and queue-wide skip trace"
-  },
-  {
-    "hash": "aece0f38",
-    "date": "2026-03-30",
-    "message": "Update generated changelog"
-  },
-  {
-    "hash": "96feb8f5",
-    "date": "2026-03-30",
-    "message": "Fix unclaimed lead claiming and caller ID copy"
-  },
-  {
-    "hash": "33680b65",
-    "date": "2026-03-28",
-    "message": "fix: 3 critical bugs breaking inbound call flow"
-  },
-  {
-    "hash": "8e8cfcae",
-    "date": "2026-03-28",
-    "message": "feat: wire inbound call system — Jeff greeting, missed call SMS, webhook setup"
   }
 ]

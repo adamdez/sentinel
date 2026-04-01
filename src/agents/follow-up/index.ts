@@ -46,6 +46,26 @@ export async function runFollowUpAgent(
     };
   }
 
+  const sb = createServerClient();
+
+  // Preflight the lead before creating a traced run so deleted or merged
+  // leads do not create avoidable control-plane noise.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: preflightLead } = await (sb.from("leads") as any)
+    .select("id")
+    .eq("id", input.leadId)
+    .maybeSingle();
+
+  if (!preflightLead) {
+    return {
+      runId: "none",
+      leadId: input.leadId,
+      drafts: [],
+      status: "disabled",
+      summary: `Lead ${input.leadId} no longer exists. Follow-up skipped before run creation.`,
+    };
+  }
+
   const triggerTypeMap: Record<string, string> = {
     stale_lead: "event",
     scheduled: "cron",
@@ -92,13 +112,18 @@ export async function runFollowUpAgent(
       .single();
 
     if (!lead) {
-      await completeAgentRun({ runId, status: "failed", error: "Lead not found" });
+      await completeAgentRun({
+        runId,
+        status: "cancelled",
+        error: "Lead not found",
+        outputs: { skipped: true, reason: "lead_not_found" },
+      });
       return {
         runId,
         leadId: input.leadId,
         drafts: [],
-        status: "failed",
-        summary: `Lead ${input.leadId} not found`,
+        status: "disabled",
+        summary: `Lead ${input.leadId} no longer exists. Follow-up skipped.`,
       };
     }
 
@@ -217,6 +242,8 @@ Generate 1-2 follow-up draft options. Return JSON:
       apiKey,
       temperature: 0.4,
       maxTokens: 2000,
+      timeoutMs: 45_000,
+      maxRetries: 0,
     });
 
     // ── Parse response ──────────────────────────────────────────────

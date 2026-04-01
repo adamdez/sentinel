@@ -16,6 +16,8 @@ export interface OperatorWorkflowFields {
   nextFollowUpAt?: string | null;
   lastContactAt?: string | null;
   totalCalls?: number | null;
+  nextAction?: string | null;
+  nextActionDueAt?: string | null;
   createdAt?: string | null;
   promotedAt?: string | null;
   now?: Date;
@@ -75,12 +77,16 @@ export function buildOperatorWorkflowSummary(fields: OperatorWorkflowFields): Op
     nextFollowUpAt: fields.nextFollowUpAt,
     lastContactAt: fields.lastContactAt,
     totalCalls: fields.totalCalls,
+    nextAction: fields.nextAction,
+    nextActionDueAt: fields.nextActionDueAt,
     createdAt: fields.createdAt,
     promotedAt: fields.promotedAt,
     now,
   });
 
-  const effectiveDueIso = fields.nextCallScheduledAt ?? fields.nextFollowUpAt ?? null;
+  const effectiveDueIso = fields.nextAction
+    ? (fields.nextActionDueAt ?? fields.nextCallScheduledAt ?? fields.nextFollowUpAt ?? null)
+    : (fields.nextCallScheduledAt ?? fields.nextFollowUpAt ?? fields.nextActionDueAt ?? null);
   const dueFmt = formatDueDateLabel(effectiveDueIso, now);
   const dueLabel =
     !effectiveDueIso || dueFmt.text === "n/a" ? "—" : dueFmt.text;

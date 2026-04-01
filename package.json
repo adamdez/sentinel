@@ -24,6 +24,8 @@
     "db:status": "node scripts/supabase-cli.mjs status",
     "db:reset": "node scripts/supabase-cli.mjs db reset",
     "db:seed:auth": "node scripts/seed-local-auth-users.mjs",
+    "ux:access:local": "node scripts/setup-local-ux-access.mjs",
+    "ux:access:reset": "node scripts/setup-local-ux-access.mjs --reset-db",
     "env:use:local-supabase": "node scripts/switch-supabase-env.mjs local",
     "env:use:remote-supabase": "node scripts/switch-supabase-env.mjs remote",
     "db:link": "node scripts/supabase-cli.mjs link",

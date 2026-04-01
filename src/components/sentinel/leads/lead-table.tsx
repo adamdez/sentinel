@@ -38,12 +38,12 @@ interface LeadTableProps {
   sortDir: SortDir;
   onSort: (field: SortField) => void;
   onSelect: (id: string) => void;
-  onTogglePin: (id: string, pinned: boolean) => void | Promise<void>;
+  onToggleActive: (id: string, active: boolean) => void | Promise<void>;
   onRefresh?: () => void;
   currentUserId: string;
 }
 
-// Grid: select · pin · property · do now · due · last touch · actions
+// Grid: select · active · property · do now · due · last touch · actions
 const GRID = "grid-cols-[28px_28px_1.65fr_minmax(120px,1.15fr)_minmax(80px,0.9fr)_minmax(88px,0.95fr)_80px]";
 const BULK_ACTION_CONCURRENCY = 6;
 
@@ -114,7 +114,7 @@ export function LeadTable({
   sortDir,
   onSort,
   onSelect,
-  onTogglePin,
+  onToggleActive,
   onRefresh,
   currentUserId,
 }: LeadTableProps) {
@@ -558,6 +558,8 @@ export function LeadTable({
           nextFollowUpAt: lead.followUpDate,
           lastContactAt: lead.lastContactAt,
           totalCalls: lead.totalCalls,
+          nextAction: lead.nextAction,
+          nextActionDueAt: lead.nextActionDueAt,
           createdAt: lead.promotedAt,
           promotedAt: lead.promotedAt,
         });
@@ -603,7 +605,7 @@ export function LeadTable({
                     type="button"
                     aria-label={lead.pinned ? "Remove Active" : "Mark Active"}
                     aria-pressed={lead.pinned}
-                    onClick={() => onTogglePin(lead.id, !lead.pinned)}
+                    onClick={() => onToggleActive(lead.id, !lead.pinned)}
                     className={cn(
                       "h-6 w-6 flex items-center justify-center rounded-md transition-colors",
                       lead.pinned
@@ -634,6 +636,11 @@ export function LeadTable({
                     {lead.pinned && (
                       <span className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-400 font-bold border border-blue-500/25">
                         Active
+                      </span>
+                    )}
+                    {lead.nextAction?.toLowerCase().startsWith("drive by") && (
+                      <span className="shrink-0 text-[10px] px-1.5 py-0 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold uppercase tracking-wide">
+                        Drive By
                       </span>
                     )}
                     {lead.dialQueueActive && (

@@ -105,14 +105,29 @@ export async function analyzeWithClaude(opts: {
   temperature?: number;
   maxTokens?: number;
   model?: string;
+  timeoutMs?: number;
+  maxRetries?: number;
   /** Optional: Langfuse trace ID to link this generation to an agent run */
   traceId?: string;
   /** Optional: name for this generation in Langfuse (e.g., "draft_follow_up") */
   generationName?: string;
 }): Promise<string> {
-  const { prompt, systemPrompt, apiKey, temperature = 0.2, maxTokens = 8192, model = CLAUDE_MODEL } = opts;
+  const {
+    prompt,
+    systemPrompt,
+    apiKey,
+    temperature = 0.2,
+    maxTokens = 8192,
+    model = CLAUDE_MODEL,
+    timeoutMs,
+    maxRetries,
+  } = opts;
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({
+    apiKey,
+    ...(timeoutMs ? { timeout: timeoutMs } : {}),
+    ...(maxRetries !== undefined ? { maxRetries } : {}),
+  });
 
   const response = await client.messages.create({
     model,
@@ -145,7 +160,7 @@ export async function analyzeWithClaude(opts: {
         output: response.usage?.output_tokens,
         total: (response.usage?.input_tokens ?? 0) + (response.usage?.output_tokens ?? 0),
       },
-      metadata: { temperature, maxTokens, stopReason: response.stop_reason },
+      metadata: { temperature, maxTokens, stopReason: response.stop_reason, timeoutMs, maxRetries },
     });
   }
 

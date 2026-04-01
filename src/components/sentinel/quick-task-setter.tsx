@@ -8,6 +8,7 @@ import { format, addDays, startOfTomorrow, nextMonday, setHours, setMinutes } fr
 
 export const TASK_TYPES = [
   { id: "callback", label: "Call Back" },
+  { id: "drive_by", label: "Drive By" },
   { id: "send_offer", label: "Send Offer" },
   { id: "send_comps", label: "Send Comps" },
   { id: "research", label: "Research" },
@@ -38,12 +39,16 @@ export interface QuickTaskResult {
   notes: string;
 }
 
+type WhenOptionId = (typeof WHEN_OPTIONS)[number]["id"];
+
 interface QuickTaskSetterProps {
   onSave: (result: QuickTaskResult) => void | Promise<void>;
   onCancel: () => void;
   saving?: boolean;
   /** Pre-select a task type (e.g. "callback" from dialer) */
   defaultType?: TaskTypeId;
+  /** Pre-select a when option (e.g. "tomorrow" or "in_3_days") */
+  defaultWhen?: WhenOptionId;
   /** Compact mode hides the header */
   compact?: boolean;
 }
@@ -55,10 +60,11 @@ export function QuickTaskSetter({
   onCancel,
   saving = false,
   defaultType,
+  defaultWhen,
   compact = false,
 }: QuickTaskSetterProps) {
   const [taskType, setTaskType] = useState<TaskTypeId | null>(defaultType ?? null);
-  const [whenId, setWhenId] = useState<string | null>(null);
+  const [whenId, setWhenId] = useState<string | null>(defaultWhen ?? null);
   const [timeId, setTimeId] = useState<string | null>(null);
   const [customDate, setCustomDate] = useState("");
   const [customTime, setCustomTime] = useState("");

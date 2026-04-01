@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, MinusCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import type { AgentHealthSummary } from "@/lib/agent-health";
 
 interface ServiceCheck {
   name: string;
@@ -22,6 +23,10 @@ interface HealthResponse {
     total: number;
     timestamp: string;
   };
+}
+
+interface AgentHealthResponse {
+  summary: AgentHealthSummary;
 }
 
 const statusIcon = (status: ServiceCheck["status"]) => {
@@ -53,6 +58,7 @@ const statusLabel = (status: ServiceCheck["status"]) => {
 
 export default function HealthDashboard() {
   const [data, setData] = useState<HealthResponse | null>(null);
+  const [agentHealth, setAgentHealth] = useState<AgentHealthSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +75,16 @@ export default function HealthDashboard() {
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setData(json);
+
+      const agentRes = await fetch("/api/control-plane/agent-health?window_hours=48&limit=300", {
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {},
+      });
+      const agentJson = await agentRes.json().catch(() => null) as AgentHealthResponse | null;
+      if (agentRes.ok && agentJson?.summary) {
+        setAgentHealth(agentJson.summary);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Health check failed");
     } finally {
@@ -136,6 +152,65 @@ export default function HealthDashboard() {
       {error && (
         <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
           <p className="text-sm text-red-400">{error}</p>
+        </div>
+      )}
+
+      {agentHealth && (
+        <div className={`rounded-xl border p-4 space-y-3 ${
+          agentHealth.totals.failed === 0
+            ? "border-green-500/20 bg-green-500/5"
+            : agentHealth.totals.successRate >= 60
+              ? "border-amber-500/20 bg-amber-500/5"
+              : "border-red-500/20 bg-red-500/5"
+        }`}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Agent Fleet</h2>
+              <p className="text-sm text-muted-foreground">{agentHealth.headline}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-semibold text-foreground">{agentHealth.totals.successRate}%</p>
+              <p className="text-xs text-muted-foreground">success in last 48h</p>
+            </div>
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-3">
+            <div className="rounded-lg border border-border/15 bg-black/10 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground/60">Runs</p>
+              <p className="mt-1 text-sm text-foreground">
+                {agentHealth.totals.total} total, {agentHealth.totals.failed} failed, {agentHealth.totals.running} running
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/15 bg-black/10 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground/60">Top Cause</p>
+              <p className="mt-1 text-sm text-foreground">
+                {agentHealth.causes[0]?.label ?? "No active failure pattern"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/15 bg-black/10 p-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground/60">Do Next</p>
+              <p className="mt-1 text-sm text-foreground">
+                {agentHealth.causes[0]?.action ?? "No action needed right now."}
+              </p>
+            </div>
+          </div>
+
+          {agentHealth.causes.length > 0 && (
+            <div className="space-y-2">
+              {agentHealth.causes.slice(0, 4).map((cause) => (
+                <div key={cause.key} className="rounded-lg border border-border/10 bg-black/10 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{cause.label}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{cause.detail}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">{cause.count}</span>
+                  </div>
+                  <p className="text-xs text-foreground/90 mt-2">{cause.action}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

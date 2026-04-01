@@ -1,18 +1,17 @@
 /**
  * GET /api/dialer/v1/phone-lookup?phone={number}
  *
- * Looks up a phone number against leads and unlinked call sessions.
+ * Looks up a phone number against all phone-bearing tables in Sentinel.
  * Used by the dialer workspace to auto-populate context when a call connects.
+ *
+ * Now backed by the unified phone lookup function — single source of truth.
  */
 
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
-
-function normalizePhone(raw: string): string {
-  return raw.replace(/\D/g, "").slice(-10);
-}
+import { unifiedPhoneLookup } from "@/lib/dialer/phone-lookup";
 
 export async function GET(req: NextRequest) {
   const user = await getDialerUser(req.headers.get("authorization"));
@@ -23,17 +22,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "phone parameter required (7+ digits)" }, { status: 400 });
   }
 
-  const digits = normalizePhone(phone);
   const sb = createDialerClient();
+  const result = await unifiedPhoneLookup(phone, sb);
 
-  // Search leads by owner_phone (last 10 digits match)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: leads } = await (sb.from("leads") as any)
-    .select("id, owner_name, status, properties!inner(address, owner_phone)")
-    .or(`owner_phone.ilike.%${digits}`, { referencedTable: "properties" })
-    .limit(5);
-
-  // Search unlinked sessions by phone_dialed
+  // Also fetch unlinked sessions for this number (original behavior)
+  const digits = phone.replace(/\D/g, "").slice(-10);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: sessions } = await (sb.from("call_sessions") as any)
     .select("id, phone_dialed, started_at, status, duration_sec, ai_summary")
@@ -43,13 +36,29 @@ export async function GET(req: NextRequest) {
     .limit(3);
 
   return NextResponse.json({
-    leads: (leads ?? []).map((l: Record<string, unknown>) => ({
-      id: l.id,
-      ownerName: l.owner_name,
-      status: l.status,
-      address: (l.properties as Record<string, unknown>)?.address ?? null,
-      phone: (l.properties as Record<string, unknown>)?.owner_phone ?? null,
-    })),
+    // Unified lookup result
+    match: {
+      leadId: result.leadId,
+      matchSource: result.matchSource,
+      matchConfidence: result.matchConfidence,
+      ownerName: result.ownerName,
+      propertyAddress: result.propertyAddress,
+      contactId: result.contactId,
+      propertyId: result.propertyId,
+      intakeLeadId: result.intakeLeadId,
+      recentCallCount: result.recentCallCount,
+      lastCallDate: result.lastCallDate,
+    },
+    // Legacy shape for backwards compatibility
+    leads: result.leadId
+      ? [{
+          id: result.leadId,
+          ownerName: result.ownerName,
+          status: null,
+          address: result.propertyAddress,
+          phone,
+        }]
+      : [],
     unlinkedSessions: (sessions ?? []).map((s: Record<string, unknown>) => ({
       id: s.id,
       phoneDialed: s.phone_dialed,

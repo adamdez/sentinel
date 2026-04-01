@@ -231,6 +231,8 @@ import {
 
   closeoutActionLabel,
 
+  closeoutNextActionText,
+
   getQualificationDraft,
 
   toDraftCurrency,
@@ -250,6 +252,8 @@ import {
   CALL_OUTCOME_OPTIONS,
 
   CLOSEOUT_PRESETS,
+
+  OUTCOME_PRESET_DEFAULTS,
 
   SELLER_TIMELINE_OPTIONS,
 
@@ -845,7 +849,7 @@ const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "comps", "dossier
 
 const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
 
-  { id: "prospect", label: "Prospect" },
+  { id: "prospect", label: "New" },
 
   { id: "lead", label: "Lead" },
 
@@ -1276,9 +1280,15 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
             <p className="text-sm text-foreground line-clamp-4">{cf.sellerSituationSummaryShort}</p>
 
+          ) : cf.totalCalls > 0 ? (
+
+            <p className="text-sm text-muted-foreground/50 italic">
+              {cf.totalCalls} call{cf.totalCalls === 1 ? "" : "s"} logged — no summary yet
+            </p>
+
           ) : (
 
-            <p className="text-sm text-muted-foreground/50 italic">No calls yet</p>
+            <p className="text-sm text-muted-foreground/50 italic">No contact yet</p>
 
           )}
 
@@ -1417,17 +1427,19 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
             {cf.totalCalls > 0 && <div className="flex justify-between"><span className="text-muted-foreground/60">Calls</span><span className="text-foreground font-mono">{cf.totalCalls} ({cf.liveAnswers} live)</span></div>}
 
-            {cf.nextCallScheduledAt && (
-
-              <div className="flex justify-between">
-
-                <span className="text-muted-foreground/60">Next Action</span>
-
-                <span className="text-foreground text-xs">{formatRelativeFromNow(cf.nextCallScheduledAt)}</span>
-
-              </div>
-
-            )}
+            {(() => {
+              const effectiveDue = cf.nextAction
+                ? (cf.nextActionDueAt ?? cf.nextCallScheduledAt ?? cf.followUpDate)
+                : (cf.nextCallScheduledAt ?? cf.nextActionDueAt ?? cf.followUpDate);
+              if (!effectiveDue) return null;
+              const label = cf.nextAction || "Next Due";
+              return (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground/60">{label}</span>
+                  <span className="text-foreground text-xs">{formatRelativeFromNow(effectiveDue)}</span>
+                </div>
+              );
+            })()}
 
           </div>
 
@@ -4352,7 +4364,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   const [reassigning, setReassigning] = useState(false);
 
-  const [pinUpdating, setPinUpdating] = useState(false);
+  const [activeUpdating, setActiveUpdating] = useState(false);
 
 
 
@@ -4440,7 +4452,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
         calls_count: clientFile.totalCalls ?? 0,
 
-        next_action_at: clientFile.followUpDate ?? clientFile.nextCallScheduledAt ?? undefined,
+        next_action_at: clientFile.nextActionDueAt ?? clientFile.followUpDate ?? clientFile.nextCallScheduledAt ?? undefined,
 
         last_contact_at: clientFile.lastContactAt ?? undefined,
 
@@ -5141,6 +5153,14 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
         next.qualificationRoute = parseSuggestedRoute(response.qualification_route);
 
       }
+
+      const nextAction = readResponseString(response, "next_action");
+
+      if (nextAction !== undefined) next.nextAction = nextAction;
+
+      const nextActionDueAt = readResponseString(response, "next_action_due_at");
+
+      if (nextActionDueAt !== undefined) next.nextActionDueAt = nextActionDueAt;
 
       const notes = readResponseString(response, "notes");
 
@@ -6870,7 +6890,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
     const routeToApply = routeForCloseoutAction(closeoutAction);
 
-    const existingNextIso = clientFile.nextCallScheduledAt ?? clientFile.followUpDate ?? null;
+    const existingNextIso = clientFile.nextCallScheduledAt ?? clientFile.nextActionDueAt ?? clientFile.followUpDate ?? null;
 
     const explicitDueIntent = closeoutPresetTouched || closeoutDateTouched;
 
@@ -6888,7 +6908,9 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
 
 
-    if (!outcomeChanged && !shouldSendDueDates && noteText.length === 0 && !routeChanged) {
+    const hasNextActionWrite = closeoutNextActionText(closeoutAction) != null;
+
+    if (!outcomeChanged && !shouldSendDueDates && noteText.length === 0 && !routeChanged && !hasNextActionWrite) {
 
       toast.message("No closeout changes to save.");
 
@@ -6964,6 +6986,16 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
       }
 
+      const nextActionText = closeoutNextActionText(closeoutAction);
+
+      if (nextActionText) {
+
+        payload.next_action = nextActionText;
+
+        if (nextIso) payload.next_action_due_at = nextIso;
+
+      }
+
 
 
       const res = await fetch("/api/prospects", {
@@ -7022,7 +7054,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
       setActivityRefreshToken((v) => v + 1);
 
-      toast.success("Call closeout saved");
+      const presetObj = CLOSEOUT_PRESETS.find((p) => p.id === closeoutPreset);
+      toast.success(presetObj ? `Saved \u2014 ${presetObj.label}` : "Saved");
 
       onRefresh?.();
 
@@ -7053,6 +7086,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     closeoutNote,
 
     closeoutOutcome,
+
+    closeoutPreset,
 
     closeoutPresetTouched,
 
@@ -7841,11 +7876,11 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   }, [clientFile, onRefresh]);
 
-  const handleTogglePin = useCallback(async () => {
-    if (!clientFile?.id || pinUpdating) return;
+  const handleToggleActive = useCallback(async () => {
+    if (!clientFile?.id || activeUpdating) return;
 
-    const nextPinned = !clientFile.pinned;
-    setPinUpdating(true);
+    const nextActive = !clientFile.pinned;
+    setActiveUpdating(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) {
@@ -7859,11 +7894,11 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ pinned: nextPinned }),
+        body: JSON.stringify({ pinned: nextActive }),
       });
 
       if (!res.ok) {
-        toast.error("Failed to update pin");
+        toast.error("Failed to update");
         return;
       }
 
@@ -7875,16 +7910,16 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
       setClientFilePatch((prev) => ({
         ...(prev ?? {}),
-        pinned: data?.pinned ?? nextPinned,
+        pinned: data?.pinned ?? nextActive,
         pinnedAt: data?.pinned_at ?? null,
         pinnedBy: data?.pinned_by ?? null,
       }));
-      toast.success(nextPinned ? "Marked Active" : "Removed from Active");
+      toast.success(nextActive ? "Marked Active" : "Removed from Active");
       onRefresh?.();
     } finally {
-      setPinUpdating(false);
+      setActiveUpdating(false);
     }
-  }, [clientFile?.id, clientFile?.pinned, onRefresh, pinUpdating]);
+  }, [clientFile?.id, clientFile?.pinned, onRefresh, activeUpdating]);
 
   if (!clientFile) return null;
 
@@ -7926,6 +7961,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     lastContactAt: clientFile.lastContactAt,
 
     totalCalls: clientFile.totalCalls,
+
+    nextAction: clientFile.nextAction,
+
+    nextActionDueAt: clientFile.nextActionDueAt,
 
     createdAt: clientFile.promotedAt,
 
@@ -8136,7 +8175,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                       {clientFile.status === "nurture" && (() => {
 
-                        const fuIso = clientFile.followUpDate ?? clientFile.nextCallScheduledAt;
+                        const fuIso = clientFile.nextActionDueAt ?? clientFile.followUpDate ?? clientFile.nextCallScheduledAt;
 
                         const fuMs = fuIso ? new Date(fuIso).getTime() : NaN;
 
@@ -8169,8 +8208,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                             type="button"
                             aria-label={clientFile.pinned ? "Remove Active" : "Mark Active"}
                             aria-pressed={clientFile.pinned}
-                            onClick={handleTogglePin}
-                            disabled={pinUpdating}
+                            onClick={handleToggleActive}
+                            disabled={activeUpdating}
                             className={cn(
                               "flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold transition-colors disabled:opacity-50",
                               clientFile.pinned
@@ -8179,7 +8218,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                             )}
                           >
                             <Star className={cn("h-3.5 w-3.5", clientFile.pinned && "fill-current")} />
-                            {pinUpdating ? "Saving..." : clientFile.pinned ? "Active" : "Mark Active"}
+                            {activeUpdating ? "Saving..." : clientFile.pinned ? "Active" : "Mark Active"}
                           </button>
                         </TooltipTrigger>
                         <TooltipContent className="text-sm">
@@ -8278,7 +8317,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                           setCloseoutAt(
 
-                            toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.followUpDate) || presetDateTimeLocal(3),
+                            toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.nextActionDueAt ?? clientFile.followUpDate) || presetDateTimeLocal(3),
 
                           );
 
@@ -8303,50 +8342,34 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     <CheckCircle2 className="h-3 w-3 text-foreground" />Log Outcome
 
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className={`gap-1.5 h-7 font-medium ${
-                      taskPanelOpen
-                        ? "border-primary/60 bg-primary/15 text-primary-300"
-                        : "border-overlay-6 hover:border-primary/40 hover:bg-primary/10 text-muted-foreground/70 hover:text-primary"
-                    }`}
-                    onClick={() => setTaskPanelOpen(!taskPanelOpen)}
-                  >
-                    <Pin className="h-3 w-3" />Set Task
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 h-7 border-primary/40 hover:border-primary/60 hover:bg-primary/10 text-primary font-medium"
-                    disabled={claiming}
-                    onClick={async () => {
-                      try {
-                        setClaiming(true);
-                        const { data: { session: sess } } = await supabase.auth.getSession();
-                        const hdrs: Record<string, string> = sess?.access_token
-                          ? { Authorization: `Bearer ${sess.access_token}` }
-                          : {};
-                        await fetch(`/api/prospects?lead_id=${clientFile.id}`, {
-                          method: "PATCH",
-                          headers: { ...hdrs, "Content-Type": "application/json" },
-                          body: JSON.stringify({ assign_to: currentUserId }),
-                        });
-                        window.location.href = "/dialer";
-                      } catch {
-                        setClaiming(false);
-                      }
-                    }}
-                  >
-                    <ListPlus className="h-3 w-3" />Add to Queue
-                  </Button>
-
-
-
-
-                  {/* Secondary: owner + assign — pushed right */}
+                  {/* Secondary: queue + owner + assign */}
 
                   <div className="ml-auto flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-7 border-overlay-6 text-muted-foreground/60 hover:border-primary/40 hover:bg-primary/10 hover:text-primary font-medium"
+                      disabled={claiming}
+                      onClick={async () => {
+                        try {
+                          setClaiming(true);
+                          const { data: { session: sess } } = await supabase.auth.getSession();
+                          const hdrs: Record<string, string> = sess?.access_token
+                            ? { Authorization: `Bearer ${sess.access_token}` }
+                            : {};
+                          await fetch(`/api/prospects?lead_id=${clientFile.id}`, {
+                            method: "PATCH",
+                            headers: { ...hdrs, "Content-Type": "application/json" },
+                            body: JSON.stringify({ assign_to: currentUserId }),
+                          });
+                          window.location.href = "/dialer";
+                        } catch {
+                          setClaiming(false);
+                        }
+                      }}
+                    >
+                      <ListPlus className="h-3 w-3" />Queue
+                    </Button>
 
                     {!(isAssignedToCurrentUser && assignmentOptions.length > 0) && !isAssignedToCurrentUser && (
 
@@ -8440,97 +8463,46 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <label className="space-y-1">
 
-                          <label className="space-y-1">
+                          <span className="text-xs uppercase tracking-wider text-muted-foreground">Call Outcome</span>
 
-                            <span className="text-xs uppercase tracking-wider text-muted-foreground">Call Outcome</span>
+                          <select
 
-                            <select
+                            value={closeoutOutcome}
 
-                              value={closeoutOutcome}
+                            onChange={(e) => {
+                              const outcome = e.target.value;
+                              setCloseoutOutcome(outcome);
+                              const defaultPresetId = OUTCOME_PRESET_DEFAULTS[outcome];
+                              if (defaultPresetId) handleCloseoutPresetSelect(defaultPresetId);
+                            }}
 
-                              onChange={(e) => setCloseoutOutcome(e.target.value)}
+                            className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2 text-xs text-foreground focus:outline-none focus:border-overlay-30"
 
-                              className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2 text-xs text-foreground focus:outline-none focus:border-overlay-30"
+                          >
 
-                            >
+                            <option value="">No change</option>
 
-                              <option value="">No change</option>
+                            {closeoutOutcome && !CALL_OUTCOME_OPTIONS.some((opt) => opt.id === closeoutOutcome) && (
 
-                              {closeoutOutcome && !CALL_OUTCOME_OPTIONS.some((opt) => opt.id === closeoutOutcome) && (
+                              <option value={closeoutOutcome}>{closeoutOutcome.replace(/_/g, " ")}</option>
 
-                                <option value={closeoutOutcome}>{closeoutOutcome.replace(/_/g, " ")}</option>
+                            )}
 
-                              )}
+                            {CALL_OUTCOME_OPTIONS.map((opt) => (
 
-                              {CALL_OUTCOME_OPTIONS.map((opt) => (
+                              <option key={opt.id} value={opt.id}>{opt.label}</option>
 
-                                <option key={opt.id} value={opt.id}>{opt.label}</option>
+                            ))}
 
-                              ))}
+                          </select>
 
-                            </select>
-
-                          </label>
-
-                          <label className="space-y-1">
-
-                            <span className="text-xs uppercase tracking-wider text-muted-foreground">Next Action</span>
-
-                            <select
-
-                              value={closeoutAction}
-
-                              onChange={(e) => {
-
-                                const action = e.target.value as CloseoutNextAction;
-
-                                setCloseoutAction(action);
-
-                                setCloseoutPresetTouched(true);
-
-                                setCloseoutDateTouched(false);
-
-                                if (action === "nurture_check_in") {
-
-                                  setCloseoutPreset("nurture_14_days");
-
-                                  setCloseoutAt(presetDateTimeLocal(14));
-
-                                } else if (action === "escalation_review") {
-
-                                  setCloseoutPreset("escalate_review");
-
-                                } else {
-
-                                  setCloseoutPreset("call_3_days");
-
-                                  setCloseoutAt(presetDateTimeLocal(3));
-
-                                }
-
-                              }}
-
-                              className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2 text-xs text-foreground focus:outline-none focus:border-overlay-30"
-
-                            >
-
-                              <option value="follow_up_call">Follow-Up Call</option>
-
-                              <option value="nurture_check_in">Nurture Check-In</option>
-
-                              <option value="escalation_review">Escalate Review</option>
-
-                            </select>
-
-                          </label>
-
-                        </div>
+                        </label>
 
                         <div className="space-y-1">
 
-                          <p className="text-xs uppercase tracking-wider text-muted-foreground">Follow-Up Preset</p>
+                          <p className="text-xs uppercase tracking-wider text-muted-foreground">Next Step</p>
 
                           <div className="flex flex-wrap gap-1.5">
 
@@ -8566,17 +8538,12 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                           </div>
 
-                          <p className="text-sm text-muted-foreground/75">
-
-                            Call presets schedule lead follow-up dates; only route actions create workflow tasks.
-
-                          </p>
 
                         </div>
 
                         <label className="space-y-1 block">
 
-                          <span className="text-xs uppercase tracking-wider text-muted-foreground">Follow-Up Date</span>
+                          <span className="text-xs uppercase tracking-wider text-muted-foreground">Due Date</span>
 
                           <input
 
@@ -8654,7 +8621,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                               setCloseoutAt(
 
-                                toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.followUpDate) || presetDateTimeLocal(3),
+                                toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.nextActionDueAt ?? clientFile.followUpDate) || presetDateTimeLocal(3),
 
                               );
 
@@ -8694,7 +8661,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                   <div className="flex items-center gap-2">
 
-                    <span className="text-sm text-muted-foreground">Prospect — not in pipeline yet.</span>
+                    <span className="text-sm text-muted-foreground">Not in pipeline yet.</span>
 
                     <button
 
@@ -8706,7 +8673,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                     >
 
-                      Move to Pipeline <ArrowRight className="h-2.5 w-2.5" />
+                      Move to Active <ArrowRight className="h-2.5 w-2.5" />
 
                     </button>
 
@@ -8954,20 +8921,29 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                                 </button>
                               </div>
                             </div>
-                          ) : (
+                          ) : !operatorWf.effectiveDueIso && operatorWf.actionable ? (
                             <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-3 flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <Pin className="h-3.5 w-3.5 text-amber-400/70" />
-                                <span className="text-xs text-amber-400/80 font-medium">No task set — needs attention</span>
+                                <AlertTriangle className="h-3.5 w-3.5 text-amber-400/70" />
+                                <span className="text-xs text-amber-400/80 font-medium">No next step scheduled</span>
                               </div>
                               <button
-                                onClick={() => setTaskPanelOpen(true)}
+                                onClick={() => {
+                                  setCloseoutOpen(true);
+                                  setCloseoutOutcome(clientFile.dispositionCode ?? "");
+                                  setCloseoutNote("");
+                                  setCloseoutAction("follow_up_call");
+                                  setCloseoutPreset("call_3_days");
+                                  setCloseoutAt(presetDateTimeLocal(3));
+                                  setCloseoutPresetTouched(false);
+                                  setCloseoutDateTouched(false);
+                                }}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-colors"
                               >
-                                <Plus className="h-3 w-3" /> Set Task
+                                <Plus className="h-3 w-3" /> Log Outcome
                               </button>
                             </div>
-                          )}
+                          ) : null}
                         </div>
 
                         <div className="px-4 pt-3">

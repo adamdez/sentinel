@@ -456,7 +456,7 @@ function stageLabel(status: string | null | undefined): string {
   if (normalized === "nurture") return "Nurture";
   if (normalized === "dead") return "Dead";
   if (normalized === "closed") return "Closed";
-  if (normalized === "prospect") return "Prospect";
+  if (normalized === "prospect") return "New";
   return "Unknown";
 }
 
@@ -829,6 +829,7 @@ function DialerPageInner() {
   });
   const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
+  const [idleRailTab, setIdleRailTab] = useState<"history" | "jeff" | "sms">("history");
 
   useCoachSurface("dialer", {});
   const [fileModalOpen, setFileModalOpen] = useState(false);
@@ -918,6 +919,7 @@ function DialerPageInner() {
   const [smsComposeOpen, setSmsComposeOpen] = useState(false);
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
+  const callActive = callState !== "idle";
   const manualDialOpen = manualDialExpanded || manualStatus !== "idle" || smsComposeOpen;
   const queueCoachActive = callState === "connected";
   const manualCoachActive = !queueCoachActive && manualStatus === "connected";
@@ -1119,8 +1121,9 @@ function DialerPageInner() {
   useEffect(() => {
     if (!currentLead && displayedQueue.length > 0) {
       setCurrentLead(displayedQueue[0]);
+      if (!autoCycleMode) setPhoneIndex(0);
     }
-  }, [displayedQueue, currentLead]);
+  }, [displayedQueue, currentLead, autoCycleMode]);
 
   useEffect(() => {
     if (!currentLead) return;
@@ -1777,7 +1780,7 @@ function DialerPageInner() {
 
       call.on("ringing", () => {
         setLiveCallStatus("ringing");
-        setTransferStatus("Ringing prospect…");
+        setTransferStatus("Ringing seller…");
         // Advance session: initiating → ringing (required before ended is valid)
         if (newSessionId) {
           authHeaders().then((hdrs) =>
@@ -2270,18 +2273,14 @@ function DialerPageInner() {
         ).catch(() => {});
       }
     } else {
-      // Regular queue: all phones tried or terminal — stay on lead, operator advances manually
-      const msg = isTerminal
-        ? "Lead dispositioned — use ⏩ to move to next lead"
-        : "All numbers attempted — use ⏩ to move to next lead";
-      toast.info(msg);
-      // Re-fetch phones in case statuses changed
-      if (currentLead?.id) {
-        authHeaders().then(hdrs =>
-          fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
-            .then(r => r.ok ? r.json() : null)
-            .then(data => { if (data?.phones) setLeadPhones(data.phones); })
-        ).catch(() => {});
+      const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
+      const nextLead = displayedQueue[currentIdx + 1] ?? null;
+      if (nextLead) {
+        setCurrentLead(nextLead);
+        setPhoneIndex(0);
+        toast.info(isTerminal ? "Lead done — next lead loaded" : "Next lead loaded");
+      } else {
+        toast.info("Queue complete — all leads attempted");
       }
     }
   }, [autoCycleMode, currentCallLogId, callState, callNotes, currentLead, currentUser.id, displayedQueue, handleHangup, refetchAutoCycle, refetchQueue, timer, leadPhones, phoneIndex]);
@@ -2310,24 +2309,31 @@ function DialerPageInner() {
       return;
     }
 
-    // Regular queue: cycle phones within lead, never auto-advance to next lead
+    // Regular queue: cycle phones within lead, then advance to next lead
     const activePhones = leadPhones.filter((p) => p.status === "active");
     const nextPhoneIdx = phoneIndex + 1;
     if (activePhones.length > 1 && nextPhoneIdx < activePhones.length) {
       setPhoneIndex(nextPhoneIdx);
       toast.info(`Phone ${nextPhoneIdx + 1} of ${activePhones.length} — next number loaded`);
+      if (currentLead?.id) {
+        authHeaders().then(hdrs =>
+          fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => { if (data?.phones) setLeadPhones(data.phones); })
+        ).catch(() => {});
+      }
     } else {
-      toast.info("All numbers attempted — use ⏩ to move to next lead");
+      const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
+      const nextLead = displayedQueue[currentIdx + 1] ?? null;
+      if (nextLead) {
+        setCurrentLead(nextLead);
+        setPhoneIndex(0);
+        toast.info("Next lead loaded");
+      } else {
+        toast.info("Queue complete — all leads attempted");
+      }
     }
-    // Re-fetch phones to get updated statuses
-    if (currentLead?.id) {
-      authHeaders().then(hdrs =>
-        fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
-          .then(r => r.ok ? r.json() : null)
-          .then(data => { if (data?.phones) setLeadPhones(data.phones); })
-      ).catch(() => {});
-    }
-  }, [autoCycleMode, currentLead, refetchAutoCycle, timer, leadPhones, phoneIndex]);
+  }, [autoCycleMode, currentLead, displayedQueue, refetchAutoCycle, timer, leadPhones, phoneIndex]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────
   const handleManualPostCallDone = useCallback(() => {
@@ -2447,7 +2453,7 @@ function DialerPageInner() {
   return (
     <PageShell
       title="Dialer"
-      description="Call workspace — prepare, call, close out"
+      description=""
       actions={
         <div className="flex items-center gap-2">
           {ghostMode && (
@@ -2476,7 +2482,7 @@ function DialerPageInner() {
           >
             {deviceStatus === "ready" ? <Zap className="h-2.5 w-2.5" /> : deviceStatus === "error" || deviceStatus === "offline" ? <WifiOff className="h-2.5 w-2.5 opacity-60" /> : <Loader2 className="h-2.5 w-2.5 animate-spin" />}
             {callState === "connected"
-              ? liveCallStatus === "ringing" ? "RINGING PROSPECT…"
+              ? liveCallStatus === "ringing" ? "RINGING SELLER…"
                 : liveCallStatus === "in-progress" ? "LIVE — VoIP"
                 : liveCallStatus === "failed" ? "CALL FAILED"
                 : "LIVE — VoIP"
@@ -2594,12 +2600,12 @@ function DialerPageInner() {
             )}
             <span className="font-medium">
               {liveCallStatus === "initiated" && "Connecting VoIP call…"}
-              {liveCallStatus === "ringing" && "Ringing prospect…"}
-              {liveCallStatus === "ringing_prospect" && "Ringing prospect…"}
+              {liveCallStatus === "ringing" && "Ringing seller…"}
+              {liveCallStatus === "ringing_prospect" && "Ringing seller…"}
               {liveCallStatus === "ringing_agent" && "Connecting VoIP…"}
               {liveCallStatus === "failed" && "Call failed — run diagnostics to troubleshoot"}
               {liveCallStatus === "canceled" && "Call was canceled"}
-              {liveCallStatus === "busy" && "Prospect line is busy"}
+              {liveCallStatus === "busy" && "Seller line is busy"}
               {liveCallStatus === "no-answer" && "No answer — try again"}
               {liveCallStatus === "agent_busy" && "Line is busy — try again"}
               {liveCallStatus === "agent_no_answer" && "No answer — try again"}
@@ -2620,19 +2626,15 @@ function DialerPageInner() {
         )}
       </AnimatePresence>
 
-      <div className="mb-3 rounded-[16px] border border-overlay-6 bg-overlay-2 p-3 shadow-[0_16px_40px_var(--shadow-soft)]">
+      <div className={cn("mb-2 rounded-[12px] border border-overlay-6 bg-overlay-2 shadow-[0_16px_40px_var(--shadow-soft)]", scoreboardExpanded && !callActive ? "p-3" : "px-3 py-2", callActive && "hidden")}>
         <button
           type="button"
           onClick={() => setScoreboardExpanded((value) => !value)}
           className="flex w-full items-center justify-between gap-3 text-left"
         >
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/60">Dialer Scoreboard</p>
-            <p className="mt-1 text-sm text-muted-foreground/75">
-              {scoreboardExpanded
-                ? "Your pace first, team pace second, all from one shared time range."
-                : `Collapsed by default so calling stays first. Showing ${kpiDateInputValue(kpiSnapshot.range.from) || "Beginning"} to ${kpiDateInputValue(kpiSnapshot.range.to) || "Now"}.`}
-            </p>
+          <div className="min-w-0 flex items-center gap-2">
+            <BarChart3 className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/60">Scoreboard</p>
           </div>
           <div className="flex shrink-0 items-center gap-3">
             {!scoreboardExpanded && (
@@ -2647,13 +2649,13 @@ function DialerPageInner() {
                 ))}
               </div>
             )}
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-overlay-6 bg-overlay-3 text-muted-foreground transition-colors hover:text-foreground">
-              <ChevronRight className={cn("h-4 w-4 transition-transform", scoreboardExpanded && "rotate-90")} />
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-overlay-6 bg-overlay-3 text-muted-foreground transition-colors hover:text-foreground">
+              <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", scoreboardExpanded && "rotate-90")} />
             </span>
           </div>
         </button>
 
-        {scoreboardExpanded && (
+        {scoreboardExpanded && !callActive && (
           <div className="mt-3 border-t border-overlay-6 pt-3">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div className="flex flex-col gap-2 xl:items-start">
@@ -2746,24 +2748,17 @@ function DialerPageInner() {
       </div>
 
       {/* ── Quick Manual Dial ─────────────────────────────────────────── */}
-      <GlassCard hover={false} className="!p-3 mb-3">
+      <GlassCard hover={false} className={cn("mb-2", manualDialOpen ? "!p-3" : "!px-3 !py-2", callActive && manualStatus === "idle" && "hidden")}>
         <button
           type="button"
           onClick={() => setManualDialExpanded((value) => !value)}
           className="flex w-full items-center justify-between gap-3 text-left"
         >
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Phone className="h-3 w-3 text-muted-foreground" />
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Manual Dial
-              </h2>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground/65">
-              {manualDialOpen
-                ? "Use this for one-off calls that are outside the live queue."
-                : "Collapsed so the queue and active call lane stay first."}
-            </p>
+          <div className="min-w-0 flex items-center gap-2">
+            <Phone className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/60">
+              Manual Dial
+            </h2>
           </div>
           <div className="flex items-center gap-3">
             {!manualDialOpen && (
@@ -2773,8 +2768,8 @@ function DialerPageInner() {
                 </span>
               </div>
             )}
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-overlay-6 bg-overlay-3 text-muted-foreground transition-colors hover:text-foreground">
-              <ChevronRight className={cn("h-4 w-4 transition-transform", manualDialOpen && "rotate-90")} />
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-overlay-6 bg-overlay-3 text-muted-foreground transition-colors hover:text-foreground">
+              <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", manualDialOpen && "rotate-90")} />
             </span>
           </div>
         </button>
@@ -3249,10 +3244,10 @@ function DialerPageInner() {
                 )}
               </div>
             </div>
-            <p className="text-sm text-muted-foreground/50 mb-2">
+            <p className="text-xs text-muted-foreground/40 mb-2">
               {autoCycleMode
-                ? "Ready-now leads float to the top, then the next retry due."
-                : "This is your live calling stack. Add the right leads from Lead Queue, then call straight down the list."}
+                ? "Ready-now leads float to the top."
+                : `${displayedQueue.length} queued`}
             </p>
 
             {displayedQueueLoading ? (
@@ -3262,20 +3257,16 @@ function DialerPageInner() {
                 ))}
               </div>
             ) : displayedQueue.length === 0 ? (
-              <div className="flex min-h-[400px] flex-col items-center justify-center text-center py-6 space-y-4">
-                <Phone className="h-8 w-8 mx-auto text-muted-foreground/20" />
-                <div className="space-y-1">
-                  <p className="text-base font-medium text-foreground/80">No one is queued to call yet.</p>
-                  <p className="text-sm text-muted-foreground/60">Pick the right leads in Lead Queue, add them here, then call straight down the stack.</p>
-                </div>
+              <div className="flex min-h-[400px] flex-col items-center justify-center text-center py-6 space-y-3">
+                <Phone className="h-7 w-7 mx-auto text-muted-foreground/15" />
+                <p className="text-sm font-medium text-foreground/70">Queue is empty</p>
                 <a href="/leads">
                   <button className="px-5 py-2 rounded-[10px] text-xs font-bold text-primary bg-primary/[0.10] border border-primary/25
                     hover:bg-primary/[0.18] hover:border-primary/35 shadow-[0_0_14px_var(--shadow-soft)]
                     hover:shadow-[0_0_22px_var(--shadow-soft)] transition-all">
-                    Go to Lead Queue
+                    Add leads from Lead Queue
                   </button>
                 </a>
-                <p className="max-w-sm text-xs text-muted-foreground/50">Select leads and use Add to Dial Queue. Skip Trace Queue fills the saved phone roster before you call.</p>
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[66vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-overlay-8 scrollbar-track-transparent">
@@ -3793,7 +3784,7 @@ function DialerPageInner() {
                       )}
                       {callState === "ended" && (
                         <div className="flex-1 rounded-[8px] border border-amber-500/20 bg-amber-500/[0.04] text-center text-xs text-amber-300 font-medium py-2.5">
-                          Call ended — {timer.formatted} — complete closeout before moving on
+                          Call ended — {timer.formatted} — close out below
                         </div>
                       )}
                     </div>
@@ -3914,35 +3905,15 @@ function DialerPageInner() {
               </motion.div>
             ) : (
               <GlassCard hover={false} className="flex min-h-[520px] items-center justify-center">
-                <div className="max-w-sm text-center text-muted-foreground/40">
-                  <Phone className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                  {displayedQueue.length > 0 ? (
-                    <>
-                      <p className="text-base text-foreground/80">Choose the next seller and start calling.</p>
-                      <p className="mt-2 text-sm text-muted-foreground/55">
-                        {displayedQueue[0]?.properties?.owner_name ?? "The next queued lead"} is ready in your live stack.
-                      </p>
-                      <Button
-                        type="button"
-                        className="mt-4 gap-2 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
-                        onClick={() => {
-                          const firstLead = displayedQueue[0];
-                          if (firstLead) {
-                            setCurrentLead(firstLead);
-                            if (!autoCycleMode) {
-                              setPhoneIndex(0);
-                            }
-                          }
-                        }}
-                      >
-                        <Phone className="h-4 w-4" />
-                        Open next queued lead
-                      </Button>
-                    </>
+                <div className="text-center space-y-2">
+                  {displayedQueueLoading ? (
+                    <Loader2 className="h-5 w-5 mx-auto animate-spin text-muted-foreground/30" />
                   ) : (
                     <>
-                      <p className="text-base text-foreground/80">Your active call workspace appears here.</p>
-                      <p className="mt-2 text-sm text-muted-foreground/55">Queue a few leads first so this screen opens straight into the next call instead of dead space.</p>
+                      <Phone className="h-7 w-7 mx-auto text-muted-foreground/15" />
+                      <p className="text-sm text-muted-foreground/50">
+                        {displayedQueue.length > 0 ? "Loading first lead…" : "Queue is empty"}
+                      </p>
                     </>
                   )}
                 </div>
@@ -3953,17 +3924,7 @@ function DialerPageInner() {
 
         <div className="lg:col-span-3">
           <div className="space-y-2 lg:sticky lg:top-24">
-            <JeffMessagesBanner onCallBack={handleJeffCallback} onLinked={refetchQueue} />
-
-            <SmsMessagesPanel onCallNumber={(phone) => {
-              const digits = phone.replace(/\D/g, "").slice(-10);
-              if (digits.length === 10 && deviceStatus === "ready") {
-                timer.start();
-                const formatted = `+1${digits}`;
-                deviceRef.current?.connect({ params: { To: formatted, From: voipCallerId || "" } });
-              }
-            }} />
-
+            {/* Missed calls — urgent, always visible above everything */}
             {missedCalls.length > 0 && (
               <GlassCard hover={false} className="!p-3 border-amber-400/20 bg-amber-400/[0.02]">
                 <h2 className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 mb-2">
@@ -3979,24 +3940,6 @@ function DialerPageInner() {
                       <span className="text-muted-foreground/50">{(() => { const m = Math.floor((Date.now() - new Date(mc.time).getTime()) / 60000); return m < 1 ? "just now" : m < 60 ? `${m}m ago` : `${Math.floor(m/60)}h ago`; })()}</span>
                     </div>
                   ))}
-                </div>
-              </GlassCard>
-            )}
-
-            {/* Last Call AI Summary */}
-            {currentLead && latestSummary && (
-              <GlassCard hover={false} className="!p-3">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <Sparkles className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Last Call Summary</span>
-                  {latestSummaryTime && (
-                    <span className="text-xs text-muted-foreground/40 ml-auto">
-                      {new Date(latestSummaryTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </span>
-                  )}
-                </div>
-                <div className="text-sm text-muted-foreground/80 leading-relaxed whitespace-pre-line max-h-28 overflow-y-auto scrollbar-thin">
-                  {latestSummary}
                 </div>
               </GlassCard>
             )}
@@ -4018,7 +3961,6 @@ function DialerPageInner() {
                     />
                   )}
 
-                  {/* ── Seller Memory: visible during and after call ── */}
                   {dialerSessionId && (
                     <SellerMemoryPanel
                       sessionId={dialerSessionId}
@@ -4026,10 +3968,7 @@ function DialerPageInner() {
                     />
                   )}
 
-                  {/* ── Live Assist: brief-based prompts during active call ── */}
-
                   {callState === "ended" && dialerSessionId ? (
-                    /* ── PostCallPanel: session-backed calls get publish path ── */
                     <PostCallPanel
                       sessionId={dialerSessionId}
                       callLogId={currentCallLogId}
@@ -4052,7 +3991,6 @@ function DialerPageInner() {
                       onSkip={handlePostCallDone}
                     />
                   ) : (
-                    /* ── Legacy disposition: live call or no-session fallback ── */
                     <GlassCard hover={false} className="!p-3">
                       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                         <BarChart3 className="h-3.5 w-3.5 text-primary" />
@@ -4122,72 +4060,129 @@ function DialerPageInner() {
                 </motion.div>
               ) : (
                 <motion.div
-                  key="call-history-panel"
+                  key="idle-rail"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  {/* ── Pre-call seller memory (idle state) ── */}
+                  {/* ── Pre-call seller memory ── */}
                   {currentLead && (
-                    <SellerMemoryPreview leadId={currentLead.id} className="mb-3" />
+                    <SellerMemoryPreview leadId={currentLead.id} className="mb-2" />
                   )}
 
-                  <GlassCard hover={false} className="!p-3">
-                    <div className="flex items-center justify-between mb-3">
-                      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <History className="h-3.5 w-3.5 text-primary" />
-                        Call History
-                        <span className="text-sm font-normal text-muted-foreground/50 ml-1">
+                  {/* Last Call AI Summary */}
+                  {currentLead && latestSummary && (
+                    <GlassCard hover={false} className="!p-3 mb-2">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <Sparkles className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Last Call Summary</span>
+                        {latestSummaryTime && (
+                          <span className="text-xs text-muted-foreground/40 ml-auto">
+                            {new Date(latestSummaryTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-muted-foreground/80 leading-relaxed whitespace-pre-line max-h-28 overflow-y-auto scrollbar-thin">
+                        {latestSummary}
+                      </div>
+                    </GlassCard>
+                  )}
+
+                  {/* ── Tab selector: History / Jeff / SMS ── */}
+                  <div className="flex items-center gap-0.5 mb-2 rounded-[8px] border border-overlay-6 bg-overlay-2 p-0.5">
+                    {([
+                      { key: "history" as const, label: "History" },
+                      { key: "jeff" as const, label: "Jeff" },
+                      { key: "sms" as const, label: "SMS" },
+                    ] as const).map(({ key, label }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setIdleRailTab(key)}
+                        className={cn(
+                          "flex-1 px-2 py-1.5 rounded-[6px] text-[11px] font-semibold uppercase tracking-wider transition-colors",
+                          idleRailTab === key
+                            ? "bg-primary/10 text-primary border border-primary/25"
+                            : "text-muted-foreground/55 hover:text-foreground border border-transparent",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* History tab */}
+                  {idleRailTab === "history" && (
+                    <GlassCard hover={false} className="!p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs text-muted-foreground/50">
                           {callHistory.length} recent
                         </span>
-                      </h2>
-                      <div className="flex items-center gap-1">
-                        {(["all", "outbound", "inbound"] as const).map((f) => (
-                          <button
-                            key={f}
-                            type="button"
-                            onClick={() => setHistoryFilter(f)}
-                            className={`px-2.5 py-1 rounded-[8px] text-sm font-medium transition-all ${
-                              historyFilter === f
-                                ? "text-primary bg-primary/8 border border-primary/20"
-                                : "text-muted-foreground/60 hover:text-foreground border border-transparent"
-                            }`}
-                          >
-                            {f === "all" ? "All" : f === "outbound" ? "Outbound" : "Inbound"}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {historyLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
-                      </div>
-                    ) : callHistory.length === 0 ? (
-                      <div className="text-center py-6">
-                        <History className="h-6 w-6 mx-auto text-muted-foreground/20 mb-2" />
-                        <p className="text-xs text-muted-foreground/50">No calls yet — start dialing!</p>
-                      </div>
-                    ) : (
-                      <div className="max-h-[calc(100vh-420px)] overflow-y-auto scrollbar-thin space-y-1">
-                        {callHistory
-                          .filter((c) => historyFilter === "all" || c.direction === historyFilter)
-                          .map((entry) => (
-                            <CallHistoryRow
-                              key={entry.id}
-                              entry={entry}
-                              allHistory={callHistory}
-                              onDial={(phone) => {
-                                setManualPhone(phone.replace(/\D/g, "").replace(/^1/, "").slice(0, 10));
-                                window.scrollTo({ top: 0, behavior: "smooth" });
-                                toast.info(`${formatUsPhone(phone.replace(/\D/g, "").slice(-10))} loaded — hit Dial Now`);
-                              }}
-                            />
+                        <div className="flex items-center gap-0.5">
+                          {(["all", "outbound", "inbound"] as const).map((f) => (
+                            <button
+                              key={f}
+                              type="button"
+                              onClick={() => setHistoryFilter(f)}
+                              className={cn(
+                                "px-2 py-0.5 rounded-[6px] text-[10px] font-medium transition-all",
+                                historyFilter === f
+                                  ? "text-primary bg-primary/8 border border-primary/20"
+                                  : "text-muted-foreground/50 hover:text-foreground border border-transparent",
+                              )}
+                            >
+                              {f === "all" ? "All" : f === "outbound" ? "Out" : "In"}
+                            </button>
                           ))}
+                        </div>
                       </div>
-                    )}
-                  </GlassCard>
+
+                      {historyLoading ? (
+                        <div className="flex items-center justify-center py-6">
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground/30" />
+                        </div>
+                      ) : callHistory.length === 0 ? (
+                        <div className="text-center py-6">
+                          <p className="text-xs text-muted-foreground/40">No calls yet</p>
+                        </div>
+                      ) : (
+                        <div className={cn("overflow-y-auto scrollbar-thin space-y-1", currentLead ? "max-h-[calc(100vh-520px)]" : "max-h-[280px]")}>
+                          {callHistory
+                            .filter((c) => historyFilter === "all" || c.direction === historyFilter)
+                            .map((entry) => (
+                              <CallHistoryRow
+                                key={entry.id}
+                                entry={entry}
+                                allHistory={callHistory}
+                                onDial={(phone) => {
+                                  setManualPhone(phone.replace(/\D/g, "").replace(/^1/, "").slice(0, 10));
+                                  window.scrollTo({ top: 0, behavior: "smooth" });
+                                  toast.info(`${formatUsPhone(phone.replace(/\D/g, "").slice(-10))} loaded — hit Dial Now`);
+                                }}
+                              />
+                            ))}
+                        </div>
+                      )}
+                    </GlassCard>
+                  )}
+
+                  {/* Jeff tab — component renders its own GlassCard */}
+                  {idleRailTab === "jeff" && (
+                    <JeffMessagesBanner onCallBack={handleJeffCallback} onLinked={refetchQueue} />
+                  )}
+
+                  {/* SMS tab — component renders its own GlassCard */}
+                  {idleRailTab === "sms" && (
+                    <SmsMessagesPanel onCallNumber={(phone) => {
+                      const digits = phone.replace(/\D/g, "").slice(-10);
+                      if (digits.length === 10 && deviceStatus === "ready") {
+                        timer.start();
+                        const formatted = `+1${digits}`;
+                        deviceRef.current?.connect({ params: { To: formatted, From: voipCallerId || "" } });
+                      }
+                    }} />
+                  )}
 
                   <UnlinkedCallsFolder onLinked={refetchQueue} />
                 </motion.div>

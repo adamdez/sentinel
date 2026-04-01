@@ -83,7 +83,7 @@ const NAV_COMMANDS: NavCommand[] = [
   { kind: "nav", label: "Lead Queue", href: "/leads", icon: Users, group: "Core" },
   { kind: "nav", label: "Dialer", href: "/dialer", icon: Phone, group: "Core" },
   { kind: "nav", label: "Dispo", href: "/dispo", icon: FileSignature, group: "Core" },
-  { kind: "nav", label: "Pipeline", href: "/pipeline", icon: Zap, group: "Core" },
+  { kind: "nav", label: "Active", href: "/pipeline", icon: Zap, group: "Core" },
   { kind: "nav", label: "Property Research", href: "/properties/lookup", icon: MapPin, group: "Tools" },
   { kind: "nav", label: "Buyers", href: "/buyers", icon: Contact, group: "Tools" },
   { kind: "nav", label: "Ads", href: "/ads", icon: Home, group: "Tools" },
@@ -115,7 +115,7 @@ const SCORE_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  prospect: "Prospect",
+  prospect: "New",
   lead: "Lead",
   negotiation: "Negotiation",
   nurture: "Nurture",

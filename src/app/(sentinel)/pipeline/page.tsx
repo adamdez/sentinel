@@ -279,7 +279,7 @@ export default function PipelinePage() {
 
     const currentStatus = normalizeStatus(current.status);
     if (!currentStatus) {
-      toast.error("Lead is not in an active pipeline stage.");
+      toast.error("Lead is not in an active stage.");
       return false;
     }
     let nextStatus = desiredStatus;
@@ -347,7 +347,7 @@ export default function PipelinePage() {
     await fetchLeads();
   }, [patchLead, fetchLeads]);
 
-  const togglePin = useCallback(async (leadId: string, pinned: boolean) => {
+  const toggleActive = useCallback(async (leadId: string, active: boolean) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       toast.error("Session expired");
@@ -360,15 +360,15 @@ export default function PipelinePage() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ pinned }),
+      body: JSON.stringify({ pinned: active }),
     });
 
     if (!res.ok) {
-      toast.error("Failed to update pin");
+      toast.error("Failed to update");
       return;
     }
 
-    toast.success(pinned ? "Marked Active" : "Removed from Active");
+    toast.success(active ? "Marked Active" : "Removed from Active");
     await fetchLeads();
   }, [fetchLeads]);
 
@@ -396,10 +396,10 @@ export default function PipelinePage() {
         <div>
           <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
             <Zap className="h-5 w-5 text-primary" />
-            Pipeline
+            Active
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Active deals — drag between stages. {totalLeads} leads.
+            Deals being worked — drag between stages. {totalLeads} leads.
           </p>
         </div>
 
@@ -467,7 +467,7 @@ export default function PipelinePage() {
                               key={lead.id}
                               lead={lead}
                               index={index}
-                              onTogglePin={togglePin}
+                              onToggleActive={toggleActive}
                               onOpenDetail={(id) => {
                                 const raw = rawDataRef.current[id];
                                 if (raw) {
@@ -508,12 +508,12 @@ export default function PipelinePage() {
 function PipelineCard({
   lead,
   index,
-  onTogglePin,
+  onToggleActive,
   onOpenDetail,
 }: {
   lead: Lead;
   index: number;
-  onTogglePin: (id: string, pinned: boolean) => void;
+  onToggleActive: (id: string, active: boolean) => void;
   onOpenDetail: (id: string) => void;
 }) {
   const dueLine = (() => {
@@ -569,7 +569,7 @@ function PipelineCard({
               aria-label="Remove Active"
               onClick={(event) => {
                 event.stopPropagation();
-                onTogglePin(lead.id, false);
+                onToggleActive(lead.id, false);
               }}
               className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/10 transition-colors"
             >

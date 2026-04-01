@@ -13,7 +13,9 @@ interface NextActionCardProps {
 }
 
 export function NextActionCard({ cf, onEditNextAction }: NextActionCardProps) {
-  const nextActionIso = cf.nextCallScheduledAt ?? cf.followUpDate;
+  const nextActionIso = cf.nextAction
+    ? (cf.nextActionDueAt ?? cf.nextCallScheduledAt ?? cf.followUpDate)
+    : (cf.nextCallScheduledAt ?? cf.nextActionDueAt ?? cf.followUpDate);
   const urgency = getNextActionUrgency(cf);
   const missing = !nextActionIso;
   const dueMs = nextActionIso ? new Date(nextActionIso).getTime() : NaN;
@@ -49,7 +51,7 @@ export function NextActionCard({ cf, onEditNextAction }: NextActionCardProps) {
               <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
             )}
             <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Next Action
+              {cf.nextAction || "Next Action"}
             </span>
             {missing && (
               <Badge variant="outline" className="text-xs border-red-500/30 text-red-400 bg-red-500/[0.08]">

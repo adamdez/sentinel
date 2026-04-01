@@ -36,6 +36,7 @@ nul
 
 # internal audit/agent files
 cursor-*.md
+Dominion_Homes_Investor_and_Operating_Plan.docx
 
 # Claude Code (local workspace data)
 .claude/worktrees/

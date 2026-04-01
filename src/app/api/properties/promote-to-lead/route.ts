@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { resolveMarket } from "@/lib/market-resolver";
 import { getFeatureFlag } from "@/lib/control-plane";
+import { inngest } from "@/inngest/client";
 
 export const runtime = "nodejs";
 
@@ -219,11 +220,13 @@ async function triggerResearch(
   propertyId: string,
   triggeredBy: string,
 ): Promise<void> {
-  const { runResearchAgent } = await import("@/agents/research");
-  await runResearchAgent({
-    leadId,
-    propertyId,
-    triggeredBy,
+  await inngest.send({
+    name: "agent/research.requested",
+    data: {
+      leadId,
+      propertyId,
+      triggeredBy,
+    },
   });
 }
 

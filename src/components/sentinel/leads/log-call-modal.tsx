@@ -15,6 +15,25 @@ const DISPOSITIONS = [
   { value: "nurture", label: "Nurture / Follow Up" },
 ] as const;
 
+const NEXT_STEPS = [
+  { value: "", label: "None" },
+  { value: "callback", label: "Call Back" },
+  { value: "drive_by", label: "Drive By" },
+] as const;
+
+const DUE_PRESETS = [
+  { value: "1", label: "Tomorrow" },
+  { value: "3", label: "In 3 days" },
+  { value: "7", label: "In 1 week" },
+] as const;
+
+function daysFromNowIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  d.setHours(9, 0, 0, 0);
+  return d.toISOString();
+}
+
 interface LogCallModalProps {
   leadId: string;
   leadAddress: string;
@@ -31,6 +50,8 @@ export function LogCallModal({
   onSuccess,
 }: LogCallModalProps) {
   const [disposition, setDisposition] = useState("");
+  const [nextStep, setNextStep] = useState("");
+  const [dueDays, setDueDays] = useState("1");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,14 +64,24 @@ export function LogCallModal({
     setSaving(true);
     setError(null);
 
+    const payload: Record<string, unknown> = {
+      disposition,
+      notes: notes.trim() || undefined,
+    };
+
+    if (nextStep === "drive_by") {
+      payload.next_action = "Drive by";
+      payload.next_action_due_at = daysFromNowIso(parseInt(dueDays, 10));
+    } else if (nextStep === "callback") {
+      payload.next_action = "Call back";
+      payload.next_action_due_at = daysFromNowIso(parseInt(dueDays, 10));
+    }
+
     try {
       const res = await fetch(`/api/leads/${leadId}/log-call`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          disposition,
-          notes: notes.trim() || undefined,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -122,6 +153,46 @@ export function LogCallModal({
               placeholder="Quick notes from the call..."
               className="w-full bg-overlay-3 border border-overlay-8 rounded-md px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/40 resize-none h-16 focus:outline-none focus:border-primary/30"
             />
+          </div>
+
+          <div>
+            <label className="text-sm uppercase tracking-wider text-muted-foreground/70 mb-1.5 block">
+              Next Step
+            </label>
+            <div className="flex gap-1.5">
+              {NEXT_STEPS.map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => setNextStep(s.value)}
+                  className={`text-sm px-2.5 py-1.5 rounded border transition-colors ${
+                    nextStep === s.value
+                      ? s.value === "drive_by"
+                        ? "bg-amber-500/15 text-amber-400 border-amber-500/30 font-medium"
+                        : "bg-primary/15 text-primary border-primary/30 font-medium"
+                      : "bg-overlay-3 text-muted-foreground border-overlay-8 hover:bg-overlay-6"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            {nextStep && (
+              <div className="flex gap-1.5 mt-2">
+                {DUE_PRESETS.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => setDueDays(p.value)}
+                    className={`text-xs px-2 py-1 rounded border transition-colors ${
+                      dueDays === p.value
+                        ? "bg-primary/15 text-primary border-primary/30 font-medium"
+                        : "bg-overlay-3 text-muted-foreground border-overlay-8 hover:bg-overlay-6"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {error && (

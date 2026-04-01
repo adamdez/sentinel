@@ -19,6 +19,7 @@ import {
   type ListSessionsOptions,
 } from "@/lib/dialer/session-manager";
 import { getCRMLeadContext } from "@/lib/dialer/crm-bridge";
+import { unifiedPhoneLookup } from "@/lib/dialer/phone-lookup";
 import type { CreateSessionInput, CallSessionStatus } from "@/lib/dialer/types";
 
 // ─────────────────────────────────────────────────────────────
@@ -52,15 +53,49 @@ export async function POST(req: NextRequest) {
 
   const sb = createDialerClient();
 
+  // If no lead_id provided, attempt auto-link via unified phone lookup
+  let resolvedLeadId = body.lead_id || null;
+  let autoLinked = false;
+  if (!resolvedLeadId && body.phone_dialed) {
+    const match = await unifiedPhoneLookup(body.phone_dialed, sb);
+    if (match.leadId) {
+      resolvedLeadId = match.leadId;
+      autoLinked = true;
+      console.log("[sessions] Auto-linked outbound call to lead:", {
+        phone: body.phone_dialed.slice(-4),
+        leadId: resolvedLeadId.slice(0, 8),
+        source: match.matchSource,
+      });
+    }
+  }
+
+  // If still no lead_id, log a warning event (non-blocking)
+  if (!resolvedLeadId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (sb.from("dialer_events") as any)
+      .insert({
+        event_type: "session.unlinked_warning",
+        session_id: null,
+        metadata: {
+          phone_dialed: body.phone_dialed,
+          user_id: user.id,
+          reason: "Outbound session created without a linked lead",
+          occurred_at: new Date().toISOString(),
+        },
+      })
+      .then(() => {})
+      .catch((err: unknown) => console.error("[sessions] unlinked warning event failed:", err));
+  }
+
   // If the caller didn't supply a context snapshot, fetch it from the CRM.
   // This is the only code path that crosses the dialer/CRM boundary.
   let contextSnapshot = body.context_snapshot ?? null;
-  if (!contextSnapshot && body.lead_id) {
-    contextSnapshot = await getCRMLeadContext(body.lead_id) ?? null;
+  if (!contextSnapshot && resolvedLeadId) {
+    contextSnapshot = await getCRMLeadContext(resolvedLeadId) ?? null;
   }
 
   const input: CreateSessionInput = {
-    lead_id: body.lead_id || null,
+    lead_id: resolvedLeadId,
     phone_dialed: body.phone_dialed,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     context_snapshot: contextSnapshot as any,
@@ -75,7 +110,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ session: result.data }, { status: 201 });
+  return NextResponse.json({
+    session: result.data,
+    ...(autoLinked ? { auto_linked: true } : {}),
+  }, { status: 201 });
 }
 
 // ─────────────────────────────────────────────────────────────

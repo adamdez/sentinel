@@ -378,7 +378,11 @@ export type DialerEventType =
   | "inbound.committed"
   // outbound.ai_handled: Jeff (Vapi) completed an outbound call.
   //   Written by the Vapi webhook end-of-call handler for outbound direction.
-  | "outbound.ai_handled";
+  | "outbound.ai_handled"
+  // session.unlinked_warning: outbound session created without a linked lead_id.
+  //   The dialer attempted auto-linking via unifiedPhoneLookup but found no match.
+  //   Creates an audit trail for calls made to numbers not yet in the CRM.
+  | "session.unlinked_warning";
 
 // ─────────────────────────────────────────────────────────────
 // Trace metadata — PR2

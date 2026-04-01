@@ -26,7 +26,9 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import { getCRMLeadContext } from "@/lib/dialer/crm-bridge";
+import { unifiedPhoneLookup } from "@/lib/dialer/phone-lookup";
 import type { CRMLeadContext } from "@/lib/dialer/types";
+import type { PhoneMatchSource, PhoneMatchConfidence } from "@/lib/dialer/phone-lookup";
 
 export interface InboundEventMeta {
   event_id:    string;
@@ -39,10 +41,22 @@ export interface InboundEventMeta {
 }
 
 export interface InboundContextResponse {
-  from_number:  string;
-  lead:         CRMLeadContext | null;
-  event:        InboundEventMeta | null;
-  dossier_snippet: string | null;  // situation_summary from reviewed dossier if available
+  from_number:      string;
+  lead:             CRMLeadContext | null;
+  event:            InboundEventMeta | null;
+  dossier_snippet:  string | null;
+  /** How the phone was matched — null if no match */
+  match_source:     PhoneMatchSource;
+  /** direct = contacts/lead_phones, indirect = property/history, none = unknown */
+  match_confidence: PhoneMatchConfidence;
+  /** Property address (may be available even without a lead match) */
+  property_address: string | null;
+  /** Owner name (may be available even without a lead match) */
+  owner_name:       string | null;
+  /** If matched via intake queue (not yet a lead) */
+  intake_lead_id:   string | null;
+  /** Recent call count for this number */
+  recent_call_count: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -98,15 +112,13 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── 2. Phone → lead lookup (if no event gave us a lead_id) ───────────────
-  if (!leadId && resolvedPhone) {
-    const normalized = resolvedPhone.replace(/\D/g, "");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leads } = await (sb.from("leads") as any)
-      .select("id")
-      .or(`phone.eq.${resolvedPhone},phone.eq.+${normalized},phone.eq.${normalized}`)
-      .limit(1);
-    if (leads && leads.length > 0) leadId = leads[0].id;
+  // ── 2. Phone → lead lookup via unified search (if no event gave us a lead_id)
+  let phoneLookup = resolvedPhone
+    ? await unifiedPhoneLookup(resolvedPhone, sb)
+    : null;
+
+  if (!leadId && phoneLookup?.leadId) {
+    leadId = phoneLookup.leadId;
   }
 
   // If we found no event from event_id, check for the most recent inbound event for this phone
@@ -163,10 +175,16 @@ export async function GET(req: NextRequest) {
   }
 
   const result: InboundContextResponse = {
-    from_number:     resolvedPhone,
-    lead:            leadContext,
+    from_number:      resolvedPhone,
+    lead:             leadContext,
     event,
-    dossier_snippet: dossierSnippet,
+    dossier_snippet:  dossierSnippet,
+    match_source:     phoneLookup?.matchSource ?? null,
+    match_confidence: phoneLookup?.matchConfidence ?? "none",
+    property_address: phoneLookup?.propertyAddress ?? leadContext?.address ?? null,
+    owner_name:       phoneLookup?.ownerName ?? leadContext?.ownerName ?? null,
+    intake_lead_id:   phoneLookup?.intakeLeadId ?? null,
+    recent_call_count: phoneLookup?.recentCallCount ?? 0,
   };
 
   return NextResponse.json(result);

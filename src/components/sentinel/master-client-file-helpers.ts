@@ -100,6 +100,8 @@ export interface ClientFile {
   assignmentFeeProjected: number | null;
   attribution: { campaignName?: string; adGroupName?: string; keywordText?: string; [k: string]: unknown } | null;
   nextCallScheduledAt: string | null;
+  nextAction: string | null;
+  nextActionDueAt: string | null;
   callSequenceStep: number;
   totalCalls: number;
   liveAnswers: number;
@@ -182,7 +184,7 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     isHighEquity: p.is_high_equity, isCashBuyer: p.is_cash_buyer,
     ownerFlags: p.owner_flags, radarId: p.radar_id, enriched: p.enriched,
     appointmentAt: null, offerAmount: null, contractAt: null, assignmentFeeProjected: null, attribution: null,
-    nextCallScheduledAt: null, callSequenceStep: 1, totalCalls: 0, liveAnswers: 0, voicemailsLeft: 0, dispositionCode: null,
+    nextCallScheduledAt: null, nextAction: null, nextActionDueAt: null, callSequenceStep: 1, totalCalls: 0, liveAnswers: 0, voicemailsLeft: 0, dispositionCode: null,
     prediction: p._prediction ?? null,
     monetizabilityScore: null,
     dispoFrictionLevel: null,
@@ -235,7 +237,7 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     isCashBuyer: false,
     ownerFlags: l.ownerFlags ?? {}, radarId: null, enriched: false,
     appointmentAt: (l as any).appointmentAt ?? null, offerAmount: (l as any).offerAmount ?? null, contractAt: (l as any).contractAt ?? null, assignmentFeeProjected: (l as any).assignmentFeeProjected ?? null, attribution: (l as any).attribution ?? null,
-    nextCallScheduledAt: l.nextCallScheduledAt, callSequenceStep: l.callSequenceStep, totalCalls: l.totalCalls, liveAnswers: l.liveAnswers, voicemailsLeft: l.voicemailsLeft, dispositionCode: l.dispositionCode ?? null,
+    nextCallScheduledAt: l.nextCallScheduledAt, nextAction: l.nextAction ?? null, nextActionDueAt: l.nextActionDueAt ?? null, callSequenceStep: l.callSequenceStep, totalCalls: l.totalCalls, liveAnswers: l.liveAnswers, voicemailsLeft: l.voicemailsLeft, dispositionCode: l.dispositionCode ?? null,
     prediction: null,
     monetizabilityScore: (l as any).monetizability_score ?? null,
     dispoFrictionLevel: (l as any).dispo_friction_level ?? null,
@@ -315,6 +317,8 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     lockVersion: lead.lock_version ?? 0,
     appointmentAt: lead.appointment_at ?? null, offerAmount: lead.offer_amount != null ? Number(lead.offer_amount) : null, contractAt: lead.contract_at ?? null, assignmentFeeProjected: lead.assignment_fee_projected != null ? Number(lead.assignment_fee_projected) : null, attribution: lead.attribution ?? null,
     nextCallScheduledAt: lead.next_call_scheduled_at ?? null,
+    nextAction: lead.next_action ?? null,
+    nextActionDueAt: lead.next_action_due_at ?? null,
     callSequenceStep: lead.call_sequence_step ?? 1,
     totalCalls: lead.total_calls ?? 0,
     liveAnswers: lead.live_answers ?? 0,
@@ -381,13 +385,15 @@ export type BuyerDispoTruthDraft = {
   nextStep: string;
   dispoNote: string;
 };
-export type CloseoutNextAction = "follow_up_call" | "nurture_check_in" | "escalation_review";
+export type CloseoutNextAction = "follow_up_call" | "nurture_check_in" | "escalation_review" | "drive_by";
 export type CloseoutPresetId =
   | "call_tomorrow"
   | "call_3_days"
   | "call_next_week"
   | "nurture_14_days"
-  | "escalate_review";
+  | "escalate_review"
+  | "drive_by_tomorrow"
+  | "drive_by_3_days";
 
 // ═══════════════════════════════════════════════════════════════════════
 // Constants (no icon/React dependencies)
@@ -416,9 +422,24 @@ export const CLOSEOUT_PRESETS: Array<{
   { id: "call_tomorrow", label: "Call tomorrow", daysFromNow: 1, action: "follow_up_call" },
   { id: "call_3_days", label: "Call in 3 days", daysFromNow: 3, action: "follow_up_call" },
   { id: "call_next_week", label: "Call next week", daysFromNow: 7, action: "follow_up_call" },
+  { id: "drive_by_tomorrow", label: "Drive by tomorrow", daysFromNow: 1, action: "drive_by" },
+  { id: "drive_by_3_days", label: "Drive by in 3 days", daysFromNow: 3, action: "drive_by" },
   { id: "nurture_14_days", label: "Nurture 14 days", daysFromNow: 14, action: "nurture_check_in" },
   { id: "escalate_review", label: "Escalate review", daysFromNow: null, action: "escalation_review" },
 ];
+
+export const OUTCOME_PRESET_DEFAULTS: Partial<Record<string, CloseoutPresetId>> = {
+  no_answer:      "call_tomorrow",
+  voicemail:      "call_3_days",
+  disconnected:   "drive_by_tomorrow",
+  wrong_number:   "call_tomorrow",
+  callback:       "call_3_days",
+  interested:     "call_3_days",
+  appointment:    "call_3_days",
+  appointment_set:"call_3_days",
+  contract:       "call_3_days",
+  not_interested: "nurture_14_days",
+};
 
 export const SELLER_TIMELINE_OPTIONS: Array<{ id: SellerTimeline; label: string }> = [
   { id: "immediate", label: "Immediate" },
@@ -456,7 +477,7 @@ export const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "dossier",
 export const ADVANCED_TAB_IDS = new Set<TabId>(["comps", "calculator", "documents"]);
 
 export const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
-  { id: "prospect", label: "Prospect" },
+  { id: "prospect", label: "New" },
   { id: "lead", label: "Lead" },
   { id: "negotiation", label: "Negotiation" },
   { id: "disposition", label: "Disposition" },
@@ -536,7 +557,7 @@ export function normalizeWorkflowStage(status: string | null | undefined): Workf
 
 export function workflowStageLabel(status: string | null | undefined): string {
   const normalized = normalizeWorkflowStage(status);
-  return WORKFLOW_STAGE_OPTIONS.find((s) => s.id === normalized)?.label ?? "Prospect";
+  return WORKFLOW_STAGE_OPTIONS.find((s) => s.id === normalized)?.label ?? "New";
 }
 
 export function sourceDisplayLabel(source: string | null | undefined): string {
@@ -607,9 +628,16 @@ export function routeForCloseoutAction(action: CloseoutNextAction): Qualificatio
 }
 
 export function closeoutActionLabel(action: CloseoutNextAction): string {
+  if (action === "drive_by") return "Drive By";
   if (action === "nurture_check_in") return "Nurture Check-In";
   if (action === "escalation_review") return "Escalation Review";
   return "Follow-Up Call";
+}
+
+/** Structured next_action text for closeout actions that are not phone calls */
+export function closeoutNextActionText(action: CloseoutNextAction): string | null {
+  if (action === "drive_by") return "Drive by";
+  return null;
 }
 
 export function formatRelativeFromNow(iso: string | null | undefined): string {
@@ -706,6 +734,8 @@ export function getNextActionUrgency(cf: ClientFile): {
     nextFollowUpAt: cf.followUpDate,
     lastContactAt: cf.lastContactAt,
     totalCalls: cf.totalCalls,
+    nextAction: cf.nextAction,
+    nextActionDueAt: cf.nextActionDueAt,
     createdAt: cf.promotedAt,
     promotedAt: cf.promotedAt,
   });

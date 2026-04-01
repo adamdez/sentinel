@@ -128,7 +128,7 @@ export function NewProspectModal() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const brickedDataRef = useRef<Record<string, any> | null>(null);
   const [assignmentOptions, setAssignmentOptions] = useState<Array<{ id: string; label: string }>>([
-    { id: "unassigned", label: "Unassigned (Prospect)" },
+    { id: "unassigned", label: "Unassigned" },
   ]);
 
   const isOpen = activeModal === "new-prospect";
@@ -144,7 +144,7 @@ export function NewProspectModal() {
           .order("full_name", { ascending: true });
         if (!active) return;
         const options = [
-          { id: "unassigned", label: "Unassigned (Prospect)" },
+          { id: "unassigned", label: "Unassigned" },
           ...((data as Array<{ id: string; full_name: string | null }> | null | undefined) ?? []).map((row) => ({
             id: row.id,
             label: row.full_name?.trim() || row.id.slice(0, 8),
@@ -153,7 +153,7 @@ export function NewProspectModal() {
         setAssignmentOptions(options);
       } catch {
         if (active) {
-          setAssignmentOptions([{ id: "unassigned", label: "Unassigned (Prospect)" }]);
+          setAssignmentOptions([{ id: "unassigned", label: "Unassigned" }]);
         }
       }
     })();
@@ -504,7 +504,7 @@ export function NewProspectModal() {
       if (!res.ok || !data.success) {
         toast.error("Claim failed: " + (data.error ?? "Unknown error"));
       } else {
-        toast.success("Claimed - assigned to you. Check Pipeline > My Leads segment.");
+        toast.success("Claimed — assigned to you. Check Active board.");
       }
     } catch (err) {
       console.error("[NewProspect] Claim error:", err);
@@ -724,7 +724,7 @@ export function NewProspectModal() {
               {/* ── Section: Distress Signals ─────────────── */}
               <div>
                 <p className="text-sm font-semibold uppercase tracking-widest text-primary/70 mb-3">
-                  Prospecting Tags
+                  Source Tags
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {PROSPECTING_TAG_OPTIONS.map((tag) => {

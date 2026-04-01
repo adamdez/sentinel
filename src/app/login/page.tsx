@@ -67,6 +67,7 @@ export default function LoginPage() {
   };
 
   const isPsalm20 = usePsalm20();
+  const showLocalHelper = process.env.NODE_ENV !== "production";
 
   // Psalm 20 gold used for member avatars in psalm20 mode
   const memberColor = (member: (typeof TEAM)[number]) =>
@@ -327,6 +328,16 @@ export default function LoginPage() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {showLocalHelper && (
+            <div className="mt-4 rounded-[12px] border border-primary/15 bg-primary/[0.04] px-4 py-3 text-xs text-foreground/80">
+              <p className="font-semibold text-foreground">Local demo access</p>
+              <p className="mt-1">Password: <span className="font-mono">Dominion2026!</span></p>
+              <p className="mt-1 text-muted-foreground/80">
+                If sign-in fails, run <span className="font-mono">npm run ux:access:local</span> from the repo root.
+              </p>
+            </div>
+          )}
 
           {isPsalm20 && <GoldDivider className="mt-6 opacity-50" />}
         </div>

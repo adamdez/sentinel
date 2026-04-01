@@ -65,7 +65,7 @@ const CATEGORY_STYLE: Record<
 const SURFACE_LABELS: Record<string, string> = {
   lead_detail: "Lead Detail",
   lead_detail_closeout: "Log Outcome",
-  pipeline: "Pipeline",
+  pipeline: "Active",
   leads_inbox: "Lead Inbox",
   dialer: "Dialer",
   import: "Import",

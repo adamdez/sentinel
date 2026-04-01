@@ -131,6 +131,7 @@ function LeadsPageInner() {
     { id: "new_inbound", label: "New", count: needsAttention.newInbound },
     { id: "needs_qualification", label: "Qualify", count: needsAttention.needsQualification },
     { id: "escalated_review", label: "Escalated", count: needsAttention.escalatedReview },
+    { id: "drive_by", label: "Drive By", count: needsAttention.driveBy },
     { id: "unassigned_hot", label: "Unassigned", count: needsAttention.unassignedHot },
     { id: "slow_or_missing", label: "Slow Response", count: needsAttention.slowOrMissing },
   ];
@@ -144,7 +145,7 @@ function LeadsPageInner() {
     },
   });
 
-  const handleTogglePin = useCallback(async (leadId: string, pinned: boolean) => {
+  const handleToggleActive = useCallback(async (leadId: string, active: boolean) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
       toast.error("Session expired");
@@ -157,15 +158,15 @@ function LeadsPageInner() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({ pinned }),
+      body: JSON.stringify({ pinned: active }),
     });
 
     if (!res.ok) {
-      toast.error("Failed to update pin");
+      toast.error("Failed to update");
       return;
     }
 
-    toast.success(pinned ? "Marked Active" : "Removed from Active");
+    toast.success(active ? "Marked Active" : "Removed from Active");
     await refetch();
   }, [refetch]);
 
@@ -425,7 +426,7 @@ function LeadsPageInner() {
           sortDir={sortDir}
           onSort={toggleSort}
           onSelect={setSelectedId}
-          onTogglePin={handleTogglePin}
+          onToggleActive={handleToggleActive}
           onRefresh={refetch}
           currentUserId={currentUser.id}
         />
