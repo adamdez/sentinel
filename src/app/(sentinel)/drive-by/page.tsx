@@ -112,7 +112,7 @@ export default function DriveByPage() {
   const filtered = useMemo(() => {
     if (viewFilter === "all") return leads;
     return leads.filter((l) => {
-      if (!l.nextActionDueAt) return viewFilter === "all";
+      if (!l.nextActionDueAt) return false;
       const due = new Date(l.nextActionDueAt);
       const dueStart = new Date(due.getFullYear(), due.getMonth(), due.getDate());
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());

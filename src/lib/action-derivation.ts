@@ -112,6 +112,7 @@ function hoursSince(isoDate: string | null | undefined, now: Date): number | nul
  */
 export function deriveLeadActionSummary(input: ActionDerivationInput): ActionSummary {
   const now = input.now ?? new Date();
+  const nowMs = now.getTime();
   const status = (input.status ?? "").toLowerCase();
   const route = (input.qualificationRoute ?? "").toLowerCase() || null;
 
@@ -181,7 +182,6 @@ export function deriveLeadActionSummary(input: ActionDerivationInput): ActionSum
   const callDueMs = parseMs(input.nextCallScheduledAt);
   const followUpDueMs = parseMs(input.nextFollowUpAt);
   const effectiveDueMs = callDueMs ?? followUpDueMs;
-  const nowMs = now.getTime();
 
   // ── Rule 1: CRITICAL — Overdue callback/follow-up ──
   if (effectiveDueMs !== null && effectiveDueMs < nowMs) {
