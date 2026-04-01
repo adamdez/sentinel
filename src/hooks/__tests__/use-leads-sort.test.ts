@@ -23,7 +23,7 @@ function buildLead(overrides: Partial<SortableLeadRow> & Pick<SortableLeadRow, "
 }
 
 describe("sortLeadRows", () => {
-  it("floats pinned leads above higher-scoring unpinned leads", () => {
+  it("floats active leads above higher-scoring inactive leads", () => {
     const leads = [
       buildLead({ id: "unpinned-hot", pinned: false, score: { composite: 99 } }),
       buildLead({ id: "pinned-cold", pinned: true, score: { composite: 10 } }),
@@ -35,7 +35,7 @@ describe("sortLeadRows", () => {
     ]);
   });
 
-  it("applies pinned-first ordering before follow-up urgency", () => {
+  it("applies active-first ordering before follow-up urgency", () => {
     const leads = [
       buildLead({
         id: "unpinned-overdue",
@@ -53,7 +53,7 @@ describe("sortLeadRows", () => {
     ]);
   });
 
-  it("keeps the existing score order within the pinned group", () => {
+  it("keeps the existing score order within the active group", () => {
     const leads = [
       buildLead({ id: "pinned-low", pinned: true, score: { composite: 30 } }),
       buildLead({ id: "pinned-high", pinned: true, score: { composite: 80 } }),

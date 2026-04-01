@@ -8,7 +8,7 @@ import {
   ArrowUp,
   ArrowDown,
   Phone,
-  Pin,
+  Star,
   AlertTriangle,
   Trash2,
   Loader2,
@@ -541,7 +541,7 @@ export function LeadTable({
           currentDir={sortDir}
           onSort={onSort}
           className="text-left"
-          title="Sort: pinned first, then urgency, then due date"
+          title="Sort: active first, then urgency, then due date"
         />
         <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Due</span>
         <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Last Touch</span>
@@ -601,7 +601,7 @@ export function LeadTable({
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    aria-label={lead.pinned ? "Remove from Pipeline" : "Pin to Pipeline"}
+                    aria-label={lead.pinned ? "Remove Active" : "Mark Active"}
                     aria-pressed={lead.pinned}
                     onClick={() => onTogglePin(lead.id, !lead.pinned)}
                     className={cn(
@@ -611,11 +611,11 @@ export function LeadTable({
                         : "text-muted-foreground/35 hover:text-muted-foreground hover:bg-muted/10",
                     )}
                   >
-                    <Pin className={cn("h-3.5 w-3.5", lead.pinned && "fill-current")} />
+                    <Star className={cn("h-3.5 w-3.5", lead.pinned && "fill-current")} />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent className="text-sm">
-                  {lead.pinned ? "Remove from Pipeline" : "Pin to Pipeline"}
+                  {lead.pinned ? "Remove Active" : "Mark Active"}
                 </TooltipContent>
               </Tooltip>
             </div>

@@ -165,7 +165,7 @@ function LeadsPageInner() {
       return;
     }
 
-    toast.success(pinned ? "Pinned to Pipeline" : "Removed from Pipeline");
+    toast.success(pinned ? "Marked Active" : "Removed from Active");
     await refetch();
   }, [refetch]);
 

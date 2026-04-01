@@ -14,7 +14,7 @@ import {
   Search,
   RefreshCw,
   GripVertical,
-  PinOff,
+  StarOff,
   Phone,
   ArrowRight,
 } from "lucide-react";
@@ -368,7 +368,7 @@ export default function PipelinePage() {
       return;
     }
 
-    toast.success(pinned ? "Pinned to Pipeline" : "Removed from Pipeline");
+    toast.success(pinned ? "Marked Active" : "Removed from Active");
     await fetchLeads();
   }, [fetchLeads]);
 
@@ -399,7 +399,7 @@ export default function PipelinePage() {
             Pipeline
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Pinned deals — drag leads between stages. {totalLeads} active leads.
+            Active deals — drag between stages. {totalLeads} leads.
           </p>
         </div>
 
@@ -566,14 +566,14 @@ function PipelineCard({
             </div>
             <button
               type="button"
-              aria-label="Remove from Pipeline"
+              aria-label="Remove Active"
               onClick={(event) => {
                 event.stopPropagation();
                 onTogglePin(lead.id, false);
               }}
               className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted/10 transition-colors"
             >
-              <PinOff className="h-3.5 w-3.5" />
+              <StarOff className="h-3.5 w-3.5" />
             </button>
           </div>
 

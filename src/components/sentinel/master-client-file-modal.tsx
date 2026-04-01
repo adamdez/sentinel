@@ -26,7 +26,7 @@ import {
 
   RefreshCw, Target, ArrowRight, ChevronDown, Trash2, Lock, Contact2, Plus,
 
-  Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff, ListPlus, Pin,
+  Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff, ListPlus, Pin, Star,
 
 } from "lucide-react";
 
@@ -7879,7 +7879,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
         pinnedAt: data?.pinned_at ?? null,
         pinnedBy: data?.pinned_by ?? null,
       }));
-      toast.success(nextPinned ? "Pinned to Pipeline" : "Removed from Pipeline");
+      toast.success(nextPinned ? "Marked Active" : "Removed from Active");
       onRefresh?.();
     } finally {
       setPinUpdating(false);
@@ -8167,7 +8167,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                         <TooltipTrigger asChild>
                           <button
                             type="button"
-                            aria-label={clientFile.pinned ? "Unpin from Pipeline" : "Pin to Pipeline"}
+                            aria-label={clientFile.pinned ? "Remove Active" : "Mark Active"}
                             aria-pressed={clientFile.pinned}
                             onClick={handleTogglePin}
                             disabled={pinUpdating}
@@ -8178,20 +8178,14 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                                 : "border-overlay-15 bg-overlay-4 text-muted-foreground hover:text-foreground hover:border-overlay-30 hover:bg-overlay-6",
                             )}
                           >
-                            <Pin className={cn("h-3.5 w-3.5", clientFile.pinned && "fill-current")} />
-                            {pinUpdating ? "Saving..." : clientFile.pinned ? "Unpin" : "Pin"}
+                            <Star className={cn("h-3.5 w-3.5", clientFile.pinned && "fill-current")} />
+                            {pinUpdating ? "Saving..." : clientFile.pinned ? "Active" : "Mark Active"}
                           </button>
                         </TooltipTrigger>
                         <TooltipContent className="text-sm">
-                          {clientFile.pinned ? "Unpin from Pipeline" : "Pin to Pipeline"}
+                          {clientFile.pinned ? "Remove from Active" : "Mark Active"}
                         </TooltipContent>
                       </Tooltip>
-
-                      {clientFile.pinned && (
-                        <span className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-400 font-bold border border-blue-500/25">
-                          Active
-                        </span>
-                      )}
                     </div>
 
                     {clientFile.prediction && (
