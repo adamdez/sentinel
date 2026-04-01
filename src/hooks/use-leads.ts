@@ -17,7 +17,7 @@ import { deriveLeadActionSummary } from "@/lib/action-derivation";
 import { isLeadUnclaimed } from "@/lib/lead-ownership";
 import { sortLeadRows } from "./use-leads-sort";
 
-export type SortField = "score" | "priority" | "followUp" | "address" | "owner" | "status" | "equity";
+export type SortField = "score" | "priority" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "status" | "equity";
 export type SortDir = "asc" | "desc";
 export type FollowUpFilter = "all" | "overdue" | "today" | "uncontacted" | "urgent_uncontacted";
 export type MarketFilter = "spokane" | "kootenai" | "other";
@@ -65,6 +65,8 @@ const DEFAULT_SORT_DIR_BY_FIELD: Record<SortField, SortDir> = {
   score: "desc",
   priority: "desc",
   followUp: "asc",
+  due: "asc",
+  lastTouch: "desc",
   address: "asc",
   owner: "asc",
   status: "asc",

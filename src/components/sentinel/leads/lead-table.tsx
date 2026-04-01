@@ -543,8 +543,8 @@ export function LeadTable({
           className="text-left"
           title="Sort: active first, then urgency, then due date"
         />
-        <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Due</span>
-        <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Last Touch</span>
+        <SortHeader label="Due" field="due" currentField={sortField} currentDir={sortDir} onSort={onSort} />
+        <SortHeader label="Last Touch" field="lastTouch" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <span />
       </div>
 

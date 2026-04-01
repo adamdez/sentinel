@@ -1,7 +1,7 @@
 import { deriveLeadActionSummary, type UrgencyLevel } from "@/lib/action-derivation";
 import type { LeadStatus, QualificationRoute } from "@/lib/types";
 
-type SortField = "score" | "priority" | "followUp" | "address" | "owner" | "status" | "equity";
+type SortField = "score" | "priority" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "status" | "equity";
 type SortDir = "asc" | "desc";
 
 export interface SortableLeadRow {
@@ -87,6 +87,18 @@ export function sortLeadRows<T extends SortableLeadRow>(
         const aPromotedAt = a.promotedAt ? new Date(a.promotedAt).getTime() : Infinity;
         const bPromotedAt = b.promotedAt ? new Date(b.promotedAt).getTime() : Infinity;
         return (aPromotedAt - bPromotedAt) * dir;
+      }
+      case "due": {
+        const aD = a.nextCallScheduledAt ?? a.followUpDate;
+        const bD = b.nextCallScheduledAt ?? b.followUpDate;
+        const aMs = aD ? new Date(aD).getTime() : Infinity;
+        const bMs = bD ? new Date(bD).getTime() : Infinity;
+        return (aMs - bMs) * dir;
+      }
+      case "lastTouch": {
+        const aL = a.lastContactAt ? new Date(a.lastContactAt).getTime() : -Infinity;
+        const bL = b.lastContactAt ? new Date(b.lastContactAt).getTime() : -Infinity;
+        return (aL - bL) * dir;
       }
       case "address":
         return a.address.localeCompare(b.address) * dir;
