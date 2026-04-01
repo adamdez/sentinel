@@ -49,8 +49,6 @@ import {
 
   deriveBuyerDispoVisibility,
 
-  deriveNextActionVisibility,
-
   deriveOfferVisibilityStatus,
 
   dispoReadinessVisibilityLabel,
@@ -102,8 +100,6 @@ import {
   type ValuationSnapshotData,
 
 } from "@/lib/valuation";
-
-import { deriveLeadActionSummary } from "@/lib/action-derivation";
 
 import { getSequenceLabel, getSequenceProgress, getCadencePosition, suggestNextCadenceDate } from "@/lib/call-scheduler";
 
@@ -162,6 +158,8 @@ import { createTask as createTaskApi, type TaskItem } from "@/hooks/use-tasks";
 import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
 
 import { formatDueDateLabel } from "@/lib/due-date-label";
+
+import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-workflow-summary";
 
 import { formatOwnerName } from "@/lib/format-name";
 
@@ -244,8 +242,6 @@ import {
   getOfferStatusDraft,
 
   getBuyerDispoTruthDraft,
-
-  getNextActionUrgency,
 
   dispositionColor,
 
@@ -7907,22 +7903,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   const sourceLabel = sourceDisplayLabel(clientFile.source);
 
-  const nextActionUrgency = getNextActionUrgency(clientFile);
-
-  const urgencyToneClass =
-
-    nextActionUrgency.tone === "danger"
-
-      ? "text-foreground bg-overlay-5 border-overlay-15"
-
-      : nextActionUrgency.tone === "warn"
-
-        ? "text-foreground bg-overlay-5 border-overlay-12"
-
-        : "text-foreground/80 bg-overlay-6 border-overlay-20";
-
-  const UrgencyIcon = nextActionUrgency.tone === "danger" ? AlertTriangle : Clock;
-
   const currentSequenceLabel =
 
     clientFile.totalCalls > 0
@@ -7931,9 +7911,27 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
       : "No sequence activity";
 
-  const nextActionIso = clientFile.nextCallScheduledAt ?? clientFile.followUpDate;
+  const operatorWf = buildOperatorWorkflowSummary({
 
-  const missingNextAction = !nextActionIso;
+    status: clientFile.status,
+
+    qualificationRoute: clientFile.qualificationRoute,
+
+    assignedTo: clientFile.assignedTo,
+
+    nextCallScheduledAt: clientFile.nextCallScheduledAt,
+
+    nextFollowUpAt: clientFile.followUpDate,
+
+    lastContactAt: clientFile.lastContactAt,
+
+    totalCalls: clientFile.totalCalls,
+
+    createdAt: clientFile.promotedAt,
+
+    promotedAt: clientFile.promotedAt,
+
+  });
 
   const qualificationEditable = currentStage === "lead";
 
@@ -7978,18 +7976,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     qualificationRoute: clientFile.qualificationRoute,
 
     notes: clientFile.notes,
-
-  });
-
-  const nextActionView = deriveNextActionVisibility({
-
-    status: clientFile.status,
-
-    qualificationRoute: clientFile.qualificationRoute,
-
-    nextCallScheduledAt: clientFile.nextCallScheduledAt,
-
-    nextFollowUpAt: clientFile.followUpDate,
 
   });
 
@@ -8734,27 +8720,29 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                 ) : (
 
-                  <div className="flex items-center gap-4 text-sm flex-wrap">
-
-                    <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-md border font-semibold text-xs", urgencyToneClass)}>
-
-                      <UrgencyIcon className="h-3 w-3 shrink-0" />
-
-                      <span>{nextActionUrgency.label}</span>
-
-                    </div>
+                  <div className="flex items-center gap-x-4 gap-y-1 text-xs flex-wrap">
 
                     <span className="text-muted-foreground">
 
-                      Last: <span className="text-foreground">{formatDateTimeShort(clientFile.lastContactAt)}</span>
+                      Do now{" "}
 
-                    </span>
+                      <span
 
-                    <span className={cn(missingNextAction ? "text-foreground font-semibold" : "text-muted-foreground")}>
+                        className={cn(
 
-                      Next: <span className={cn(missingNextAction ? "" : "text-foreground")}>
+                          "font-semibold",
 
-                        {missingNextAction ? "Not set — needs action" : `${nextActionView.label} · ${formatDateTimeShort(nextActionIso)}`}
+                          operatorWf.urgency === "critical" && "text-red-400",
+
+                          operatorWf.urgency === "high" && "text-amber-300/90",
+
+                          operatorWf.urgency !== "critical" && operatorWf.urgency !== "high" && "text-foreground",
+
+                        )}
+
+                      >
+
+                        {operatorWf.doNow}
 
                       </span>
 
@@ -8762,7 +8750,35 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                     <span className="text-muted-foreground">
 
-                      Seq: <span className="text-foreground">{currentSequenceLabel}</span>
+                      Due{" "}
+
+                      <span className={cn(operatorWf.dueOverdue ? "text-amber-300 font-medium" : "text-foreground")}>
+
+                        {operatorWf.dueLabel}
+
+                      </span>
+
+                    </span>
+
+                    <span className="text-muted-foreground inline-flex items-center gap-1.5">
+
+                      Last touch <span className="text-foreground">{operatorWf.lastTouchLabel}</span>
+
+                      {operatorWf.workedToday && (
+
+                        <span className="rounded px-1 py-0 text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 border border-primary/20">
+
+                          Today
+
+                        </span>
+
+                      )}
+
+                    </span>
+
+                    <span className="text-muted-foreground/70">
+
+                      Seq <span className="text-foreground/90">{currentSequenceLabel}</span>
 
                     </span>
 

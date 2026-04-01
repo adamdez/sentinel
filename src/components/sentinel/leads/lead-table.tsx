@@ -26,7 +26,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { type LeadRow } from "@/lib/leads-data";
-import { deriveLeadActionSummary, type UrgencyLevel, type ActionSummary } from "@/lib/action-derivation";
+import type { UrgencyLevel } from "@/lib/action-derivation";
+import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-workflow-summary";
 import type { SortField, SortDir } from "@/hooks/use-leads";
 import { cn } from "@/lib/utils";
 import { LogCallModal } from "./log-call-modal";
@@ -42,8 +43,8 @@ interface LeadTableProps {
   currentUserId: string;
 }
 
-// Grid definition
-const GRID = "grid-cols-[28px_28px_1.8fr_minmax(140px,1fr)_90px_80px]";
+// Grid: select · pin · property · do now · due · last touch · actions
+const GRID = "grid-cols-[28px_28px_1.65fr_minmax(120px,1.15fr)_minmax(80px,0.9fr)_minmax(88px,0.95fr)_80px]";
 const BULK_ACTION_CONCURRENCY = 6;
 
 // Helpers
@@ -55,6 +56,7 @@ function SortHeader({
   currentDir,
   onSort,
   className,
+  title,
 }: {
   label: string;
   field: SortField;
@@ -62,12 +64,15 @@ function SortHeader({
   currentDir: SortDir;
   onSort: (f: SortField) => void;
   className?: string;
+  title?: string;
 }) {
   const active = currentField === field;
   const Icon = active ? (currentDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
 
   return (
     <button
+      type="button"
+      title={title}
       onClick={() => onSort(field)}
       className={cn(
         "flex items-center gap-1 text-sm font-semibold uppercase tracking-wider hover:text-foreground transition-colors",
@@ -79,25 +84,6 @@ function SortHeader({
       <Icon className="h-3 w-3" />
     </button>
   );
-}
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return "";
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
-  if (days === 0) return "today";
-  if (days === 1) return "1d ago";
-  return `${days}d ago`;
-}
-
-
-/** Age-based color escalation for untouched leads */
-function ageEscalationClass(promotedAt: string | null): string {
-  if (!promotedAt) return "text-muted-foreground/70";
-  const hoursOld = (Date.now() - new Date(promotedAt).getTime()) / (1000 * 60 * 60);
-  if (hoursOld >= 72) return "text-foreground font-semibold";
-  if (hoursOld >= 48) return "text-foreground font-medium";
-  if (hoursOld >= 24) return "text-foreground";
-  return "text-muted-foreground/70";
 }
 
 function formatPhone(phone: string): string {
@@ -118,20 +104,6 @@ function urgencyTextClass(urgency: UrgencyLevel): string {
     case "low": return "text-muted-foreground/50";
     case "none": return "text-muted-foreground/40";
   }
-}
-
-function deriveActionForLead(lead: LeadRow): ActionSummary {
-  return deriveLeadActionSummary({
-    status: lead.status,
-    qualificationRoute: lead.qualificationRoute,
-    assignedTo: lead.assignedTo,
-    nextCallScheduledAt: lead.nextCallScheduledAt,
-    nextFollowUpAt: lead.followUpDate,
-    lastContactAt: lead.lastContactAt,
-    totalCalls: lead.totalCalls,
-    createdAt: lead.promotedAt, // promotedAt is always set for leads
-    promotedAt: lead.promotedAt,
-  });
 }
 
 // Main component
@@ -546,53 +518,43 @@ export function LeadTable({
         </div>
         <span />
         <SortHeader label="Property / Owner" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
-        <SortHeader label="Next Action" field="followUp" currentField={sortField} currentDir={sortDir} onSort={onSort} />
-        <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Last Contact</span>
+        <SortHeader
+          label="Do Now"
+          field="followUp"
+          currentField={sortField}
+          currentDir={sortDir}
+          onSort={onSort}
+          className="text-left"
+          title="Sort: pinned first, then urgency, then due date"
+        />
+        <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Due</span>
+        <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Last Touch</span>
         <span />
       </div>
 
       {/* Rows */}
       {leads.map((lead, i) => {
-        const isMine = lead.assignedTo === currentUserId;
-        const followUpDueIso = lead.nextCallScheduledAt ?? lead.followUpDate;
-        const actionSummary = deriveActionForLead(lead);
+        const wf = buildOperatorWorkflowSummary({
+          status: lead.status,
+          qualificationRoute: lead.qualificationRoute,
+          assignedTo: lead.assignedTo,
+          nextCallScheduledAt: lead.nextCallScheduledAt,
+          nextFollowUpAt: lead.followUpDate,
+          lastContactAt: lead.lastContactAt,
+          totalCalls: lead.totalCalls,
+          createdAt: lead.promotedAt,
+          promotedAt: lead.promotedAt,
+        });
 
-        // Overdue tinting
-        let overdueDays = 0;
-        let isOverdue = false;
-        if (followUpDueIso) {
-          const dueMs = new Date(followUpDueIso).getTime();
-          if (!Number.isNaN(dueMs) && dueMs < Date.now()) {
-            isOverdue = true;
-            overdueDays = Math.floor((Date.now() - dueMs) / 86400000);
-          }
-        }
-
-        // Next action label
-        let nextActionText = "No action set";
-        let nextActionClass = "text-muted-foreground/50";
-        if (followUpDueIso) {
-          const dueMs = new Date(followUpDueIso).getTime();
-          if (!Number.isNaN(dueMs)) {
-            const diffMs = dueMs - Date.now();
-            const diffDays = Math.floor(Math.abs(diffMs) / 86400000);
-            const actionType = actionSummary.actionType === "call" ? "Callback" : actionSummary.actionType === "review" ? "Review" : "Follow up";
-            if (diffMs < 0) {
-              nextActionText = diffDays === 0 ? `${actionType} due today` : `${actionType} ${diffDays}d overdue`;
-              nextActionClass = diffDays >= 3 ? "text-foreground font-semibold" : diffDays >= 1 ? "text-foreground" : "text-foreground";
-            } else {
-              nextActionText = diffDays === 0 ? `${actionType} today` : diffDays === 1 ? `${actionType} tomorrow` : `${actionType} in ${diffDays}d`;
-              nextActionClass = diffDays <= 1 ? "text-foreground" : "text-muted-foreground/70";
-            }
-          }
-        } else if (lead.totalCalls === 0) {
-          nextActionText = "First contact needed";
-          nextActionClass = ageEscalationClass(lead.promotedAt);
-        }
-
-        // Last contact
-        const lastContactText = lead.lastContactAt ? timeAgo(lead.lastContactAt) : "Never";
-        const lastContactClass = lead.lastContactAt ? "text-muted-foreground" : "text-muted-foreground/40";
+        const overdueDays =
+          wf.effectiveDueIso && wf.dueOverdue
+            ? Math.max(
+                1,
+                Math.floor(
+                  (Date.now() - new Date(wf.effectiveDueIso).getTime()) / 86400000,
+                ),
+              )
+            : 0;
 
         return (
           <motion.div
@@ -604,8 +566,8 @@ export function LeadTable({
             className={cn(
               "grid gap-3 px-4 py-3 border-b border-overlay-3 cursor-pointer transition-all hover:bg-overlay-3",
               GRID,
-              isOverdue && overdueDays >= 3 && "bg-muted/5 border-l-2 border-l-red-500/40",
-              isOverdue && overdueDays < 3 && "bg-muted/5 border-l-2 border-l-amber-500/40",
+              wf.dueOverdue && overdueDays >= 3 && "bg-muted/5 border-l-2 border-l-red-500/40",
+              wf.dueOverdue && overdueDays > 0 && overdueDays < 3 && "bg-muted/5 border-l-2 border-l-amber-500/40",
             )}
           >
             {/* Checkbox */}
@@ -710,18 +672,45 @@ export function LeadTable({
               )}
             </Tooltip>
 
-            {/* Next Action */}
+            {/* Do now */}
             <div className="flex flex-col justify-center min-w-0">
-              <span className={cn("text-sm truncate", nextActionClass)}>
-                {nextActionText}
+              <span
+                className={cn("text-sm truncate", urgencyTextClass(wf.urgency))}
+                title={wf.doNow}
+              >
+                {wf.doNow}
               </span>
             </div>
 
-            {/* Last Contact */}
-            <div className="flex items-center">
-              <span className={cn("text-sm tabular-nums", lastContactClass)}>
-                {lastContactText}
+            {/* Due */}
+            <div className="flex items-center min-w-0">
+              <span
+                className={cn(
+                  "text-sm tabular-nums truncate",
+                  wf.dueOverdue ? "text-red-400/90 font-medium" : "text-muted-foreground/75",
+                )}
+                title={wf.effectiveDueIso ?? undefined}
+              >
+                {wf.dueLabel}
               </span>
+            </div>
+
+            {/* Last touch */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span
+                className={cn(
+                  "text-sm tabular-nums truncate",
+                  wf.lastTouchLabel === "No touch" ? "text-muted-foreground/40" : "text-muted-foreground",
+                )}
+                title={lead.lastContactAt ?? undefined}
+              >
+                {wf.lastTouchLabel}
+              </span>
+              {wf.workedToday && (
+                <span className="shrink-0 rounded px-1 py-0 text-[10px] font-semibold uppercase tracking-wide text-primary bg-primary/10 border border-primary/20">
+                  Today
+                </span>
+              )}
             </div>
 
             {/* Actions (call + delete only) */}

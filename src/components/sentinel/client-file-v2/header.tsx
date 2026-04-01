@@ -70,17 +70,14 @@ export function ClientFileHeader({ ownerName, address, distressSignals, suggeste
 
       {/* Action Banner — compact urgency line from deriveLeadActionSummary */}
       {showAction && style && (
-        <div className={`p-3 rounded-xl border ${style.border} ${style.bg} relative overflow-hidden`}>
+        <div className={`p-2.5 rounded-xl border ${style.border} ${style.bg} relative overflow-hidden`}>
           <div className={`absolute inset-y-0 left-0 w-1 ${style.accent}`} />
           <div className="flex items-center gap-2 pl-2">
             <style.icon className={`w-3.5 h-3.5 ${style.label} shrink-0`} />
             <span className={`text-sm font-semibold ${style.text}`}>
-              {actionSummary!.action}
+              Do now · {actionSummary!.action}
             </span>
           </div>
-          <p className={`text-sm ${style.label} pl-7 mt-0.5 leading-snug`}>
-            {actionSummary!.reason}
-          </p>
         </div>
       )}
 

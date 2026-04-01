@@ -40,8 +40,7 @@ import { useLiveCoach } from "@/hooks/use-live-coach";
 import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
 import { useCallHistory, type CallHistoryEntry } from "@/hooks/use-call-history";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
-import { deriveNextActionVisibility } from "@/lib/leads-data";
-import { formatDueDateLabel } from "@/lib/due-date-label";
+import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-workflow-summary";
 import { Eye } from "lucide-react";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
@@ -2400,21 +2399,26 @@ function DialerPageInner() {
   const dialerContext = useMemo(() => {
     if (!currentLead) return null;
 
-    const nextAction = deriveNextActionVisibility({
+    const wf = buildOperatorWorkflowSummary({
       status: currentLead.status,
-      qualificationRoute: (currentLead.qualification_route as "offer_ready" | "follow_up" | "nurture" | "dead" | "escalate" | null) ?? null,
+      qualificationRoute: currentLead.qualification_route,
+      assignedTo: currentLead.assigned_to,
       nextCallScheduledAt: currentLead.next_call_scheduled_at,
-      nextFollowUpAt: currentLead.next_follow_up_at,
+      nextFollowUpAt: currentLead.next_follow_up_at ?? currentLead.follow_up_date,
+      lastContactAt: currentLead.last_contact_at,
+      totalCalls: currentLead.total_calls,
+      createdAt: currentLead.promoted_at,
+      promotedAt: currentLead.promoted_at,
     });
     const leadHistory = callHistory.find((entry) => entry.lead_id === currentLead.id);
     const recentOutcome = leadHistory?.disposition ?? currentLead.disposition_code ?? "none";
-    const dueText = nextAction.dueAt ? formatDueDateLabel(nextAction.dueAt).text : "No due date";
+    const dueText = wf.dueLabel === "—" ? "No due date" : wf.dueLabel;
     const qualificationGaps = countQualificationGaps(currentLead);
     const qualificationGapNames = getQualificationGapNames(currentLead);
     const assistPrompts = compactCallAssistPrompts({
       route: currentLead.qualification_route ?? null,
-      nextActionLabel: nextAction.label,
-      hasDueDate: Boolean(nextAction.dueAt),
+      nextActionLabel: wf.doNow,
+      hasDueDate: wf.effectiveDueIso != null,
       totalCalls: currentLead.total_calls ?? 0,
       missingMotivation: currentLead.motivation_level == null,
       missingTimeline: currentLead.seller_timeline == null,
@@ -2426,7 +2430,7 @@ function DialerPageInner() {
     return {
       stage: stageLabel(currentLead.status),
       route: qualificationRouteLabel(currentLead.qualification_route),
-      nextActionLabel: nextAction.label,
+      nextActionLabel: wf.doNow,
       dueText,
       qualificationScore: currentLead.qualification_score_total,
       qualificationGaps,
@@ -3275,19 +3279,29 @@ function DialerPageInner() {
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[66vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-overlay-8 scrollbar-track-transparent">
+                <div className="flex gap-2 pl-5 pr-10 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/55">
+                  <span className="min-w-0 flex-1">Do now</span>
+                  <span className="w-[76px] shrink-0">Due</span>
+                  <span className="w-[84px] shrink-0 text-right">Last touch</span>
+                </div>
                 {displayedQueue.map((lead, idx) => {
                   const isActive = currentLead?.id === lead.id;
-                  const rowNextAction = deriveNextActionVisibility({
-                    status: lead.status,
-                    qualificationRoute: lead.qualification_route,
-                    nextCallScheduledAt: lead.next_call_scheduled_at,
-                    nextFollowUpAt: lead.next_follow_up_at ?? lead.follow_up_date ?? null,
-                  });
                   const rowDueIso = autoCycleMode && "autoCycle" in lead
                     ? (lead as AutoCycleQueueLead).autoCycle.nextDueAt
                     : lead.next_call_scheduled_at ?? lead.next_follow_up_at ?? lead.follow_up_date ?? null;
-                  const rowDue = formatDueDateLabel(rowDueIso);
-                  const rowDueLabel = rowDue.text === "n/a" ? "No due date" : rowDue.text;
+                  const wf = buildOperatorWorkflowSummary({
+                    status: lead.status,
+                    qualificationRoute: lead.qualification_route,
+                    assignedTo: lead.assigned_to,
+                    nextCallScheduledAt: autoCycleMode && "autoCycle" in lead
+                      ? (lead as AutoCycleQueueLead).autoCycle.nextDueAt ?? lead.next_call_scheduled_at
+                      : lead.next_call_scheduled_at,
+                    nextFollowUpAt: autoCycleMode ? null : (lead.next_follow_up_at ?? lead.follow_up_date),
+                    lastContactAt: lead.last_contact_at,
+                    totalCalls: lead.total_calls,
+                    createdAt: lead.promoted_at,
+                    promotedAt: lead.promoted_at,
+                  });
                   const autoCycleLead = autoCycleMode ? lead as AutoCycleQueueLead : null;
                   const autoCycleStatusLabel = autoCycleLead
                     ? autoCycleLead.autoCycle.readyNow
@@ -3339,13 +3353,34 @@ function DialerPageInner() {
                             <span key={tag} className="text-xs px-1.5 py-0 rounded bg-overlay-4 border border-overlay-8 text-muted-foreground/60">{tag}</span>
                           ))}
                         </div>
-                        <div className="flex items-center gap-2 pl-5 text-xs">
-                          <span className={rowNextAction.label === "No next action set" ? "text-amber-400/80" : "text-muted-foreground/60"}>
-                            {rowNextAction.label === "No next action set" ? "No next action" : rowNextAction.label}
+                        <div className="grid grid-cols-[1fr_76px_84px] gap-1 pl-5 pr-2 text-xs items-center">
+                          <span
+                            className={cn(
+                              "min-w-0 truncate font-medium",
+                              wf.urgency === "critical" && "text-red-400/95",
+                              wf.urgency === "high" && "text-amber-300/90",
+                              wf.urgency !== "critical" && wf.urgency !== "high" && "text-foreground/85",
+                            )}
+                            title={wf.doNow}
+                          >
+                            {wf.doNow}
                           </span>
-                          <span className="text-muted-foreground/30">·</span>
-                          <span className={rowDue.overdue ? "text-red-400" : "text-muted-foreground/50"}>
-                            {rowDueLabel === "No due date" ? "Never" : rowDueLabel}
+                          <span
+                            className={cn(
+                              "tabular-nums shrink-0",
+                              wf.dueOverdue ? "text-red-400 font-medium" : "text-muted-foreground/60",
+                            )}
+                            title={rowDueIso ?? undefined}
+                          >
+                            {wf.dueLabel}
+                          </span>
+                          <span className="flex items-center justify-end gap-1 shrink-0 text-right">
+                            <span className="text-muted-foreground/70 tabular-nums">{wf.lastTouchLabel}</span>
+                            {wf.workedToday && (
+                              <span className="rounded px-1 py-0 text-[9px] font-bold uppercase tracking-wide text-primary bg-primary/10 border border-primary/20">
+                                Today
+                              </span>
+                            )}
                           </span>
                         </div>
                         {autoCycleLead && (
@@ -3478,7 +3513,7 @@ function DialerPageInner() {
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                           <span><span className="text-foreground font-medium">{dialerContext.stage}</span></span>
                           <span className="text-muted-foreground/30">·</span>
-                          <span>Next: <span className="text-foreground font-medium">{dialerContext.nextActionLabel}</span></span>
+                          <span>Do now: <span className="text-foreground font-medium">{dialerContext.nextActionLabel}</span></span>
                           <span className="text-muted-foreground/30">·</span>
                           <span className={dialerContext.dueText === "Overdue" ? "text-red-400 font-medium" : ""}>Due: {dialerContext.dueText}</span>
                           {dialerContext.qualificationGapNames.length > 0 && (

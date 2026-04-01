@@ -37,6 +37,7 @@ import type { PostCallDraft, ObjectionCapture } from "@/components/sentinel/post
 import { QualGapStripCompact } from "@/components/sentinel/qual-gap-strip";
 import type { QualCheckInput, QualItemKey } from "@/lib/dialer/qual-checklist";
 import type { PostCallStructureInput } from "@/lib/dialer/post-call-structure";
+import { formatDueDateLabel } from "@/lib/due-date-label";
 
 interface PublishQaFinding {
   check_type: string;
@@ -207,10 +208,11 @@ export function PostCallPanel({
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null); // dispo label shown briefly on success
-  const [publishTargets, setPublishTargets] = useState<{
-    callsLogId: string | null;
-    leadId: string | null;
-    taskId: string | null;
+  /** Compact confirmation lines after publish — no API snapshot; local truth only */
+  const [publishSnapshot, setPublishSnapshot] = useState<{
+    nextStep: string | null;
+    dueLine: string | null;
+    taskCreated: boolean;
   } | null>(null);
   const [publishQaFindings, setPublishQaFindings] = useState<PublishQaFinding[]>([]);
   const [promoteFactsBusy, setPromoteFactsBusy] = useState(false);
@@ -393,8 +395,8 @@ export function PostCallPanel({
     setSelected(dispo);
     setPublishing(true);
     setError(null);
-    setPublishTargets(null);
     setPublishQaFindings([]);
+    setPublishSnapshot(null);
 
     const hdrs = await authHeaders();
     const summaryRunIdForPublish = await ensureSummaryRunId(dispo);
@@ -576,12 +578,23 @@ export function PostCallPanel({
 
     // Brief success confirmation before advancing to next lead
     const label = DISPO_OPTIONS.find((d) => d.key === dispo)?.label ?? dispo;
+    const dueLine =
+      nextCallScheduledAt
+        ? formatDueDateLabel(nextCallScheduledAt).text
+        : nextActionDueAt.trim()
+          ? formatDueDateLabel(new Date(nextActionDueAt).toISOString()).text
+          : null;
+    const nextStep =
+      nextAction.trim() ||
+      (NEXT_STEP_DISPOS.has(dispo) && nextCallScheduledAt
+        ? `Callback ${new Date(nextCallScheduledAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+        : null);
     setPublishing(false);
     setSaved(label);
-    setPublishTargets({
-      callsLogId: typeof publishData?.calls_log_id === "string" ? publishData.calls_log_id : null,
-      leadId: typeof publishData?.lead_id === "string" ? publishData.lead_id : null,
-      taskId: typeof publishData?.task_id === "string" ? publishData.task_id : null,
+    setPublishSnapshot({
+      nextStep,
+      dueLine,
+      taskCreated: typeof publishData?.task_id === "string",
     });
     setPromoteFactsInfo(null);
     if (!leadId) {
@@ -768,31 +781,33 @@ export function PostCallPanel({
     }}>
       {/* ── Success confirmation (briefly shown before auto-advance) ── */}
       {saved ? (
-        <div className="flex flex-col items-stretch gap-3 py-4 px-1">
-          <div className="flex flex-col items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-primary" />
-            <p className="text-sm font-medium text-foreground">Logged: {saved}</p>
+        <div className="flex flex-col items-stretch gap-3 py-3 px-1">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+            <p className="text-sm font-semibold text-foreground">Saved · {saved}</p>
           </div>
-          <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3 space-y-1.5">
-            <p className="text-sm uppercase tracking-wide text-muted-foreground font-semibold">
-              Saved to
-            </p>
-            <p className="text-sm text-foreground/85">
-              {publishTargets?.callsLogId
-                ? "Call History updated with disposition, duration, and summary."
-                : "Call closeout recorded."}
-            </p>
-            {publishTargets?.leadId && (
-              <p className="text-sm text-foreground/75">
-                Lead File updated with qualification and next-action changes.
-              </p>
-            )}
-            {publishTargets?.taskId && (
-              <p className="text-sm text-foreground/75">
-                Callback task created from this closeout.
-              </p>
-            )}
-          </div>
+          {publishSnapshot && (
+            <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 px-3 py-2 space-y-1 text-xs">
+              {publishSnapshot.nextStep && (
+                <p>
+                  <span className="text-muted-foreground">Next step </span>
+                  <span className="text-foreground font-medium">{publishSnapshot.nextStep}</span>
+                </p>
+              )}
+              {publishSnapshot.dueLine && (
+                <p>
+                  <span className="text-muted-foreground">Due </span>
+                  <span className="text-foreground">{publishSnapshot.dueLine}</span>
+                </p>
+              )}
+              {publishSnapshot.taskCreated && (
+                <p className="text-muted-foreground">Callback task created</p>
+              )}
+              {!publishSnapshot.nextStep && !publishSnapshot.dueLine && !publishSnapshot.taskCreated && (
+                <p className="text-muted-foreground">Call history and lead file updated.</p>
+              )}
+            </div>
+          )}
           {publishQaFindings.length > 0 && (
             <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.05] p-3 space-y-2">
               <div className="flex items-center gap-2">
@@ -904,18 +919,10 @@ export function PostCallPanel({
         <p className="text-sm text-foreground mb-2 px-1">{error}</p>
       )}
 
-      <div className="mb-3 rounded-[10px] border border-overlay-8 bg-overlay-2 p-3 space-y-1">
+      <div className="mb-3 rounded-[10px] border border-overlay-8 bg-overlay-2 px-3 py-2">
         <p className="text-sm text-foreground/85">
-          Nothing is saved to Call History or the Lead File until you finish this closeout.
+          Nothing is saved until you finish this closeout{summary.trim() ? " (live notes are draft until then)" : ""}.
         </p>
-        <p className="text-sm text-muted-foreground">
-          Publish saves the call summary and disposition to Call History, updates the Lead File, and creates a callback task for follow-up or appointment outcomes.
-        </p>
-        {summary.trim() ? (
-          <p className="text-sm text-muted-foreground">
-            The notes from the live note box are loaded here as a draft, but they are not durable until you save this closeout.
-          </p>
-        ) : null}
       </div>
 
       {qualStep && pendingDispo && pendingMeta ? (
