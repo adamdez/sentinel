@@ -136,15 +136,15 @@ export function IntakeLeadsTable({
             </div>
 
             {/* Received Date */}
-            <div className="col-span-2">
+            <div className="col-span-1 min-w-0">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="w-4 h-4 flex-shrink-0" />
-                {formatDate(lead.received_at)}
+                <span className="truncate">{formatDate(lead.received_at)}</span>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="col-span-2 flex justify-end gap-2">
+            <div className="col-span-2 flex flex-wrap justify-start gap-2 xl:justify-end">
               <Button
                 type="button"
                 variant="outline"
