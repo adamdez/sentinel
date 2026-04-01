@@ -1,6 +1,7 @@
 "use client";
 
-import { Phone, MapPin, Calendar, AlertCircle } from "lucide-react";
+import { Phone, MapPin, Calendar, AlertCircle, Pencil, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface IntakeLead {
   id: string;
@@ -26,6 +27,8 @@ interface IntakeLead {
 interface IntakeLeadsTableProps {
   leads: IntakeLead[];
   onClaim: (lead: IntakeLead) => void;
+  onEdit: (lead: IntakeLead) => void;
+  onDelete: (lead: IntakeLead) => void;
   isLoading?: boolean;
 }
 
@@ -52,6 +55,8 @@ function formatPhone(phone: string | null): string {
 export function IntakeLeadsTable({
   leads,
   onClaim,
+  onEdit,
+  onDelete,
   isLoading,
 }: IntakeLeadsTableProps) {
   return (
@@ -62,8 +67,8 @@ export function IntakeLeadsTable({
         <div className="col-span-2">Phone</div>
         <div className="col-span-3">Property Address</div>
         <div className="col-span-2">Source</div>
-        <div className="col-span-2">Received</div>
-        <div className="col-span-1">Action</div>
+        <div className="col-span-1">Received</div>
+        <div className="col-span-2">Actions</div>
       </div>
 
       {/* Table Body */}
@@ -139,14 +144,34 @@ export function IntakeLeadsTable({
             </div>
 
             {/* Actions */}
-            <div className="col-span-1 flex justify-end">
-              <button
+            <div className="col-span-2 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onEdit(lead)}
+                disabled={isLoading}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => onDelete(lead)}
+                disabled={isLoading}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </Button>
+              <Button
+                type="button"
                 onClick={() => onClaim(lead)}
                 disabled={isLoading}
-                className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 Claim
-              </button>
+              </Button>
             </div>
           </div>
         ))}

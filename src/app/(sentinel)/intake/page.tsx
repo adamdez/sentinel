@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { IntakeLeadsTable } from "@/components/sentinel/intake-leads-table";
 import { IntakeClaimModal } from "@/components/sentinel/intake-claim-modal";
+import { IntakeEditModal } from "@/components/sentinel/intake-edit-modal";
 import { IntakeFiltersBar } from "@/components/sentinel/intake-filters-bar";
 import { IntakeMetricsStrip } from "@/components/sentinel/intake-metrics-strip";
 
@@ -56,7 +57,9 @@ export default function IntakePage() {
 
   // Modal state
   const [selectedLead, setSelectedLead] = useState<IntakeLead | null>(null);
+  const [editingLead, setEditingLead] = useState<IntakeLead | null>(null);
   const [showClaimModal, setShowClaimModal] = useState(false);
+  const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
 
   // Fetch leads
   const fetchLeads = async () => {
@@ -101,6 +104,19 @@ export default function IntakePage() {
     fetchLeads();
   }, [statusFilter, sourceFilter, dateRange]);
 
+  useEffect(() => {
+    const channel = supabase
+      .channel("intake_queue_live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "intake_leads" }, () => {
+        void fetchLeads();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [statusFilter, sourceFilter, dateRange]);
+
   // Refetch after claim modal closes
   const handleClaimSuccess = () => {
     setShowClaimModal(false);
@@ -113,9 +129,60 @@ export default function IntakePage() {
     setShowClaimModal(true);
   };
 
+  const openEditModal = (lead: IntakeLead) => {
+    setEditingLead(lead);
+  };
+
   const closeClaimModal = () => {
     setShowClaimModal(false);
     setSelectedLead(null);
+  };
+
+  const closeEditModal = () => {
+    setEditingLead(null);
+  };
+
+  const handleEditSuccess = () => {
+    setEditingLead(null);
+    fetchLeads();
+  };
+
+  const handleDelete = async (lead: IntakeLead) => {
+    const label = lead.owner_name || lead.property_address || "this intake lead";
+    if (!window.confirm(`Delete ${label} from the PPL intake queue?`)) {
+      return;
+    }
+
+    try {
+      setDeletingLeadId(lead.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (session?.access_token) {
+        headers.Authorization = `Bearer ${session.access_token}`;
+      }
+
+      const response = await fetch("/api/intake/queue", {
+        method: "DELETE",
+        headers,
+        body: JSON.stringify({ intake_lead_id: lead.id }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || "Failed to delete intake lead");
+      }
+
+      await fetchLeads();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError(message);
+      console.error("[IntakePage] Delete error:", err);
+    } finally {
+      setDeletingLeadId(null);
+    }
   };
 
   return (
@@ -125,7 +192,7 @@ export default function IntakePage() {
         <div>
           <h1 className="text-4xl font-bold text-foreground">Lead Intake Queue</h1>
           <p className="text-muted-foreground mt-2">
-            Review and claim new PPL leads before they enter your main CRM inbox
+            Website and lead house arrivals land here immediately, ready to claim into Sentinel
           </p>
         </div>
 
@@ -169,7 +236,7 @@ export default function IntakePage() {
             <p className="text-muted-foreground font-medium">No pending leads</p>
             <p className="text-sm text-muted-foreground mt-2">
               {statusFilter === "pending_review"
-                ? "Your intake queue is empty. New PPL leads will appear here."
+                ? "Your intake queue is empty. New PPL leads will appear here ready to claim."
                 : "No leads match your filters."}
             </p>
           </div>
@@ -180,7 +247,9 @@ export default function IntakePage() {
           <IntakeLeadsTable
             leads={leads}
             onClaim={openClaimModal}
-            isLoading={loading}
+            onEdit={openEditModal}
+            onDelete={handleDelete}
+            isLoading={loading || deletingLeadId !== null}
           />
         )}
       </div>
@@ -191,6 +260,14 @@ export default function IntakePage() {
           lead={selectedLead}
           onClose={closeClaimModal}
           onSuccess={handleClaimSuccess}
+        />
+      )}
+
+      {editingLead && (
+        <IntakeEditModal
+          lead={editingLead}
+          onClose={closeEditModal}
+          onSuccess={handleEditSuccess}
         />
       )}
     </div>

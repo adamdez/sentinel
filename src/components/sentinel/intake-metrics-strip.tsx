@@ -21,7 +21,7 @@ export function IntakeMetricsStrip({ metrics }: IntakeMetricsStripProps) {
       <div className="bg-card border border-border rounded-lg p-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-muted-foreground">Pending Review</p>
+            <p className="text-sm font-medium text-muted-foreground">Ready to Claim</p>
             <p className="text-3xl font-bold text-foreground mt-2">
               {metrics.total_pending}
             </p>

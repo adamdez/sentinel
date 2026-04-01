@@ -212,12 +212,17 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
       <span>{item.label}</span>
       {(() => {
         if (!item.badge || !badges) return null;
-        // Intake pending shows a count badge
         if (item.badge === "intake-pending" && badges.intakePending > 0) {
           return (
-            <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-xs font-bold text-black">
-              {badges.intakePending}
-            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 animate-ping opacity-80" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+              </span>
+              <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-xs font-bold text-white">
+                {badges.intakePending}
+              </span>
+            </div>
           );
         }
         const dot =

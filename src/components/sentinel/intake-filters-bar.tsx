@@ -65,7 +65,7 @@ export function IntakeFiltersBar({
             onChange={(e) => onStatusChange(e.target.value)}
             className="w-full px-3 py-2 rounded border border-border bg-background text-foreground"
           >
-            <option value="pending_review">Pending Review</option>
+            <option value="pending_review">Ready to Claim</option>
             <option value="claimed">Claimed</option>
             <option value="rejected">Rejected</option>
             <option value="duplicate">Duplicate</option>
