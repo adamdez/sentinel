@@ -36,6 +36,31 @@ const SPEED_TO_LEAD_SLA_MS = 15 * 60 * 1000;
 const IMPORTANT_SCORE_THRESHOLD = 65;
 const NEEDS_QUALIFICATION_AGE_MS = 48 * 60 * 60 * 1000;
 
+const KNOWN_DISTRESS_TAGS = ["probate", "inherited", "tax_lien", "pre_foreclosure", "vacant", "divorce", "bankruptcy"] as const;
+
+const DISTRESS_TAG_LABELS: Record<string, string> = {
+  probate: "Probate",
+  inherited: "Inherited",
+  tax_lien: "Tax Lien",
+  pre_foreclosure: "Pre-foreclosure",
+  vacant: "Vacant",
+  divorce: "Divorce",
+  bankruptcy: "Bankruptcy",
+};
+
+function leadMatchesDistressTag(
+  lead: { isVacant: boolean; foreclosureStage: string | null; distressSignals: string[] },
+  tag: string,
+): boolean {
+  if (tag === "vacant" && lead.isVacant) return true;
+  if (tag === "pre_foreclosure" && lead.foreclosureStage) return true;
+  const variants = [tag, tag.replace(/_/g, " "), tag.replace(/_/g, "-")];
+  return lead.distressSignals.some((s) => {
+    const lower = s.toLowerCase();
+    return variants.some((v) => lower.includes(v));
+  });
+}
+
 const DEFAULT_SORT_DIR_BY_FIELD: Record<SortField, SortDir> = {
   score: "desc",
   priority: "desc",
@@ -58,6 +83,10 @@ export interface LeadFilters {
   unassignedOnly: boolean;
   includeClosed: boolean;
   excludeSuppressed: boolean;
+  hasPhone: "any" | "yes" | "no";
+  neverCalled: boolean;
+  notCalledToday: boolean;
+  distressTags: string[];
 }
 
 const DEFAULT_FILTERS: LeadFilters = {
@@ -72,6 +101,10 @@ const DEFAULT_FILTERS: LeadFilters = {
   unassignedOnly: false,
   includeClosed: false,
   excludeSuppressed: false,
+  hasPhone: "any",
+  neverCalled: false,
+  notCalledToday: false,
+  distressTags: [],
 };
 
 const LEAD_LIST_SELECT = [
@@ -771,6 +804,19 @@ export function useLeads() {
       .map(([value, count]) => ({ value, label: sourceLabel(value), count }));
   }, [discoverableSegmentedLeads]);
 
+  const distressTagOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const tag of KNOWN_DISTRESS_TAGS) counts[tag] = 0;
+    for (const l of discoverableSegmentedLeads) {
+      for (const tag of KNOWN_DISTRESS_TAGS) {
+        if (leadMatchesDistressTag(l, tag)) counts[tag]++;
+      }
+    }
+    return (Object.entries(counts) as [string, number][])
+      .filter(([, count]) => count > 0)
+      .map(([value, count]) => ({ value, label: DISTRESS_TAG_LABELS[value] ?? value, count }));
+  }, [discoverableSegmentedLeads]);
+
   // Filters
 
   const filteredLeads = useMemo(() => {
@@ -805,6 +851,27 @@ export function useLeads() {
     }
     if (filters.excludeSuppressed) {
       result = result.filter((l) => !l.doNotCall && !l.badRecord);
+    }
+    if (filters.hasPhone === "yes") {
+      result = result.filter((l) => !!l.ownerPhone);
+    } else if (filters.hasPhone === "no") {
+      result = result.filter((l) => !l.ownerPhone);
+    }
+    if (filters.neverCalled) {
+      result = result.filter((l) => (l.totalCalls ?? 0) === 0);
+    }
+    if (filters.notCalledToday) {
+      const dayStart = startOfDay(new Date()).getTime();
+      result = result.filter((l) => {
+        if (!l.lastContactAt) return true;
+        const ms = new Date(l.lastContactAt).getTime();
+        return !Number.isNaN(ms) && ms < dayStart;
+      });
+    }
+    if (filters.distressTags.length > 0) {
+      result = result.filter((l) =>
+        filters.distressTags.some((dt) => leadMatchesDistressTag(l, dt)),
+      );
     }
 
     if (attentionFocus !== "none") {
@@ -1072,6 +1139,7 @@ export function useLeads() {
     nicheOptions,
     importBatchOptions,
     callStatusOptions,
+    distressTagOptions,
     inboxMetrics,
     outboundSourceMetrics,
     nicheMetrics,

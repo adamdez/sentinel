@@ -76,6 +76,10 @@ export function LeadFilters({
     filters.unassignedOnly,
     filters.includeClosed,
     filters.excludeSuppressed,
+    filters.hasPhone !== "any",
+    filters.neverCalled,
+    filters.notCalledToday,
+    filters.distressTags.length > 0,
   ].filter(Boolean).length;
   const hasFilters = activeFilterCount > 0;
 

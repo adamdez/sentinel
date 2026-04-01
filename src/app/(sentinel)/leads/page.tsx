@@ -17,6 +17,7 @@ import { MasterClientFileModal, clientFileFromLead } from "@/components/sentinel
 import { useLeads } from "@/hooks/use-leads";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { filterChip } from "@/lib/sentinel-ui";
 
 type InboundFilter = "overdue" | "new_inbound" | "due_today" | "callbacks_today";
 
@@ -100,6 +101,7 @@ function LeadsPageInner() {
     totalFiltered,
     currentUser,
     teamMembers,
+    distressTagOptions,
     refetch,
   } = useLeads();
   const { openModal } = useModal();
@@ -291,6 +293,111 @@ function LeadsPageInner() {
           importBatchOptions={importBatchOptions}
           callStatusOptions={callStatusOptions}
         />
+
+        {/* Dialer-prep quick-filters — always visible */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider mr-0.5">Prep</span>
+          <button
+            onClick={() => updateFilter("hasPhone", filters.hasPhone === "yes" ? "any" : "yes")}
+            className={cn(
+              "text-xs px-2 py-0.5 rounded border transition-all",
+              filters.hasPhone === "yes" ? filterChip.active : filterChip.idle,
+            )}
+          >
+            Has phone
+          </button>
+          <button
+            onClick={() => updateFilter("hasPhone", filters.hasPhone === "no" ? "any" : "no")}
+            className={cn(
+              "text-xs px-2 py-0.5 rounded border transition-all",
+              filters.hasPhone === "no" ? "bg-red-500/10 text-red-400 border-red-500/20" : filterChip.idle,
+            )}
+          >
+            No phone
+          </button>
+          <span className="text-muted-foreground/20">·</span>
+          <button
+            onClick={() => updateFilter("neverCalled", !filters.neverCalled)}
+            className={cn(
+              "text-xs px-2 py-0.5 rounded border transition-all",
+              filters.neverCalled ? filterChip.active : filterChip.idle,
+            )}
+          >
+            Never called
+          </button>
+          <button
+            onClick={() => updateFilter("notCalledToday", !filters.notCalledToday)}
+            className={cn(
+              "text-xs px-2 py-0.5 rounded border transition-all",
+              filters.notCalledToday ? filterChip.active : filterChip.idle,
+            )}
+          >
+            Not called today
+          </button>
+          <span className="text-muted-foreground/20">·</span>
+          <button
+            onClick={() => updateFilter("followUp", filters.followUp === "overdue" ? "all" : "overdue")}
+            className={cn(
+              "text-xs px-2 py-0.5 rounded border transition-all",
+              filters.followUp === "overdue" ? "bg-red-500/10 text-red-400 border-red-500/20" : filterChip.idle,
+            )}
+          >
+            Overdue
+          </button>
+          <button
+            onClick={() => updateFilter("followUp", filters.followUp === "today" ? "all" : "today")}
+            className={cn(
+              "text-xs px-2 py-0.5 rounded border transition-all",
+              filters.followUp === "today" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : filterChip.idle,
+            )}
+          >
+            Due today
+          </button>
+          <span className="text-muted-foreground/20">·</span>
+          <button
+            onClick={() => setSegment(segment === "mine" ? "all" : "mine")}
+            className={cn(
+              "text-xs px-2 py-0.5 rounded border transition-all",
+              segment === "mine" ? filterChip.active : filterChip.idle,
+            )}
+          >
+            Assigned to me
+          </button>
+          <button
+            onClick={() => setSegment(segment === "all" ? "mine" : "all")}
+            className={cn(
+              "text-xs px-2 py-0.5 rounded border transition-all",
+              segment === "all" ? filterChip.active : filterChip.idle,
+            )}
+          >
+            Unclaimed
+          </button>
+          {distressTagOptions.length > 0 && (
+            <>
+              <span className="text-muted-foreground/20">·</span>
+              <span className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider mr-0.5">Situation</span>
+              {distressTagOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    const next = filters.distressTags.includes(opt.value)
+                      ? filters.distressTags.filter((v: string) => v !== opt.value)
+                      : [...filters.distressTags, opt.value];
+                    updateFilter("distressTags", next);
+                  }}
+                  className={cn(
+                    "text-xs px-2 py-0.5 rounded border transition-all",
+                    filters.distressTags.includes(opt.value)
+                      ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                      : filterChip.idle,
+                  )}
+                >
+                  {opt.label} <span className="opacity-50">({opt.count})</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
 
         {/* Lead table — dominates the page */}
         <LeadTable

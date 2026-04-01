@@ -76,7 +76,7 @@ function SortHeader({
       onClick={() => onSort(field)}
       className={cn(
         "flex items-center gap-1 text-sm font-semibold uppercase tracking-wider hover:text-foreground transition-colors",
-        active ? "text-primary" : "text-muted-foreground",
+        active ? "text-primary bg-primary/[0.06] px-1.5 -mx-0.5 rounded" : "text-muted-foreground",
         className
       )}
     >
@@ -305,8 +305,18 @@ export function LeadTable({
   }, [selectedIds, onRefresh]);
 
   const handleBulkAddToDialQueue = useCallback(async () => {
-    const count = selectedIds.size;
-    if (count === 0) return;
+    if (selectedIds.size === 0) return;
+
+    const selected = leads.filter((l) => selectedIds.has(l.id));
+    const noPhoneCount = selected.filter((l) => !l.ownerPhone).length;
+    const callableIds = selected.filter((l) => !!l.ownerPhone).map((l) => l.id);
+
+    if (callableIds.length === 0) {
+      toast.error(`0 callable — ${noPhoneCount} selected have no phone`);
+      setSelectedIds(new Set());
+      return;
+    }
+
     setBulkQueueing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -321,7 +331,7 @@ export function LeadTable({
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ leadIds: Array.from(selectedIds) }),
+        body: JSON.stringify({ leadIds: callableIds }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -330,26 +340,32 @@ export function LeadTable({
         return;
       }
 
-      const queuedCount = Array.isArray(data.queuedIds) ? data.queuedIds.length : 0;
-      const conflictedCount = Array.isArray(data.conflictedIds) ? data.conflictedIds.length : 0;
-      const missingCount = Array.isArray(data.missingIds) ? data.missingIds.length : 0;
+      const queued = Array.isArray(data.queuedIds) ? data.queuedIds.length : 0;
+      const blocked = Array.isArray(data.conflictedIds) ? data.conflictedIds.length : 0;
+      const notFound = Array.isArray(data.missingIds) ? data.missingIds.length : 0;
 
       setSelectedIds(new Set());
 
-      if (conflictedCount > 0 || missingCount > 0) {
-        const pieces = [`Queued ${queuedCount}`];
-        if (conflictedCount > 0) pieces.push(`blocked ${conflictedCount} already-owned`);
-        if (missingCount > 0) pieces.push(`missing ${missingCount}`);
-        toast.warning(pieces.join(", "));
+      const pieces: string[] = [];
+      if (queued > 0) pieces.push(`${queued} queued`);
+      if (blocked > 0) pieces.push(`${blocked} already owned`);
+      if (noPhoneCount > 0) pieces.push(`${noPhoneCount} no phone`);
+      if (notFound > 0) pieces.push(`${notFound} not found`);
+
+      const hasIssues = blocked > 0 || noPhoneCount > 0 || notFound > 0;
+      if (hasIssues && queued > 0) {
+        toast.warning(pieces.join(" · "));
+      } else if (hasIssues) {
+        toast.error(pieces.join(" · "));
       } else {
-        toast.success(`Added ${queuedCount} lead${queuedCount === 1 ? "" : "s"} to Dial Queue`);
+        toast.success(pieces.join(" · "));
       }
 
       onRefresh?.();
     } finally {
       setBulkQueueing(false);
     }
-  }, [selectedIds, onRefresh]);
+  }, [selectedIds, leads, onRefresh]);
 
   const handleBulkAddToJeffQueue = useCallback(async () => {
     const count = selectedIds.size;
