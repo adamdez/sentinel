@@ -141,6 +141,14 @@ export async function PATCH(
       },
     });
 
+    // Drive By queue eviction
+    if (body.next_action) {
+      try {
+        const { evictFromDialQueueIfDriveBy } = await import("@/lib/dial-queue");
+        await evictFromDialQueueIfDriveBy(sb, id, body.next_action);
+      } catch { /* non-fatal */ }
+    }
+
     // ── Auto-trigger Dispo Agent on disposition stage entry (fire-and-forget) ──
     if (target === "disposition") {
       getFeatureFlag("agent.dispo.enabled").then((flag) => {

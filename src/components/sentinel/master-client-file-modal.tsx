@@ -8683,6 +8683,13 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                   <div className="flex items-center gap-x-4 gap-y-1 text-xs flex-wrap">
 
+                    {clientFile.nextAction?.toLowerCase().startsWith("drive by") && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/25 font-bold text-xs uppercase tracking-wide">
+                        <MapPin className="h-3 w-3" />
+                        Drive By
+                      </span>
+                    )}
+
                     <span className="text-muted-foreground">
 
                       Do now{" "}

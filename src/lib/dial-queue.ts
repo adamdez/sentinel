@@ -15,6 +15,37 @@ export interface QueueLeadSelection {
   assigned_to: string | null;
   dial_queue_active: boolean | null;
   status: string | null;
+  next_action: string | null;
+}
+
+export function isDriveByNextAction(nextAction: string | null | undefined): boolean {
+  return typeof nextAction === "string" && nextAction.toLowerCase().startsWith("drive by");
+}
+
+/**
+ * If the new next_action is Drive By, clear dial queue membership.
+ * Call this on every write path that sets next_action.
+ * Returns true if queue eviction occurred.
+ */
+export async function evictFromDialQueueIfDriveBy(
+  sb: SupabaseClientLike,
+  leadId: string,
+  nextAction: string | null | undefined,
+): Promise<boolean> {
+  if (!isDriveByNextAction(nextAction)) return false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb.from("leads") as any)
+    .update({
+      dial_queue_active: false,
+      dial_queue_added_at: null,
+      dial_queue_added_by: null,
+    })
+    .eq("id", leadId)
+    .eq("dial_queue_active", true);
+  if (error) {
+    console.warn(`[DialQueue] evict-on-drive-by failed for ${leadId}:`, error.message);
+  }
+  return !error;
 }
 
 export interface DialQueueMutationResult {
@@ -186,7 +217,7 @@ export async function queueLeadIdsForUser(input: {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await ((input.sb.from("leads") as any)
-    .select("id, property_id, assigned_to, status")
+    .select("id, property_id, assigned_to, status, next_action")
     .in("id", leadIds));
 
   if (error) {
@@ -207,6 +238,11 @@ export async function queueLeadIdsForUser(input: {
     const row = byId.get(leadId);
     if (!row) {
       missingIds.push(leadId);
+      continue;
+    }
+
+    if (isDriveByNextAction(row.next_action)) {
+      conflictedIds.push(leadId);
       continue;
     }
 

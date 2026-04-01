@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { MapPin, Check, ChevronRight, Clock, AlertTriangle } from "lucide-react";
+import { MapPin, Check, ChevronRight, Clock, AlertTriangle, Phone } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -9,6 +9,18 @@ import { formatSellerName } from "@/lib/display-helpers";
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import { cn } from "@/lib/utils";
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 0) return "just now";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
 
 const DRIVE_BY_SELECT = [
   "id",
@@ -196,41 +208,65 @@ export default function DriveByPage() {
           {filtered.map((lead) => {
             const due = lead.nextActionDueAt ? formatDueDateLabel(lead.nextActionDueAt, now) : null;
             const isOverdue = due?.overdue ?? false;
+            const noteSnippet = lead.notes?.slice(0, 80) ?? null;
 
             return (
               <div
                 key={lead.id}
-                className="group flex items-center gap-3 px-3 py-2.5 rounded-lg border border-overlay-8 bg-overlay-3 hover:bg-overlay-6 transition-colors cursor-pointer"
+                className={cn(
+                  "group flex items-start gap-3 px-3 py-2.5 rounded-lg border transition-colors cursor-pointer",
+                  isOverdue
+                    ? "border-red-500/20 bg-red-500/[0.04] hover:bg-red-500/[0.08]"
+                    : "border-overlay-8 bg-overlay-3 hover:bg-overlay-6",
+                )}
                 onClick={() => setSelectedId(lead.id)}
               >
                 {/* Urgency indicator */}
-                <div className="shrink-0">
+                <div className="shrink-0 mt-1">
                   {isOverdue ? (
-                    <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
+                    <AlertTriangle className="h-4 w-4 text-red-400" />
                   ) : due?.urgent ? (
-                    <Clock className="h-3.5 w-3.5 text-amber-400" />
+                    <Clock className="h-4 w-4 text-amber-400" />
                   ) : (
-                    <MapPin className="h-3.5 w-3.5 text-muted-foreground/50" />
+                    <MapPin className="h-4 w-4 text-muted-foreground/50" />
                   )}
                 </div>
 
-                {/* Address + owner */}
+                {/* Main info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground truncate">
+                    <span className="text-sm font-semibold text-foreground truncate">
                       {lead.address}
                     </span>
                     {lead.city && (
                       <span className="text-[10px] text-muted-foreground/60 shrink-0">{lead.city}</span>
                     )}
                   </div>
-                  {lead.ownerName && (
-                    <span className="text-xs text-muted-foreground/70">{lead.ownerName}</span>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    {lead.ownerName && (
+                      <span className="text-xs text-muted-foreground/70">{lead.ownerName}</span>
+                    )}
+                    {lead.totalCalls > 0 && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/50">
+                        <Phone className="h-2.5 w-2.5" />
+                        {lead.totalCalls}
+                      </span>
+                    )}
+                    {lead.lastContactAt && (
+                      <span className="text-[10px] text-muted-foreground/40">
+                        Last touch {timeAgo(lead.lastContactAt)}
+                      </span>
+                    )}
+                  </div>
+                  {noteSnippet && (
+                    <p className="text-[11px] text-muted-foreground/40 mt-0.5 truncate">
+                      {noteSnippet}{lead.notes && lead.notes.length > 80 ? "…" : ""}
+                    </p>
                   )}
                 </div>
 
                 {/* Due label */}
-                <div className="shrink-0 text-right">
+                <div className="shrink-0 text-right mt-0.5">
                   {due ? (
                     <span
                       className={cn(
@@ -252,14 +288,14 @@ export default function DriveByPage() {
                     handleComplete(lead.id);
                   }}
                   disabled={completingId === lead.id}
-                  className="shrink-0 p-1.5 rounded-md border border-overlay-8 bg-overlay-3 hover:bg-emerald-500/15 hover:border-emerald-500/30 hover:text-emerald-400 transition-colors text-muted-foreground/50 disabled:opacity-40"
+                  className="shrink-0 mt-0.5 p-1.5 rounded-md border border-overlay-8 bg-overlay-3 hover:bg-emerald-500/15 hover:border-emerald-500/30 hover:text-emerald-400 transition-colors text-muted-foreground/50 disabled:opacity-40"
                   title="Mark drive by complete"
                 >
                   <Check className="h-3.5 w-3.5" />
                 </button>
 
                 {/* Chevron */}
-                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 shrink-0" />
+                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-muted-foreground/60 shrink-0 mt-1" />
               </div>
             );
           })}

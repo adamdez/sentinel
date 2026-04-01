@@ -15,8 +15,8 @@ import {
   RefreshCw,
   GripVertical,
   StarOff,
-  Phone,
   ArrowRight,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase, getCurrentUser } from "@/lib/supabase";
@@ -59,7 +59,9 @@ const PIPELINE_LEAD_SELECT = [
   "created_at",
   "qualification_route",
   "last_contact_at",
+  "total_calls",
   "next_action",
+  "next_action_due_at",
   "priority",
 ].join(", ");
 
@@ -102,7 +104,9 @@ interface Lead {
   promoted_at: string | null;
   qualification_route: string | null;
   last_contact_at: string | null;
+  total_calls: number;
   next_action: string | null;
+  next_action_due_at: string | null;
   heat_score: number;
 }
 
@@ -122,12 +126,22 @@ function daysAgoLabel(dateStr: string | null): string {
   return `${diff}d ago`;
 }
 
+function effectiveDueDate(lead: Lead): string | null {
+  if (lead.next_action) return lead.next_action_due_at ?? lead.follow_up_at;
+  return lead.follow_up_at ?? lead.next_action_due_at;
+}
+
 function urgencyColor(lead: Lead): string {
-  if (!lead.follow_up_at) return "text-muted-foreground";
-  const diff = Math.floor((new Date(lead.follow_up_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  const due = effectiveDueDate(lead);
+  if (!due) return "text-muted-foreground";
+  const diff = Math.floor((new Date(due).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   if (diff < 0) return "text-red-400";
   if (diff === 0) return "text-amber-400";
   return "text-muted-foreground";
+}
+
+function isDriveBy(lead: Lead): boolean {
+  return typeof lead.next_action === "string" && lead.next_action.toLowerCase().startsWith("drive by");
 }
 
 export default function PipelinePage() {
@@ -204,7 +218,9 @@ export default function PipelinePage() {
           promoted_at: raw.promoted_at ?? raw.created_at ?? null,
           qualification_route: raw.qualification_route ?? null,
           last_contact_at: raw.last_contact_at ?? null,
+          total_calls: Number(raw.total_calls ?? 0),
           next_action: raw.next_action ?? null,
+          next_action_due_at: raw.next_action_due_at ?? null,
           heat_score: raw.priority ?? 0,
         });
       }
@@ -217,8 +233,10 @@ export default function PipelinePage() {
             qualificationRoute: a.qualification_route,
             assignedTo: a.owner_id,
             nextFollowUpAt: a.follow_up_at,
-            lastContactAt: null,
-            totalCalls: null,
+            lastContactAt: a.last_contact_at,
+            totalCalls: a.total_calls,
+            nextAction: a.next_action,
+            nextActionDueAt: a.next_action_due_at,
             createdAt: a.promoted_at,
             promotedAt: a.promoted_at,
           }).urgency;
@@ -227,8 +245,10 @@ export default function PipelinePage() {
             qualificationRoute: b.qualification_route,
             assignedTo: b.owner_id,
             nextFollowUpAt: b.follow_up_at,
-            lastContactAt: null,
-            totalCalls: null,
+            lastContactAt: b.last_contact_at,
+            totalCalls: b.total_calls,
+            nextAction: b.next_action,
+            nextActionDueAt: b.next_action_due_at,
             createdAt: b.promoted_at,
             promotedAt: b.promoted_at,
           }).urgency;
@@ -516,15 +536,18 @@ function PipelineCard({
   onToggleActive: (id: string, active: boolean) => void;
   onOpenDetail: (id: string) => void;
 }) {
+  const driveBy = isDriveBy(lead);
+
   const dueLine = (() => {
+    const due = effectiveDueDate(lead);
     if (lead.next_action) {
-      if (!lead.follow_up_at) return lead.next_action;
-      const diff = Math.floor((new Date(lead.follow_up_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (!due) return lead.next_action;
+      const diff = Math.floor((new Date(due).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       const timing = diff < 0 ? `${Math.abs(diff)}d overdue` : diff === 0 ? "today" : `in ${diff}d`;
       return `${lead.next_action} — ${timing}`;
     }
-    if (lead.follow_up_at) {
-      const diff = Math.floor((new Date(lead.follow_up_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    if (due) {
+      const diff = Math.floor((new Date(due).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       if (diff < 0) return `${Math.abs(diff)}d overdue`;
       if (diff === 0) return "Due today";
       return `Due in ${diff}d`;
@@ -545,7 +568,10 @@ function PipelineCard({
           transition={{ duration: 0.15 }}
           onClick={() => onOpenDetail(lead.id)}
           className={cn(
-            "rounded-[12px] border border-glass-border bg-glass/60 p-3 transition-all duration-150 group cursor-pointer",
+            "rounded-[12px] border p-3 transition-all duration-150 group cursor-pointer",
+            driveBy
+              ? "border-amber-500/25 bg-amber-500/[0.06]"
+              : "border-glass-border bg-glass/60",
             snapshot.isDragging && "scale-[1.03] shadow-[0_0_24px_var(--shadow-soft)] border-primary/20 z-50"
           )}
         >
@@ -557,9 +583,17 @@ function PipelineCard({
               <GripVertical className="h-3.5 w-3.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="font-semibold text-sm text-foreground leading-tight truncate">
-                {lead.address}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="font-semibold text-sm text-foreground leading-tight truncate">
+                  {lead.address}
+                </p>
+                {driveBy && (
+                  <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                    <MapPin className="h-2.5 w-2.5" />
+                    DB
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground mt-0.5 truncate">
                 {lead.owner_name}
               </p>

@@ -8,18 +8,15 @@ import {
   PhoneCall,
   PhoneIncoming,
   ArrowRight,
-  Activity,
   CheckCircle2,
   ShieldAlert,
   Inbox,
   Ban,
   Link2,
-  Plus,
   Trash2,
   Loader2,
-  Search,
-  Pin,
   Clock,
+  MapPin,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +42,6 @@ interface BriefStats {
   overdue: number;
   dueToday: number;
   callsToday: number;
-  newInbound: number;
 }
 
 interface PriorityLead {
@@ -156,8 +152,6 @@ function TodayView() {
   const [overdueError, setOverdueError] = useState<SectionError>(null);
   const [inboundLeads, setInboundLeads] = useState<PriorityLead[]>([]);
   const [inboundError, setInboundError] = useState<SectionError>(null);
-  const [callNowLeads, setCallNowLeads] = useState<PriorityLead[]>([]);
-  const [callNowError, setCallNowError] = useState<SectionError>(null);
   const [callbackLeads, setCallbackLeads] = useState<PriorityLead[]>([]);
   const [callbackError, setCallbackError] = useState<SectionError>(null);
   const [stalledDeals, setStalledDeals] = useState<StalledDeal[]>([]);
@@ -166,6 +160,8 @@ function TodayView() {
   const [reviewError, setReviewError] = useState<SectionError>(null);
   const [unlinkedCalls, setUnlinkedCalls] = useState<UnlinkedCall[]>([]);
   const [unlinkedError, setUnlinkedError] = useState<SectionError>(null);
+  const [driveByLeads, setDriveByLeads] = useState<PriorityLead[]>([]);
+  const [driveByError, setDriveByError] = useState<SectionError>(null);
 
   // Unified task state
   interface DashTask {
@@ -229,23 +225,10 @@ function TodayView() {
         callsTodayCount = count;
       }
 
-      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-      // New inbound = real-time leads (ads, forms, calls), NOT bulk CSV imports or crawlers
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { count: newInboundCount, error: e4 } = await (supabase.from("leads") as any)
-        .select("id", { count: "exact", head: true })
-        .in("status", ["staging", "prospect"])
-        .gte("created_at", twoDaysAgo)
-        .not("source", "like", "csv:%")
-        .not("source", "eq", "craigslist")
-        .not("source", "like", "crawl%");
-      if (e4) throw e4;
-
       setStats({
         overdue: overdueCount ?? 0,
         dueToday: dueTodayCount ?? 0,
         callsToday: callsTodayCount ?? 0,
-        newInbound: newInboundCount ?? 0,
       });
       setStatsError(null);
     } catch (err) {
@@ -290,23 +273,6 @@ function TodayView() {
     } catch (err) {
       console.error("[Today] inbound error:", err);
       setInboundError("Failed to load new inbound leads");
-    }
-
-    // Top call-now leads (high priority, active, with a next action)
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.from("leads") as any)
-        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
-        .in("status", ACTIVE_STATUSES)
-        .not("next_action", "is", null)
-        .order("priority", { ascending: false })
-        .limit(6);
-      if (error) throw error;
-      setCallNowLeads(data ?? []);
-      setCallNowError(null);
-    } catch (err) {
-      console.error("[Today] call-now error:", err);
-      setCallNowError("Failed to load priority call queue");
     }
 
     // Today's callbacks
@@ -378,6 +344,25 @@ function TodayView() {
       setUnlinkedError("Failed to load unlinked calls");
     }
 
+    // Drive By due today or overdue
+    try {
+      const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from("leads") as any)
+        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
+        .ilike("next_action", "drive by%")
+        .not("status", "in", '("dead","closed")')
+        .lte("next_action_due_at", todayEnd.toISOString())
+        .order("next_action_due_at", { ascending: true })
+        .limit(6);
+      if (error) throw error;
+      setDriveByLeads(data ?? []);
+      setDriveByError(null);
+    } catch (err) {
+      console.error("[Today] drive-by error:", err);
+      setDriveByError("Failed to load drive-by leads");
+    }
+
     // Unified tasks — all pending tasks with lead context
     try {
       const { data: { session: sess } } = await supabase.auth.getSession();
@@ -444,27 +429,186 @@ function TodayView() {
             color={stats.overdue > 0 ? "text-red-400" : "text-muted-foreground"}
           />
           <StatPill
-            icon={Inbox}
-            label="New Inbound"
-            value={stats.newInbound}
-            color={stats.newInbound > 0 ? "text-amber-400" : "text-muted-foreground"}
-          />
-          <StatPill
             icon={CalendarCheck}
             label="Due Today"
             value={stats.dueToday}
             color={stats.dueToday > 0 ? "text-amber-400" : "text-muted-foreground"}
           />
           <StatPill
+            icon={MapPin}
+            label="Drive By"
+            value={driveByLeads.length}
+            color={driveByLeads.length > 0 ? "text-amber-400" : "text-muted-foreground"}
+          />
+          <StatPill
             icon={PhoneCall}
-            label="Calls Today"
+            label="Calls Made"
             value={stats.callsToday}
             color="text-primary"
           />
         </div>
       )}
 
-      {/* 0. Unified Tasks */}
+      {/* 1. Overdue follow-ups — most urgent */}
+      <BriefSection
+        icon={AlertTriangle}
+        title="Overdue"
+        iconColor="text-red-400"
+        error={overdueError}
+        count={overdueLeads.length}
+        emptyMessage="No overdue follow-ups"
+        emptyIcon={CheckCircle2}
+      >
+        {overdueLeads.map((lead) => (
+          <LeadRow key={lead.id} lead={lead} />
+        ))}
+        {overdueLeads.length > 0 && (
+          <a
+            href="/leads?filter=overdue"
+            className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-1 transition-colors"
+          >
+            View all in Lead Queue <ArrowRight className="h-3 w-3" />
+          </a>
+        )}
+      </BriefSection>
+
+      {/* 2. Today's callbacks — time-sensitive */}
+      <BriefSection
+        icon={CalendarCheck}
+        title="Today's Callbacks"
+        iconColor="text-emerald-400"
+        error={callbackError}
+        count={callbackLeads.length}
+        emptyMessage="No callbacks scheduled for today"
+        emptyIcon={CalendarCheck}
+      >
+        {callbackLeads.map((lead) => {
+          const time = lead.next_call_scheduled_at
+            ? new Date(lead.next_call_scheduled_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+            : null;
+          return (
+            <div key={lead.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-overlay-3 transition-colors group">
+              <div className="h-2.5 w-2.5 rounded-full shrink-0 bg-emerald-500" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{leadLabel(lead)}</p>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {time ? `Callback at ${time}` : lead.next_action || "Follow up"}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="h-7 text-sm gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
+                onClick={() => { window.location.href = `/leads?open=${lead.id}`; }}
+              >
+                <Phone className="h-3 w-3" />
+                Open
+              </Button>
+            </div>
+          );
+        })}
+      </BriefSection>
+
+      {/* 3. Drive By — always visible, distinct field bucket */}
+      <BriefSection
+        icon={MapPin}
+        title="Drive By"
+        iconColor="text-amber-400"
+        error={driveByError}
+        count={driveByLeads.length}
+        emptyMessage="No drive-bys due today"
+        emptyIcon={CheckCircle2}
+      >
+        {driveByLeads.map((lead) => {
+          const diff = daysDiff(lead.next_action_due_at);
+          return (
+            <div key={lead.id} className="group flex items-center gap-3 py-1.5">
+              <span className={cn("h-2 w-2 rounded-full shrink-0", urgencyDotColor(diff))} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {lead.properties?.address ?? "Unknown address"}
+                  {lead.properties?.city ? `, ${lead.properties.city}` : ""}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {urgencyText(lead)}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-sm gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
+                onClick={() => { window.location.href = "/drive-by"; }}
+              >
+                <MapPin className="h-3 w-3" />
+                View
+              </Button>
+            </div>
+          );
+        })}
+        {driveByLeads.length > 0 && (
+          <a
+            href="/drive-by"
+            className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-1 transition-colors"
+          >
+            Full Drive By board <ArrowRight className="h-3 w-3" />
+          </a>
+        )}
+      </BriefSection>
+
+      {/* 4. New inbound — intake */}
+      <BriefSection
+        icon={Inbox}
+        title="New Inbound"
+        iconColor="text-amber-400"
+        error={inboundError}
+        count={inboundLeads.length}
+        emptyMessage="No new inbound leads in the last 48 hours"
+        emptyIcon={CheckCircle2}
+      >
+        {inboundLeads.map((lead) => (
+          <LeadRow key={lead.id} lead={lead} showAge />
+        ))}
+        {inboundLeads.length > 0 && (
+          <a
+            href="/leads?filter=new_inbound"
+            className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-1 transition-colors"
+          >
+            View all new inbound <ArrowRight className="h-3 w-3" />
+          </a>
+        )}
+      </BriefSection>
+
+      {/* 5. Stalled dispo — deal attention */}
+      <BriefSection
+        icon={Ban}
+        title="Stalled Dispo"
+        iconColor="text-amber-400"
+        error={stalledError}
+        count={stalledDeals.length}
+        emptyMessage="No stalled dispo items"
+        emptyIcon={CheckCircle2}
+      >
+        {stalledDeals.map((deal) => {
+          const daysStalled = Math.floor((Date.now() - new Date(deal.updated_at).getTime()) / 86400000);
+          const dealProp = Array.isArray(deal.properties) ? deal.properties[0] : deal.properties;
+          const label = dealProp?.address
+            ? `${dealProp.address}${dealProp.city ? `, ${dealProp.city}` : ""}`
+            : dealProp?.owner_name ?? deal.source ?? `Lead ${deal.id.slice(0, 8)}`;
+          return (
+            <button
+              key={deal.id}
+              onClick={() => { window.location.href = `/leads?open=${deal.id}`; }}
+              className="w-full flex items-center justify-between text-left p-2.5 rounded-lg hover:bg-overlay-3 transition-colors"
+            >
+              <p className="text-sm font-medium truncate">{label}</p>
+              <Badge variant="outline" className="text-sm border-amber-500/30 text-amber-400 shrink-0 ml-2">
+                {daysStalled}d stalled
+              </Badge>
+            </button>
+          );
+        })}
+      </BriefSection>
+
+      {/* 6. Tasks — demoted, available but not dominant */}
       {tasksError ? (
         <SectionErrorBanner message={tasksError} />
       ) : (() => {
@@ -608,7 +752,7 @@ function TodayView() {
           <Card className="border-overlay-8">
             <CardHeader className="pb-2 flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-                <Pin className="h-4 w-4 text-primary" /> Today&apos;s Tasks
+                <Clock className="h-4 w-4 text-muted-foreground" /> Tasks
                 <Badge variant="outline" className="ml-1">{totalCount}</Badge>
               </CardTitle>
               <div className="flex items-center gap-1">
@@ -668,172 +812,38 @@ function TodayView() {
         );
       })()}
 
-      {/* 1. Overdue follow-ups */}
-      <BriefSection
-        icon={AlertTriangle}
-        title="Overdue Follow-ups"
-        iconColor="text-red-400"
-        error={overdueError}
-        count={overdueLeads.length}
-        emptyMessage="No overdue follow-ups"
-        emptyIcon={CheckCircle2}
-      >
-        {overdueLeads.map((lead) => (
-          <LeadRow key={lead.id} lead={lead} />
-        ))}
-        {overdueLeads.length > 0 && (
-          <a
-            href="/leads?filter=overdue"
-            className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-1 transition-colors"
-          >
-            View all overdue in Lead Queue <ArrowRight className="h-3 w-3" />
-          </a>
-        )}
-      </BriefSection>
-
-      {/* 2. New inbound / awaiting first contact */}
-      <BriefSection
-        icon={Inbox}
-        title="New Inbound — Awaiting First Contact"
-        iconColor="text-amber-400"
-        error={inboundError}
-        count={inboundLeads.length}
-        emptyMessage="No new inbound leads in the last 48 hours"
-        emptyIcon={CheckCircle2}
-      >
-        {inboundLeads.map((lead) => (
-          <LeadRow key={lead.id} lead={lead} showAge />
-        ))}
-        {inboundLeads.length > 0 && (
-          <a
-            href="/leads?filter=new_inbound"
-            className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-1 transition-colors"
-          >
-            View all new inbound <ArrowRight className="h-3 w-3" />
-          </a>
-        )}
-      </BriefSection>
-
-      {/* 3. Top call-now leads */}
-      <BriefSection
-        icon={Phone}
-        title="Priority Call Queue"
-        iconColor="text-primary"
-        error={callNowError}
-        count={callNowLeads.length}
-        emptyMessage="No active leads with a pending action"
-        emptyIcon={Activity}
-      >
-        {callNowLeads.map((lead) => (
-          <LeadRow key={lead.id} lead={lead} showScore />
-        ))}
-        {callNowLeads.length > 0 && (
-          <a
-            href="/leads"
-            className="flex items-center justify-center gap-1 text-sm text-primary hover:text-primary/80 pt-1 transition-colors"
-          >
-            Full Lead Queue <ArrowRight className="h-3 w-3" />
-          </a>
-        )}
-      </BriefSection>
-
-      {/* 4. Today's callbacks */}
-      <BriefSection
-        icon={CalendarCheck}
-        title="Today's Callbacks"
-        iconColor="text-emerald-400"
-        error={callbackError}
-        count={callbackLeads.length}
-        emptyMessage="No callbacks scheduled for today"
-        emptyIcon={CalendarCheck}
-      >
-        {callbackLeads.map((lead) => {
-          const time = lead.next_call_scheduled_at
-            ? new Date(lead.next_call_scheduled_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-            : null;
-          return (
-            <div key={lead.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-overlay-3 transition-colors group">
-              <div className="h-2.5 w-2.5 rounded-full shrink-0 bg-emerald-500" />
+      {/* 7. Review blockers — admin */}
+      {(reviewBlockers.length > 0 || reviewError) && (
+        <BriefSection
+          icon={ShieldAlert}
+          title="Review Blockers"
+          iconColor="text-violet-400"
+          error={reviewError}
+          count={reviewBlockers.length}
+          emptyMessage="No pending review items"
+          emptyIcon={CheckCircle2}
+        >
+          {reviewBlockers.map((item) => (
+            <div key={item.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-overlay-3 transition-colors">
+              <div className="h-2.5 w-2.5 rounded-full shrink-0 bg-violet-500" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{leadLabel(lead)}</p>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  {time ? `Callback at ${time}` : lead.next_action || "Follow up"}
-                </p>
+                <p className="text-sm font-medium truncate">{item.entity_type ?? "Review item"}</p>
+                <p className="text-sm text-muted-foreground">{timeAgo(item.created_at)}</p>
               </div>
               <Button
                 size="sm"
-                className="h-7 text-sm gap-1 opacity-70 group-hover:opacity-100 transition-opacity"
-                onClick={() => { window.location.href = `/leads?open=${lead.id}`; }}
+                variant="outline"
+                className="h-7 text-sm opacity-70 hover:opacity-100"
+                onClick={() => { window.location.href = "/dialer/review/dossier-queue"; }}
               >
-                <Phone className="h-3 w-3" />
-                Open
+                Review
               </Button>
             </div>
-          );
-        })}
-      </BriefSection>
+          ))}
+        </BriefSection>
+      )}
 
-      {/* 5. Stalled dispo blockers */}
-      <BriefSection
-        icon={Ban}
-        title="Stalled Dispo"
-        iconColor="text-amber-400"
-        error={stalledError}
-        count={stalledDeals.length}
-        emptyMessage="No stalled dispo items"
-        emptyIcon={CheckCircle2}
-      >
-        {stalledDeals.map((deal) => {
-          const daysStalled = Math.floor((Date.now() - new Date(deal.updated_at).getTime()) / 86400000);
-          const dealProp = Array.isArray(deal.properties) ? deal.properties[0] : deal.properties;
-          const label = dealProp?.address
-            ? `${dealProp.address}${dealProp.city ? `, ${dealProp.city}` : ""}`
-            : dealProp?.owner_name ?? deal.source ?? `Lead ${deal.id.slice(0, 8)}`;
-          return (
-            <button
-              key={deal.id}
-              onClick={() => { window.location.href = `/leads?open=${deal.id}`; }}
-              className="w-full flex items-center justify-between text-left p-2.5 rounded-lg hover:bg-overlay-3 transition-colors"
-            >
-              <p className="text-sm font-medium truncate">{label}</p>
-              <Badge variant="outline" className="text-sm border-amber-500/30 text-amber-400 shrink-0 ml-2">
-                {daysStalled}d stalled
-              </Badge>
-            </button>
-          );
-        })}
-      </BriefSection>
-
-      {/* 6. Review blockers */}
-      <BriefSection
-        icon={ShieldAlert}
-        title="Review Blockers"
-        iconColor="text-violet-400"
-        error={reviewError}
-        count={reviewBlockers.length}
-        emptyMessage="No pending review items"
-        emptyIcon={CheckCircle2}
-      >
-        {reviewBlockers.map((item) => (
-          <div key={item.id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-overlay-3 transition-colors">
-            <div className="h-2.5 w-2.5 rounded-full shrink-0 bg-violet-500" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{item.entity_type ?? "Review item"}</p>
-              <p className="text-sm text-muted-foreground">{timeAgo(item.created_at)}</p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-sm opacity-70 hover:opacity-100"
-              onClick={() => { window.location.href = "/dialer/review/dossier-queue"; }}
-            >
-              Review
-            </Button>
-          </div>
-        ))}
-      </BriefSection>
-
-      {/* Unlinked Calls */}
+      {/* 8. Unlinked Calls — housekeeping */}
       {(unlinkedCalls.length > 0 || unlinkedError) && (
         <BriefSection
           icon={PhoneIncoming}

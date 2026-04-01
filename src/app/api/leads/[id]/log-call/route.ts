@@ -121,6 +121,10 @@ export async function POST(
     if (patchErr) {
       console.error("[LogCall] next_action patch failed:", patchErr);
     }
+    try {
+      const { evictFromDialQueueIfDriveBy } = await import("@/lib/dial-queue");
+      await evictFromDialQueueIfDriveBy(sb, leadId, body.next_action);
+    } catch { /* non-fatal */ }
   }
 
   // Audit log (non-blocking)

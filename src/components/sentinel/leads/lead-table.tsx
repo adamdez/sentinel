@@ -14,6 +14,7 @@ import {
   Loader2,
   UserCheck,
   Zap,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -308,8 +309,10 @@ export function LeadTable({
     if (selectedIds.size === 0) return;
 
     const selected = leads.filter((l) => selectedIds.has(l.id));
-    const noPhoneCount = selected.filter((l) => !l.ownerPhone).length;
-    const callableIds = selected.filter((l) => !!l.ownerPhone).map((l) => l.id);
+    const driveByCount = selected.filter((l) => l.nextAction?.toLowerCase().startsWith("drive by")).length;
+    const dialable = selected.filter((l) => !l.nextAction?.toLowerCase().startsWith("drive by"));
+    const noPhoneCount = dialable.filter((l) => !l.ownerPhone).length;
+    const callableIds = dialable.filter((l) => !!l.ownerPhone).map((l) => l.id);
 
     if (callableIds.length === 0) {
       toast.error(`0 callable — ${noPhoneCount} selected have no phone`);
@@ -349,10 +352,11 @@ export function LeadTable({
       const pieces: string[] = [];
       if (queued > 0) pieces.push(`${queued} queued`);
       if (blocked > 0) pieces.push(`${blocked} already owned`);
+      if (driveByCount > 0) pieces.push(`${driveByCount} in Drive By`);
       if (noPhoneCount > 0) pieces.push(`${noPhoneCount} no phone`);
       if (notFound > 0) pieces.push(`${notFound} not found`);
 
-      const hasIssues = blocked > 0 || noPhoneCount > 0 || notFound > 0;
+      const hasIssues = blocked > 0 || driveByCount > 0 || noPhoneCount > 0 || notFound > 0;
       if (hasIssues && queued > 0) {
         toast.warning(pieces.join(" · "));
       } else if (hasIssues) {
@@ -639,7 +643,8 @@ export function LeadTable({
                       </span>
                     )}
                     {lead.nextAction?.toLowerCase().startsWith("drive by") && (
-                      <span className="shrink-0 text-[10px] px-1.5 py-0 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold uppercase tracking-wide">
+                      <span className="shrink-0 text-xs px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/25 font-bold uppercase tracking-wide flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
                         Drive By
                       </span>
                     )}

@@ -906,6 +906,14 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 
+    // Drive By queue eviction
+    if (next_action && typeof next_action === "string") {
+      try {
+        const { evictFromDialQueueIfDriveBy } = await import("@/lib/dial-queue");
+        await evictFromDialQueueIfDriveBy(sb, lead_id, next_action);
+      } catch { /* non-fatal */ }
+    }
+
     const statusChanged = Boolean(targetStatus && currentStatus !== targetStatus);
 
     const shouldRefreshZillowEstimate =

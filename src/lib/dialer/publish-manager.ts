@@ -301,6 +301,14 @@ export async function publishSession(
       }
     }
 
+    // Drive By queue eviction (non-blocking)
+    if (input.next_action) {
+      try {
+        const { evictFromDialQueueIfDriveBy } = await import("@/lib/dial-queue");
+        await evictFromDialQueueIfDriveBy(sb, leadId, input.next_action);
+      } catch { /* non-fatal */ }
+    }
+
     // Bidirectional sync: if next_action was set, upsert a task row
     if (input.next_action) {
       try {

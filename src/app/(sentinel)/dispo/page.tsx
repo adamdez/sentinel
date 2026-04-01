@@ -35,6 +35,19 @@ const RESPONDED_STATUSES = new Set(["interested", "offered", "follow_up", "selec
 // Statuses that haven't responded yet
 const PRE_RESPONSE_STATUSES = new Set(["not_contacted", "queued", "sent"]);
 
+/** Compact buyer pipeline summary for a deal — shows outreach state without opening */
+function buyerPipelineChip(deal: DispoDeal): { text: string; color: string } {
+  const buyers = deal.deal_buyers;
+  if (buyers.length === 0) return { text: "No buyers", color: "text-amber-400" };
+  const contacted = buyers.filter((b) => b.status !== "not_contacted" && b.status !== "queued").length;
+  const responded = buyers.filter((b) => RESPONDED_STATUSES.has(b.status)).length;
+  const selected = buyers.filter((b) => b.status === "selected").length;
+  if (selected > 0) return { text: `${selected} selected`, color: "text-emerald-400" };
+  if (responded > 0) return { text: `${responded}/${buyers.length} responded`, color: "text-primary" };
+  if (contacted > 0) return { text: `${contacted}/${buyers.length} contacted`, color: "text-muted-foreground/70" };
+  return { text: `${buyers.length} linked · 0 contacted`, color: "text-amber-400/70" };
+}
+
 // ── Shared action derivation ──
 
 function deriveDealAction(deal: DispoDeal): DispoActionSummary {
@@ -62,16 +75,6 @@ function daysAgo(dateStr: string | null): number | null {
   if (!dateStr) return null;
   const diff = Date.now() - new Date(dateStr).getTime();
   return Math.max(0, Math.floor(diff / 86400000));
-}
-
-/** Urgency → style class for action label in deal cards */
-function dispoUrgencyClass(urgency: string): string {
-  switch (urgency) {
-    case "critical": return "text-amber-400";
-    case "high": return "text-amber-300/80";
-    case "normal": return "text-muted-foreground/70";
-    default: return "text-muted-foreground/50";
-  }
 }
 
 // ── Outreach Funnel Bar ──
@@ -154,30 +157,38 @@ function StalledDealsPanel({ deals, onExpandDeal }: { deals: DispoDeal[]; onExpa
       </div>
 
       <div className="space-y-1.5">
-        {stalledDeals.map((s) => (
-          <button
-            key={s.deal.id}
-            onClick={() => onExpandDeal(s.deal.id)}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] bg-overlay-2 border border-overlay-6 hover:bg-overlay-4 transition-colors text-left"
-          >
-            <MapPin className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-foreground truncate">
-                {s.deal.property_address || "No address"}
-              </p>
-              <p className={cn("text-xs mt-0.5", s.summary.urgency === "critical" ? "text-amber-400 font-medium" : "text-muted-foreground/70")}>
-                {s.summary.action}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-muted-foreground/40">{s.deal.deal_buyers.length} buyer{s.deal.deal_buyers.length === 1 ? "" : "s"}</span>
-              {s.summary.daysInDispo != null && (
-                <span className="text-xs text-muted-foreground/40">{s.summary.daysInDispo}d</span>
-              )}
-              <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
-            </div>
-          </button>
-        ))}
+        {stalledDeals.map((s) => {
+          const pipeline = buyerPipelineChip(s.deal);
+          return (
+            <button
+              key={s.deal.id}
+              onClick={() => onExpandDeal(s.deal.id)}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-[8px] bg-overlay-2 border border-overlay-6 hover:bg-overlay-4 transition-colors text-left"
+            >
+              <div className={cn(
+                "w-1 self-stretch rounded-full shrink-0",
+                s.summary.urgency === "critical" ? "bg-red-500" : "bg-amber-500/60"
+              )} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-medium text-foreground truncate">
+                    {s.deal.property_address || "No address"}
+                  </p>
+                  {s.summary.daysInDispo != null && (
+                    <span className="text-[10px] text-muted-foreground/40 shrink-0">{s.summary.daysInDispo}d</span>
+                  )}
+                </div>
+                <p className={cn("text-xs mt-0.5", s.summary.urgency === "critical" ? "text-amber-400 font-medium" : "text-muted-foreground/70")}>
+                  {s.summary.action}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className={cn("text-[10px] font-medium", pipeline.color)}>{pipeline.text}</span>
+                <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -345,10 +356,17 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
 }) {
   const [prepOpen, setPrepOpen] = useState(false);
   const actionSummary = useMemo(() => deriveDealAction(deal), [deal]);
+  const pipeline = useMemo(() => buyerPipelineChip(deal), [deal]);
+
+  const urgencyBorderColor = actionSummary.urgency === "critical" ? "border-l-red-500"
+    : actionSummary.urgency === "high" ? "border-l-amber-500"
+    : actionSummary.urgency === "low" ? "border-l-emerald-500/50"
+    : "";
 
   return (
     <GlassCard hover delay={0} className={cn(
-      "p-0 overflow-hidden",
+      "p-0 overflow-hidden border-l-[3px]",
+      urgencyBorderColor || "border-l-transparent",
       actionSummary.isStalled && "border-amber-500/15"
     )}>
       {/* Card header — always visible */}
@@ -365,7 +383,7 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
               <span className="text-xs text-muted-foreground/40 shrink-0">{formatSellerName(deal.lead_name)}</span>
             )}
           </div>
-          {/* Compact financials */}
+          {/* Compact financials + buyer pipeline */}
           <div className="flex items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground/50 flex-wrap">
             <span>Contract <span className="text-foreground/70 font-medium">{fmtPrice(deal.contract_price)}</span></span>
             <span>ARV <span className="text-foreground/70 font-medium">{fmtPrice(deal.arv)}</span></span>
@@ -373,23 +391,20 @@ function DealCard({ deal, expanded, onToggleExpand, onStatusChange, onLinkBuyer,
               <span>Offer <span className="text-foreground/70 font-medium">{fmtPrice(deal.offer_price)}</span></span>
             )}
             <span className="text-muted-foreground/25">·</span>
-            <span className="flex items-center gap-1">
-              <Users className="h-2.5 w-2.5" />
-              {deal.deal_buyers.length} buyer{deal.deal_buyers.length === 1 ? "" : "s"}
-            </span>
+            <span className={cn("font-medium", pipeline.color)}>{pipeline.text}</span>
             {actionSummary.daysInDispo != null && (
               <>
                 <span className="text-muted-foreground/25">·</span>
-                <span className={actionSummary.daysInDispo > 14 ? "text-amber-400/70" : ""}>{actionSummary.daysInDispo}d in dispo</span>
+                <span className={actionSummary.daysInDispo > 14 ? "text-amber-400/70" : ""}>{actionSummary.daysInDispo}d</span>
               </>
             )}
           </div>
           {/* Action summary — the most important line */}
           {actionSummary.urgency !== "none" && (
             <div className={cn(
-              "text-xs mt-1.5 font-medium",
-              actionSummary.urgency === "critical" ? "text-amber-400" :
-              actionSummary.urgency === "high" ? "text-amber-300/80" :
+              "text-xs mt-1.5 font-semibold",
+              actionSummary.urgency === "critical" ? "text-red-400" :
+              actionSummary.urgency === "high" ? "text-amber-400" :
               actionSummary.urgency === "low" ? "text-emerald-400/70" :
               "text-muted-foreground/60"
             )} title={actionSummary.reason}>

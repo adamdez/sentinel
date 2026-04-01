@@ -124,6 +124,13 @@ async function handleBatchStageTransition(
       details: { from: current, to: target, next_action: nextAction ?? null, batch: true },
     }).then(() => {}).catch(() => {});
 
+    if (nextAction) {
+      try {
+        const { evictFromDialQueueIfDriveBy } = await import("@/lib/dial-queue");
+        await evictFromDialQueueIfDriveBy(sb, lead.id, nextAction);
+      } catch { /* non-fatal */ }
+    }
+
     results.push({ leadId: lead.id, success: true });
   }
 
@@ -170,6 +177,18 @@ async function handleBatchSetNextAction(
     entity_id: null,
     details: { leadIds, next_action: nextAction, next_action_due_at: nextActionDueAt ?? null, count },
   }).then(() => {}).catch(() => {});
+
+  // Drive By queue eviction (bulk — clear all affected leads at once)
+  try {
+    const { isDriveByNextAction } = await import("@/lib/dial-queue");
+    if (isDriveByNextAction(nextAction)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("leads") as any)
+        .update({ dial_queue_active: false, dial_queue_added_at: null, dial_queue_added_by: null })
+        .in("id", leadIds)
+        .eq("dial_queue_active", true);
+    }
+  } catch { /* non-fatal */ }
 
   return NextResponse.json({ ok: true, updated: count ?? leadIds.length });
 }
