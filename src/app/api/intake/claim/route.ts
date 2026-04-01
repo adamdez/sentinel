@@ -218,21 +218,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 5: Log the claim event
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("dialer_events") as any)
-      .insert({
-        event_type: "special_intake.claimed",
-        lead_id: lead.id,
-        session_id: null,
-        user_id: user.id,
-        metadata: {
-          intake_lead_id,
-          provider_id,
-          source_category: sourceCategory,
-          claimed_by: user.id,
-        },
-      })
-      .catch(() => {}); // Fire and forget
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("dialer_events") as any)
+        .insert({
+          event_type: "special_intake.claimed",
+          lead_id: lead.id,
+          session_id: null,
+          user_id: user.id,
+          metadata: {
+            intake_lead_id,
+            provider_id,
+            source_category: sourceCategory,
+            claimed_by: user.id,
+          },
+        });
+    } catch {
+      // Non-fatal audit write.
+    }
 
     return NextResponse.json({
       success: true,

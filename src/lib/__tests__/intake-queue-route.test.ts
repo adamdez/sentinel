@@ -117,6 +117,93 @@ describe("/api/intake/queue mutations", () => {
     });
   });
 
+  it("returns success even when event_log audit insert is a query builder without catch", async () => {
+    const eventInsert = vi.fn().mockReturnValue({
+      then(resolve: (value: { error: { message: string } }) => void) {
+        resolve({ error: { message: "audit unavailable" } });
+      },
+    });
+
+    mocks.createServerClient.mockReturnValue({
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: {
+            user: { id: "user-1" },
+          },
+        }),
+      },
+      from(table: string) {
+        if (table === "intake_leads") {
+          return {
+            select() {
+              return {
+                eq() {
+                  return {
+                    single: vi.fn().mockResolvedValue({
+                      data: { id: "intake-1", status: "pending_review" },
+                      error: null,
+                    }),
+                  };
+                },
+              };
+            },
+            update(payload: Record<string, unknown>) {
+              return {
+                eq() {
+                  return {
+                    select() {
+                      return {
+                        single: vi.fn().mockResolvedValue({
+                          data: { id: "intake-1", status: "pending_review", ...payload },
+                          error: null,
+                        }),
+                      };
+                    },
+                  };
+                },
+              };
+            },
+          };
+        }
+
+        if (table === "event_log") {
+          return {
+            insert: eventInsert,
+          };
+        }
+
+        throw new Error(`Unexpected table ${table}`);
+      },
+    });
+
+    const { PATCH } = await import("@/app/api/intake/queue/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/intake/queue", {
+        method: "PATCH",
+        headers: {
+          authorization: "Bearer test-token",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          intake_lead_id: "intake-1",
+          owner_name: "Updated Name",
+        }),
+      }) as never,
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      success: true,
+      lead: {
+        id: "intake-1",
+        owner_name: "Updated Name",
+      },
+    });
+    expect(eventInsert).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects deleting a claimed intake lead", async () => {
     mocks.createServerClient.mockReturnValue(createIntakeClient({ status: "claimed" }));
 

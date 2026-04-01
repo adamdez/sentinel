@@ -194,14 +194,18 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Failed to update intake lead" }, { status: 500 });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("event_log") as any).insert({
-      user_id: user.id,
-      action: "intake.updated",
-      entity_type: "intake_lead",
-      entity_id: intakeLeadId,
-      details: { updated_fields: Object.keys(sanitizedUpdates) },
-    }).catch(() => {});
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("event_log") as any).insert({
+        user_id: user.id,
+        action: "intake.updated",
+        entity_type: "intake_lead",
+        entity_id: intakeLeadId,
+        details: { updated_fields: Object.keys(sanitizedUpdates) },
+      });
+    } catch {
+      // Non-fatal audit write.
+    }
 
     return NextResponse.json({ success: true, lead: updatedLead });
   } catch (error) {
@@ -256,14 +260,18 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Failed to delete intake lead" }, { status: 500 });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("event_log") as any).insert({
-      user_id: user.id,
-      action: "intake.deleted",
-      entity_type: "intake_lead",
-      entity_id: intakeLeadId,
-      details: {},
-    }).catch(() => {});
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("event_log") as any).insert({
+        user_id: user.id,
+        action: "intake.deleted",
+        entity_type: "intake_lead",
+        entity_id: intakeLeadId,
+        details: {},
+      });
+    } catch {
+      // Non-fatal audit write.
+    }
 
     return NextResponse.json({ success: true, intake_lead_id: intakeLeadId });
   } catch (error) {
