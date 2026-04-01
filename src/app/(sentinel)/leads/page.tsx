@@ -372,6 +372,25 @@ function LeadsPageInner() {
           >
             Unclaimed
           </button>
+          <span className="text-muted-foreground/20">·</span>
+          <button
+            onClick={() => updateFilter("inDialQueue", filters.inDialQueue === "yes" ? "any" : "yes")}
+            className={cn(
+              "text-xs px-2 py-0.5 rounded border transition-all",
+              filters.inDialQueue === "yes" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : filterChip.idle,
+            )}
+          >
+            In Dialer Queue
+          </button>
+          <button
+            onClick={() => updateFilter("inDialQueue", filters.inDialQueue === "no" ? "any" : "no")}
+            className={cn(
+              "text-xs px-2 py-0.5 rounded border transition-all",
+              filters.inDialQueue === "no" ? filterChip.active : filterChip.idle,
+            )}
+          >
+            Not in Dialer Queue
+          </button>
           {distressTagOptions.length > 0 && (
             <>
               <span className="text-muted-foreground/20">·</span>

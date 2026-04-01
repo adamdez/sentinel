@@ -87,6 +87,7 @@ export interface LeadFilters {
   neverCalled: boolean;
   notCalledToday: boolean;
   distressTags: string[];
+  inDialQueue: "any" | "yes" | "no";
 }
 
 const DEFAULT_FILTERS: LeadFilters = {
@@ -105,6 +106,7 @@ const DEFAULT_FILTERS: LeadFilters = {
   neverCalled: false,
   notCalledToday: false,
   distressTags: [],
+  inDialQueue: "any",
 };
 
 const LEAD_LIST_SELECT = [
@@ -153,6 +155,8 @@ const LEAD_LIST_SELECT = [
   "pinned",
   "pinned_at",
   "pinned_by",
+  "dial_queue_active",
+  "dial_queue_added_at",
 ].join(", ");
 
 const PROPERTY_LIST_SELECT = [
@@ -509,6 +513,8 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null,
     pinned: raw.pinned === true,
     pinnedAt: raw.pinned_at ?? null,
     pinnedBy: raw.pinned_by ?? null,
+    dialQueueActive: raw.dial_queue_active === true,
+    dialQueueAddedAt: raw.dial_queue_added_at ?? null,
   };
 }
 
@@ -872,6 +878,11 @@ export function useLeads() {
       result = result.filter((l) =>
         filters.distressTags.some((dt) => leadMatchesDistressTag(l, dt)),
       );
+    }
+    if (filters.inDialQueue === "yes") {
+      result = result.filter((l) => l.dialQueueActive);
+    } else if (filters.inDialQueue === "no") {
+      result = result.filter((l) => !l.dialQueueActive);
     }
 
     if (attentionFocus !== "none") {

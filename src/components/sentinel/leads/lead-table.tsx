@@ -636,6 +636,11 @@ export function LeadTable({
                         Active
                       </span>
                     )}
+                    {lead.dialQueueActive && (
+                      <span className="shrink-0 text-[10px] px-1.5 py-0 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold uppercase tracking-wide">
+                        Queued
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                     <span

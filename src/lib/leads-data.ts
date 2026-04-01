@@ -617,6 +617,9 @@ export interface LeadRow {
   pinned: boolean;
   pinnedAt: string | null;
   pinnedBy: string | null;
+  // Dial queue membership
+  dialQueueActive: boolean;
+  dialQueueAddedAt: string | null;
 }
 
 /**

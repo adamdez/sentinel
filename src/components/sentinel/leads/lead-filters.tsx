@@ -80,6 +80,7 @@ export function LeadFilters({
     filters.neverCalled,
     filters.notCalledToday,
     filters.distressTags.length > 0,
+    filters.inDialQueue !== "any",
   ].filter(Boolean).length;
   const hasFilters = activeFilterCount > 0;
 
