@@ -874,11 +874,13 @@ const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
 
 
 
-function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }: {
+function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, onSkipTrace, skipTracing }: {
 
   cf: ClientFile; computedArv: number; activityRefreshToken: number;
 
   onDial: (phone: string) => void; calling: boolean;
+
+  onSkipTrace?: () => void; skipTracing?: boolean;
 
 }) {
 
@@ -1075,6 +1077,8 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
   const repairCost = (cf.ownerFlags?.bricked_repair_cost as number) ?? 0;
 
+  const taxAssessedValue = (cf.ownerFlags?.tax_assessed_value as number) ?? 0;
+
 
 
 
@@ -1112,7 +1116,18 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
             ) : (
 
-              <p className="text-sm text-muted-foreground/60 italic">No phone — needs skip trace</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground/60 italic">No phone</p>
+                {onSkipTrace && (
+                  <button
+                    onClick={onSkipTrace}
+                    disabled={skipTracing}
+                    className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                  >
+                    {skipTracing ? "Skipping..." : "Run Skip Trace"}
+                  </button>
+                )}
+              </div>
 
             )}
 
@@ -1124,17 +1139,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
           </div>
 
-          <div className="text-right text-sm text-muted-foreground shrink-0 space-y-0.5">
 
-            <p className="truncate max-w-[260px]">{cf.fullAddress}</p>
-
-            {cf.isAbsentee && Boolean(cf.ownerFlags?.mailing_address) && (
-
-              <p className="text-xs text-muted-foreground/60">Mailing: {String(cf.ownerFlags.mailing_address)}</p>
-
-            )}
-
-          </div>
 
         </div>
 
@@ -1298,7 +1303,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
 
 
-      {(cf.recommendedCallAngle || bestArv > 0) && (
+      {(cf.recommendedCallAngle || bestArv > 0 || taxAssessedValue > 0) && (
         <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Call Context</p>
 
@@ -1307,11 +1312,18 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
               <p className="text-foreground line-clamp-2">{cf.recommendedCallAngle}</p>
             )}
 
-            {bestArv > 0 && (
+            {(bestArv > 0 || taxAssessedValue > 0) && (
               <div className="flex flex-wrap items-center gap-3 text-xs">
-                <span className="text-muted-foreground">
-                  ARV <span className="text-foreground font-mono font-semibold">{formatCurrency(bestArv)}</span>
-                </span>
+                {bestArv > 0 && (
+                  <span className="text-muted-foreground">
+                    ARV <span className="text-foreground font-mono font-semibold">{formatCurrency(bestArv)}</span>
+                  </span>
+                )}
+                {taxAssessedValue > 0 && (
+                  <span className="text-muted-foreground">
+                    Tax Assessed <span className="text-foreground font-mono font-semibold">{formatCurrency(taxAssessedValue)}</span>
+                  </span>
+                )}
                 {repairCost > 0 && (
                   <span className="text-muted-foreground">
                     Repairs <span className="text-foreground font-mono">-{formatCurrency(repairCost)}</span>
@@ -8844,6 +8856,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                           activityRefreshToken={activityRefreshToken}
                           onDial={handleDial}
                           calling={calling}
+                          onSkipTrace={handleSkipTrace}
+                          skipTracing={skipTracing}
                         />
                       </div>
                     )}
