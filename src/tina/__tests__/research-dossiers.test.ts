@@ -29,6 +29,8 @@ describe("buildTinaResearchDossierFromIdea", () => {
     const dossier = buildTinaResearchDossierFromIdea(buildIdea());
 
     expect(dossier.status).toBe("needs_primary_authority");
+    expect(dossier.whyItMatters).toBe("It may save money.");
+    expect(dossier.groundingLabels).toEqual(["The filing lane points to Schedule C."]);
     expect(dossier.steps.find((step) => step.id === "authority")?.status).toBe("ready");
   });
 

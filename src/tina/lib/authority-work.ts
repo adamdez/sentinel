@@ -12,7 +12,9 @@ import type {
 export interface TinaAuthorityWorkItemView extends TinaAuthorityWorkItem {
   title: string;
   summary: string;
+  whyItMatters: string;
   nextStep: string;
+  groundingLabels: string[];
   memoFocus: string;
   reviewerQuestion: string;
   authorityTargets: string[];
@@ -216,7 +218,9 @@ export function buildTinaAuthorityWorkItems(
       status: normalizedStatus,
       title: dossier.title,
       summary: dossier.summary,
+      whyItMatters: dossier.whyItMatters,
       nextStep: dossier.nextStep,
+      groundingLabels: dossier.groundingLabels,
       memoFocus: trail?.memoFocus ?? dossier.summary,
       reviewerQuestion: trail?.reviewerQuestion ?? "What still needs proof here?",
       authorityTargets: trail?.authorityTargets ?? [],

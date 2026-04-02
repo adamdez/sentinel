@@ -21,9 +21,11 @@ export interface TinaResearchDossier {
   title: string;
   status: TinaResearchDossierStatus;
   summary: string;
+  whyItMatters: string;
   nextStep: string;
   authorityPrompt: string;
   discoveryPrompt: string;
+  groundingLabels: string[];
   steps: TinaResearchChecklistStep[];
   documentIds: string[];
   factIds: string[];
@@ -122,9 +124,11 @@ export function buildTinaResearchDossierFromIdea(idea: TinaTaxIdeaLead): TinaRes
     title: idea.title,
     status,
     summary,
+    whyItMatters: idea.whyItMatters,
     nextStep: idea.nextStep,
     discoveryPrompt: idea.searchPrompt,
     authorityPrompt: `${idea.searchPrompt} Use primary authority only, explain whether disclosure is needed, and state whether this idea should stay out of the return.`,
+    groundingLabels: idea.sourceLabels,
     steps: buildSteps(idea),
     documentIds: idea.documentIds,
     factIds: idea.factIds,

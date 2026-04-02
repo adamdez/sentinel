@@ -9,6 +9,13 @@ import {
   classifyTinaResearchSource,
   evaluateTinaTaxIdea,
 } from "@/tina/lib/research-policy";
+import {
+  buildTinaStartPathAssessment,
+  describeTinaFilingLane,
+  describeTinaOwnerCount,
+  describeTinaTaxElection,
+  formatTinaFilingLaneList,
+} from "@/tina/lib/start-path";
 import type { TinaResearchDossier } from "@/tina/lib/research-dossiers";
 import type { TinaWorkspaceDraft } from "@/tina/types";
 
@@ -46,16 +53,58 @@ interface TinaCitationRollup {
 const PRIMARY_AUTHORITY_CONFLICT_MESSAGE =
   "Primary authority appears conflicted (both support and warning signals). Human conflict resolution required before return impact.";
 
-function buildResearchPrompt(
+function formatSourceFactLines(
+  draft: TinaWorkspaceDraft,
+  workItem: TinaAuthorityWorkItemView
+): string[] {
+  const factMap = new Map(draft.sourceFacts.map((fact) => [fact.id, fact]));
+  const documentMap = new Map(draft.documents.map((document) => [document.id, document]));
+
+  const factLines = workItem.factIds
+    .map((factId) => factMap.get(factId))
+    .filter((fact): fact is NonNullable<typeof fact> => Boolean(fact))
+    .map((fact) => {
+      const document = documentMap.get(fact.sourceDocumentId);
+      return `- ${fact.label}: ${fact.value} (${fact.confidence} confidence${document ? `, from ${document.name}` : ""})`;
+    });
+
+  return factLines.length > 0 ? factLines : ["None linked yet."];
+}
+
+function formatDocumentLines(
+  draft: TinaWorkspaceDraft,
+  workItem: TinaAuthorityWorkItemView
+): string[] {
+  const documentMap = new Map(draft.documents.map((document) => [document.id, document]));
+  const lines = workItem.documentIds
+    .map((documentId) => documentMap.get(documentId))
+    .filter((document): document is NonNullable<typeof document> => Boolean(document))
+    .map(
+      (document) =>
+        `- ${document.name} (${document.category.replace(/_/g, " ")}, uploaded ${document.uploadedAt})`
+    );
+
+  return lines.length > 0 ? lines : ["None linked yet."];
+}
+
+export function buildTinaAuthorityResearchPrompt(
   draft: TinaWorkspaceDraft,
   dossier: TinaResearchDossier,
   workItem: TinaAuthorityWorkItemView
 ): string {
   const profile = draft.profile;
+  const startPath = buildTinaStartPathAssessment(draft);
   const facts = [
     `Business name: ${profile.businessName || "Unknown"}`,
     `Tax year: ${profile.taxYear || "Unknown"}`,
     `Entity type: ${profile.entityType}`,
+    `Lane recommendation: ${startPath.recommendation.title} [${startPath.recommendation.support}]`,
+    `Owner count: ${describeTinaOwnerCount(profile.ownerCount)}`,
+    `Ownership changed during year: ${profile.ownershipChangedDuringYear ? "Yes" : "No"}`,
+    `Tax election: ${describeTinaTaxElection(profile.taxElection)}`,
+    `Community-property spouse exception: ${profile.spouseCommunityPropertyTreatment}`,
+    `Owner buyout or redemption: ${profile.hasOwnerBuyoutOrRedemption ? "Yes" : "No"}`,
+    `Former owner payments: ${profile.hasFormerOwnerPayments ? "Yes" : "No"}`,
     `Accounting method: ${profile.accountingMethod}`,
     `Washington business: ${profile.formationState === "WA" ? "Yes" : `No, formed in ${profile.formationState || "Unknown"}`}`,
     `Payroll: ${profile.hasPayroll ? "Yes" : "No"}`,
@@ -65,6 +114,37 @@ function buildResearchPrompt(
     `Sales tax: ${profile.collectsSalesTax ? "Yes" : "No"}`,
     `Idaho activity: ${profile.hasIdahoActivity ? "Yes" : "No"}`,
   ];
+
+  if (startPath.hasMixedHintedLanes) {
+    facts.push(
+      `Saved paper return hints: ${formatTinaFilingLaneList(startPath.hintedLanes)}`
+    );
+  } else if (startPath.singleHintedLane !== null) {
+    facts.push(
+      `Saved paper return hint: ${describeTinaFilingLane(startPath.singleHintedLane)}`
+    );
+  }
+
+  if (startPath.ownershipMismatchWithSingleOwnerLane) {
+    facts.push("Organizer owner count conflicts with the single-owner intake path");
+  }
+
+  if (startPath.ownershipChangeClue) {
+    facts.push("Saved papers include an ownership-change clue");
+  }
+
+  if (startPath.formerOwnerPaymentClue) {
+    facts.push("Saved papers include a former-owner payment clue");
+  }
+
+  const startPathReasons =
+    startPath.recommendation.reasons.length > 0
+      ? startPath.recommendation.reasons.map((reason) => `- ${reason}`).join("\n")
+      : "None saved yet.";
+  const startPathBlockers =
+    startPath.recommendation.blockers.length > 0
+      ? startPath.recommendation.blockers.map((blocker) => `- ${blocker}`).join("\n")
+      : "None saved yet.";
 
   const existingCitations =
     workItem.citations.length > 0
@@ -76,6 +156,16 @@ function buildResearchPrompt(
   const missingAuthority =
     workItem.missingAuthority.length > 0
       ? workItem.missingAuthority.map((item) => `- ${item}`).join("\n")
+      : "None saved yet.";
+  const sourceFactLines = formatSourceFactLines(draft, workItem);
+  const sourceDocumentLines = formatDocumentLines(draft, workItem);
+  const authorityTargets =
+    workItem.authorityTargets.length > 0
+      ? workItem.authorityTargets.map((target) => `- ${target}`).join("\n")
+      : "None saved yet.";
+  const groundingContext =
+    dossier.groundingLabels.length > 0
+      ? dossier.groundingLabels.map((label) => `- ${label}`).join("\n")
       : "None saved yet.";
 
   return [
@@ -94,10 +184,29 @@ function buildResearchPrompt(
     "",
     `Research idea: ${dossier.title}`,
     `Idea summary: ${dossier.summary}`,
+    `Why it matters: ${dossier.whyItMatters}`,
     `What Tina is trying to prove: ${workItem.memoFocus}`,
     `Reviewer question: ${workItem.reviewerQuestion}`,
     `Discovery prompt: ${dossier.discoveryPrompt}`,
     `Authority prompt: ${dossier.authorityPrompt}`,
+    "",
+    "Start-path reasons:",
+    startPathReasons,
+    "",
+    "Start-path blockers:",
+    startPathBlockers,
+    "",
+    "Grounding context:",
+    groundingContext,
+    "",
+    "Authority targets:",
+    authorityTargets,
+    "",
+    "Linked source facts:",
+    ...sourceFactLines,
+    "",
+    "Linked source documents:",
+    ...sourceDocumentLines,
     "",
     "Existing memo:",
     workItem.memo || "None yet.",
@@ -193,7 +302,7 @@ export async function runTinaAuthorityResearch(args: {
   }
 
   const client = new OpenAI({ apiKey });
-  const prompt = buildResearchPrompt(args.draft, args.dossier, args.workItem);
+  const prompt = buildTinaAuthorityResearchPrompt(args.draft, args.dossier, args.workItem);
 
   const response = await client.responses.parse({
     model: TINA_RESEARCH_MODEL,

@@ -1,5 +1,6 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { tinaHasReviewerDrift } from "@/tina/lib/package-state";
 import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
 import type {
   TinaPackageReadinessItem,
@@ -346,6 +347,18 @@ export function buildTinaPackageReadiness(
         })
       );
     });
+
+  if (tinaHasReviewerDrift(draft)) {
+    items.push(
+      createItem({
+        id: "signed-off-package-drift",
+        title: "The live package changed after reviewer signoff",
+        summary:
+          "Tina sees post-signoff drift between the approved snapshot and the live package. She should stop and reopen review instead of pretending the approval still covers the current numbers.",
+        severity: "blocking",
+      })
+    );
+  }
 
   const blockingCount = items.filter((item) => item.severity === "blocking").length;
   const attentionCount = items.filter((item) => item.severity === "needs_attention").length;

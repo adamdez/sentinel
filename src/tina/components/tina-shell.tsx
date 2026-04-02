@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, FileText, FolderKanban, Sparkles } from "lucide-react";
+import { ArrowLeft, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -49,37 +49,19 @@ export function TinaShell({
                 </div>
                 <div className="space-y-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
-                    Tina Mode
+                    Easy Mode
                   </p>
                   <p className="text-sm leading-6 text-zinc-200">
-                    Tina is your simple tax helper space inside Sentinel. One step at a time, plain words first.
+                    Tina speaks in plain words and asks for one thing at a time.
                   </p>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
-              <CardContent className="space-y-3 p-5">
-                <div className="flex items-center gap-2 text-sm font-medium text-white">
-                  <FolderKanban className="h-4 w-4 text-emerald-200" />
-                  How Tina works
-                </div>
                 <ul className="space-y-2 text-sm leading-6 text-zinc-300">
-                  <li>Tina asks for one clear thing at a time.</li>
-                  <li>Tina explains why she needs each paper.</li>
-                  <li>Tina keeps the math in code so the numbers stay steady.</li>
+                  <li>Add last year&apos;s return first (if you have it).</li>
+                  <li>Answer the easy business questions.</li>
+                  <li>Upload the next paper Tina asks for.</li>
                 </ul>
-              </CardContent>
-            </Card>
-
-            <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
-              <CardContent className="space-y-3 p-5">
-                <div className="flex items-center gap-2 text-sm font-medium text-white">
-                  <FileText className="h-4 w-4 text-emerald-200" />
-                  Persistent guide
-                </div>
                 <p className="text-sm leading-6 text-zinc-300">
-                  Tina's long-term build guide is saved in <span className="font-mono text-zinc-100">docs/tina/TINA_V1_BUILD_GUIDE.md</span>.
+                  If you are unsure about something, leave your best answer and keep moving. Tina can flag what still needs attention later.
                 </p>
               </CardContent>
             </Card>

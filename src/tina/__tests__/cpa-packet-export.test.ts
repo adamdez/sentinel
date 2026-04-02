@@ -11,6 +11,8 @@ describe("buildTinaCpaPacketExport", () => {
         businessName: "Tina Sole Prop",
         taxYear: "2025",
         entityType: "sole_prop" as const,
+        ownerCount: 1,
+        taxElection: "default" as const,
       },
       documents: [
         {
@@ -83,6 +85,28 @@ describe("buildTinaCpaPacketExport", () => {
         nextStep: "Hand it off",
         artifacts: [],
       },
+      appendix: {
+        ...createDefaultTinaWorkspaceDraft().appendix,
+        status: "complete" as const,
+        items: [
+          {
+            id: "appendix-1",
+            title: "Odd but plausible idea",
+            summary: "Worth a look",
+            whyItMatters: "Could matter",
+            taxPositionBucket: "appendix" as const,
+            category: "continuity",
+            nextStep: "Review it",
+            authoritySummary: "Needs stronger proof.",
+            reviewerQuestion: "Should this reach the return?",
+            disclosureFlag: "review_if_supported",
+            authorityTargets: ["IRS instructions"],
+            sourceLabels: ["Organizer clue"],
+            factIds: [],
+            documentIds: [],
+          },
+        ],
+      },
       taxAdjustments: {
         lastRunAt: "2026-03-27T04:03:30.000Z",
         status: "complete" as const,
@@ -115,6 +139,14 @@ describe("buildTinaCpaPacketExport", () => {
     expect(exportFile.fileName).toContain("tina-sole-prop");
     expect(exportFile.fileName).toContain("2025");
     expect(exportFile.contents).toContain("# Tina CPA Review Packet");
+    expect(exportFile.contents).toContain("Owner count: 1 owner");
+    expect(exportFile.contents).toContain("Tax election: Default federal tax classification");
+    expect(exportFile.contents).toContain("## Entity and ownership path");
+    expect(exportFile.contents).toContain("## Start-path evidence");
+    expect(exportFile.contents).toContain("## Start-path rationale");
+    expect(exportFile.contents).toContain("## Reviewer state");
+    expect(exportFile.contents).toContain("## Reviewer appendix");
+    expect(exportFile.contents).toContain("Authority posture:");
     expect(exportFile.contents).toContain("Line 1 Gross receipts or sales");
     expect(exportFile.contents).toContain("2025-return.pdf");
   });

@@ -5,8 +5,8 @@ export default function TinaPage() {
   return (
     <TinaShell
       eyebrow="Tina Workspace"
-      title="Tina now has a real intake flow."
-      description="This slice adds the first working Tina stages: prior-year bootstrap, business organizer, deterministic filing-lane recommendation, and a personalized request list. The draft persists locally while we build Tina's full tax workspace backend."
+      title="Get your tax papers ready with Tina, one clear step at a time."
+      description="Add your papers, answer a few simple questions, and let Tina keep your tax prep organized. Today, Tina helps you gather documents and check readiness before final review."
     >
       <TinaWorkspace />
     </TinaShell>

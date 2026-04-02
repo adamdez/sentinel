@@ -8,6 +8,8 @@ describe("recommendTinaFilingLane", () => {
       ...createDefaultTinaProfile(),
       businessName: "Tina Test LLC",
       entityType: "single_member_llc",
+      ownerCount: 1,
+      taxElection: "default",
     });
 
     expect(result.laneId).toBe("schedule_c_single_member_llc");
@@ -35,6 +37,53 @@ describe("recommendTinaFilingLane", () => {
 
     expect(result.laneId).toBe("1120_s");
     expect(result.support).toBe("future");
+  });
+
+  it("routes a two-owner business away from schedule c even if the owner split is uneven", () => {
+    const result = recommendTinaFilingLane({
+      ...createDefaultTinaProfile(),
+      businessName: "Two Owner Shop LLC",
+      entityType: "single_member_llc",
+      ownerCount: 2,
+      taxElection: "default",
+      notes: "Ownership is 70/30, not 50/50.",
+    });
+
+    expect(result.laneId).toBe("1065");
+    expect(result.support).toBe("future");
+    expect(result.summary).toContain("more than one owner");
+  });
+
+  it("blocks when ownership changed during the year and Tina cannot trust the starting path yet", () => {
+    const result = recommendTinaFilingLane({
+      ...createDefaultTinaProfile(),
+      businessName: "Changing Owners LLC",
+      entityType: "single_member_llc",
+      ownerCount: 1,
+      taxElection: "default",
+      ownershipChangedDuringYear: true,
+    });
+
+    expect(result.support).toBe("blocked");
+    expect(result.title).toContain("ownership");
+    expect(result.blockers.join(" ")).toContain("ownership timeline");
+  });
+
+  it("routes owner buyout scenarios into partnership-style ownership review", () => {
+    const result = recommendTinaFilingLane({
+      ...createDefaultTinaProfile(),
+      businessName: "Three Owner Transition LLC",
+      entityType: "multi_member_llc",
+      ownerCount: 3,
+      taxElection: "default",
+      ownershipChangedDuringYear: true,
+      hasOwnerBuyoutOrRedemption: true,
+      hasFormerOwnerPayments: true,
+    });
+
+    expect(result.laneId).toBe("1065");
+    expect(result.support).toBe("future");
+    expect(result.title).toContain("ownership review");
   });
 
   it("blocks the pilot when idaho activity is present", () => {

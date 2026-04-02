@@ -74,4 +74,46 @@ describe("buildTinaChecklist", () => {
     expect(checklist.find((item) => item.id === "payroll")?.status).toBe("needed");
     expect(checklist.find((item) => item.id === "inventory")?.status).toBe("needed");
   });
+
+  it("adds required ownership support when the file has multiple owners or ownership changes", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Transition LLC",
+        entityType: "multi_member_llc" as const,
+        ownerCount: 3,
+        ownershipChangedDuringYear: true,
+        hasOwnerBuyoutOrRedemption: true,
+        hasFormerOwnerPayments: true,
+        taxElection: "default" as const,
+      },
+    };
+
+    const checklist = buildTinaChecklist(draft, recommendTinaFilingLane(draft.profile));
+    const ownershipItem = checklist.find((item) => item.id === "ownership-support");
+
+    expect(ownershipItem?.priority).toBe("required");
+    expect(ownershipItem?.status).toBe("needed");
+    expect(ownershipItem?.reason).toContain("ownership timeline");
+  });
+
+  it("adds required election proof when a corporate election is in play", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Election Corp",
+        entityType: "single_member_llc" as const,
+        ownerCount: 1,
+        taxElection: "s_corp" as const,
+      },
+    };
+
+    const checklist = buildTinaChecklist(draft, recommendTinaFilingLane(draft.profile));
+    const electionItem = checklist.find((item) => item.id === "entity-election");
+
+    expect(electionItem?.priority).toBe("required");
+    expect(electionItem?.status).toBe("needed");
+  });
 });

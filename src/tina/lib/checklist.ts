@@ -1,3 +1,9 @@
+import {
+  buildTinaOwnershipSupportReason,
+  tinaNeedsEntityElectionSupport,
+  tinaNeedsOwnershipSupport,
+  tinaOwnershipSupportIsRequired,
+} from "@/tina/lib/start-path";
 import type {
   TinaChecklistItem,
   TinaFilingLaneRecommendation,
@@ -13,6 +19,8 @@ export function buildTinaChecklist(
   recommendation: TinaFilingLaneRecommendation
 ): TinaChecklistItem[] {
   const hasPriorReturn = Boolean(draft.priorReturnDocumentId || draft.priorReturn);
+  const hasOwnershipSupport = hasDocumentForRequest(draft, "ownership-support");
+  const hasEntityElectionSupport = hasDocumentForRequest(draft, "entity-election");
   const items: TinaChecklistItem[] = [
     {
       id: "prior-return",
@@ -36,6 +44,29 @@ export function buildTinaChecklist(
       status: hasDocumentForRequest(draft, "bank-support") ? "covered" : "needed",
     },
   ];
+
+  const ownershipNeedsProof = tinaNeedsOwnershipSupport(draft.profile);
+
+  if (ownershipNeedsProof) {
+    items.push({
+      id: "ownership-support",
+      label: "Ownership and entity papers",
+      reason: buildTinaOwnershipSupportReason(draft.profile),
+      priority: tinaOwnershipSupportIsRequired(draft.profile) ? "required" : "recommended",
+      status: hasOwnershipSupport ? "covered" : "needed",
+    });
+  }
+
+  if (tinaNeedsEntityElectionSupport(draft.profile)) {
+    items.push({
+      id: "entity-election",
+      label: "Entity election proof",
+      reason:
+        "Tina needs the election letter, prior return evidence, or equivalent proof before she can trust a corporate starting path.",
+      priority: "required",
+      status: hasEntityElectionSupport ? "covered" : "needed",
+    });
+  }
 
   if (draft.profile.paysContractors) {
     items.push({

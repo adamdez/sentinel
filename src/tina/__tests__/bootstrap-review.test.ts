@@ -120,6 +120,72 @@ describe("buildTinaBootstrapReview", () => {
       review.items.some((item) => item.id === "business-name-mismatch" && item.severity === "needs_attention")
     ).toBe(true);
   });
+
+  it("flags return-type hint conflicts in bootstrap review", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      sourceFacts: [
+        {
+          id: "return-type-1",
+          sourceDocumentId: "doc-prior",
+          label: "Return type hint",
+          value: "1120-S / S-corp",
+          confidence: "high" as const,
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+      ],
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Test LLC",
+        entityType: "single_member_llc" as const,
+        ownerCount: 1,
+        taxElection: "default" as const,
+      },
+    };
+
+    const review = buildTinaBootstrapReview(draft);
+    expect(review.items.some((item) => item.id === "return-type-hint-bootstrap-mismatch")).toBe(
+      true
+    );
+  });
+
+  it("flags ownership-change clues in bootstrap review before organizer capture", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      sourceFacts: [
+        {
+          id: "ownership-change-1",
+          sourceDocumentId: "doc-ledger",
+          label: "Ownership change clue",
+          value: "This paper mentions an ownership change, buyout, redemption, or partner exit.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          id: "former-owner-payment-1",
+          sourceDocumentId: "doc-ledger",
+          label: "Former owner payment clue",
+          value: "This paper mentions a former owner, owner exit, or payout after ownership changed.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+      ],
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Test LLC",
+        entityType: "single_member_llc" as const,
+        ownerCount: 1,
+        taxElection: "default" as const,
+      },
+    };
+
+    const review = buildTinaBootstrapReview(draft);
+
+    expect(review.items.some((item) => item.id === "ownership-change-bootstrap-clue")).toBe(true);
+    expect(review.items.some((item) => item.id === "former-owner-payment-bootstrap-clue")).toBe(
+      true
+    );
+  });
 });
 
 describe("markTinaBootstrapReviewStale", () => {

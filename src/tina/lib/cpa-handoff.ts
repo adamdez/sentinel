@@ -1,5 +1,12 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { tinaHasReviewerDrift } from "@/tina/lib/package-state";
+import {
+  buildTinaOwnershipRiskLines,
+  buildTinaStartPathAssessment,
+  describeTinaFilingLane,
+  formatTinaFilingLaneList,
+} from "@/tina/lib/start-path";
 import type {
   TinaCpaHandoffArtifact,
   TinaCpaHandoffArtifactStatus,
@@ -77,6 +84,7 @@ function isFieldOrNoteItem(item: TinaPackageReadinessItem): boolean {
 export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSnapshot {
   const now = new Date().toISOString();
   const lane = recommendTinaFilingLane(draft.profile);
+  const startPath = buildTinaStartPathAssessment(draft);
   const checklist = buildTinaChecklist(draft, lane);
 
   if (draft.reviewerFinal.status !== "complete") {
@@ -188,6 +196,73 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
         ? "waiting"
         : "ready";
 
+  const hasStartPathRisk =
+    startPath.hasMixedHintedLanes ||
+    startPath.hasHintVsOrganizerConflict ||
+    startPath.ownershipMismatchWithSingleOwnerLane ||
+    Boolean(startPath.ownershipChangeClue) ||
+    Boolean(startPath.formerOwnerPaymentClue) ||
+    draft.profile.ownershipChangedDuringYear ||
+    draft.profile.hasOwnerBuyoutOrRedemption ||
+    draft.profile.hasFormerOwnerPayments;
+
+  const ownershipPacketStatus: TinaCpaHandoffArtifactStatus =
+    lane.laneId === "schedule_c_single_member_llc" &&
+    lane.support === "supported" &&
+    !hasStartPathRisk &&
+    (draft.profile.ownerCount === null || draft.profile.ownerCount === 1)
+      ? "ready"
+      : draft.profile.ownerCount === null &&
+          draft.profile.taxElection === "unsure" &&
+          !hasStartPathRisk
+        ? "waiting"
+        : "blocked";
+
+  const startPathSignalLines: string[] = [];
+  if (startPath.hasMixedHintedLanes) {
+    startPathSignalLines.push(
+      `Saved papers hint at multiple return paths: ${formatTinaFilingLaneList(
+        startPath.hintedLanes
+      )}`
+    );
+  } else if (startPath.singleHintedLane !== null) {
+    startPathSignalLines.push(
+      `Saved paper hint: ${describeTinaFilingLane(startPath.singleHintedLane)}`
+    );
+  }
+
+  if (startPath.ownershipChangeClue) {
+    startPathSignalLines.push("Saved paper hint: ownership changed during the year");
+  }
+
+  if (startPath.formerOwnerPaymentClue) {
+    startPathSignalLines.push("Saved paper hint: former-owner payment activity");
+  }
+
+  const startPathDocumentIds = uniqueIds([
+    ...startPath.returnTypeHintFacts.map((fact) => fact.sourceDocumentId),
+    startPath.ownershipChangeClue?.sourceDocumentId ?? "",
+    startPath.formerOwnerPaymentClue?.sourceDocumentId ?? "",
+  ]);
+
+  const signoffStatus: TinaCpaHandoffArtifactStatus =
+    draft.reviewerSignoff.packageState === "signed_off"
+      ? "ready"
+      : draft.reviewerSignoff.packageState === "signed_off_stale" || tinaHasReviewerDrift(draft)
+        ? "blocked"
+        : draft.reviewerSignoff.packageState === "ready_for_cpa_review"
+          ? "waiting"
+          : draft.reviewerSignoff.packageState === "blocked"
+            ? "blocked"
+            : "waiting";
+
+  const appendixStatus: TinaCpaHandoffArtifactStatus =
+    draft.appendix.status !== "complete"
+      ? "waiting"
+      : draft.appendix.items.length > 0
+        ? "ready"
+        : "waiting";
+
   const artifacts: TinaCpaHandoffArtifact[] = [
     buildArtifact({
       id: "cpa-cover-note",
@@ -209,6 +284,58 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       sourceDocumentIds: readinessDocumentIds,
     }),
     buildArtifact({
+      id: "entity-and-ownership",
+      title: "Entity and ownership path",
+      status: ownershipPacketStatus,
+      summary:
+        ownershipPacketStatus === "ready"
+          ? "Tina can explain why this file starts in the current filing lane."
+          : ownershipPacketStatus === "waiting"
+            ? "Tina still wants one or two more entity facts before this start-path memo feels complete."
+            : "Tina sees ownership or election risk that the reviewer should inspect before trusting the start path.",
+      includes: [
+        `Lane recommendation: ${lane.title}`,
+        ...buildTinaOwnershipRiskLines(draft.profile),
+        ...startPathSignalLines,
+      ],
+      relatedReadinessItemIds: draft.packageReadiness.items
+        .filter(
+          (item) =>
+            item.id === "lane-not-supported" ||
+            item.id === "required-ownership-support" ||
+            item.id === "required-entity-election" ||
+            item.id === "issue-ownership-structure-conflict" ||
+            item.id === "issue-ownership-change-review" ||
+            item.id === "issue-ownership-change-clue" ||
+            item.id === "issue-former-owner-payment-clue" ||
+            item.id === "issue-return-type-hint-conflict"
+        )
+        .map((item) => item.id),
+      sourceDocumentIds: uniqueIds([...readinessDocumentIds, ...startPathDocumentIds]),
+    }),
+    buildArtifact({
+      id: "reviewer-signoff",
+      title: "Reviewer signoff state",
+      status: signoffStatus,
+      summary:
+        signoffStatus === "ready"
+          ? "Tina has a reviewer-approved snapshot that still matches the live package."
+          : signoffStatus === "blocked"
+            ? "Tina sees signoff drift or signoff blockers, so the reviewer should not trust the old approval."
+            : "Tina has not reached a stable reviewer signoff yet.",
+      includes: [
+        `Package state: ${draft.reviewerSignoff.packageState.replace(/_/g, " ")}`,
+        `Signoff summary: ${draft.reviewerSignoff.summary}`,
+        draft.reviewerSignoff.activeSnapshotId
+          ? `Active snapshot: ${draft.reviewerSignoff.activeSnapshotId}`
+          : "No active signed snapshot yet",
+      ],
+      relatedReadinessItemIds: draft.packageReadiness.items
+        .filter((item) => item.id === "signed-off-package-drift")
+        .map((item) => item.id),
+      sourceDocumentIds: [],
+    }),
+    buildArtifact({
       id: "source-paper-index",
       title: "Source paper index",
       status: sourceIndexStatus,
@@ -227,6 +354,20 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
           : "Required paper asks are covered",
       ],
       sourceDocumentIds: allDocumentIds,
+    }),
+    buildArtifact({
+      id: "reviewer-appendix",
+      title: "Reviewer appendix",
+      status: appendixStatus,
+      summary:
+        appendixStatus === "ready"
+          ? "Tina preserved unusual but plausible ideas for reviewer inspection without letting them touch the return by default."
+          : "Tina does not have a completed appendix lane ready for this packet yet.",
+      includes: [
+        `${draft.appendix.items.length} appendix item${draft.appendix.items.length === 1 ? "" : "s"}`,
+        ...draft.appendix.items.slice(0, 3).map((item) => item.title),
+      ],
+      sourceDocumentIds: uniqueIds(draft.appendix.items.flatMap((item) => item.documentIds)),
     }),
     buildArtifact({
       id: "workpaper-trace",

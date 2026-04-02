@@ -477,8 +477,123 @@ describe("buildTinaCpaHandoff", () => {
     const snapshot = buildTinaCpaHandoff(draft);
 
     expect(snapshot.status).toBe("complete");
-    expect(snapshot.summary).toContain("full first CPA handoff packet");
-    expect(snapshot.artifacts.every((artifact) => artifact.status === "ready")).toBe(true);
+    expect(snapshot.summary).toContain("packet section");
+    expect(
+      snapshot.artifacts.every(
+        (artifact) =>
+          artifact.status === "ready" ||
+          artifact.id === "reviewer-signoff" ||
+          artifact.id === "reviewer-appendix"
+      )
+    ).toBe(true);
+  });
+
+  it("adds an ownership path artifact and blocks it when ownership risk remains", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Transition LLC",
+        entityType: "single_member_llc",
+        ownerCount: 2,
+        taxElection: "default",
+        ownershipChangedDuringYear: true,
+        hasFormerOwnerPayments: true,
+      },
+      reviewerFinal: {
+        ...createDefaultTinaWorkspaceDraft().reviewerFinal,
+        status: "complete",
+        lastRunAt: "2026-03-27T05:00:00.000Z",
+      },
+      scheduleCDraft: {
+        ...createDefaultTinaWorkspaceDraft().scheduleCDraft,
+        status: "complete",
+        lastRunAt: "2026-03-27T05:01:00.000Z",
+      },
+      packageReadiness: {
+        lastRunAt: "2026-03-27T05:02:00.000Z",
+        status: "complete",
+        level: "blocked",
+        summary: "Blocked",
+        nextStep: "Fix ownership blockers",
+        items: [
+          {
+            id: "issue-ownership-change-review",
+            title: "Ownership timeline needs review before prep starts",
+            summary: "Needs ownership review.",
+            severity: "blocking",
+            relatedFieldIds: [],
+            relatedNoteIds: [],
+            relatedReviewItemIds: [],
+            sourceDocumentIds: [],
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaCpaHandoff(draft);
+    const artifact = snapshot.artifacts.find((candidate) => candidate.id === "entity-and-ownership");
+
+    expect(artifact?.status).toBe("blocked");
+    expect(artifact?.includes).toContain("2 owners");
+    expect(artifact?.includes).toContain("Ownership changed during the tax year");
+  });
+
+  it("surfaces reviewer signoff and appendix artifacts explicitly", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Sole Prop",
+        entityType: "sole_prop",
+      },
+      reviewerFinal: {
+        ...createDefaultTinaWorkspaceDraft().reviewerFinal,
+        status: "complete",
+        lastRunAt: "2026-03-27T05:00:00.000Z",
+      },
+      scheduleCDraft: {
+        ...createDefaultTinaWorkspaceDraft().scheduleCDraft,
+        status: "complete",
+        lastRunAt: "2026-03-27T05:01:00.000Z",
+      },
+      packageReadiness: {
+        ...createDefaultTinaWorkspaceDraft().packageReadiness,
+        status: "complete",
+        level: "ready_for_cpa",
+        lastRunAt: "2026-03-27T05:02:00.000Z",
+      },
+      reviewerSignoff: {
+        ...createDefaultTinaWorkspaceDraft().reviewerSignoff,
+        packageState: "ready_for_cpa_review",
+        summary: "Ready for signoff",
+        nextStep: "Capture snapshot",
+      },
+      appendix: {
+        ...createDefaultTinaWorkspaceDraft().appendix,
+        status: "complete",
+        items: [
+          {
+            id: "appendix-1",
+            title: "Odd idea",
+            summary: "Worth a look",
+            whyItMatters: "Could matter",
+            taxPositionBucket: "appendix",
+            category: "continuity",
+            nextStep: "Review it",
+            authoritySummary: "Needs authority",
+            reviewerQuestion: "Use it?",
+            disclosureFlag: "review_if_supported",
+            authorityTargets: ["IRS instructions"],
+            sourceLabels: ["Organizer clue"],
+            factIds: [],
+            documentIds: [],
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaCpaHandoff(draft);
+    expect(snapshot.artifacts.some((artifact) => artifact.id === "reviewer-signoff")).toBe(true);
+    expect(snapshot.artifacts.some((artifact) => artifact.id === "reviewer-appendix")).toBe(true);
   });
 });
 

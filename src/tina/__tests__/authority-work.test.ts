@@ -23,6 +23,10 @@ describe("buildTinaAuthorityWorkItems", () => {
 
     expect(workItems.length).toBeGreaterThan(0);
     expect(qbiItem?.status).toBe("not_started");
+    expect(qbiItem?.whyItMatters).toContain("tax saver");
+    expect(qbiItem?.groundingLabels).toEqual(
+      expect.arrayContaining(["The current filing lane points to a Schedule C or single-member LLC path."])
+    );
     expect(qbiItem?.authorityTargets).toEqual(
       expect.arrayContaining(["IRS instructions", "Treasury regulations"])
     );

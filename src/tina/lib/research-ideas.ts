@@ -1,9 +1,14 @@
-import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import {
   evaluateTinaTaxIdea,
   type TinaResearchDecisionBucket,
   type TinaResearchSourceClass,
 } from "@/tina/lib/research-policy";
+import {
+  buildTinaStartPathAssessment,
+  describeTinaFilingLane,
+  findTinaFactsByLabel,
+  formatTinaFilingLaneList,
+} from "@/tina/lib/start-path";
 import type { TinaSourceFact, TinaWorkspaceDraft } from "@/tina/types";
 
 export type TinaTaxIdeaCategory = "deduction" | "state" | "compliance" | "continuity";
@@ -59,16 +64,6 @@ function isLikelyRealEstateBusiness(draft: TinaWorkspaceDraft): boolean {
   );
 }
 
-function normalizeForComparison(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function findFactsByLabel(sourceFacts: TinaSourceFact[], label: string): TinaSourceFact[] {
-  return sourceFacts.filter(
-    (fact) => normalizeForComparison(fact.label) === normalizeForComparison(label)
-  );
-}
-
 function buildLead(seed: TinaTaxIdeaSeed): TinaTaxIdeaLead {
   const decision = evaluateTinaTaxIdea({
     sourceClasses: ["internal_signal"],
@@ -104,7 +99,8 @@ function collectLinkedIds(sourceFacts: TinaSourceFact[]): Pick<TinaTaxIdeaLead, 
 }
 
 export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLead[] {
-  const recommendation = recommendTinaFilingLane(draft.profile);
+  const startPath = buildTinaStartPathAssessment(draft);
+  const recommendation = startPath.recommendation;
   const ideas: TinaTaxIdeaLead[] = [];
   const formationYear = parseYear(draft.profile.formationDate);
   const currentTaxYear = draft.profile.taxYear.trim();
@@ -255,7 +251,7 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     }
   }
 
-  const inventoryFacts = findFactsByLabel(draft.sourceFacts, "Inventory clue");
+  const inventoryFacts = findTinaFactsByLabel(draft.sourceFacts, "Inventory clue");
   if (draft.profile.hasInventory || inventoryFacts.length > 0) {
     const linkedIds = collectLinkedIds(inventoryFacts);
     ideas.push(
@@ -279,7 +275,7 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     );
   }
 
-  const contractorFacts = findFactsByLabel(draft.sourceFacts, "Contractor clue");
+  const contractorFacts = findTinaFactsByLabel(draft.sourceFacts, "Contractor clue");
   if (draft.profile.paysContractors || contractorFacts.length > 0) {
     const linkedIds = collectLinkedIds(contractorFacts);
     ideas.push(
@@ -303,7 +299,120 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     );
   }
 
-  const intercompanyFacts = findFactsByLabel(draft.sourceFacts, "Intercompany transfer clue");
+  if (startPath.returnTypeHintFacts.length > 0) {
+    const linkedIds = collectLinkedIds(startPath.returnTypeHintFacts);
+    const returnHintLabel = startPath.hasMixedHintedLanes
+      ? `Saved papers point to multiple federal return paths: ${formatTinaFilingLaneList(
+          startPath.hintedLanes
+        )}.`
+      : startPath.singleHintedLane !== null
+        ? `Saved papers hint at ${describeTinaFilingLane(startPath.singleHintedLane)}.`
+        : "Tina found return-type hints in uploaded papers.";
+    ideas.push(
+      buildLead({
+        id: "return-path-proof-review",
+        title: "Check return-path proof against saved papers",
+        summary:
+          "Tina should verify that prior returns, organizer answers, and entity/election papers all point to the same starting path.",
+        whyItMatters:
+          "Starting in the wrong return lane can contaminate everything downstream, even before any tax math is wrong.",
+        category: "continuity",
+        sourceLabels: [returnHintLabel],
+        factIds: linkedIds.factIds,
+        documentIds: linkedIds.documentIds,
+        searchPrompt:
+          "Research how to confirm the correct federal starting path when organizer answers and saved papers provide return-type hints, including the role of prior returns, entity elections, and ownership facts.",
+      })
+    );
+  }
+
+  const ownershipChangeFacts = findTinaFactsByLabel(draft.sourceFacts, "Ownership change clue");
+  const formerOwnerPaymentFacts = findTinaFactsByLabel(
+    draft.sourceFacts,
+    "Former owner payment clue"
+  );
+  const ownershipRiskFacts = [...ownershipChangeFacts, ...formerOwnerPaymentFacts];
+  if (
+    draft.profile.ownershipChangedDuringYear ||
+    draft.profile.hasOwnerBuyoutOrRedemption ||
+    draft.profile.hasFormerOwnerPayments ||
+    ownershipRiskFacts.length > 0
+  ) {
+    const linkedIds = collectLinkedIds(ownershipRiskFacts);
+    ideas.push(
+      buildLead({
+        id: "ownership-change-treatment-review",
+        title: "Check ownership change, buyout, and former-owner payment treatment",
+        summary:
+          "Tina should determine how ownership changes and owner-exit payments affect the filing path, payment treatment, and review disclosures.",
+        whyItMatters:
+          "Ownership transitions can change the return type, the treatment of payouts, and the evidence the reviewer needs before signing off.",
+        category: "continuity",
+        sourceLabels:
+          ownershipRiskFacts.length > 0
+            ? ["Tina found ownership-change or former-owner payment clues in uploaded papers."]
+            : ["The organizer says ownership changed or owner-exit payments happened this year."],
+        factIds: linkedIds.factIds,
+        documentIds: linkedIds.documentIds,
+        searchPrompt:
+          "Research the federal tax treatment of ownership changes, buyouts, redemptions, retiring-owner payments, and former-owner payouts for this business profile and tax year, including how these facts affect the correct filing lane and what documentation a reviewer should require.",
+      })
+    );
+  }
+
+  if (
+    ((draft.profile.ownerCount !== null && draft.profile.ownerCount > 1) ||
+      startPath.ownershipMismatchWithSingleOwnerLane) &&
+    draft.profile.taxElection !== "s_corp" &&
+    draft.profile.taxElection !== "c_corp"
+  ) {
+    const sourceLabel = startPath.ownershipMismatchWithSingleOwnerLane
+      ? "Organizer structure and owner count do not support the single-owner lane."
+      : "The organizer shows more than one owner.";
+    ideas.push(
+      buildLead({
+        id: "multi-owner-path-review",
+        title: "Check multi-owner federal path and ownership economics",
+        summary:
+          "Tina should verify the default federal path for this multi-owner business and what ownership economics the reviewer needs to inspect.",
+        whyItMatters:
+          "Multi-owner files can look simple in the books while still requiring partnership-style treatment, allocations, or ownership review before prep begins.",
+        category: "continuity",
+        sourceLabels: [sourceLabel],
+        searchPrompt:
+          "Research the correct starting path and review questions for a multi-owner business with this profile, including default federal classification, ownership percentages, and facts that require deeper reviewer inspection before return prep.",
+      })
+    );
+  }
+
+  const hasCorporatePathSignal =
+    draft.profile.taxElection === "s_corp" ||
+    draft.profile.taxElection === "c_corp" ||
+    startPath.singleHintedLane === "1120_s" ||
+    startPath.singleHintedLane === "1120";
+
+  if (hasCorporatePathSignal) {
+    const sourceLabel =
+      draft.profile.taxElection === "s_corp" || draft.profile.taxElection === "c_corp"
+        ? "The organizer indicates a corporate election may be in effect."
+        : `Saved papers hint at ${describeTinaFilingLane(startPath.singleHintedLane!)}.`;
+    ideas.push(
+      buildLead({
+        id: "entity-election-proof-review",
+        title: "Check entity election proof and effective-date continuity",
+        summary:
+          "Tina should verify the election in effect, when it became effective, and whether the saved papers support that corporate path.",
+        whyItMatters:
+          "A corporate election changes the entire return path, and reviewer confidence depends on proving the election rather than assuming it.",
+        category: "continuity",
+        sourceLabels: [sourceLabel],
+        searchPrompt:
+          "Research how to verify an S-corp or C-corp election for this business profile, including effective-date continuity, what proof should be retained, and what reviewer questions matter before return prep continues.",
+      })
+    );
+  }
+
+  const intercompanyFacts = findTinaFactsByLabel(draft.sourceFacts, "Intercompany transfer clue");
   if (intercompanyFacts.length > 0) {
     const linkedIds = collectLinkedIds(intercompanyFacts);
     ideas.push(
@@ -324,7 +433,7 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     );
   }
 
-  const relatedPartyFacts = findFactsByLabel(draft.sourceFacts, "Related-party clue");
+  const relatedPartyFacts = findTinaFactsByLabel(draft.sourceFacts, "Related-party clue");
   if (relatedPartyFacts.length > 0) {
     const linkedIds = collectLinkedIds(relatedPartyFacts);
     ideas.push(
@@ -345,7 +454,7 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     );
   }
 
-  const ownerFlowFacts = findFactsByLabel(draft.sourceFacts, "Owner draw clue");
+  const ownerFlowFacts = findTinaFactsByLabel(draft.sourceFacts, "Owner draw clue");
   if (ownerFlowFacts.length > 0) {
     const linkedIds = collectLinkedIds(ownerFlowFacts);
     ideas.push(
@@ -366,7 +475,7 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     );
   }
 
-  const einFacts = findFactsByLabel(draft.sourceFacts, "EIN clue");
+  const einFacts = findTinaFactsByLabel(draft.sourceFacts, "EIN clue");
   const uniqueEinSet = new Set(
     einFacts.flatMap((fact) => fact.value.match(/\b\d{2}-\d{7}\b/g) ?? [])
   );
@@ -390,7 +499,7 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     );
   }
 
-  const payrollFacts = findFactsByLabel(draft.sourceFacts, "Payroll clue");
+  const payrollFacts = findTinaFactsByLabel(draft.sourceFacts, "Payroll clue");
   if (draft.profile.hasPayroll || payrollFacts.length > 0) {
     const linkedIds = collectLinkedIds(payrollFacts);
     ideas.push(
@@ -414,7 +523,7 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     );
   }
 
-  const salesTaxFacts = findFactsByLabel(draft.sourceFacts, "Sales tax clue");
+  const salesTaxFacts = findTinaFactsByLabel(draft.sourceFacts, "Sales tax clue");
   if (draft.profile.collectsSalesTax || salesTaxFacts.length > 0 || draft.profile.formationState === "WA") {
     const linkedIds = collectLinkedIds(salesTaxFacts);
     ideas.push(
@@ -438,7 +547,7 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     );
   }
 
-  const stateFacts = findFactsByLabel(draft.sourceFacts, "State clue");
+  const stateFacts = findTinaFactsByLabel(draft.sourceFacts, "State clue");
   if (draft.profile.hasIdahoActivity || stateFacts.length > 0) {
     const linkedIds = collectLinkedIds(stateFacts);
     ideas.push(

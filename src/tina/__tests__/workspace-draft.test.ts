@@ -29,7 +29,34 @@ describe("workspace draft helpers", () => {
     const result = parseTinaWorkspaceDraft("{not-json");
 
     expect(result.profile.entityType).toBe("unsure");
+    expect(result.profile.ownerCount).toBeNull();
+    expect(result.profile.taxElection).toBe("unsure");
     expect(result.priorReturn).toBeNull();
+  });
+
+  it("normalizes new ownership and election profile fields", () => {
+    const result = parseTinaWorkspaceDraft(
+      JSON.stringify({
+        profile: {
+          businessName: "Lane Check LLC",
+          entityType: "single_member_llc",
+          ownerCount: "2",
+          taxElection: "weird-value",
+          ownershipChangedDuringYear: true,
+          hasOwnerBuyoutOrRedemption: 1,
+          hasFormerOwnerPayments: "yes",
+          spouseCommunityPropertyTreatment: "confirmed",
+        },
+      })
+    );
+
+    expect(result.profile.businessName).toBe("Lane Check LLC");
+    expect(result.profile.ownerCount).toBeNull();
+    expect(result.profile.taxElection).toBe("unsure");
+    expect(result.profile.ownershipChangedDuringYear).toBe(true);
+    expect(result.profile.hasOwnerBuyoutOrRedemption).toBe(true);
+    expect(result.profile.hasFormerOwnerPayments).toBe(true);
+    expect(result.profile.spouseCommunityPropertyTreatment).toBe("confirmed");
   });
 
   it("normalizes older saved documents that do not have request metadata yet", () => {
@@ -415,5 +442,103 @@ describe("workspace draft helpers", () => {
     expect(result.cpaHandoff.artifacts[0]?.relatedReadinessItemIds).toEqual([
       "field-review-line-1-gross-receipts",
     ]);
+  });
+
+  it("normalizes saved reviewer signoff, package snapshots, appendix, and operational status", () => {
+    const result = parseTinaWorkspaceDraft(
+      JSON.stringify({
+        reviewerSignoff: {
+          lastEvaluatedAt: "2026-04-02T18:10:00.000Z",
+          packageState: "signed_off_stale",
+          summary: "Drifted",
+          nextStep: "Re-run signoff",
+          activeSnapshotId: "snapshot-1",
+          activeDecisionId: "decision-1",
+          currentPackageFingerprint: "current-fingerprint",
+          signedOffPackageFingerprint: "signed-fingerprint",
+          hasDriftSinceSignoff: true,
+        },
+        reviewerDecisions: [
+          {
+            id: "decision-1",
+            snapshotId: "snapshot-1",
+            decision: "approved",
+            reviewerName: "CPA Reviewer",
+            notes: "Signed.",
+            decidedAt: "2026-04-02T18:09:00.000Z",
+          },
+          {
+            bad: true,
+          },
+        ],
+        packageSnapshots: [
+          {
+            id: "snapshot-1",
+            createdAt: "2026-04-02T18:08:00.000Z",
+            packageFingerprint: "signed-fingerprint",
+            packageState: "ready_for_cpa_review",
+            readinessLevel: "ready_for_cpa",
+            blockerCount: 0,
+            attentionCount: 0,
+            summary: "Ready",
+            exportFileName: "packet.md",
+            exportContents: "# Packet",
+          },
+          {
+            bad: true,
+          },
+        ],
+        appendix: {
+          lastRunAt: "2026-04-02T18:07:00.000Z",
+          status: "complete",
+          summary: "1 appendix idea",
+          nextStep: "Review it",
+          items: [
+            {
+              id: "appendix-1",
+              title: "Odd but plausible idea",
+              summary: "Worth a look",
+              whyItMatters: "Could matter",
+              taxPositionBucket: "appendix",
+              category: "continuity",
+              nextStep: "Review it",
+              authoritySummary: "Needs stronger proof.",
+              reviewerQuestion: "Should this reach the return?",
+              disclosureFlag: "review_if_supported",
+              authorityTargets: ["IRS instructions"],
+              sourceLabels: ["Organizer clue"],
+              factIds: ["fact-1"],
+              documentIds: ["doc-1"],
+            },
+            {
+              bad: true,
+            },
+          ],
+        },
+        operationalStatus: {
+          lastRunAt: "2026-04-02T18:11:00.000Z",
+          maturity: "reviewer_grade_core",
+          packageState: "signed_off_stale",
+          summary: "Truthful",
+          nextStep: "Fix drift",
+          truths: ["Immutable snapshot saved."],
+          blockers: ["Live package drifted after reviewer signoff."],
+        },
+      })
+    );
+
+    expect(result.reviewerSignoff.packageState).toBe("signed_off_stale");
+    expect(result.reviewerSignoff.hasDriftSinceSignoff).toBe(true);
+    expect(result.reviewerDecisions).toHaveLength(1);
+    expect(result.reviewerDecisions[0]?.reviewerName).toBe("CPA Reviewer");
+    expect(result.packageSnapshots).toHaveLength(1);
+    expect(result.packageSnapshots[0]?.exportFileName).toBe("packet.md");
+    expect(result.appendix.items).toHaveLength(1);
+    expect(result.appendix.items[0]?.taxPositionBucket).toBe("appendix");
+    expect(result.appendix.items[0]?.authorityTargets).toEqual(["IRS instructions"]);
+    expect(result.operationalStatus.maturity).toBe("reviewer_grade_core");
+    expect(result.operationalStatus.blockers).toContain(
+      "Live package drifted after reviewer signoff."
+    );
   });
 });

@@ -13,6 +13,12 @@ export function buildTinaProfileFingerprint(profile: TinaBusinessTaxProfile): st
     normalizeText(profile.businessName),
     normalizeText(profile.taxYear),
     profile.entityType,
+    profile.ownerCount === null ? "" : String(profile.ownerCount),
+    profile.ownershipChangedDuringYear ? "1" : "0",
+    profile.taxElection,
+    profile.spouseCommunityPropertyTreatment,
+    profile.hasOwnerBuyoutOrRedemption ? "1" : "0",
+    profile.hasFormerOwnerPayments ? "1" : "0",
     normalizeText(profile.formationState),
     normalizeText(profile.formationDate),
     profile.accountingMethod,
@@ -28,4 +34,3 @@ export function buildTinaProfileFingerprint(profile: TinaBusinessTaxProfile): st
 
   return parts.join("|");
 }
-

@@ -1,6 +1,10 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
-import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
+import {
+  buildTinaStartPathAssessment,
+  describeTinaFilingLane,
+  normalizeTinaComparisonValue,
+} from "@/tina/lib/start-path";
 import type {
   TinaBootstrapFact,
   TinaBootstrapReview,
@@ -85,10 +89,6 @@ function buildSummary(items: TinaReviewItem[]): { summary: string; nextStep: str
   };
 }
 
-function normalizeForComparison(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
 export function markTinaBootstrapReviewStale(review: TinaBootstrapReview): TinaBootstrapReview {
   if (review.status === "idle" || review.status === "stale") return review;
   return {
@@ -101,11 +101,12 @@ export function markTinaBootstrapReviewStale(review: TinaBootstrapReview): TinaB
 
 export function buildTinaBootstrapReview(draft: TinaWorkspaceDraft): TinaBootstrapReview {
   const profileFingerprint = buildTinaProfileFingerprint(draft.profile);
+  const startPath = buildTinaStartPathAssessment(draft);
   const priorReturnDocument = draft.priorReturnDocumentId
     ? draft.documents.find((document) => document.id === draft.priorReturnDocumentId) ?? null
     : null;
   const completedReadings = draft.documentReadings.filter((reading) => reading.status === "complete");
-  const recommendation = recommendTinaFilingLane(draft.profile);
+  const recommendation = startPath.recommendation;
   const checklist = buildTinaChecklist(draft, recommendation);
   const facts: TinaBootstrapFact[] = [];
   const items: TinaReviewItem[] = [];
@@ -126,6 +127,71 @@ export function buildTinaBootstrapReview(draft: TinaWorkspaceDraft): TinaBootstr
 
   if (draft.profile.entityType !== "unsure") {
     facts.push(buildFact("entity-type", "Business type", recommendation.title, "organizer"));
+  }
+
+  if (draft.profile.ownerCount !== null) {
+    facts.push(
+      buildFact(
+        "owner-count",
+        "Owner count",
+        `${draft.profile.ownerCount} owner${draft.profile.ownerCount === 1 ? "" : "s"}`,
+        "organizer"
+      )
+    );
+  }
+
+  if (draft.profile.taxElection !== "unsure") {
+    const electionLabel =
+      draft.profile.taxElection === "default"
+        ? "Default federal tax classification"
+        : draft.profile.taxElection === "s_corp"
+          ? "S-corp election in play"
+          : "C-corp election in play";
+    facts.push(buildFact("tax-election", "Tax election", electionLabel, "organizer"));
+  }
+
+  if (draft.profile.ownershipChangedDuringYear) {
+    facts.push(
+      buildFact(
+        "ownership-change",
+        "Ownership changed during the year",
+        "Yes, ownership changed during this tax year.",
+        "organizer"
+      )
+    );
+  }
+
+  if (draft.profile.hasOwnerBuyoutOrRedemption) {
+    facts.push(
+      buildFact(
+        "owner-buyout",
+        "Owner buyout or redemption",
+        "Yes, there was an owner buyout, redemption, or similar exit payment.",
+        "organizer"
+      )
+    );
+  }
+
+  if (draft.profile.hasFormerOwnerPayments) {
+    facts.push(
+      buildFact(
+        "former-owner-payments",
+        "Payments to former owner",
+        "Yes, the business paid a former owner after ownership changed.",
+        "organizer"
+      )
+    );
+  }
+
+  if (draft.profile.spouseCommunityPropertyTreatment === "confirmed") {
+    facts.push(
+      buildFact(
+        "community-property-spouse",
+        "Community-property spouse treatment",
+        "Possible community-property spouse exception identified.",
+        "organizer"
+      )
+    );
   }
 
   if (draft.profile.accountingMethod !== "unsure") {
@@ -185,13 +251,13 @@ export function buildTinaBootstrapReview(draft: TinaWorkspaceDraft): TinaBootstr
 
   if (draft.profile.businessName.trim()) {
     const businessNameFact = draft.sourceFacts.find(
-      (fact) => normalizeForComparison(fact.label) === "business name"
+      (fact) => normalizeTinaComparisonValue(fact.label) === "business name"
     );
 
-    if (
-      businessNameFact &&
-      normalizeForComparison(businessNameFact.value) !==
-        normalizeForComparison(draft.profile.businessName)
+  if (
+    businessNameFact &&
+    normalizeTinaComparisonValue(businessNameFact.value) !==
+        normalizeTinaComparisonValue(draft.profile.businessName)
     ) {
       items.push({
         id: "business-name-mismatch",
@@ -206,6 +272,59 @@ export function buildTinaBootstrapReview(draft: TinaWorkspaceDraft): TinaBootstr
       factId: businessNameFact.id,
     });
   }
+  }
+
+  if (startPath.hasHintVsOrganizerConflict && startPath.singleHintedLane !== null) {
+    const culprit = startPath.returnTypeHintFacts[0];
+    items.push({
+      id: "return-type-hint-bootstrap-mismatch",
+      title: "Saved paper hints at a different return path",
+      summary: `A saved paper points toward ${describeTinaFilingLane(
+        startPath.singleHintedLane
+      )}, but Tina's current intake path points toward ${recommendation.title}.`,
+      severity: "blocking",
+      status: "open",
+      category: "fact_mismatch",
+      requestId: null,
+      documentId: culprit?.sourceDocumentId ?? null,
+      factId: culprit?.id ?? null,
+    });
+  }
+
+  const ownershipChangeClue = startPath.ownershipChangeClue;
+  if (ownershipChangeClue && !draft.profile.ownershipChangedDuringYear) {
+    items.push({
+      id: "ownership-change-bootstrap-clue",
+      title: "Saved paper hints ownership changed during the year",
+      summary:
+        "Tina found ownership-change language in a saved paper, but that is not marked in the organizer yet.",
+      severity: "blocking",
+      status: "open",
+      category: "continuity",
+      requestId: null,
+      documentId: ownershipChangeClue.sourceDocumentId,
+      factId: ownershipChangeClue.id,
+    });
+  }
+
+  const formerOwnerPaymentClue = startPath.formerOwnerPaymentClue;
+  if (
+    formerOwnerPaymentClue &&
+    !draft.profile.hasFormerOwnerPayments &&
+    !draft.profile.hasOwnerBuyoutOrRedemption
+  ) {
+    items.push({
+      id: "former-owner-payment-bootstrap-clue",
+      title: "Saved paper hints the business paid a former owner",
+      summary:
+        "Tina found former-owner payment language in a saved paper, but that fact is not captured in the organizer yet.",
+      severity: "blocking",
+      status: "open",
+      category: "continuity",
+      requestId: null,
+      documentId: formerOwnerPaymentClue.sourceDocumentId,
+      factId: formerOwnerPaymentClue.id,
+    });
   }
 
   recommendation.blockers.forEach((blocker, index) => {

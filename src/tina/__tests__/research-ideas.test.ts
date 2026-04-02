@@ -128,6 +128,30 @@ describe("buildTinaResearchIdeas", () => {
           confidence: "medium" as const,
           capturedAt: "2026-03-26T22:09:00.000Z",
         },
+        {
+          id: "ownership-change-fact",
+          sourceDocumentId: "books-doc",
+          label: "Ownership change clue",
+          value: "This paper mentions an ownership change, buyout, redemption, or partner exit.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:10:00.000Z",
+        },
+        {
+          id: "former-owner-payment-fact",
+          sourceDocumentId: "books-doc",
+          label: "Former owner payment clue",
+          value: "This paper mentions a former owner, owner exit, or payout after ownership changed.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:11:00.000Z",
+        },
+        {
+          id: "return-type-hint-fact",
+          sourceDocumentId: "books-doc",
+          label: "Return type hint",
+          value: "1065 / partnership",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:12:00.000Z",
+        },
       ],
     };
 
@@ -139,8 +163,51 @@ describe("buildTinaResearchIdeas", () => {
         "owner-flow-characterization-review",
         "related-party-transaction-review",
         "multi-entity-boundary-review",
+        "ownership-change-treatment-review",
+        "return-path-proof-review",
       ])
     );
+  });
+
+  it("adds multi-owner and election continuity research ideas from organizer facts", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Complex Entity LLC",
+        entityType: "multi_member_llc" as const,
+        ownerCount: 3,
+        taxElection: "s_corp" as const,
+        ownershipChangedDuringYear: true,
+        hasOwnerBuyoutOrRedemption: true,
+      },
+    };
+
+    const ideas = buildTinaResearchIdeas(draft);
+
+    expect(ideas.map((idea) => idea.id)).toEqual(
+      expect.arrayContaining([
+        "ownership-change-treatment-review",
+        "entity-election-proof-review",
+      ])
+    );
+    expect(ideas.some((idea) => idea.id === "multi-owner-path-review")).toBe(false);
+  });
+
+  it("adds multi-owner path review when the organizer shows multiple owners without a corporate election", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Partnership Style LLC",
+        entityType: "multi_member_llc" as const,
+        ownerCount: 2,
+        taxElection: "default" as const,
+      },
+    };
+
+    const ideas = buildTinaResearchIdeas(draft);
+    expect(ideas.some((idea) => idea.id === "multi-owner-path-review")).toBe(true);
   });
 
   it("adds startup cost review when formation year matches tax year", () => {

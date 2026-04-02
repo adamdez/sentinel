@@ -60,6 +60,23 @@ function pickAuthorityTargets(dossier: TinaResearchDossier): string[] {
     targets.push("official filing instructions");
   }
 
+  if (
+    dossier.id === "ownership-change-treatment-review" ||
+    dossier.id === "multi-owner-path-review" ||
+    dossier.id === "return-path-proof-review" ||
+    dossier.id === "entity-election-proof-review"
+  ) {
+    targets.push("entity formation and operating documents", "prior-year return support");
+  }
+
+  if (dossier.id === "ownership-change-treatment-review") {
+    targets.push("partnership tax authority", "transaction documents for owner exits");
+  }
+
+  if (dossier.id === "entity-election-proof-review") {
+    targets.push("entity election filings or acceptance notices");
+  }
+
   targets.push("official court opinions if needed");
   return uniqueStrings(targets);
 }
@@ -108,12 +125,36 @@ function buildMemoFocus(dossier: TinaResearchDossier): string {
       return "Confirm whether another state has filing rights and how that changes the package.";
     case "prior-year-carryovers":
       return "Confirm what must carry forward from last year and what still needs human review before it is reused.";
+    case "return-path-proof-review":
+      return "Confirm that the organizer facts, prior returns, and saved papers all support the same federal starting path.";
+    case "ownership-change-treatment-review":
+      return "Confirm how ownership changes, buyouts, redemptions, and former-owner payments affect the filing path and payment treatment.";
+    case "multi-owner-path-review":
+      return "Confirm the correct federal path for this multi-owner business and what ownership economics the reviewer needs to inspect.";
+    case "entity-election-proof-review":
+      return "Confirm what election was in effect, when it became effective, and what proof supports that corporate path.";
     default:
       return dossier.summary;
   }
 }
 
 function buildReviewerQuestion(dossier: TinaResearchDossier): string {
+  if (dossier.id === "ownership-change-treatment-review") {
+    return "Do the ownership-change facts alter the filing lane, the treatment of payouts, or the disclosures the reviewer should require?";
+  }
+
+  if (dossier.id === "return-path-proof-review") {
+    return "Do the saved papers and prior returns actually prove Tina is starting in the right federal lane?";
+  }
+
+  if (dossier.id === "multi-owner-path-review") {
+    return "Is this truly a multi-owner federal path, and what owner economics or allocations must be reviewed before prep continues?";
+  }
+
+  if (dossier.id === "entity-election-proof-review") {
+    return "Is there enough proof that the corporate election was in effect for this tax year and that Tina should trust it?";
+  }
+
   switch (dossier.status) {
     case "review_ready":
       return "Would a reviewer feel comfortable letting this idea affect the return as drafted?";

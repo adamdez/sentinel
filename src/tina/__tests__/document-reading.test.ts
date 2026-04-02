@@ -104,6 +104,50 @@ describe("readTinaDocument", () => {
     );
   });
 
+  it("extracts return-type and ownership-change clues from spreadsheet text", async () => {
+    const document: TinaStoredDocument = {
+      id: "doc-entity-shift",
+      name: "entity-shift.csv",
+      size: 96,
+      mimeType: "text/csv",
+      storagePath: "user/2025/doc-entity-shift.csv",
+      category: "supporting_document",
+      requestId: "quickbooks",
+      requestLabel: "QuickBooks or your profit-and-loss report",
+      uploadedAt: "2026-03-26T21:07:00.000Z",
+    };
+
+    const file = new File(
+      [
+        [
+          "Date,Description,Amount",
+          "2025-01-01,Form 1065 partnership return working trial balance,0",
+          "2025-01-02,Ownership changed after partner buyout payment,-25000",
+          "2025-01-03,Former owner relinquished ownership and received buyout payment,-4000",
+        ].join("\n"),
+      ],
+      document.name,
+      { type: document.mimeType }
+    );
+
+    const reading = await readTinaDocument(document, file);
+
+    expect(reading.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "Return type hint",
+          value: "1065 / partnership",
+        }),
+        expect.objectContaining({
+          label: "Ownership change clue",
+        }),
+        expect.objectContaining({
+          label: "Former owner payment clue",
+        }),
+      ])
+    );
+  });
+
   it("extracts undashed EIN references when EIN context is present", async () => {
     const document: TinaStoredDocument = {
       id: "doc-undashed-ein",

@@ -104,6 +104,141 @@ describe("buildTinaIssueQueue", () => {
     expect(issueQueue.items.some((item) => item.id === "return-type-hint-conflict")).toBe(true);
   });
 
+  it("fails closed on mixed-use contamination and contradictory evidence clues", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Tina Test LLC",
+        entityType: "single_member_llc",
+      },
+      documents: [
+        {
+          id: "books-doc",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-04-02T18:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "mixed-use-fact",
+          sourceDocumentId: "books-doc",
+          label: "Mixed-use clue",
+          value: "Personal and business charges appear mixed together.",
+          confidence: "medium",
+          capturedAt: "2026-04-02T18:01:00.000Z",
+        },
+        {
+          id: "contradiction-fact",
+          sourceDocumentId: "books-doc",
+          label: "Contradictory evidence clue",
+          value: "Saved papers point to incompatible totals or ownership facts.",
+          confidence: "high",
+          capturedAt: "2026-04-02T18:02:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+
+    expect(issueQueue.items.some((item) => item.id === "books-mixed-use-contamination")).toBe(true);
+    expect(issueQueue.items.some((item) => item.id === "contradictory-evidence-clue")).toBe(true);
+  });
+
+  it("flags worker classification ambiguity, missing asset support, and inventory support gaps", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Tina Test LLC",
+        entityType: "single_member_llc",
+        hasPayroll: true,
+        paysContractors: true,
+        hasFixedAssets: true,
+        hasInventory: true,
+      },
+      documents: [
+        {
+          id: "books-doc",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-04-02T18:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "payroll-fact",
+          sourceDocumentId: "books-doc",
+          label: "Payroll clue",
+          value: "Payroll mentioned.",
+          confidence: "medium",
+          capturedAt: "2026-04-02T18:01:00.000Z",
+        },
+        {
+          id: "contractor-fact",
+          sourceDocumentId: "books-doc",
+          label: "Contractor clue",
+          value: "Contractors mentioned.",
+          confidence: "medium",
+          capturedAt: "2026-04-02T18:02:00.000Z",
+        },
+        {
+          id: "depreciation-fact",
+          sourceDocumentId: "books-doc",
+          label: "Depreciation clue",
+          value: "Section 179 mentioned.",
+          confidence: "medium",
+          capturedAt: "2026-04-02T18:03:00.000Z",
+        },
+        {
+          id: "inventory-fact",
+          sourceDocumentId: "books-doc",
+          label: "Inventory clue",
+          value: "Inventory mentioned.",
+          confidence: "medium",
+          capturedAt: "2026-04-02T18:04:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "worker-classification-ambiguity")).toBe(true);
+    expect(issueQueue.items.some((item) => item.id === "assets-depreciation-support-missing")).toBe(true);
+    expect(issueQueue.items.some((item) => item.id === "inventory-cogs-support-missing")).toBe(true);
+  });
+
+  it("treats 1120 hints as c-corp signals instead of s-corp signals", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Tina Test Corp",
+        entityType: "single_member_llc",
+        ownerCount: 1,
+        taxElection: "default",
+      },
+      sourceFacts: [
+        {
+          id: "return-type",
+          sourceDocumentId: "prior-doc",
+          label: "Return type hint",
+          value: "Form 1120 corporate return",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:10:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find((candidate) => candidate.id === "return-type-hint-conflict");
+    expect(item?.summary).toContain("1120 / C-corp");
+  });
+
   it("does not flag return-type conflict when paper and organizer both indicate Schedule C lane", () => {
     const draft = buildDraft({
       profile: {
@@ -124,6 +259,103 @@ describe("buildTinaIssueQueue", () => {
 
     const issueQueue = buildTinaIssueQueue(draft);
     expect(issueQueue.items.some((item) => item.id === "return-type-hint-conflict")).toBe(false);
+  });
+
+  it("flags owner-count conflicts before Tina trusts a single-owner lane", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Two Owner Shop LLC",
+        entityType: "single_member_llc",
+        ownerCount: 2,
+        taxElection: "default",
+      },
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "ownership-structure-conflict",
+          severity: "blocking",
+        }),
+      ])
+    );
+    expect(issueQueue.records.find((record) => record.id === "filing-lane")?.status).toBe(
+      "needs_attention"
+    );
+  });
+
+  it("flags ownership changes and buyout facts as blocking lane-review work", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Transition LLC",
+        entityType: "multi_member_llc",
+        ownerCount: 3,
+        taxElection: "default",
+        ownershipChangedDuringYear: true,
+        hasOwnerBuyoutOrRedemption: true,
+        hasFormerOwnerPayments: true,
+      },
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find((candidate) => candidate.id === "ownership-change-review");
+    expect(item?.severity).toBe("blocking");
+    expect(item?.summary).toContain("ownership changed during the year");
+    expect(item?.summary).toContain("owner buyout or redemption");
+    expect(item?.summary).toContain("paid a former owner");
+  });
+
+  it("flags ownership-change clues found in papers when the organizer does not mention them yet", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Paper Clue LLC",
+        entityType: "single_member_llc",
+        ownerCount: 1,
+        taxElection: "default",
+      },
+      sourceFacts: [
+        {
+          id: "ownership-change-clue-fact",
+          sourceDocumentId: "doc-1",
+          label: "Ownership change clue",
+          value: "This paper mentions an ownership change, buyout, redemption, or partner exit.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:10:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find((candidate) => candidate.id === "ownership-change-clue");
+    expect(item?.severity).toBe("blocking");
+  });
+
+  it("flags former-owner payment clues found in papers when organizer facts are still clean", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Former Owner LLC",
+        entityType: "single_member_llc",
+        ownerCount: 1,
+        taxElection: "default",
+      },
+      sourceFacts: [
+        {
+          id: "former-owner-payment-clue-fact",
+          sourceDocumentId: "doc-2",
+          label: "Former owner payment clue",
+          value: "This paper mentions a former owner, owner exit, or payout after ownership changed.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:10:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find(
+      (candidate) => candidate.id === "former-owner-payment-clue"
+    );
+    expect(item?.severity).toBe("blocking");
   });
 
   it("flags return-type conflict when one hint matches but another hint conflicts", () => {
@@ -607,7 +839,7 @@ describe("buildTinaIssueQueue", () => {
         }),
         expect.objectContaining({
           id: "books-related-party-clue",
-          severity: "needs_attention",
+          severity: "blocking",
         }),
         expect.objectContaining({
           id: "books-multi-ein-conflict",
@@ -858,6 +1090,76 @@ describe("buildTinaIssueQueue", () => {
     const issueQueue = buildTinaIssueQueue(draft);
     const ownerIssue = issueQueue.items.find((item) => item.id === "books-owner-flow-clue");
     expect(ownerIssue?.severity).toBe("needs_attention");
+  });
+
+  it("blocks related-party clue for high-risk entities when confidence is at least medium", () => {
+    const draft = buildDraft({
+      profile: {
+        entityType: "s_corp",
+      },
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "related-party-fact",
+          sourceDocumentId: "books-a",
+          label: "Related-party clue",
+          value: "Shareholder loan balance due from owner.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:40.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const relatedPartyIssue = issueQueue.items.find((item) => item.id === "books-related-party-clue");
+    expect(relatedPartyIssue?.severity).toBe("blocking");
+  });
+
+  it("keeps related-party clue at attention for low-risk entities", () => {
+    const draft = buildDraft({
+      profile: {
+        entityType: "sole_prop",
+      },
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "related-party-fact",
+          sourceDocumentId: "books-a",
+          label: "Related-party clue",
+          value: "Owner loan note reference.",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:20:40.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const relatedPartyIssue = issueQueue.items.find((item) => item.id === "books-related-party-clue");
+    expect(relatedPartyIssue?.severity).toBe("needs_attention");
   });
 
   it("does not raise a multi-ein conflict from a single EIN clue", () => {

@@ -1,9 +1,16 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
-import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
+import {
+  buildTinaStartPathAssessment,
+  describeTinaFilingLane,
+  findTinaFactsByLabel,
+  formatTinaFilingLaneList,
+  includesTinaNeedle,
+  inferTinaReturnTypeHintLane,
+  normalizeTinaComparisonValue,
+} from "@/tina/lib/start-path";
 import type {
   TinaIssueQueue,
-  TinaFilingLaneId,
   TinaDocumentFactConfidence,
   TinaPrepRecord,
   TinaSourceFact,
@@ -11,61 +18,6 @@ import type {
   TinaStoredDocument,
   TinaWorkspaceDraft,
 } from "@/tina/types";
-
-function normalizeForComparison(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function includesNeedle(haystack: string, needle: string): boolean {
-  return normalizeForComparison(haystack).includes(normalizeForComparison(needle));
-}
-
-function inferReturnTypeHintLane(value: string): TinaFilingLaneId | null {
-  if (
-    includesNeedle(value, "1120") ||
-    includesNeedle(value, "s corp") ||
-    includesNeedle(value, "s-corp")
-  ) {
-    return "1120_s";
-  }
-
-  if (
-    includesNeedle(value, "1065") ||
-    includesNeedle(value, "partnership") ||
-    includesNeedle(value, "multi member")
-  ) {
-    return "1065";
-  }
-
-  if (
-    includesNeedle(value, "schedule c") ||
-    includesNeedle(value, "1040") ||
-    includesNeedle(value, "sole prop") ||
-    includesNeedle(value, "single member") ||
-    includesNeedle(value, "disregarded")
-  ) {
-    return "schedule_c_single_member_llc";
-  }
-
-  return null;
-}
-
-function describeLane(laneId: TinaFilingLaneId): string {
-  switch (laneId) {
-    case "schedule_c_single_member_llc":
-      return "Schedule C / single-member LLC";
-    case "1120_s":
-      return "1120-S / S-corp";
-    case "1065":
-      return "1065 / partnership";
-    default:
-      return "unknown lane";
-  }
-}
-
-function formatLaneList(lanes: TinaFilingLaneId[]): string {
-  return lanes.map((lane) => describeLane(lane)).join(", ");
-}
 
 export function createDefaultTinaIssueQueue(): TinaIssueQueue {
   return {
@@ -159,12 +111,6 @@ function isBooksDocument(document: TinaStoredDocument | undefined): boolean {
   return document?.requestId === "quickbooks" || document?.requestId === "bank-support";
 }
 
-function findFactsByLabel(sourceFacts: TinaSourceFact[], label: string): TinaSourceFact[] {
-  return sourceFacts.filter(
-    (fact) => normalizeForComparison(fact.label) === normalizeForComparison(label)
-  );
-}
-
 function calculateRelativeSpread(values: number[]): number {
   if (values.length < 2) return 0;
   const positives = values.filter((value) => value > 0);
@@ -185,10 +131,10 @@ function maybeCreateMoneyScaleMismatchItem(
   bookFacts: TinaSourceFact[]
 ): TinaReviewItem | null {
   const moneyInFacts = bookFacts.filter(
-    (fact) => normalizeForComparison(fact.label) === "money in clue"
+    (fact) => normalizeTinaComparisonValue(fact.label) === "money in clue"
   );
   const moneyOutFacts = bookFacts.filter(
-    (fact) => normalizeForComparison(fact.label) === "money out clue"
+    (fact) => normalizeTinaComparisonValue(fact.label) === "money out clue"
   );
 
   const moneyInValues = moneyInFacts
@@ -238,9 +184,12 @@ function maybeCreateMoneyScaleMismatchItem(
 export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
   const profileFingerprint = buildTinaProfileFingerprint(draft.profile);
   const items: TinaReviewItem[] = [];
-  const recommendation = recommendTinaFilingLane(draft.profile);
+  const startPath = buildTinaStartPathAssessment(draft);
+  const recommendation = startPath.recommendation;
   const checklist = buildTinaChecklist(draft, recommendation);
   const documentById = new Map(draft.documents.map((document) => [document.id, document]));
+  const hasDocumentForRequest = (requestId: string): boolean =>
+    draft.documents.some((document) => document.requestId === requestId);
   const priorReturnDocument = draft.priorReturnDocumentId
     ? documentById.get(draft.priorReturnDocumentId) ?? null
     : null;
@@ -255,21 +204,25 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     isBooksDocument(documentById.get(fact.sourceDocumentId))
   );
   const bookDateFacts = bookFacts.filter(
-    (fact) => normalizeForComparison(fact.label) === "date range clue"
+    (fact) => normalizeTinaComparisonValue(fact.label) === "date range clue"
   );
   const bookMoneyInTotal = bookFacts
-    .filter((fact) => normalizeForComparison(fact.label) === "money in clue")
+    .filter((fact) => normalizeTinaComparisonValue(fact.label) === "money in clue")
     .reduce((total, fact) => total + (parseMoneyFactValue(fact.value) ?? 0), 0);
   const bookMoneyOutTotal = bookFacts
-    .filter((fact) => normalizeForComparison(fact.label) === "money out clue")
+    .filter((fact) => normalizeTinaComparisonValue(fact.label) === "money out clue")
     .reduce((total, fact) => total + (parseMoneyFactValue(fact.value) ?? 0), 0);
   const bookYears = new Set(bookDateFacts.flatMap((fact) => extractFactYears(fact.value)));
-  const ownerFlowFact = pickStrongestFact(findFactsByLabel(bookFacts, "Owner draw clue"));
+  const ownerFlowFact = pickStrongestFact(findTinaFactsByLabel(bookFacts, "Owner draw clue"));
   const intercompanyFact = pickStrongestFact(
-    findFactsByLabel(bookFacts, "Intercompany transfer clue")
+    findTinaFactsByLabel(bookFacts, "Intercompany transfer clue")
   );
-  const relatedPartyFact = pickStrongestFact(findFactsByLabel(bookFacts, "Related-party clue"));
-  const einFacts = findFactsByLabel(bookFacts, "EIN clue");
+  const relatedPartyFact = pickStrongestFact(findTinaFactsByLabel(bookFacts, "Related-party clue"));
+  const mixedUseFact = pickStrongestFact(findTinaFactsByLabel(bookFacts, "Mixed-use clue"));
+  const contradictoryEvidenceFact = pickStrongestFact(
+    findTinaFactsByLabel(draft.sourceFacts, "Contradictory evidence clue")
+  );
+  const einFacts = findTinaFactsByLabel(bookFacts, "EIN clue");
   const uniqueEinSet = new Set(einFacts.flatMap((fact) => extractEinTokens(fact.value)));
 
   if (priorReturnDocument && !priorReturnReading) {
@@ -302,16 +255,17 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const businessNameFact = findFactsByLabel(draft.sourceFacts, "Business name").find(
+  const businessNameFact = findTinaFactsByLabel(draft.sourceFacts, "Business name").find(
     (fact) =>
       draft.profile.businessName.trim() &&
-      normalizeForComparison(fact.value) !== normalizeForComparison(draft.profile.businessName)
+      normalizeTinaComparisonValue(fact.value) !==
+        normalizeTinaComparisonValue(draft.profile.businessName)
   );
   if (
     businessNameFact &&
     draft.profile.businessName.trim() &&
-    normalizeForComparison(businessNameFact.value) !==
-      normalizeForComparison(draft.profile.businessName)
+    normalizeTinaComparisonValue(businessNameFact.value) !==
+      normalizeTinaComparisonValue(draft.profile.businessName)
   ) {
     items.push({
       id: "business-name-conflict",
@@ -327,15 +281,17 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const taxYearFact = findFactsByLabel(draft.sourceFacts, "Tax year").find(
+  const taxYearFact = findTinaFactsByLabel(draft.sourceFacts, "Tax year").find(
     (fact) =>
       draft.profile.taxYear.trim() &&
-      normalizeForComparison(fact.value) !== normalizeForComparison(draft.profile.taxYear)
+      normalizeTinaComparisonValue(fact.value) !==
+        normalizeTinaComparisonValue(draft.profile.taxYear)
   );
   if (
     taxYearFact &&
     draft.profile.taxYear.trim() &&
-    normalizeForComparison(taxYearFact.value) !== normalizeForComparison(draft.profile.taxYear)
+    normalizeTinaComparisonValue(taxYearFact.value) !==
+      normalizeTinaComparisonValue(draft.profile.taxYear)
   ) {
     items.push({
       id: "tax-year-conflict",
@@ -351,44 +307,32 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const returnTypeHintCandidates = findFactsByLabel(draft.sourceFacts, "Return type hint")
+  const returnTypeHintCandidates = startPath.returnTypeHintFacts
     .map((fact) => ({
       fact,
-      hintedLane: inferReturnTypeHintLane(fact.value),
+      hintedLane: inferTinaReturnTypeHintLane(fact.value),
     }))
-    .filter((candidate): candidate is { fact: TinaSourceFact; hintedLane: TinaFilingLaneId } =>
-      candidate.hintedLane !== null
-    );
+    .filter((candidate): candidate is { fact: TinaSourceFact; hintedLane: NonNullable<ReturnType<typeof inferTinaReturnTypeHintLane>> } => candidate.hintedLane !== null);
 
-  const hintedLaneSet = new Set(returnTypeHintCandidates.map((candidate) => candidate.hintedLane));
-  const hintedLanes = Array.from(hintedLaneSet);
-  const hasMixedHintedLanes = hintedLanes.length > 1;
-  const singleHintedLane = hintedLanes.length === 1 ? hintedLanes[0] : null;
-
-  const hasHintVsOrganizerConflict =
-    singleHintedLane !== null &&
-    recommendation.laneId !== "unknown" &&
-    singleHintedLane !== recommendation.laneId;
-
-  if (hasMixedHintedLanes || hasHintVsOrganizerConflict) {
+  if (startPath.hasMixedHintedLanes || startPath.hasHintVsOrganizerConflict) {
     const hasStrongReturnHint = hasAtLeastConfidence(
       returnTypeHintCandidates.map((candidate) => candidate.fact),
       "medium"
     );
     const culprit =
       returnTypeHintCandidates.find((candidate) =>
-        hasMixedHintedLanes
+        startPath.hasMixedHintedLanes
           ? true
-          : candidate.hintedLane === singleHintedLane
+          : candidate.hintedLane === startPath.singleHintedLane
       ) ?? null;
 
-    const summary = hasMixedHintedLanes
-      ? `Saved papers point to multiple return-type lanes (${formatLaneList(
-          hintedLanes
+    const summary = startPath.hasMixedHintedLanes
+      ? `Saved papers point to multiple return-type lanes (${formatTinaFilingLaneList(
+          startPath.hintedLanes
         )}). Tina wants this resolved before she trusts the filing lane.`
-      : `One saved paper hints at ${describeLane(
-          singleHintedLane!
-        )}, but the organizer currently points to ${describeLane(
+      : `One saved paper hints at ${describeTinaFilingLane(
+          startPath.singleHintedLane!
+        )}, but the organizer currently points to ${describeTinaFilingLane(
           recommendation.laneId
         )}. Tina wants this reviewed before she trusts the filing lane.`;
 
@@ -405,12 +349,100 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const stateClue = findFactsByLabel(draft.sourceFacts, "State clue").find((fact) =>
-    includesNeedle(fact.value, "idaho")
+  const ownershipChangeClue = startPath.ownershipChangeClue;
+  if (ownershipChangeClue && !draft.profile.ownershipChangedDuringYear) {
+    items.push({
+      id: "ownership-change-clue",
+      title: "A saved paper hints ownership changed during the year",
+      summary:
+        "Tina found language suggesting an ownership change, buyout, redemption, or partner exit, but that is not marked in the organizer yet.",
+      severity:
+        confidenceRank(ownershipChangeClue.confidence) >= confidenceRank("medium")
+          ? "blocking"
+          : "needs_attention",
+      status: "open",
+      category: "continuity",
+      requestId: null,
+      documentId: ownershipChangeClue.sourceDocumentId,
+      factId: ownershipChangeClue.id,
+    });
+  }
+
+  const formerOwnerPaymentClue = startPath.formerOwnerPaymentClue;
+  if (
+    formerOwnerPaymentClue &&
+    !draft.profile.hasFormerOwnerPayments &&
+    !draft.profile.hasOwnerBuyoutOrRedemption
+  ) {
+    items.push({
+      id: "former-owner-payment-clue",
+      title: "A saved paper hints the business paid a former owner",
+      summary:
+        "Tina found language suggesting the business paid or still references a former owner. That should be confirmed before she trusts the return path or owner-payment treatment.",
+      severity:
+        confidenceRank(formerOwnerPaymentClue.confidence) >= confidenceRank("medium")
+          ? "blocking"
+          : "needs_attention",
+      status: "open",
+      category: "continuity",
+      requestId: null,
+      documentId: formerOwnerPaymentClue.sourceDocumentId,
+      factId: formerOwnerPaymentClue.id,
+    });
+  }
+
+  if (startPath.ownershipMismatchWithSingleOwnerLane) {
+    items.push({
+      id: "ownership-structure-conflict",
+      title: "Owner count conflicts with the single-owner lane",
+      summary:
+        "The organizer says this looks like a sole-prop or single-member file, but the ownership facts show more than one owner. Tina should stop before the wrong return path gets used.",
+      severity: "blocking",
+      status: "open",
+      category: "fact_mismatch",
+      requestId: null,
+      documentId: null,
+      factId: null,
+    });
+  }
+
+  if (
+    draft.profile.ownershipChangedDuringYear ||
+    draft.profile.hasOwnerBuyoutOrRedemption ||
+    draft.profile.hasFormerOwnerPayments
+  ) {
+    const changeSummaryParts: string[] = [];
+    if (draft.profile.ownershipChangedDuringYear) {
+      changeSummaryParts.push("ownership changed during the year");
+    }
+    if (draft.profile.hasOwnerBuyoutOrRedemption) {
+      changeSummaryParts.push("there was an owner buyout or redemption");
+    }
+    if (draft.profile.hasFormerOwnerPayments) {
+      changeSummaryParts.push("the business paid a former owner");
+    }
+
+    items.push({
+      id: "ownership-change-review",
+      title: "Ownership timeline needs review before prep starts",
+      summary: `Tina sees a higher-risk ownership fact pattern: ${changeSummaryParts.join(
+        ", "
+      )}. She should lock down the ownership timeline before trusting the return path or owner-payment treatment.`,
+      severity: "blocking",
+      status: "open",
+      category: "continuity",
+      requestId: null,
+      documentId: null,
+      factId: null,
+    });
+  }
+
+  const stateClue = findTinaFactsByLabel(draft.sourceFacts, "State clue").find((fact) =>
+    includesTinaNeedle(fact.value, "idaho")
   );
   if (
     stateClue &&
-    includesNeedle(stateClue.value, "idaho") &&
+    includesTinaNeedle(stateClue.value, "idaho") &&
     !draft.profile.hasIdahoActivity
   ) {
     items.push({
@@ -427,7 +459,8 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const payrollClue = findFactsByLabel(draft.sourceFacts, "Payroll clue")[0];
+  const payrollClue = findTinaFactsByLabel(draft.sourceFacts, "Payroll clue")[0];
+  const depreciationClue = pickStrongestFact(findTinaFactsByLabel(draft.sourceFacts, "Depreciation clue"));
   if (payrollClue && !draft.profile.hasPayroll) {
     items.push({
       id: "payroll-clue",
@@ -443,7 +476,7 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const salesTaxClue = findFactsByLabel(draft.sourceFacts, "Sales tax clue")[0];
+  const salesTaxClue = findTinaFactsByLabel(draft.sourceFacts, "Sales tax clue")[0];
   if (salesTaxClue && !draft.profile.collectsSalesTax) {
     items.push({
       id: "sales-tax-clue",
@@ -459,7 +492,7 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const contractorClue = findFactsByLabel(draft.sourceFacts, "Contractor clue")[0];
+  const contractorClue = findTinaFactsByLabel(draft.sourceFacts, "Contractor clue")[0];
   if (contractorClue && !draft.profile.paysContractors) {
     items.push({
       id: "contractor-clue",
@@ -475,7 +508,7 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const inventoryClue = findFactsByLabel(draft.sourceFacts, "Inventory clue")[0];
+  const inventoryClue = findTinaFactsByLabel(draft.sourceFacts, "Inventory clue")[0];
   if (inventoryClue && !draft.profile.hasInventory) {
     items.push({
       id: "inventory-clue",
@@ -488,6 +521,54 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
       requestId: null,
       documentId: inventoryClue.sourceDocumentId,
       factId: inventoryClue.id,
+    });
+  }
+
+  if ((payrollClue || draft.profile.hasPayroll) && (contractorClue || draft.profile.paysContractors)) {
+    items.push({
+      id: "worker-classification-ambiguity",
+      title: "Worker classification needs a closer review",
+      summary:
+        "Tina sees both payroll and contractor signals in this file. A human should confirm that wages, contractors, and any misclassified workers are separated correctly before the return is trusted.",
+      severity:
+        hasDocumentForRequest("payroll") && hasDocumentForRequest("contractors")
+          ? "needs_attention"
+          : "blocking",
+      status: "open",
+      category: "books",
+      requestId: null,
+      documentId: payrollClue?.sourceDocumentId ?? contractorClue?.sourceDocumentId ?? null,
+      factId: payrollClue?.id ?? contractorClue?.id ?? null,
+    });
+  }
+
+  if ((draft.profile.hasFixedAssets || Boolean(depreciationClue)) && !(Boolean(priorReturnDocument) || hasDocumentForRequest("assets"))) {
+    items.push({
+      id: "assets-depreciation-support-missing",
+      title: "Fixed-asset and depreciation support is still missing",
+      summary:
+        "Tina sees fixed-asset or depreciation risk, but she does not have prior-return continuity or asset support papers yet. She should stop before trusting depreciation treatment.",
+      severity: "blocking",
+      status: "open",
+      category: "continuity",
+      requestId: "assets",
+      documentId: depreciationClue?.sourceDocumentId ?? null,
+      factId: depreciationClue?.id ?? null,
+    });
+  }
+
+  if ((draft.profile.hasInventory || Boolean(inventoryClue)) && !hasDocumentForRequest("inventory")) {
+    items.push({
+      id: "inventory-cogs-support-missing",
+      title: "Inventory and COGS support is still missing",
+      summary:
+        "Tina sees inventory risk, but she does not have end-of-year inventory support yet. A human should confirm inventory and COGS before trusting those return lines.",
+      severity: draft.profile.hasInventory ? "blocking" : "needs_attention",
+      status: "open",
+      category: "books",
+      requestId: "inventory",
+      documentId: inventoryClue?.sourceDocumentId ?? null,
+      factId: inventoryClue?.id ?? null,
     });
   }
 
@@ -509,12 +590,19 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
   }
 
   if (relatedPartyFact) {
+    const severeRelatedPartyEntity =
+      draft.profile.entityType === "s_corp" ||
+      draft.profile.entityType === "partnership" ||
+      draft.profile.entityType === "multi_member_llc";
+    const strongRelatedPartySignal =
+      confidenceRank(relatedPartyFact.confidence) >= confidenceRank("medium");
+
     items.push({
       id: "books-related-party-clue",
       title: "Books may include related-party balances or loans",
       summary:
         "Tina found a related-party clue. A human should confirm treatment for owner/member/shareholder flows before filing numbers are trusted.",
-      severity: "needs_attention",
+      severity: severeRelatedPartyEntity && strongRelatedPartySignal ? "blocking" : "needs_attention",
       status: "open",
       category: "books",
       requestId: null,
@@ -542,6 +630,42 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
       requestId: null,
       documentId: ownerFlowFact.sourceDocumentId,
       factId: ownerFlowFact.id,
+    });
+  }
+
+  if (mixedUseFact) {
+    items.push({
+      id: "books-mixed-use-contamination",
+      title: "Books may mix personal and business activity",
+      summary:
+        "Tina found a mixed-use clue in the money papers. A human should separate personal and business activity before trusting return-facing totals.",
+      severity:
+        confidenceRank(mixedUseFact.confidence) >= confidenceRank("medium")
+          ? "blocking"
+          : "needs_attention",
+      status: "open",
+      category: "books",
+      requestId: null,
+      documentId: mixedUseFact.sourceDocumentId,
+      factId: mixedUseFact.id,
+    });
+  }
+
+  if (contradictoryEvidenceFact) {
+    items.push({
+      id: "contradictory-evidence-clue",
+      title: "Saved papers appear to contradict each other",
+      summary:
+        "Tina found a contradiction clue across the saved papers. She should stop and route this to review instead of silently picking one fact set.",
+      severity:
+        confidenceRank(contradictoryEvidenceFact.confidence) >= confidenceRank("medium")
+          ? "blocking"
+          : "needs_attention",
+      status: "open",
+      category: "fact_mismatch",
+      requestId: null,
+      documentId: contradictoryEvidenceFact.sourceDocumentId,
+      factId: contradictoryEvidenceFact.id,
     });
   }
 
@@ -604,7 +728,7 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const partialWarning = findFactsByLabel(draft.sourceFacts, "Partial file warning")[0];
+  const partialWarning = findTinaFactsByLabel(draft.sourceFacts, "Partial file warning")[0];
   if (partialWarning) {
     items.push({
       id: "partial-file-warning",
@@ -646,7 +770,13 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     .filter((item) => item.category === "state_scope")
     .map((item) => item.id);
   const laneIssueIds = uniqueItems
-    .filter((item) => item.id === "return-type-hint-conflict")
+    .filter((item) =>
+      item.id === "return-type-hint-conflict" ||
+      item.id === "ownership-structure-conflict" ||
+      item.id === "ownership-change-review" ||
+      item.id === "ownership-change-clue" ||
+      item.id === "former-owner-payment-clue"
+    )
     .map((item) => item.id);
 
   const booksSignalSummaryParts: string[] = [];

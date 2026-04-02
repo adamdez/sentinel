@@ -22,6 +22,12 @@ export type TinaEntityType =
   | "unsure";
 
 export type TinaAccountingMethod = "cash" | "accrual" | "unsure";
+export type TinaTaxElection = "unsure" | "default" | "s_corp" | "c_corp";
+export type TinaSpouseCommunityPropertyTreatment =
+  | "unknown"
+  | "no"
+  | "possible"
+  | "confirmed";
 
 export interface TinaPriorReturnSnapshot {
   fileName: string;
@@ -83,6 +89,12 @@ export interface TinaBusinessTaxProfile {
   businessName: string;
   taxYear: string;
   entityType: TinaEntityType;
+  ownerCount: number | null;
+  ownershipChangedDuringYear: boolean;
+  taxElection: TinaTaxElection;
+  spouseCommunityPropertyTreatment: TinaSpouseCommunityPropertyTreatment;
+  hasOwnerBuyoutOrRedemption: boolean;
+  hasFormerOwnerPayments: boolean;
   formationState: string;
   formationDate: string;
   accountingMethod: TinaAccountingMethod;
@@ -324,6 +336,88 @@ export interface TinaCpaHandoffSnapshot {
   artifacts: TinaCpaHandoffArtifact[];
 }
 
+export type TinaPackageState =
+  | "provisional"
+  | "ready_for_cpa_review"
+  | "blocked"
+  | "signed_off"
+  | "signed_off_stale";
+
+export type TinaReviewerDecision = "approved" | "changes_requested" | "revoked";
+
+export interface TinaReviewerDecisionRecord {
+  id: string;
+  snapshotId: string;
+  decision: TinaReviewerDecision;
+  reviewerName: string;
+  notes: string;
+  decidedAt: string;
+}
+
+export interface TinaPackageSnapshotRecord {
+  id: string;
+  createdAt: string;
+  packageFingerprint: string;
+  packageState: TinaPackageState;
+  readinessLevel: TinaPackageReadinessLevel;
+  blockerCount: number;
+  attentionCount: number;
+  summary: string;
+  exportFileName: string;
+  exportContents: string;
+}
+
+export interface TinaReviewerSignoffSnapshot {
+  lastEvaluatedAt: string | null;
+  packageState: TinaPackageState;
+  summary: string;
+  nextStep: string;
+  activeSnapshotId: string | null;
+  activeDecisionId: string | null;
+  currentPackageFingerprint: string | null;
+  signedOffPackageFingerprint: string | null;
+  hasDriftSinceSignoff: boolean;
+}
+
+export type TinaTaxPositionBucket = "use" | "review" | "appendix" | "reject";
+
+export interface TinaAppendixItem {
+  id: string;
+  title: string;
+  summary: string;
+  whyItMatters: string;
+  taxPositionBucket: TinaTaxPositionBucket;
+  category: string;
+  nextStep: string;
+  authoritySummary: string;
+  reviewerQuestion: string;
+  disclosureFlag: string;
+  authorityTargets: string[];
+  sourceLabels: string[];
+  factIds: string[];
+  documentIds: string[];
+}
+
+export interface TinaAppendixSnapshot {
+  lastRunAt: string | null;
+  status: TinaWorkpaperStatus;
+  summary: string;
+  nextStep: string;
+  items: TinaAppendixItem[];
+}
+
+export type TinaOperationalMaturity = "foundation" | "schedule_c_core" | "reviewer_grade_core";
+
+export interface TinaOperationalStatusSnapshot {
+  lastRunAt: string | null;
+  maturity: TinaOperationalMaturity;
+  packageState: TinaPackageState;
+  summary: string;
+  nextStep: string;
+  truths: string[];
+  blockers: string[];
+}
+
 export type TinaCleanupPlanStatus = "idle" | "stale" | "running" | "complete";
 export type TinaCleanupSuggestionType =
   | "reconcile_line"
@@ -429,6 +523,11 @@ export interface TinaWorkspaceDraft {
   scheduleCDraft: TinaScheduleCDraftSnapshot;
   packageReadiness: TinaPackageReadinessSnapshot;
   cpaHandoff: TinaCpaHandoffSnapshot;
+  reviewerSignoff: TinaReviewerSignoffSnapshot;
+  reviewerDecisions: TinaReviewerDecisionRecord[];
+  packageSnapshots: TinaPackageSnapshotRecord[];
+  appendix: TinaAppendixSnapshot;
+  operationalStatus: TinaOperationalStatusSnapshot;
   authorityWork: TinaAuthorityWorkItem[];
   profile: TinaBusinessTaxProfile;
 }
@@ -443,6 +542,7 @@ export type TinaDraftSyncStatus =
 export type TinaFilingLaneId =
   | "schedule_c_single_member_llc"
   | "1120_s"
+  | "1120"
   | "1065"
   | "unknown";
 
@@ -455,6 +555,18 @@ export interface TinaFilingLaneRecommendation {
   summary: string;
   reasons: string[];
   blockers: string[];
+}
+
+export interface TinaStartPathAssessment {
+  recommendation: TinaFilingLaneRecommendation;
+  returnTypeHintFacts: TinaSourceFact[];
+  hintedLanes: TinaFilingLaneId[];
+  hasMixedHintedLanes: boolean;
+  singleHintedLane: TinaFilingLaneId | null;
+  hasHintVsOrganizerConflict: boolean;
+  ownershipChangeClue: TinaSourceFact | null;
+  formerOwnerPaymentClue: TinaSourceFact | null;
+  ownershipMismatchWithSingleOwnerLane: boolean;
 }
 
 export type TinaChecklistPriority = "required" | "recommended" | "watch";

@@ -3,6 +3,7 @@ import {
   buildTinaPackageReadiness,
   markTinaPackageReadinessStale,
 } from "@/tina/lib/package-readiness";
+import { createTinaPackageSnapshotRecord } from "@/tina/lib/package-state";
 import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 import type { TinaWorkspaceDraft } from "@/tina/types";
@@ -45,6 +46,121 @@ describe("buildTinaPackageReadiness", () => {
 
     expect(snapshot.level).toBe("blocked");
     expect(snapshot.items.some((item) => item.id === "lane-not-supported")).toBe(true);
+  });
+
+  it("blocks package readiness when ownership-support proof is still required", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Transition LLC",
+        entityType: "single_member_llc",
+        ownerCount: 2,
+        taxElection: "default",
+      },
+      bootstrapReview: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "doc-bank",
+          name: "bank.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/bank.pdf",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Bank support",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [
+          {
+            id: "line-1-gross-receipts",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 20000,
+            status: "ready",
+            summary: "Looks good.",
+            reviewerFinalLineIds: ["rf-1"],
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-1"],
+          },
+        ],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+    expect(snapshot.level).toBe("blocked");
+    expect(snapshot.items.some((item) => item.id === "required-ownership-support")).toBe(true);
   });
 
   it("shows blocking items for unapproved tax moves and waiting draft fields", () => {
@@ -1288,6 +1404,132 @@ describe("buildTinaPackageReadiness", () => {
     expect(snapshot.items).toHaveLength(0);
   });
 
+  it("blocks readiness when the live package drifted after reviewer signoff", () => {
+    const cleanDraft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Sole Prop",
+        entityType: "sole_prop",
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [
+          {
+            id: "line-1-gross-receipts",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 20000,
+            status: "ready",
+            summary: "Looks good.",
+            reviewerFinalLineIds: ["rf-1"],
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-1"],
+          },
+        ],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+      bootstrapReview: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+    });
+
+    const snapshotRecord = createTinaPackageSnapshotRecord(cleanDraft, "2026-03-27T04:05:00.000Z");
+    const driftedDraft = {
+      ...cleanDraft,
+      packageSnapshots: [snapshotRecord],
+      reviewerDecisions: [
+        {
+          id: "decision-1",
+          snapshotId: snapshotRecord.id,
+          decision: "approved" as const,
+          reviewerName: "CPA",
+          notes: "",
+          decidedAt: "2026-03-27T04:06:00.000Z",
+        },
+      ],
+      scheduleCDraft: {
+        ...cleanDraft.scheduleCDraft,
+        fields: [
+          {
+            ...cleanDraft.scheduleCDraft.fields[0]!,
+            amount: 21000,
+          },
+        ],
+      },
+    };
+
+    const snapshot = buildTinaPackageReadiness(driftedDraft);
+    expect(snapshot.items.some((item) => item.id === "signed-off-package-drift")).toBe(true);
+  });
+
   it("does not downgrade readiness for watch-only issue queue items", () => {
     const draft = buildDraft({
       profile: {
@@ -1411,6 +1653,131 @@ describe("buildTinaPackageReadiness", () => {
     const snapshot = buildTinaPackageReadiness(draft);
     expect(snapshot.level).toBe("ready_for_cpa");
     expect(snapshot.items.some((item) => item.id === "issue-watch-only")).toBe(false);
+  });
+
+  it("blocks package readiness when issue queue contains a blocking related-party integrity clue", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina S Corp",
+        entityType: "s_corp",
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "doc-bank",
+          name: "bank.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/bank.pdf",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Bank support",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      bootstrapReview: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Blocking",
+        nextStep: "Resolve integrity issues",
+        items: [
+          {
+            id: "books-related-party-clue",
+            title: "Books may include related-party balances or loans",
+            summary: "Shareholder/member loan flow needs classification before filing trust.",
+            severity: "blocking",
+            status: "open",
+            category: "books",
+            requestId: null,
+            documentId: "doc-qb",
+            factId: "related-party-fact",
+          },
+        ],
+        records: [],
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [
+          {
+            id: "line-1-gross-receipts",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 20000,
+            status: "ready",
+            summary: "Looks good.",
+            reviewerFinalLineIds: ["rf-1"],
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-1"],
+          },
+        ],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+    expect(snapshot.level).toBe("blocked");
+    expect(snapshot.items.some((item) => item.id === "issue-books-related-party-clue")).toBe(true);
   });
 });
 

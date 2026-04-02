@@ -343,6 +343,93 @@ function detectKeywordClues(rows: Record<string, string>[], textHeaders: string[
     });
   }
 
+  if (
+    /\b(personal expense|personal use|owner personal|mixed use|mixed-use|commingled|personal and business)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Mixed-use clue",
+      value: "This paper suggests personal and business activity may be mixed together.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(depreciation|bonus depreciation|section 179|sec 179|placed in service|fixed asset|asset purchase)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Depreciation clue",
+      value: "This paper mentions depreciation, fixed assets, or Section 179 style treatment.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(schedule c|form 1040|sole prop|sole proprietor|disregarded entity|single member llc)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Return type hint",
+      value: "Schedule C / 1040",
+      confidence: "medium",
+    });
+  }
+
+  if (/\b(1120-s|1120 s|s corp|s-corp|form 2553)\b/.test(haystack)) {
+    clues.push({
+      label: "Return type hint",
+      value: "1120-S / S-corp",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(form 1120| c corp| c-corp|corporate return)\b/.test(haystack) &&
+    !/\b1120-s|1120 s\b/.test(haystack)
+  ) {
+    clues.push({
+      label: "Return type hint",
+      value: "1120 / C-corp",
+      confidence: "medium",
+    });
+  }
+
+  if (/\b(1065|k-1|partnership return|multi member llc|multi-member llc)\b/.test(haystack)) {
+    clues.push({
+      label: "Return type hint",
+      value: "1065 / partnership",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(ownership changed|change in ownership|partner buyout|member buyout|owner buyout|redemption of interest|buyout payout|retiring partner)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Ownership change clue",
+      value: "This paper mentions an ownership change, buyout, redemption, or partner exit.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(former owner|former member|former partner|relinquished ownership|no longer an owner|redeemed owner|buyout payment)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Former owner payment clue",
+      value: "This paper mentions a former owner, owner exit, or payout after ownership changed.",
+      confidence: "medium",
+    });
+  }
+
   const hasEntityNameToken = /\b(llc|inc|corp|corporation|company|co\.|lp|l\.p\.)\b/.test(
     haystack
   );

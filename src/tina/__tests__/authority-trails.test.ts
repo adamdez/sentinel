@@ -12,9 +12,11 @@ function buildDossier(overrides?: Partial<TinaResearchDossier>): TinaResearchDos
     title: "Check the QBI deduction",
     status: "needs_primary_authority",
     summary: "Tina still needs primary authority.",
+    whyItMatters: "This may materially reduce tax when the facts support it.",
     nextStep: "Keep it in research.",
     authorityPrompt: "Use primary authority only.",
     discoveryPrompt: "Research QBI.",
+    groundingLabels: ["The filing lane points to Schedule C."],
     steps: [],
     documentIds: [],
     factIds: [],
@@ -63,6 +65,44 @@ describe("buildTinaAuthorityTrailFromDossier", () => {
     expect(trail.authorityTargets).toEqual(
       expect.arrayContaining(["prior-year return support"])
     );
+  });
+
+  it("builds ownership-change trails with specialized authority targets and reviewer questions", () => {
+    const trail = buildTinaAuthorityTrailFromDossier(
+      buildDossier({
+        id: "ownership-change-treatment-review",
+        title: "Check ownership change, buyout, and former-owner payment treatment",
+        status: "needs_primary_authority",
+      })
+    );
+
+    expect(trail.authorityTargets).toEqual(
+      expect.arrayContaining([
+        "entity formation and operating documents",
+        "partnership tax authority",
+        "transaction documents for owner exits",
+      ])
+    );
+    expect(trail.memoFocus).toContain("buyouts");
+    expect(trail.reviewerQuestion).toContain("alter the filing lane");
+  });
+
+  it("builds election-proof trails with election-specific targets", () => {
+    const trail = buildTinaAuthorityTrailFromDossier(
+      buildDossier({
+        id: "entity-election-proof-review",
+        title: "Check entity election proof and effective-date continuity",
+        status: "needs_primary_authority",
+      })
+    );
+
+    expect(trail.authorityTargets).toEqual(
+      expect.arrayContaining([
+        "entity formation and operating documents",
+        "entity election filings or acceptance notices",
+      ])
+    );
+    expect(trail.reviewerQuestion).toContain("corporate election");
   });
 });
 

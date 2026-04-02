@@ -122,6 +122,12 @@ const ACCOUNTING_METHOD_OPTIONS: Array<{ value: TinaAccountingMethod; label: str
   { value: "unsure", label: "I'm not sure yet" },
 ];
 
+type TinaSimpleNextActionId =
+  | "upload_prior_return"
+  | "upload_next_paper"
+  | "run_setup_check"
+  | "run_conflict_check";
+
 const SUPPORT_STYLES = {
   supported: "border-emerald-300/20 bg-emerald-300/10 text-emerald-50",
   future: "border-amber-300/20 bg-amber-300/10 text-amber-50",
@@ -366,6 +372,7 @@ export function TinaWorkspace() {
   } = useTinaDraft();
   const inputId = useId();
   const supportingInputId = useId();
+  const priorReturnInputRef = useRef<HTMLInputElement | null>(null);
   const supportingInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadState, setUploadState] = useState<"idle" | "uploading" | "error">("idle");
   const [reviewState, setReviewState] = useState<"idle" | "running" | "error">("idle");
@@ -404,6 +411,13 @@ export function TinaWorkspace() {
   >("idle");
   const [cpaHandoffState, setCpaHandoffState] = useState<"idle" | "running" | "error">("idle");
   const [cpaDownloadState, setCpaDownloadState] = useState<"idle" | "running" | "error">("idle");
+  const [showOptionalBusinessDetails, setShowOptionalBusinessDetails] = useState(false);
+  const [showSavedPapers, setShowSavedPapers] = useState(false);
+  const [showDraftDetails, setShowDraftDetails] = useState(false);
+  const [showLaneDetails, setShowLaneDetails] = useState(false);
+  const [showChecklistDetails, setShowChecklistDetails] = useState(false);
+  const [showPriorReturnControls, setShowPriorReturnControls] = useState(false);
+  const [showNotesField, setShowNotesField] = useState(false);
   const recommendation = recommendTinaFilingLane(draft.profile);
   const checklist = buildTinaChecklist(draft, recommendation);
   const neededChecklist = checklist.filter((item) => item.status === "needed");
@@ -498,6 +512,52 @@ export function TinaWorkspace() {
   const cpaHandoffBlockedCount = cpaHandoff.artifacts.filter(
     (artifact) => artifact.status === "blocked"
   ).length;
+  const needsSetupCheck = review.status !== "complete";
+  const needsConflictCheck = issueQueue.status !== "complete";
+  const nextChecklistItem = neededChecklist[0] ?? null;
+  const simpleBlockingCount =
+    blockingReviewCount + blockingIssueCount + packageReadinessBlockingCount;
+  const hasPriorReturn = Boolean(storedPriorReturn || draft.priorReturn);
+  const simpleNextActionId: TinaSimpleNextActionId = !hasPriorReturn
+    ? "upload_prior_return"
+    : nextChecklistItem
+      ? "upload_next_paper"
+      : needsSetupCheck
+        ? "run_setup_check"
+        : "run_conflict_check";
+  const simpleNextActionLabel =
+    simpleNextActionId === "upload_prior_return"
+      ? "Add last year's return"
+      : simpleNextActionId === "upload_next_paper" && nextChecklistItem
+        ? `Add next paper: ${nextChecklistItem.label}`
+      : simpleNextActionId === "run_setup_check"
+        ? "Run setup check"
+        : "Run conflict check";
+  const simpleNextActionTitle =
+    simpleNextActionId === "upload_prior_return"
+      ? "Start by adding last year's return."
+      : simpleNextActionId === "upload_next_paper"
+        ? "Next, add the paper Tina is waiting on."
+      : simpleNextActionId === "run_setup_check"
+          ? "Now let Tina run the setup check."
+          : "Now let Tina run the conflict check.";
+  const simpleNextActionHint =
+    simpleNextActionId === "upload_prior_return"
+      ? "If you do not have it, you can skip for now and keep going."
+      : simpleNextActionId === "upload_next_paper"
+        ? "One paper at a time keeps this easy."
+      : simpleNextActionId === "run_setup_check"
+          ? "Tina will confirm what is ready and what still needs help."
+          : "This checks for mismatches before deeper prep work.";
+  const simpleNextActionBusy =
+    (simpleNextActionId === "upload_prior_return" && uploadState === "uploading") ||
+    (simpleNextActionId === "upload_next_paper" &&
+      (uploadState === "uploading" ||
+        removingDocumentId !== null ||
+        openingDocumentId !== null ||
+        readingDocumentId !== null)) ||
+    (simpleNextActionId === "run_setup_check" && reviewState === "running") ||
+    (simpleNextActionId === "run_conflict_check" && issueState === "running");
 
   function renderIssueContext(documentId?: string | null, factId?: string | null) {
     const linkedDocument = documentId ? documentMap.get(documentId) ?? null : null;
@@ -1147,6 +1207,7 @@ export function TinaWorkspace() {
       addUploadedDocument(payload.document, true);
       setUploadState("idle");
       setUploadMessage("Last year's return is now saved in Tina.");
+      setShowPriorReturnControls(false);
     } catch {
       attachPriorReturn(file);
       setUploadState("error");
@@ -1208,6 +1269,7 @@ export function TinaWorkspace() {
         clearPriorReturn();
         setUploadState("idle");
         setUploadMessage("Tina removed that saved return.");
+        setShowPriorReturnControls(false);
       } catch {
         setUploadState("error");
         setUploadMessage("Tina could not remove that file yet. Try again in a moment.");
@@ -1220,6 +1282,7 @@ export function TinaWorkspace() {
     clearPriorReturn();
     setUploadState("idle");
     setUploadMessage("Tina cleared the local return note.");
+    setShowPriorReturnControls(false);
   }
 
   async function openSavedDocument(document: TinaStoredDocument) {
@@ -1335,6 +1398,29 @@ export function TinaWorkspace() {
     supportingInputRef.current?.click();
   }
 
+  function runSimpleNextAction() {
+    if (simpleNextActionId === "upload_prior_return") {
+      priorReturnInputRef.current?.click();
+      return;
+    }
+
+    if (simpleNextActionId === "upload_next_paper" && nextChecklistItem) {
+      beginChecklistUpload(nextChecklistItem);
+      return;
+    }
+
+    if (simpleNextActionId === "run_setup_check") {
+      void runBootstrapReview();
+      return;
+    }
+
+    if (simpleNextActionId === "run_conflict_check") {
+      void runIssueQueueCheck();
+      return;
+    }
+
+  }
+
   const isVaultBusy =
     uploadState === "uploading" ||
     removingDocumentId !== null ||
@@ -1343,88 +1429,59 @@ export function TinaWorkspace() {
 
   return (
     <div className="space-y-5">
-      <Card className="border-emerald-300/14 bg-emerald-300/8 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
-        <CardContent className="grid gap-3 p-5 md:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100/80">Step 1</p>
-            <p className="mt-2 text-sm font-medium text-white">Add last year's return if you have it.</p>
+      <Card className="border-emerald-300/18 bg-emerald-300/10 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+        <CardHeader className="space-y-2">
+          <CardTitle className="text-white">Do this next</CardTitle>
+          <p className="text-sm leading-6 text-zinc-100/90">{simpleNextActionTitle}</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm leading-6 text-zinc-200">
+            {simpleNextActionHint}
           </div>
-          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100/80">Step 2</p>
-            <p className="mt-2 text-sm font-medium text-white">Answer the easy business questions below.</p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100/80">Step 3</p>
-            <p className="mt-2 text-sm font-medium text-white">Bring the papers Tina asks for next.</p>
+          {simpleBlockingCount > 0 ? (
+            <div className="rounded-2xl border border-amber-300/18 bg-amber-300/8 px-4 py-3 text-sm leading-6 text-amber-50">
+              Known blocking items: {simpleBlockingCount}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" onClick={runSimpleNextAction} disabled={simpleNextActionBusy}>
+              {simpleNextActionBusy ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4" />
+              )}
+              {simpleNextActionLabel}
+            </Button>
           </div>
         </CardContent>
       </Card>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
         <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
-          <CardHeader className="flex flex-row items-center justify-between gap-4">
-            <div className="space-y-2">
-              <CardTitle className="text-white">Step 1: Start with last year</CardTitle>
-              <p className="text-sm leading-6 text-zinc-300">
-                If you have last year's tax return, add it here first. That helps Tina fill in a lot of the basics for you.
-              </p>
-            </div>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-200">
-              Strongly preferred
-            </span>
+          <CardHeader className="space-y-2">
+            <CardTitle className="text-white">
+              {hasPriorReturn ? "Step 1 complete: Last year&apos;s return added" : "Step 1: Add last year&apos;s return"}
+            </CardTitle>
+            <p className="text-sm leading-6 text-zinc-300">
+              {hasPriorReturn
+                ? "You can keep this as-is or change it."
+                : "Add it if you have it. If not, Tina can still keep going."}
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-2xl border border-emerald-300/14 bg-emerald-300/8 px-4 py-3 text-sm leading-6 text-emerald-50">
-              You do not need to understand tax language here. If you have the file, add it. If you do not, Tina can still keep going.
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <input
-                id={inputId}
-                type="file"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.heic"
-                className="hidden"
-                onChange={async (event) => {
-                  const file = event.target.files?.[0];
-                  if (file) await uploadPriorReturn(file);
-                  event.currentTarget.value = "";
-                }}
-              />
-              <Button asChild disabled={uploadState === "uploading"}>
-                <label htmlFor={inputId} className="cursor-pointer">
-                  {uploadState === "uploading" && activeUploadTarget === "prior-return" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileUp className="h-4 w-4" />
-                  )}
-                  {uploadState === "uploading" && activeUploadTarget === "prior-return"
-                    ? "Saving..."
-                    : "Add last year's return"}
-                </label>
-              </Button>
-              {(storedPriorReturn || draft.priorReturn) && (
-                <Button
-                  variant="ghost"
-                  className="text-zinc-300 hover:bg-white/8 hover:text-white"
-                  onClick={removePriorReturn}
-                  disabled={removingDocumentId !== null}
-                >
-                  {removingDocumentId ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Remove
-                </Button>
-              )}
-            </div>
-
-            {uploadMessage && (
-              <div className={cn(
-                "rounded-2xl border px-4 py-3 text-sm leading-6",
-                uploadState === "error"
-                  ? "border-amber-300/14 bg-amber-300/8 text-amber-50"
-                  : "border-white/10 bg-black/15 text-zinc-200"
-              )}>
-                {uploadMessage}
-              </div>
-            )}
+            <input
+              ref={priorReturnInputRef}
+              id={inputId}
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.heic"
+              className="hidden"
+              onChange={async (event) => {
+                const input = event.currentTarget;
+                const file = event.target.files?.[0];
+                if (file) await uploadPriorReturn(file);
+                input.value = "";
+              }}
+            />
 
             <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
               {storedPriorReturn ? (
@@ -1465,21 +1522,97 @@ export function TinaWorkspace() {
                 </div>
               )}
             </div>
+
+            {!hasPriorReturn || showPriorReturnControls ? (
+              <>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button asChild disabled={uploadState === "uploading"}>
+                    <label htmlFor={inputId} className="cursor-pointer">
+                      {uploadState === "uploading" && activeUploadTarget === "prior-return" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <FileUp className="h-4 w-4" />
+                      )}
+                      {uploadState === "uploading" && activeUploadTarget === "prior-return"
+                        ? "Saving..."
+                        : hasPriorReturn
+                          ? "Replace file"
+                          : "Add last year's return"}
+                    </label>
+                  </Button>
+                  {(storedPriorReturn || draft.priorReturn) ? (
+                    <Button
+                      variant="ghost"
+                      className="text-zinc-300 hover:bg-white/8 hover:text-white"
+                      onClick={removePriorReturn}
+                      disabled={removingDocumentId !== null}
+                    >
+                      {removingDocumentId ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      Remove
+                    </Button>
+                  ) : null}
+                  {hasPriorReturn ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="text-zinc-300 hover:bg-white/8 hover:text-white"
+                      onClick={() => setShowPriorReturnControls(false)}
+                    >
+                      Done editing
+                    </Button>
+                  ) : null}
+                </div>
+
+                {uploadMessage ? (
+                  <div
+                    className={cn(
+                      "rounded-2xl border px-4 py-3 text-sm leading-6",
+                      uploadState === "error"
+                        ? "border-amber-300/14 bg-amber-300/8 text-amber-50"
+                        : "border-white/10 bg-black/15 text-zinc-200"
+                    )}
+                  >
+                    {uploadMessage}
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-zinc-100 hover:bg-white/8"
+                  onClick={() => setShowPriorReturnControls(true)}
+                >
+                  Change file
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
           <CardHeader className="space-y-3">
-            <CardTitle className="text-white">Workspace draft</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="text-white">Saved progress</CardTitle>
+              <Button
+                type="button"
+                variant="ghost"
+                className="text-zinc-100 hover:bg-white/8"
+                onClick={() => setShowDraftDetails((value) => !value)}
+              >
+                {showDraftDetails ? "Hide details" : "Show details"}
+              </Button>
+            </div>
             <p className="text-sm leading-6 text-zinc-300">
-              Tina is saving your answers on this device so you do not lose your place.
+              Tina saves your work so you can leave and come back anytime.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
               <div className="flex items-center gap-2 text-sm font-medium text-white">
                 <Save className="h-4 w-4 text-emerald-200" />
-                Last local save
+                Last save
               </div>
               <p className="mt-2 text-sm text-zinc-300">{formatSavedAt(draft.savedAt)}</p>
               <p className="mt-2 text-xs leading-5 text-zinc-500">
@@ -1491,29 +1624,53 @@ export function TinaWorkspace() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
-                Checklist coverage
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-white">
-                {coveredChecklistCount}/{checklist.length}
-              </p>
-              <p className="mt-1 text-sm text-zinc-300">Known bootstrap items already covered.</p>
-            </div>
+            {showDraftDetails ? (
+              <>
+                <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                    Checklist coverage
+                  </p>
+                  <p className="mt-2 text-2xl font-semibold text-white">
+                    {coveredChecklistCount}/{checklist.length}
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-300">Known bootstrap items already covered.</p>
+                </div>
 
-            <Button variant="outline" className="w-full border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8" onClick={resetDraft}>
-              <RefreshCcw className="h-4 w-4" />
-              Start this draft over
-            </Button>
+                <Button
+                  variant="outline"
+                  className="w-full border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                  onClick={resetDraft}
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  Start this draft over
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm leading-6 text-zinc-400">
+                Draft controls stay hidden by default so this page stays focused.
+              </p>
+            )}
           </CardContent>
         </Card>
       </section>
-
       <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
-        <CardHeader className="space-y-2">
-          <CardTitle className="text-white">Papers Tina has saved</CardTitle>
+        <CardHeader className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-white">Papers Tina has saved</CardTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-zinc-100 hover:bg-white/8"
+              onClick={() => setShowSavedPapers((value) => !value)}
+            >
+              {showSavedPapers ? "Hide paper list" : "Show paper list"}
+            </Button>
+          </div>
           <p className="text-sm leading-6 text-zinc-300">
-            This is the simple paper list for Tina's vault. Tina keeps the papers you add tied to the job they help finish.
+            {draft.documents.length === 0
+              ? "No papers saved yet."
+              : `${draft.documents.length} paper${draft.documents.length === 1 ? "" : "s"} saved.`}{" "}
+            Open the list only when you want to read, remove, or re-check files.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -1524,14 +1681,16 @@ export function TinaWorkspace() {
             accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.png,.jpg,.jpeg,.heic"
             className="hidden"
             onChange={async (event) => {
+              const input = event.currentTarget;
               const file = event.target.files?.[0];
               if (file && selectedChecklistItem) {
                 await uploadChecklistDocument(file, selectedChecklistItem);
               }
-              event.currentTarget.value = "";
+              input.value = "";
             }}
           />
-          {draft.documents.length > 0 ? (
+          {showSavedPapers ? (
+            draft.documents.length > 0 ? (
             draft.documents.map((document) => {
               const reading = findTinaDocumentReading(draft.documentReadings, document.id);
 
@@ -1688,8 +1847,13 @@ export function TinaWorkspace() {
               );
             })
           ) : (
+              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-sm leading-6 text-zinc-300">
+                No papers saved yet. Start by adding last year's return.
+              </div>
+            )
+          ) : (
             <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4 text-sm leading-6 text-zinc-300">
-              No papers saved yet. Start by adding last year's return.
+              Paper list is collapsed to keep this page simple. Open it when you need to work with files.
             </div>
           )}
         </CardContent>
@@ -1700,7 +1864,7 @@ export function TinaWorkspace() {
           <CardHeader className="space-y-2">
             <CardTitle className="text-white">Step 2: Answer a few easy questions</CardTitle>
             <p className="text-sm leading-6 text-zinc-300">
-              If you are not sure about an answer, pick the closest fit or leave a note. Tina will ask for backup papers later when needed.
+              If you are not sure, pick the closest fit. You can update this anytime.
             </p>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -1759,110 +1923,184 @@ export function TinaWorkspace() {
                 </select>
               </label>
 
-              <label className="space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Formation state</span>
-                <p className="text-xs leading-5 text-zinc-400">The state where the business was formed, like WA.</p>
-                <Input
-                  value={draft.profile.formationState}
-                  onChange={(event) => updateProfile("formationState", event.target.value.toUpperCase())}
-                  placeholder="WA"
-                  className="border-white/10 bg-white/5 text-white placeholder:text-zinc-500"
-                />
-              </label>
-
-              <label className="space-y-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Formation date</span>
-                <p className="text-xs leading-5 text-zinc-400">When the business was started or formed.</p>
-                <Input
-                  type="date"
-                  value={draft.profile.formationDate}
-                  onChange={(event) => updateProfile("formationDate", event.target.value)}
-                  className="border-white/10 bg-white/5 text-white"
-                />
-              </label>
-
-              <label className="space-y-2 md:col-span-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">NAICS code or activity hint</span>
-                <p className="text-xs leading-5 text-zinc-400">A short description like "landscaping" is enough if you do not know the code.</p>
-                <Input
-                  value={draft.profile.naicsCode}
-                  onChange={(event) => updateProfile("naicsCode", event.target.value)}
-                  placeholder="Example: 561730 or 'landscaping services'"
-                  className="border-white/10 bg-white/5 text-white placeholder:text-zinc-500"
-                />
-              </label>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-zinc-200">
-                <Checkbox
-                  checked={draft.profile.hasPayroll}
-                  onChange={(event) => updateProfile("hasPayroll", event.target.checked)}
-                  className="mt-0.5 border-white/20 bg-white/5"
-                />
-                <span>We ran payroll / W-2 wages</span>
-              </label>
-              <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-zinc-200">
-                <Checkbox
-                  checked={draft.profile.paysContractors}
-                  onChange={(event) => updateProfile("paysContractors", event.target.checked)}
-                  className="mt-0.5 border-white/20 bg-white/5"
-                />
-                <span>We paid contractors / 1099 vendors</span>
-              </label>
-              <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-zinc-200">
-                <Checkbox
-                  checked={draft.profile.hasInventory}
-                  onChange={(event) => updateProfile("hasInventory", event.target.checked)}
-                  className="mt-0.5 border-white/20 bg-white/5"
-                />
-                <span>We hold inventory</span>
-              </label>
-              <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-zinc-200">
-                <Checkbox
-                  checked={draft.profile.hasFixedAssets}
-                  onChange={(event) => updateProfile("hasFixedAssets", event.target.checked)}
-                  className="mt-0.5 border-white/20 bg-white/5"
-                />
-                <span>We bought or carry fixed assets</span>
-              </label>
-              <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-zinc-200">
-                <Checkbox
-                  checked={draft.profile.collectsSalesTax}
-                  onChange={(event) => updateProfile("collectsSalesTax", event.target.checked)}
-                  className="mt-0.5 border-white/20 bg-white/5"
-                />
-                <span>We collect sales tax</span>
-              </label>
-              <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-black/15 px-4 py-3 text-sm text-zinc-200">
-                <Checkbox
-                  checked={draft.profile.hasIdahoActivity}
-                  onChange={(event) => updateProfile("hasIdahoActivity", event.target.checked)}
-                  className="mt-0.5 border-white/20 bg-white/5"
-                />
-                <span>We had Idaho activity or possible nexus</span>
-              </label>
+            <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-white">More business details (optional)</p>
+                  <p className="mt-1 text-sm leading-6 text-zinc-300">
+                    Skip this for now if you want. You can open it later without losing progress.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-zinc-100 hover:bg-white/8"
+                  onClick={() => setShowOptionalBusinessDetails((value) => !value)}
+                >
+                  {showOptionalBusinessDetails ? "Hide optional details" : "Show optional details"}
+                </Button>
+              </div>
+
+              {showOptionalBusinessDetails ? (
+                <div className="mt-4 space-y-4">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                        Formation state
+                      </span>
+                      <p className="text-xs leading-5 text-zinc-400">
+                        The state where the business was formed, like WA.
+                      </p>
+                      <Input
+                        value={draft.profile.formationState}
+                        onChange={(event) =>
+                          updateProfile("formationState", event.target.value.toUpperCase())
+                        }
+                        placeholder="WA"
+                        className="border-white/10 bg-white/5 text-white placeholder:text-zinc-500"
+                      />
+                    </label>
+
+                    <label className="space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                        Formation date
+                      </span>
+                      <p className="text-xs leading-5 text-zinc-400">
+                        When the business was started or formed.
+                      </p>
+                      <Input
+                        type="date"
+                        value={draft.profile.formationDate}
+                        onChange={(event) => updateProfile("formationDate", event.target.value)}
+                        className="border-white/10 bg-white/5 text-white"
+                      />
+                    </label>
+
+                    <label className="space-y-2 md:col-span-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                        NAICS code or activity hint
+                      </span>
+                      <p className="text-xs leading-5 text-zinc-400">
+                        A short description like "landscaping" is enough if you do not know the code.
+                      </p>
+                      <Input
+                        value={draft.profile.naicsCode}
+                        onChange={(event) => updateProfile("naicsCode", event.target.value)}
+                        placeholder="Example: 561730 or 'landscaping services'"
+                        className="border-white/10 bg-white/5 text-white placeholder:text-zinc-500"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200">
+                      <Checkbox
+                        checked={draft.profile.hasPayroll}
+                        onChange={(event) => updateProfile("hasPayroll", event.target.checked)}
+                        className="mt-0.5 border-white/20 bg-white/5"
+                      />
+                      <span>We ran payroll / W-2 wages</span>
+                    </label>
+                    <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200">
+                      <Checkbox
+                        checked={draft.profile.paysContractors}
+                        onChange={(event) => updateProfile("paysContractors", event.target.checked)}
+                        className="mt-0.5 border-white/20 bg-white/5"
+                      />
+                      <span>We paid contractors / 1099 vendors</span>
+                    </label>
+                    <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200">
+                      <Checkbox
+                        checked={draft.profile.hasInventory}
+                        onChange={(event) => updateProfile("hasInventory", event.target.checked)}
+                        className="mt-0.5 border-white/20 bg-white/5"
+                      />
+                      <span>We hold inventory</span>
+                    </label>
+                    <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200">
+                      <Checkbox
+                        checked={draft.profile.hasFixedAssets}
+                        onChange={(event) => updateProfile("hasFixedAssets", event.target.checked)}
+                        className="mt-0.5 border-white/20 bg-white/5"
+                      />
+                      <span>We bought or carry fixed assets</span>
+                    </label>
+                    <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200">
+                      <Checkbox
+                        checked={draft.profile.collectsSalesTax}
+                        onChange={(event) => updateProfile("collectsSalesTax", event.target.checked)}
+                        className="mt-0.5 border-white/20 bg-white/5"
+                      />
+                      <span>We collect sales tax</span>
+                    </label>
+                    <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200">
+                      <Checkbox
+                        checked={draft.profile.hasIdahoActivity}
+                        onChange={(event) => updateProfile("hasIdahoActivity", event.target.checked)}
+                        className="mt-0.5 border-white/20 bg-white/5"
+                      />
+                      <span>We had Idaho activity or possible nexus</span>
+                    </label>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
-            <label className="space-y-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">Notes for Tina</span>
-              <p className="text-xs leading-5 text-zinc-400">Tell Tina anything important in plain words.</p>
-              <Textarea
-                value={draft.profile.notes}
-                onChange={(event) => updateProfile("notes", event.target.value)}
-                placeholder="Anything Tina should know before she builds the document request list."
-                className="min-h-[110px] border-white/10 bg-white/5 text-white placeholder:text-zinc-500"
-              />
-            </label>
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                  Optional notes for Tina
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-zinc-100 hover:bg-white/8"
+                  onClick={() => setShowNotesField((value) => !value)}
+                >
+                  {showNotesField ? "Hide notes" : "Add notes"}
+                </Button>
+              </div>
+              {showNotesField ? (
+                <>
+                  <p className="text-xs leading-5 text-zinc-400">
+                    Anything important you want Tina to remember.
+                  </p>
+                  <Textarea
+                    value={draft.profile.notes}
+                    onChange={(event) => updateProfile("notes", event.target.value)}
+                    placeholder="Example: We changed bookkeeping systems in July."
+                    className="min-h-[110px] border-white/10 bg-white/5 text-white placeholder:text-zinc-500"
+                  />
+                </>
+              ) : draft.profile.notes.trim().length > 0 ? (
+                <p className="text-sm leading-6 text-zinc-300">Notes saved.</p>
+              ) : (
+                <p className="text-sm leading-6 text-zinc-400">
+                  Hidden by default to keep this page clean.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
         <div className="space-y-4">
           <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
             <CardHeader className="space-y-3">
-              <CardTitle className="text-white">What Tina thinks your return type is</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-white">Tina plan check</CardTitle>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-zinc-100 hover:bg-white/8"
+                  onClick={() => setShowLaneDetails((value) => !value)}
+                >
+                  {showLaneDetails ? "Hide why" : "Show why"}
+                </Button>
+              </div>
               <p className="text-sm leading-6 text-zinc-300">
-                Tina uses a rule-based check here so she does not guess. If she is not ready, she will say so clearly.
+                Tina uses a rule-based check so she does not guess.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1883,18 +2121,26 @@ export function TinaWorkspace() {
                 <p className="mt-3 text-sm leading-6 opacity-90">{recommendation.summary}</p>
               </div>
 
-              <div className="space-y-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Why Tina chose this</p>
-                <ul className="space-y-2 text-sm leading-6 text-zinc-300">
-                  {recommendation.reasons.map((reason) => (
-                    <li key={reason} className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-                      {reason}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {showLaneDetails ? (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Why Tina chose this</p>
+                  <ul className="space-y-2 text-sm leading-6 text-zinc-300">
+                    {recommendation.reasons.map((reason) => (
+                      <li key={reason} className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                        {reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-sm leading-6 text-zinc-400">
+                    Why this was picked is hidden by default to keep this area simple.
+                  </p>
+                </div>
+              )}
 
-              {recommendation.blockers.length > 0 && (
+              {showLaneDetails && recommendation.blockers.length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">What still needs an answer</p>
                   <ul className="space-y-2 text-sm leading-6 text-zinc-300">
@@ -1905,62 +2151,112 @@ export function TinaWorkspace() {
                     ))}
                   </ul>
                 </div>
-              )}
+              ) : null}
             </CardContent>
           </Card>
 
           <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
             <CardHeader className="space-y-2">
-              <CardTitle className="text-white">What Tina will ask for next</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-white">Next papers</CardTitle>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="text-zinc-100 hover:bg-white/8"
+                  onClick={() => setShowChecklistDetails((value) => !value)}
+                >
+                  {showChecklistDetails ? "Hide full list" : "Show full list"}
+                </Button>
+              </div>
               <p className="text-sm leading-6 text-zinc-300">
-                This is Tina's first simple list of papers to gather. She should keep this list short, clear, and easy to follow.
+                Tina keeps this list short and gives you one clear paper to add next.
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
-              {checklist.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-white">{item.label}</p>
-                    <div className="flex items-center gap-2">
-                      <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]", PRIORITY_STYLES[item.priority])}>
-                        {item.priority}
-                      </span>
-                      <span
-                        className={cn(
-                          "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
-                          item.status === "covered"
-                            ? "border-emerald-300/18 bg-emerald-300/8 text-emerald-50"
-                            : "border-white/10 bg-white/5 text-zinc-200"
-                        )}
-                      >
-                        {item.status === "covered" ? "covered" : "needed"}
-                      </span>
-                      {item.status === "needed" ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
-                          onClick={() => beginChecklistUpload(item)}
-                          disabled={isVaultBusy}
-                        >
-                          {uploadState === "uploading" && activeUploadTarget === item.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <FileUp className="h-4 w-4" />
-                          )}
-                          Add this paper
-                        </Button>
-                      ) : null}
+              <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                <p className="text-sm font-medium text-white">
+                  {neededChecklist.length === 0
+                    ? "First paper pass complete."
+                    : `${neededChecklist.length} paper${neededChecklist.length === 1 ? "" : "s"} still needed.`}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-zinc-300">
+                  {nextChecklistItem
+                    ? `Next up: ${nextChecklistItem.label}`
+                    : "Tina has what she needs for the first pass."}
+                </p>
+              </div>
+
+              {nextChecklistItem ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                  onClick={() => beginChecklistUpload(nextChecklistItem)}
+                  disabled={isVaultBusy}
+                >
+                  {uploadState === "uploading" && activeUploadTarget === nextChecklistItem.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileUp className="h-4 w-4" />
+                  )}
+                  Add next paper
+                </Button>
+              ) : null}
+
+              {showChecklistDetails ? (
+                <>
+                  {checklist.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-white">{item.label}</p>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]", PRIORITY_STYLES[item.priority])}>
+                            {item.priority}
+                          </span>
+                          <span
+                            className={cn(
+                              "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                              item.status === "covered"
+                                ? "border-emerald-300/18 bg-emerald-300/8 text-emerald-50"
+                                : "border-white/10 bg-white/5 text-zinc-200"
+                            )}
+                          >
+                            {item.status === "covered" ? "covered" : "needed"}
+                          </span>
+                          {item.status === "needed" ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+                              onClick={() => beginChecklistUpload(item)}
+                              disabled={isVaultBusy}
+                            >
+                              {uploadState === "uploading" && activeUploadTarget === item.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <FileUp className="h-4 w-4" />
+                              )}
+                              Add this paper
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-zinc-300">{item.reason}</p>
                     </div>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-zinc-300">{item.reason}</p>
-                </div>
-              ))}
+                  ))}
+                </>
+              ) : null}
+
               {neededChecklist.length === 0 ? (
                 <div className="rounded-2xl border border-emerald-300/14 bg-emerald-300/8 px-4 py-3 text-sm leading-6 text-emerald-50">
                   Nice work. Tina has the first round of papers she needs and can keep moving.
                 </div>
+              ) : null}
+              {!showChecklistDetails && neededChecklist.length > 0 ? (
+                <p className="text-sm leading-6 text-zinc-400">
+                  Full paper list is hidden by default to keep this clean.
+                </p>
               ) : null}
             </CardContent>
           </Card>
@@ -2099,7 +2395,6 @@ export function TinaWorkspace() {
           )}
         </CardContent>
       </Card>
-
       <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
         <CardHeader className="space-y-2">
           <CardTitle className="text-white">Facts Tina pulled from papers</CardTitle>
@@ -3904,7 +4199,7 @@ export function TinaWorkspace() {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
 
       <section className="space-y-4">
         <div>
