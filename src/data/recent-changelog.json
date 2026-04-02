@@ -1,127 +1,127 @@
 [
   {
-    "hash": "20a7be6a",
-    "date": "2026-03-31",
-    "message": "Fix intake queue audit write crashes"
+    "hash": "830bcb0f",
+    "date": "2026-04-02",
+    "message": "Fix Next.js output tracing root for Sentinel workspace"
   },
   {
-    "hash": "6f888bfc",
-    "date": "2026-03-31",
-    "message": "Fix PPL intake queue action layout"
+    "hash": "2d59fbef",
+    "date": "2026-04-02",
+    "message": "Calibrate Tina conflict severity by evidence strength"
   },
   {
-    "hash": "2c8a4bf2",
-    "date": "2026-03-31",
-    "message": "Improve PPL intake queue operations"
+    "hash": "b1d11745",
+    "date": "2026-04-02",
+    "message": "Fix Tina stale review drift after organizer profile changes"
   },
   {
-    "hash": "00f1583f",
-    "date": "2026-03-31",
-    "message": "Fix bulk dial queue updates"
+    "hash": "26cdc832",
+    "date": "2026-04-02",
+    "message": "Harden Tina against commingled entity bookkeeping risks"
   },
   {
-    "hash": "44146377",
-    "date": "2026-03-31",
-    "message": "Fix Pacific KPI date math in CI"
+    "hash": "f7596c53",
+    "date": "2026-04-02",
+    "message": "Expand Tina freshness checks to read timestamps"
   },
   {
-    "hash": "0410cb71",
-    "date": "2026-03-31",
-    "message": "Allow Lead House secret via header or URL"
+    "hash": "92ea4829",
+    "date": "2026-04-02",
+    "message": "Gate Tina readiness on evidence freshness"
   },
   {
-    "hash": "3e48039c",
-    "date": "2026-03-31",
-    "message": "Add partner-friendly Lead House intake route"
+    "hash": "3294fea0",
+    "date": "2026-04-02",
+    "message": "Harden Tina against mixed return hints and spoofed run dates"
   },
   {
-    "hash": "711a8f18",
-    "date": "2026-03-31",
-    "message": "Accept nested Lead House vendor payloads"
+    "hash": "da103c98",
+    "date": "2026-04-02",
+    "message": "Block Tina readiness on stale review timestamps"
   },
   {
-    "hash": "805cc439",
-    "date": "2026-03-31",
-    "message": "Fix operator auto cycle phone selection"
+    "hash": "f514f2fa",
+    "date": "2026-04-02",
+    "message": "Harden Tina return-type conflict detection"
   },
   {
-    "hash": "f0280d68",
-    "date": "2026-03-31",
-    "message": "Update local auth seed and display names"
+    "hash": "5d0fde3e",
+    "date": "2026-04-02",
+    "message": "Catch zero-value money anomalies in Tina issue queue"
   },
   {
-    "hash": "fcc511ab",
-    "date": "2026-03-31",
-    "message": "Add repo enablement tooling and harden dial queue"
+    "hash": "2462959c",
+    "date": "2026-04-02",
+    "message": "Harden Tina authority gating and adversarial coverage"
   },
   {
-    "hash": "fb313015",
-    "date": "2026-03-31",
-    "message": "Set up local Supabase workflow and seed path"
+    "hash": "fc6f592b",
+    "date": "2026-04-01",
+    "message": "Fix CI lint gate on main"
   },
   {
-    "hash": "3658bd01",
-    "date": "2026-03-31",
-    "message": "Harden leads page against schema drift"
+    "hash": "c407d482",
+    "date": "2026-04-01",
+    "message": "Fix SMS and missed-call lead routing"
   },
   {
-    "hash": "e8fce09c",
-    "date": "2026-03-31",
-    "message": "Repair queue skip trace client file saves"
+    "hash": "feba2104",
+    "date": "2026-04-01",
+    "message": "[cursor] Compress Client File header and triage Overview surface"
   },
   {
-    "hash": "26f5a61a",
-    "date": "2026-03-31",
-    "message": "Ship pending dialer and Supabase updates"
+    "hash": "eef67a8e",
+    "date": "2026-04-01",
+    "message": "Downgrade all Opus model refs to Sonnet/Haiku and kill wasteful ads/cycle crons"
   },
   {
-    "hash": "e739526e",
-    "date": "2026-03-31",
-    "message": "Harden queue skip trace processing"
+    "hash": "a3345a11",
+    "date": "2026-04-01",
+    "message": "[cursor] Pre-call brief trust filtering: suppress generic AI bullets and watch-outs"
   },
   {
-    "hash": "66c16e17",
-    "date": "2026-03-31",
-    "message": "Add async batch helper coverage"
+    "hash": "99d00cae",
+    "date": "2026-04-01",
+    "message": "[cursor] Pre-call trust tiering: remove AI opener, promote seller memory above brief"
   },
   {
-    "hash": "8242844d",
-    "date": "2026-03-31",
-    "message": "Fix intake SMS notifications, badge clearing, and contact creation"
+    "hash": "5f6affdd",
+    "date": "2026-04-01",
+    "message": "[cursor] Pre-call command clarity: opener, continuity, seller memory in center column"
   },
   {
-    "hash": "abbb156f",
-    "date": "2026-03-31",
-    "message": "Speed up bulk lead actions and lead loading"
+    "hash": "3336fe8b",
+    "date": "2026-04-01",
+    "message": "[cursor] Live Coach: compact-first layout with progressive disclosure"
   },
   {
-    "hash": "234395d6",
-    "date": "2026-03-31",
-    "message": "Harden dialer queue compatibility fallback"
+    "hash": "00ef5fe2",
+    "date": "2026-04-01",
+    "message": "[cursor] Fix coach-popout: wrap useSearchParams in Suspense boundary"
   },
   {
-    "hash": "e406f100",
-    "date": "2026-03-31",
-    "message": "Handle missing dial queue columns in production"
+    "hash": "325cf64a",
+    "date": "2026-04-01",
+    "message": "[cursor] Live Coach: true pop-out window via window.open"
   },
   {
-    "hash": "7696d376",
-    "date": "2026-03-31",
-    "message": "Fix dial queue success path toast"
+    "hash": "04ce89aa",
+    "date": "2026-04-01",
+    "message": "[cursor] Drive By leaves Lead Queue — complete bucket purity"
   },
   {
-    "hash": "0e54051b",
-    "date": "2026-03-30",
-    "message": "Stop inbound media stream before Jeff fallback"
+    "hash": "81a7d989",
+    "date": "2026-04-01",
+    "message": "[cursor] Lead Queue bucket purity + control compression"
   },
   {
-    "hash": "3fd85486",
-    "date": "2026-03-30",
-    "message": "Fix Jeff inbound caller handoff"
+    "hash": "26286e70",
+    "date": "2026-04-01",
+    "message": "[cursor] Drive By queue-truth, Active sorting, Today launchpad, Dispo action clarity"
   },
   {
-    "hash": "ff6c6969",
-    "date": "2026-03-30",
-    "message": "Fix Vapi assistant setup fallback"
+    "hash": "4ee8fdac",
+    "date": "2026-04-01",
+    "message": "[cursor] Fix typecheck: move nowMs declaration before Drive By block, fix unreachable viewFilter comparison"
   }
 ]

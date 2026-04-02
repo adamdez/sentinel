@@ -10,26 +10,48 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUTPUT = resolve(__dirname, "../src/data/recent-changelog.json");
+const REPO_ROOT = resolve(__dirname, "..");
+const OUTPUT = resolve(REPO_ROOT, "src/data/recent-changelog.json");
+
+function runGit(command) {
+  try {
+    return execSync(command, {
+      encoding: "utf-8",
+      cwd: REPO_ROOT,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
 
 try {
-  const raw = execSync(
-    'git log --pretty=format:"%H|||%ai|||%s" -25',
-    { encoding: "utf-8", cwd: resolve(__dirname, "..") }
-  ).trim();
+  const inGitWorkTree = runGit("git rev-parse --is-inside-work-tree") === "true";
+  if (!inGitWorkTree) {
+    throw new Error("Not in a git worktree");
+  }
 
-  const entries = raw.split("\n").filter(Boolean).map((line) => {
-    const [hash, dateRaw, message] = line.split("|||");
-    return {
-      hash: hash.slice(0, 8),
-      date: dateRaw.split(" ")[0],
-      message: message.trim(),
-    };
-  });
+  const raw = runGit('git log --pretty=format:"%H|||%ai|||%s" -25');
+  if (!raw) {
+    throw new Error("No git log available");
+  }
+
+  const entries = raw
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [hash, dateRaw, message] = line.split("|||");
+      return {
+        hash: hash.slice(0, 8),
+        date: dateRaw.split(" ")[0],
+        message: message.trim(),
+      };
+    });
 
   writeFileSync(OUTPUT, JSON.stringify(entries, null, 2), "utf-8");
   console.log(`[generate-changelog] Wrote ${entries.length} entries to recent-changelog.json`);
-} catch (err) {
-  console.warn("[generate-changelog] Could not read git log — writing empty changelog");
+} catch {
+  console.warn("[generate-changelog] Could not read git log - writing empty changelog");
   writeFileSync(OUTPUT, "[]", "utf-8");
 }
+
