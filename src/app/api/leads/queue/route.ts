@@ -88,6 +88,104 @@ const LEAD_QUEUE_SELECT = `
   )
 `;
 
+const LEAD_QUEUE_SELECT_FALLBACK = `
+  id,
+  property_id,
+  priority,
+  status,
+  assigned_to,
+  next_follow_up_at,
+  next_call_scheduled_at,
+  last_contact_at,
+  created_at,
+  promoted_at,
+  motivation_level,
+  seller_timeline,
+  condition_level,
+  decision_maker_confirmed,
+  price_expectation,
+  qualification_route,
+  occupancy_score,
+  equity_flexibility_score,
+  qualification_score_total,
+  source,
+  tags,
+  notes,
+  total_calls,
+  live_answers,
+  voicemails_left,
+  call_sequence_step,
+  disposition_code,
+  seller_situation_summary_short,
+  recommended_call_angle,
+  top_fact_1,
+  top_fact_2,
+  top_fact_3,
+  opportunity_score,
+  contactability_score,
+  confidence_score,
+  dossier_url,
+  next_action,
+  next_action_due_at,
+  pinned,
+  pinned_at,
+  pinned_by,
+  dial_queue_active,
+  dial_queue_added_at,
+  properties (
+    id,
+    apn,
+    county,
+    address,
+    city,
+    state,
+    zip,
+    owner_name,
+    owner_phone,
+    owner_email,
+    owner_flags,
+    estimated_value,
+    equity_percent,
+    bedrooms,
+    bathrooms,
+    sqft,
+    property_type,
+    year_built,
+    lot_size
+  )
+`;
+
+function isSchemaDriftError(error: { code?: string | null; message?: string | null } | null): boolean {
+  if (!error) return false;
+  if (error.code === "42703") return true;
+  return /does not exist/i.test(error.message ?? "");
+}
+
+async function fetchLeadQueueRows(
+  sb: ReturnType<typeof createServerClient>,
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const primaryQuery = (sb.from("leads") as any)
+    .select(LEAD_QUEUE_SELECT)
+    .neq("status", "prospect")
+    .neq("status", "staging")
+    .order("priority", { ascending: false });
+
+  const primaryResult = await primaryQuery;
+  if (!primaryResult.error || !isSchemaDriftError(primaryResult.error)) {
+    return primaryResult;
+  }
+
+  console.warn("[API/leads/queue] Falling back to legacy select:", primaryResult.error);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (sb.from("leads") as any)
+    .select(LEAD_QUEUE_SELECT_FALLBACK)
+    .neq("status", "prospect")
+    .neq("status", "staging")
+    .order("priority", { ascending: false });
+}
+
 export async function GET(req: NextRequest) {
   try {
     const sb = createServerClient();
@@ -96,12 +194,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: leadsRaw, error: leadsErr } = await (sb.from("leads") as any)
-      .select(LEAD_QUEUE_SELECT)
-      .neq("status", "prospect")
-      .neq("status", "staging")
-      .order("priority", { ascending: false });
+    const { data: leadsRaw, error: leadsErr } = await fetchLeadQueueRows(sb);
 
     if (leadsErr) {
       console.error("[API/leads/queue] Lead query failed:", leadsErr);
