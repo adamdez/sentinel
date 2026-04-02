@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   isContractStatus,
   isClosedDeal,
+  parseFounderUserIds,
+  computeFounderEffortFromCalls,
 } from "@/lib/analytics-helpers";
 import { normalizeSource } from "@/lib/source-normalization";
 
@@ -98,5 +100,29 @@ describe("normalizeSource + isContractStatus consistency", () => {
       // Feeding a source name into isContractStatus should always be false
       expect(isContractStatus(normalized)).toBe(false);
     }
+  });
+});
+
+describe("founder effort helpers", () => {
+  it("parses founder IDs from comma-separated input", () => {
+    expect(parseFounderUserIds("  u1, u2,u1 ,, u3  ")).toEqual(["u1", "u2", "u3"]);
+    expect(parseFounderUserIds("")).toEqual([]);
+    expect(parseFounderUserIds(null)).toEqual([]);
+  });
+
+  it("computes founder hours from call duration plus wrap-time", () => {
+    const summary = computeFounderEffortFromCalls(
+      [
+        { duration_sec: 180 }, // 3m
+        { duration_sec: 60 },  // 1m
+        { duration_sec: 0 },   // still a call attempt
+      ],
+      2, // +2m wrap per call
+    );
+
+    expect(summary.callCount).toBe(3);
+    expect(summary.talkMinutes).toBe(4);
+    expect(summary.wrapMinutes).toBe(6);
+    expect(summary.founderHours).toBeCloseTo(0.2, 5);
   });
 });

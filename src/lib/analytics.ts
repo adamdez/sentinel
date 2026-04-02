@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { normalizeSource, sourceLabel as canonicalSourceLabel } from "@/lib/source-normalization";
+import { computeFounderEffortFromCalls, parseFounderUserIds } from "@/lib/analytics-helpers";
 
 export type TimePeriod = "today" | "week" | "month" | "all";
 export type MarketKey = "spokane" | "kootenai" | "other";
@@ -133,6 +134,13 @@ export interface RevenueSummary {
   byMarket: RevenueByMarketRow[];
 }
 
+export interface FounderEfficiencySummary {
+  founderCallCount: number;
+  founderHoursEstimated: number;
+  contractsPerFounderHourEstimated: number | null;
+  revenuePerFounderHourEstimated: number | null;
+}
+
 export interface DominionAnalyticsData {
   generatedAt: string;
   periodStart: string | null;
@@ -141,6 +149,7 @@ export interface DominionAnalyticsData {
   pipelineHealth: PipelineHealthRow[];
   speedToLead: SpeedToLeadSummary;
   revenue: RevenueSummary;
+  founderEfficiency: FounderEfficiencySummary;
 }
 
 export interface ConversionSnapshotSummary {
@@ -312,6 +321,12 @@ function emptyAnalytics(periodStart: string | null): DominionAnalyticsData {
         { market: "kootenai", label: "Kootenai", closedDeals: 0, assignmentRevenue: 0 },
       ],
     },
+    founderEfficiency: {
+      founderCallCount: 0,
+      founderHoursEstimated: 0,
+      contractsPerFounderHourEstimated: null,
+      revenuePerFounderHourEstimated: null,
+    },
   };
 }
 
@@ -445,6 +460,24 @@ export async function fetchDominionAnalytics(periodStart: string | null, userId?
       dealsByLeadId.set(deal.lead_id, existing);
     }
   }
+
+  const founderIds = parseFounderUserIds(process.env.FOUNDER_USER_IDS);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let founderEffortQuery = (supabase.from("calls_log") as any)
+    .select("duration_sec, user_id, started_at");
+  if (periodStart) {
+    founderEffortQuery = founderEffortQuery.gte("started_at", periodStart);
+  }
+  if (userId) {
+    founderEffortQuery = founderEffortQuery.eq("user_id", userId);
+  } else if (founderIds.length > 0) {
+    founderEffortQuery = founderEffortQuery.in("user_id", founderIds);
+  }
+  const { data: founderCallRowsRaw } = await founderEffortQuery;
+  const founderEffort = computeFounderEffortFromCalls(
+    ((founderCallRowsRaw ?? []) as Array<{ duration_sec?: number | null }>),
+    2,
+  );
 
   const enrichedLeads: EnrichedLead[] = rawLeads.map((lead) => {
     const county = lead.property_id ? propertyCountyById.get(lead.property_id) ?? null : null;
@@ -653,6 +686,11 @@ export async function fetchDominionAnalytics(periodStart: string | null, userId?
 
   const totalRevenue = closedDealFacts.reduce((sum, deal) => sum + deal.assignmentFee, 0);
   const closedDeals = closedDealFacts.length;
+  const founderHoursEstimated = founderEffort.founderHours;
+  const contractsPerFounderHourEstimated =
+    founderHoursEstimated > 0 ? round1(closedDeals / founderHoursEstimated) : null;
+  const revenuePerFounderHourEstimated =
+    founderHoursEstimated > 0 ? Math.round(totalRevenue / founderHoursEstimated) : null;
 
   return {
     generatedAt: new Date().toISOString(),
@@ -667,6 +705,12 @@ export async function fetchDominionAnalytics(periodStart: string | null, userId?
       avgAssignmentFee: closedDeals > 0 ? totalRevenue / closedDeals : null,
       undatedClosedDealsExcluded: periodStartMs == null ? 0 : undatedClosedDealsExcluded,
       byMarket: revenueRows,
+    },
+    founderEfficiency: {
+      founderCallCount: founderEffort.callCount,
+      founderHoursEstimated,
+      contractsPerFounderHourEstimated,
+      revenuePerFounderHourEstimated,
     },
   };
 }

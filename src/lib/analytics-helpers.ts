@@ -32,3 +32,55 @@ export function isClosedDeal(deal: { status?: string | null; closed_at?: string 
   const s = (deal.status ?? "").toLowerCase();
   return s === "closed" || Boolean(deal.closed_at);
 }
+
+/**
+ * Parse founder IDs from env-like comma-separated input.
+ */
+export function parseFounderUserIds(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const seen = new Set<string>();
+  for (const piece of raw.split(",")) {
+    const id = piece.trim();
+    if (!id) continue;
+    seen.add(id);
+  }
+  return Array.from(seen);
+}
+
+export interface FounderEffortCallRow {
+  duration_sec?: number | null;
+  durationSec?: number | null;
+}
+
+export interface FounderEffortSummary {
+  callCount: number;
+  talkMinutes: number;
+  wrapMinutes: number;
+  founderHours: number;
+}
+
+/**
+ * Estimate founder effort from call rows using talk time + fixed wrap time per call.
+ * This is intentionally conservative and marked as estimated in UI copy.
+ */
+export function computeFounderEffortFromCalls(
+  rows: FounderEffortCallRow[],
+  wrapMinutesPerCall = 2,
+): FounderEffortSummary {
+  const callCount = rows.length;
+  const talkMinutes = rows.reduce((sum, row) => {
+    const durationSec = Number(row.duration_sec ?? row.durationSec ?? 0);
+    if (!Number.isFinite(durationSec) || durationSec <= 0) return sum;
+    return sum + (durationSec / 60);
+  }, 0);
+  const wrapMinutes = Math.max(0, wrapMinutesPerCall) * callCount;
+  const founderHoursRaw = (talkMinutes + wrapMinutes) / 60;
+  const founderHours = Math.round(founderHoursRaw * 10) / 10;
+
+  return {
+    callCount,
+    talkMinutes: Math.round(talkMinutes * 10) / 10,
+    wrapMinutes: Math.round(wrapMinutes * 10) / 10,
+    founderHours,
+  };
+}

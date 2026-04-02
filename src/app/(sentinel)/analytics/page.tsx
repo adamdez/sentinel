@@ -47,6 +47,7 @@ export default function AnalyticsPage() {
   const pipelineHealth = data?.pipelineHealth ?? [];
   const speed = data?.speedToLead;
   const revenue = data?.revenue;
+  const founderEfficiency = data?.founderEfficiency;
 
   const spokane = marketScoreboard.find((r) => r.market === "spokane");
   const kootenai = marketScoreboard.find((r) => r.market === "kootenai");
@@ -57,6 +58,9 @@ export default function AnalyticsPage() {
   const totalAwaiting = marketScoreboard.reduce((s, r) => s + r.awaitingFirstContact, 0);
   const closedDeals = revenue?.closedDeals ?? 0;
   const totalRevenue = revenue?.assignmentRevenue ?? 0;
+  const contractsPerFounderHour = founderEfficiency?.contractsPerFounderHourEstimated ?? null;
+  const founderHoursEstimated = founderEfficiency?.founderHoursEstimated ?? 0;
+  const founderCallCount = founderEfficiency?.founderCallCount ?? 0;
 
   const sortedSources = useMemo(() =>
     [...sourceOutcomes].sort((a, b) => {
@@ -73,6 +77,9 @@ export default function AnalyticsPage() {
     if (totalOverdue > 0) items.push({ text: `${totalOverdue} overdue follow-up${totalOverdue !== 1 ? "s" : ""} need attention`, severity: "warn", href: "/tasks" });
     if (totalAwaiting > 3) items.push({ text: `${totalAwaiting} leads still awaiting first contact`, severity: "warn", href: "/leads?filter=new_inbound" });
     if (speed && speed.slowOrMissingCount > 2) items.push({ text: `${speed.slowOrMissingCount} leads with slow or missing first response`, severity: "warn" });
+    if (contractsPerFounderHour != null && founderHoursEstimated >= 10 && contractsPerFounderHour < 0.05) {
+      items.push({ text: `Leverage is low at ${contractsPerFounderHour} contracts/founder-hour`, severity: "warn", href: "/settings/jeff-outbound" });
+    }
 
     const spokanePipeline = pipelineHealth.find((r) => r.market === "spokane");
     const kootenaiPipeline = pipelineHealth.find((r) => r.market === "kootenai");
@@ -91,7 +98,7 @@ export default function AnalyticsPage() {
     if (unknownSourceLeads > 3) items.push({ text: `${unknownSourceLeads} leads have no source attribution`, severity: "info" });
 
     return items;
-  }, [totalOverdue, totalAwaiting, speed, pipelineHealth, sourceOutcomes]);
+  }, [totalOverdue, totalAwaiting, speed, pipelineHealth, sourceOutcomes, contractsPerFounderHour, founderHoursEstimated]);
 
   return (
     <PageShell
@@ -140,10 +147,17 @@ export default function AnalyticsPage() {
         ) : (
           <>
             {/* ── Executive Summary ─────────────────────────────── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
               <SummaryCard label="New Leads" value={String(totalNewLeads)} icon={Users} />
               <SummaryCard label="Active Pipeline" value={String(totalActive)} icon={Zap} />
               <SummaryCard label="Contracts" value={String(closedDeals)} icon={BarChart3} />
+              <SummaryCard
+                label="Contracts / Founder Hr"
+                value={contractsPerFounderHour != null ? String(contractsPerFounderHour) : "n/a"}
+                icon={TrendingUp}
+                sub={`${founderHoursEstimated}h est`}
+                tone={contractsPerFounderHour != null && contractsPerFounderHour > 0 ? "positive" : "default"}
+              />
               <SummaryCard label="Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} tone={totalRevenue > 0 ? "positive" : "default"} />
               <SummaryCard
                 label="Speed to Lead"
@@ -155,6 +169,7 @@ export default function AnalyticsPage() {
                 label="Overdue"
                 value={String(totalOverdue)}
                 icon={AlertTriangle}
+                sub={`${founderCallCount} founder calls`}
                 tone={totalOverdue > 0 ? "danger" : "positive"}
               />
             </div>

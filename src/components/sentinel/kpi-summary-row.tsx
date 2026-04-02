@@ -28,6 +28,10 @@ interface KpiData {
   deals_closed: number;
   total_revenue: number;
   avg_assignment_fee: number | null;
+  founder_call_count: number;
+  founder_hours_estimated: number;
+  contracts_per_founder_hour_estimated: number | null;
+  revenue_per_founder_hour_estimated: number | null;
   contact_rate: number | null;
   contract_conversion_rate: number | null;
   close_rate: number | null;
@@ -153,9 +157,11 @@ export function KpiSummaryRow({ period }: { period: TimePeriod }) {
     },
     {
       icon: TrendingUp,
-      label: "Close Rate",
-      value: formatPercent(kpis.close_rate),
-      subtitle: null,
+      label: "Contracts / Founder Hr",
+      value: kpis.contracts_per_founder_hour_estimated != null
+        ? `${kpis.contracts_per_founder_hour_estimated}`
+        : "n/a",
+      subtitle: `${kpis.founder_hours_estimated}h est (${kpis.founder_call_count} calls)`,
     },
   ];
 

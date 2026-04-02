@@ -11,7 +11,7 @@ import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { getPeriodStart, type TimePeriod } from "@/lib/analytics";
 import { normalizeSource, sourceLabel as getSourceLabel } from "@/lib/source-normalization";
-import { isContractStatus } from "@/lib/analytics-helpers";
+import { computeFounderEffortFromCalls, isContractStatus, parseFounderUserIds } from "@/lib/analytics-helpers";
 import { isContacted, contactRate as calcContactRate } from "@/lib/comm-truth";
 
 export const dynamic = "force-dynamic";
@@ -138,6 +138,28 @@ export async function GET(req: NextRequest) {
     const total_revenue = closedDeals.reduce((sum, d) => sum + Number(d.assignment_fee ?? 0), 0);
     const avg_assignment_fee = deals_closed > 0 ? Math.round(total_revenue / deals_closed) : null;
 
+    // ── 3b. Founder effort + leverage metrics (estimated) ────────────────
+    const founderIds = parseFounderUserIds(process.env.FOUNDER_USER_IDS);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let founderCallsQuery = (sb.from("calls_log") as any)
+      .select("duration_sec, user_id, started_at");
+    if (periodStart) {
+      founderCallsQuery = founderCallsQuery.gte("started_at", periodStart);
+    }
+    if (founderIds.length > 0) {
+      founderCallsQuery = founderCallsQuery.in("user_id", founderIds);
+    }
+    const { data: founderCallsRaw } = await founderCallsQuery;
+    const founderEffort = computeFounderEffortFromCalls(
+      ((founderCallsRaw ?? []) as Array<{ duration_sec?: number | null }>),
+      2,
+    );
+    const founder_hours_estimated = founderEffort.founderHours;
+    const contracts_per_founder_hour_estimated =
+      founder_hours_estimated > 0 ? round1(deals_closed / founder_hours_estimated) : null;
+    const revenue_per_founder_hour_estimated =
+      founder_hours_estimated > 0 ? Math.round(total_revenue / founder_hours_estimated) : null;
+
     // ── 4. Contact rate (shared definition from comm-truth.ts) ──────
     const contact_rate = calcContactRate(periodLeads);
 
@@ -262,6 +284,10 @@ export async function GET(req: NextRequest) {
         // Revenue
         total_revenue,
         avg_assignment_fee,
+        founder_call_count: founderEffort.callCount,
+        founder_hours_estimated,
+        contracts_per_founder_hour_estimated,
+        revenue_per_founder_hour_estimated,
 
         // Rates
         contact_rate,
