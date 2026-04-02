@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: process.cwd(),
   // Allow deploys while Codex WIP files have type errors
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
