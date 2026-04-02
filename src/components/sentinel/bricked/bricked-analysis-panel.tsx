@@ -248,7 +248,7 @@ export function BrickedAnalysisPanel({
         selectedComps.length
       : analysis.arv;
 
-  const effectiveRepairCost = repairTotal ?? analysis.totalRepairCost ?? 0;
+  const effectiveRepairCost = repairTotal ?? analysis.totalRepairCost ?? 20000;
   const offerPrice = computedArv != null
     ? computeOfferPrice(computedArv, effectiveRepairCost, dealConfig)
     : null;

@@ -9,8 +9,10 @@ export interface DealConfig {
   holdingCostPct: number;
   closingCostPct: number;
   wholesaleFeePct: number;
-  profitPct: number;
+  arvPct: number;
   offerPriceOverride?: number;
+  /** @deprecated Use arvPct instead */
+  profitPct?: number;
   /** @deprecated Use wholesaleFeePct instead */
   wholesaleFee?: number;
 }
@@ -19,7 +21,7 @@ export const DEFAULT_DEAL_CONFIG: DealConfig = {
   holdingCostPct: 0,
   closingCostPct: 0,
   wholesaleFeePct: 7,
-  profitPct: 20,
+  arvPct: 70,
 };
 
 interface Props {
@@ -31,13 +33,14 @@ interface Props {
   initialConfig?: DealConfig;
 }
 
+/** MAO formula: Offer = ARV × arvPct% − Repairs − Holding − Closing − Wholesale */
 export function computeOfferPrice(arv: number, repairCost: number, config: DealConfig): number {
   if (config.offerPriceOverride != null) return config.offerPriceOverride;
+  const arvBasis = arv * ((config.arvPct ?? config.profitPct ?? 70) / 100);
   const holding = arv * (config.holdingCostPct / 100);
   const closing = arv * (config.closingCostPct / 100);
   const wholesale = arv * ((config.wholesaleFeePct ?? 7) / 100);
-  const profit = arv * (config.profitPct / 100);
-  return arv - repairCost - holding - closing - wholesale - profit;
+  return arvBasis - repairCost - holding - closing - wholesale;
 }
 
 export function BrickedOfferConfigModal({ open, onClose, onSave, arv, repairCost, initialConfig }: Props) {
@@ -45,12 +48,12 @@ export function BrickedOfferConfigModal({ open, onClose, onSave, arv, repairCost
   const [overrideActive, setOverrideActive] = useState(cfg.offerPriceOverride != null);
 
   const computed = useMemo(() => {
+    const arvBasis = arv * ((cfg.arvPct ?? 70) / 100);
     const holding = arv * (cfg.holdingCostPct / 100);
     const closing = arv * (cfg.closingCostPct / 100);
     const wholesale = arv * ((cfg.wholesaleFeePct ?? 7) / 100);
-    const profit = arv * (cfg.profitPct / 100);
-    const auto = arv - repairCost - holding - closing - wholesale - profit;
-    return { holding, closing, wholesale, profit, auto, final: overrideActive && cfg.offerPriceOverride != null ? cfg.offerPriceOverride : auto };
+    const auto = arvBasis - repairCost - holding - closing - wholesale;
+    return { arvBasis, holding, closing, wholesale, auto, final: overrideActive && cfg.offerPriceOverride != null ? cfg.offerPriceOverride : auto };
   }, [arv, repairCost, cfg, overrideActive]);
 
   const update = <K extends keyof DealConfig>(key: K, value: DealConfig[K]) =>
@@ -77,7 +80,7 @@ export function BrickedOfferConfigModal({ open, onClose, onSave, arv, repairCost
             <PctField label="Holding Costs" value={cfg.holdingCostPct} arv={arv} onChange={(v) => update("holdingCostPct", v)} />
             <PctField label="Closing Costs" value={cfg.closingCostPct} arv={arv} onChange={(v) => update("closingCostPct", v)} />
             <PctField label="Wholesale Fee" value={cfg.wholesaleFeePct ?? 7} arv={arv} onChange={(v) => update("wholesaleFeePct", v)} />
-            <PctField label="Profit Percentage" value={cfg.profitPct} arv={arv} onChange={(v) => update("profitPct", v)} />
+            <PctField label="% of ARV" value={cfg.arvPct ?? 70} arv={arv} onChange={(v) => update("arvPct", v)} />
             <div className="pt-2 border-t border-overlay-6">
               <div className="flex items-center gap-2 mb-1.5">
                 <label className="text-[10px] uppercase text-muted-foreground font-semibold tracking-wider">Offer Price</label>
@@ -113,11 +116,11 @@ export function BrickedOfferConfigModal({ open, onClose, onSave, arv, repairCost
           <div className="w-[220px] shrink-0 rounded-[10px] border border-overlay-6 bg-overlay-2 p-4 space-y-2.5 self-start">
             <p className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider mb-3">Deal Summary</p>
             <SummaryLine label="ARV" value={formatCurrency(arv)} />
+            <SummaryLine label={`× ${cfg.arvPct ?? 70}% of ARV`} value={formatCurrency(computed.arvBasis)} />
             <SummaryLine label="Repair Cost" value={`-${formatCurrency(repairCost)}`} negative />
             <SummaryLine label={`Holding (${cfg.holdingCostPct}%)`} value={`-${formatCurrency(computed.holding)}`} negative />
             <SummaryLine label={`Closing (${cfg.closingCostPct}%)`} value={`-${formatCurrency(computed.closing)}`} negative />
             <SummaryLine label={`Wholesale (${cfg.wholesaleFeePct ?? 7}%)`} value={`-${formatCurrency(computed.wholesale)}`} negative />
-            <SummaryLine label={`Profit (${cfg.profitPct}%)`} value={`-${formatCurrency(computed.profit)}`} negative />
             <div className="pt-2 border-t border-overlay-6">
               <SummaryLine label="Offer Price" value={formatCurrency(computed.final)} highlight />
             </div>
