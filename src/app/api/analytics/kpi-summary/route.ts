@@ -11,7 +11,7 @@ import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { getPeriodStart, type TimePeriod } from "@/lib/analytics";
 import { normalizeSource, sourceLabel as getSourceLabel } from "@/lib/source-normalization";
-import { computeFounderEffortFromCalls, isContractStatus, parseFounderUserIds } from "@/lib/analytics-helpers";
+import { computeFounderEffortFromCalls, computeJeffInfluenceSummary, isContractStatus, parseFounderUserIds } from "@/lib/analytics-helpers";
 import { isContacted, contactRate as calcContactRate } from "@/lib/comm-truth";
 
 export const dynamic = "force-dynamic";
@@ -137,6 +137,47 @@ export async function GET(req: NextRequest) {
     const deals_closed = closedDeals.length;
     const total_revenue = closedDeals.reduce((sum, d) => sum + Number(d.assignment_fee ?? 0), 0);
     const avg_assignment_fee = deals_closed > 0 ? Math.round(total_revenue / deals_closed) : null;
+    const closedLeadIds = Array.from(
+      new Set(
+        closedDeals
+          .map((deal) => deal.lead_id)
+          .filter((leadId): leadId is string => typeof leadId === "string" && leadId.length > 0),
+      ),
+    );
+
+    const jeffInteractionRows: Array<{
+      lead_id: string | null;
+      interaction_type: string | null;
+      created_at: string | null;
+    }> = [];
+    if (closedLeadIds.length > 0) {
+      const chunks: string[][] = [];
+      for (let i = 0; i < closedLeadIds.length; i += 500) {
+        chunks.push(closedLeadIds.slice(i, i + 500));
+      }
+      for (const chunk of chunks) {
+        const { data: jeffRows } = await tbl(sb, "jeff_interactions")
+          .select("lead_id, interaction_type, created_at")
+          .in("lead_id", chunk);
+        if (jeffRows?.length) {
+          jeffInteractionRows.push(...(jeffRows as Array<{
+            lead_id: string | null;
+            interaction_type: string | null;
+            created_at: string | null;
+          }>));
+        }
+      }
+    }
+    const jeffInfluence = computeJeffInfluenceSummary(
+      closedDeals.map((deal) => ({
+        lead_id: deal.lead_id,
+        assignment_fee: deal.assignment_fee,
+        closed_at: deal.closed_at,
+        created_at: deal.created_at,
+      })),
+      jeffInteractionRows,
+      120,
+    );
 
     // ── 3b. Founder effort + leverage metrics (estimated) ────────────────
     const founderIds = parseFounderUserIds(process.env.FOUNDER_USER_IDS);
@@ -284,6 +325,9 @@ export async function GET(req: NextRequest) {
         // Revenue
         total_revenue,
         avg_assignment_fee,
+        jeff_influenced_closed_deals: jeffInfluence.influencedClosedDeals,
+        jeff_influenced_revenue: jeffInfluence.influencedRevenue,
+        jeff_influence_rate: jeffInfluence.influenceRatePct,
         founder_call_count: founderEffort.callCount,
         founder_hours_estimated,
         contracts_per_founder_hour_estimated,

@@ -4,6 +4,7 @@ import {
   isClosedDeal,
   parseFounderUserIds,
   computeFounderEffortFromCalls,
+  computeJeffInfluenceSummary,
 } from "@/lib/analytics-helpers";
 import { normalizeSource } from "@/lib/source-normalization";
 
@@ -124,5 +125,27 @@ describe("founder effort helpers", () => {
     expect(summary.talkMinutes).toBe(4);
     expect(summary.wrapMinutes).toBe(6);
     expect(summary.founderHours).toBeCloseTo(0.2, 5);
+  });
+});
+
+describe("Jeff influence helpers", () => {
+  it("counts only deals with prior non-fyi Jeff interactions in lookback window", () => {
+    const summary = computeJeffInfluenceSummary(
+      [
+        { lead_id: "lead-1", assignment_fee: 12000, closed_at: "2026-03-20T12:00:00.000Z" },
+        { lead_id: "lead-2", assignment_fee: 9000, closed_at: "2026-03-20T12:00:00.000Z" },
+        { lead_id: "lead-3", assignment_fee: 5000, closed_at: "2026-03-20T12:00:00.000Z" },
+      ],
+      [
+        { lead_id: "lead-1", interaction_type: "warm_transfer", created_at: "2026-03-18T10:00:00.000Z" },
+        { lead_id: "lead-2", interaction_type: "fyi_only", created_at: "2026-03-19T09:00:00.000Z" },
+        { lead_id: "lead-3", interaction_type: "callback_request", created_at: "2025-01-01T09:00:00.000Z" },
+      ],
+      30,
+    );
+
+    expect(summary.influencedClosedDeals).toBe(1);
+    expect(summary.influencedRevenue).toBe(12000);
+    expect(summary.influenceRatePct).toBeCloseTo(33.3, 1);
   });
 });

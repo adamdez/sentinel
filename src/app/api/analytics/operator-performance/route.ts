@@ -55,16 +55,16 @@ export async function GET(req: NextRequest) {
     // Calls made (from calls_log)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: calls } = await (sb.from("calls_log") as any)
-      .select("id, disposition, duration, created_at")
+      .select("id, disposition, duration_sec, created_at")
       .eq("user_id", userId)
       .gte("created_at", sinceStr);
 
     const totalCalls = calls?.length ?? 0;
     const liveAnswers = calls?.filter((c: Record<string, unknown>) =>
-      ["answered", "interested", "callback", "appointment", "not_interested"].includes(c.disposition as string),
+      ["answered", "interested", "callback", "appointment", "not_interested", "contract", "contracted", "under_contract"].includes(c.disposition as string),
     ).length ?? 0;
     const totalDuration = calls?.reduce((sum: number, c: Record<string, unknown>) =>
-      sum + ((c.duration as number) ?? 0), 0) ?? 0;
+      sum + ((c.duration_sec as number) ?? 0), 0) ?? 0;
 
     // Tasks completed
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

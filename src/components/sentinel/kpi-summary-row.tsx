@@ -28,6 +28,9 @@ interface KpiData {
   deals_closed: number;
   total_revenue: number;
   avg_assignment_fee: number | null;
+  jeff_influenced_closed_deals: number;
+  jeff_influenced_revenue: number;
+  jeff_influence_rate: number | null;
   founder_call_count: number;
   founder_hours_estimated: number;
   contracts_per_founder_hour_estimated: number | null;
@@ -127,13 +130,17 @@ export function KpiSummaryRow({ period }: { period: TimePeriod }) {
       icon: FileCheck,
       label: "Contracts",
       value: `${kpis.contracts_signed} of ${kpis.offers_made} offers`,
-      subtitle: kpis.deals_closed > 0 ? `${kpis.deals_closed} closed` : null,
+      subtitle: kpis.deals_closed > 0
+        ? `${kpis.deals_closed} closed • Jeff ${kpis.jeff_influenced_closed_deals}`
+        : null,
     },
     {
       icon: DollarSign,
       label: "Revenue",
       value: formatCurrency(kpis.total_revenue),
-      subtitle: kpis.avg_assignment_fee != null ? `Avg fee ${formatCurrency(kpis.avg_assignment_fee)}` : null,
+      subtitle: kpis.jeff_influenced_revenue > 0
+        ? `Jeff ${formatCurrency(kpis.jeff_influenced_revenue)}`
+        : (kpis.avg_assignment_fee != null ? `Avg fee ${formatCurrency(kpis.avg_assignment_fee)}` : null),
       tone: kpis.total_revenue > 0 ? "positive" : "default",
     },
     {

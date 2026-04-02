@@ -58,6 +58,9 @@ export default function AnalyticsPage() {
   const totalAwaiting = marketScoreboard.reduce((s, r) => s + r.awaitingFirstContact, 0);
   const closedDeals = revenue?.closedDeals ?? 0;
   const totalRevenue = revenue?.assignmentRevenue ?? 0;
+  const jeffInfluencedClosedDeals = revenue?.jeffInfluencedClosedDeals ?? 0;
+  const jeffInfluencedRevenue = revenue?.jeffInfluencedRevenue ?? 0;
+  const jeffInfluenceRate = revenue?.jeffInfluenceRatePct ?? null;
   const contractsPerFounderHour = founderEfficiency?.contractsPerFounderHourEstimated ?? null;
   const founderHoursEstimated = founderEfficiency?.founderHoursEstimated ?? 0;
   const founderCallCount = founderEfficiency?.founderCallCount ?? 0;
@@ -80,6 +83,9 @@ export default function AnalyticsPage() {
     if (contractsPerFounderHour != null && founderHoursEstimated >= 10 && contractsPerFounderHour < 0.05) {
       items.push({ text: `Leverage is low at ${contractsPerFounderHour} contracts/founder-hour`, severity: "warn", href: "/settings/jeff-outbound" });
     }
+    if (closedDeals > 0 && jeffInfluencedClosedDeals === 0) {
+      items.push({ text: "Closed deals have no Jeff-attributed influence in this window", severity: "info", href: "/settings/jeff-outbound" });
+    }
 
     const spokanePipeline = pipelineHealth.find((r) => r.market === "spokane");
     const kootenaiPipeline = pipelineHealth.find((r) => r.market === "kootenai");
@@ -98,7 +104,7 @@ export default function AnalyticsPage() {
     if (unknownSourceLeads > 3) items.push({ text: `${unknownSourceLeads} leads have no source attribution`, severity: "info" });
 
     return items;
-  }, [totalOverdue, totalAwaiting, speed, pipelineHealth, sourceOutcomes, contractsPerFounderHour, founderHoursEstimated]);
+  }, [totalOverdue, totalAwaiting, speed, pipelineHealth, sourceOutcomes, contractsPerFounderHour, founderHoursEstimated, closedDeals, jeffInfluencedClosedDeals]);
 
   return (
     <PageShell
@@ -319,6 +325,12 @@ export default function AnalyticsPage() {
                         </span>
                       </div>
                     ))}
+                  </div>
+                )}
+                {closedDeals > 0 && (
+                  <div className="mt-2 border-t border-overlay-4 pt-2 text-xs text-muted-foreground">
+                    Jeff influenced <span className="tabular-nums text-foreground/80">{jeffInfluencedClosedDeals}/{closedDeals}</span>
+                    {" closed"} ({formatPercent(jeffInfluenceRate)}) • {formatCurrency(jeffInfluencedRevenue)}
                   </div>
                 )}
               </GlassCard>
