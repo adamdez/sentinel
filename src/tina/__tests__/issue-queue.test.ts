@@ -617,6 +617,91 @@ describe("buildTinaIssueQueue", () => {
     );
   });
 
+  it("uses the strongest intercompany clue evidence when multiple clues exist", () => {
+    const draft = buildDraft({
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "intercompany-low",
+          sourceDocumentId: "books-a",
+          label: "Intercompany transfer clue",
+          value: "Possible intercompany movement.",
+          confidence: "low",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          id: "intercompany-high",
+          sourceDocumentId: "books-a",
+          label: "Intercompany transfer clue",
+          value: "Confirmed due-to/due-from affiliate flow.",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:20:30.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find((candidate) => candidate.id === "books-intercompany-transfer-clue");
+    expect(item?.severity).toBe("blocking");
+    expect(item?.factId).toBe("intercompany-high");
+  });
+
+  it("uses the strongest owner-flow clue evidence when multiple clues exist", () => {
+    const draft = buildDraft({
+      profile: {
+        entityType: "s_corp",
+      },
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "owner-flow-low",
+          sourceDocumentId: "books-a",
+          label: "Owner draw clue",
+          value: "Possible owner draw.",
+          confidence: "low",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          id: "owner-flow-high",
+          sourceDocumentId: "books-a",
+          label: "Owner draw clue",
+          value: "Confirmed shareholder distribution ledger activity.",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find((candidate) => candidate.id === "books-owner-flow-clue");
+    expect(item?.severity).toBe("blocking");
+    expect(item?.factId).toBe("owner-flow-high");
+  });
+
   it("downgrades multi-ein issue to attention when no corroborating boundary clues exist", () => {
     const draft = buildDraft({
       documents: [

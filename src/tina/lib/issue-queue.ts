@@ -127,6 +127,15 @@ function hasAtLeastConfidence(
   return facts.some((fact) => confidenceRank(fact.confidence) >= thresholdRank);
 }
 
+function pickStrongestFact(facts: TinaSourceFact[]): TinaSourceFact | null {
+  if (facts.length === 0) return null;
+  return facts.reduce((best, candidate) =>
+    confidenceRank(candidate.confidence) > confidenceRank(best.confidence)
+      ? candidate
+      : best
+  );
+}
+
 function formatMoney(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -254,9 +263,11 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     .filter((fact) => normalizeForComparison(fact.label) === "money out clue")
     .reduce((total, fact) => total + (parseMoneyFactValue(fact.value) ?? 0), 0);
   const bookYears = new Set(bookDateFacts.flatMap((fact) => extractFactYears(fact.value)));
-  const ownerFlowFact = findFactsByLabel(bookFacts, "Owner draw clue")[0] ?? null;
-  const intercompanyFact = findFactsByLabel(bookFacts, "Intercompany transfer clue")[0] ?? null;
-  const relatedPartyFact = findFactsByLabel(bookFacts, "Related-party clue")[0] ?? null;
+  const ownerFlowFact = pickStrongestFact(findFactsByLabel(bookFacts, "Owner draw clue"));
+  const intercompanyFact = pickStrongestFact(
+    findFactsByLabel(bookFacts, "Intercompany transfer clue")
+  );
+  const relatedPartyFact = pickStrongestFact(findFactsByLabel(bookFacts, "Related-party clue"));
   const einFacts = findFactsByLabel(bookFacts, "EIN clue");
   const uniqueEinSet = new Set(einFacts.flatMap((fact) => extractEinTokens(fact.value)));
 

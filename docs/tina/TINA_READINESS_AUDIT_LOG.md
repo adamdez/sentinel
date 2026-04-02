@@ -186,6 +186,17 @@ without adding fake safety blocks when evidence is ambiguous.
   - intercompany clue blocking now requires at least medium confidence
 - Added regression coverage for the above so we keep strictness where warranted without overstrict false blockers.
 
+26. Strongest-evidence clue selection hardened:
+- Tina now evaluates the strongest confidence signal across matching clue facts instead of trusting whichever fact appears first.
+- This closes a loophole where a low-confidence first clue could silently downgrade a higher-confidence contradiction in the same intake set.
+- Applied to:
+  - intercompany transfer clues
+  - owner-flow clues
+  - related-party clue anchoring
+- Added regression coverage proving:
+  - low + high intercompany clues still produce a blocking result and anchor to the high-confidence fact
+  - low + high owner-flow clues on S-corp lanes still produce a blocking result and anchor to the high-confidence fact
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -196,7 +207,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `121` tests passing.
+- Current full Tina count: `23` files, `123` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 
