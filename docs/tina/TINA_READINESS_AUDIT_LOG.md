@@ -204,6 +204,13 @@ without adding fake safety blocks when evidence is ambiguous.
   - explicit `books-multi-ein-conflict`
   - normalized EIN tokens in human-readable conflict summary output.
 
+28. Spreadsheet EIN extraction hardened at source:
+- Tina's spreadsheet clue extractor now captures:
+  - standalone dashed EIN tokens (`12-3456789`)
+  - undashed EIN tokens when explicit EIN context is present (`EIN 123456789`, `EIN#123456789`)
+- Extracted EIN clues are normalized before persistence so downstream risk checks see a stable token format.
+- Added regression coverage in document-reading tests proving undashed EIN context is promoted into canonical EIN clues.
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -214,7 +221,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `124` tests passing.
+- Current full Tina count: `23` files, `125` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 

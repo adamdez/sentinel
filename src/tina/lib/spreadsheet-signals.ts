@@ -371,9 +371,21 @@ function detectKeywordClues(rows: Record<string, string>[], textHeaders: string[
     });
   }
 
+  const normalizeEin = (value: string): string => {
+    const digits = value.replace(/[^0-9]/g, "");
+    if (digits.length !== 9) return value;
+    return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  };
+
+  const dashedEinMatches = haystack.match(/\b\d{2}-\d{7}\b/g) ?? [];
+  const contextualUndashedEinMatches = Array.from(
+    haystack.matchAll(/\bein(?:\s*(?:number|#|no\.?))?\s*[:#-]?\s*(\d{2}-?\d{7})\b/g)
+  ).map((match) => match[1]);
+
   const einMatches = Array.from(
-    new Set(haystack.match(/\b\d{2}-\d{7}\b/g) ?? [])
+    new Set([...dashedEinMatches, ...contextualUndashedEinMatches].map(normalizeEin))
   );
+
   einMatches.slice(0, 3).forEach((ein) => {
     clues.push({
       label: "EIN clue",

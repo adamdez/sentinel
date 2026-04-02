@@ -104,6 +104,48 @@ describe("readTinaDocument", () => {
     );
   });
 
+  it("extracts undashed EIN references when EIN context is present", async () => {
+    const document: TinaStoredDocument = {
+      id: "doc-undashed-ein",
+      name: "undashed-ein-ledger.csv",
+      size: 96,
+      mimeType: "text/csv",
+      storagePath: "user/2025/doc-undashed-ein.csv",
+      category: "supporting_document",
+      requestId: "quickbooks",
+      requestLabel: "QuickBooks or your profit-and-loss report",
+      uploadedAt: "2026-03-26T21:06:00.000Z",
+    };
+
+    const file = new File(
+      [
+        [
+          "Date,Description,Amount",
+          "2025-01-01,EIN 123456789 opening balance,0",
+          "2025-01-02,EIN#987654321 transfer trail,0",
+        ].join("\n"),
+      ],
+      document.name,
+      { type: document.mimeType }
+    );
+
+    const reading = await readTinaDocument(document, file);
+
+    expect(reading.status).toBe("complete");
+    expect(reading.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "EIN clue",
+          value: "This paper references EIN 12-3456789.",
+        }),
+        expect.objectContaining({
+          label: "EIN clue",
+          value: "This paper references EIN 98-7654321.",
+        }),
+      ])
+    );
+  });
+
   it("marks pdf files as waiting for deeper reading", async () => {
     const document: TinaStoredDocument = {
       id: "doc-pdf",
