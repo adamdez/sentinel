@@ -98,11 +98,14 @@ export async function POST(req: NextRequest) {
 
     // Step 1: Create or update property record (upsert via APN + county)
     // Accept incomplete property data — address/city/state/zip are optional
+    // Generate a unique APN when missing to prevent collisions between
+    // different intake leads that both lack an APN in the same county.
+    const safeApn = apn || `INTAKE-${intake_lead_id.slice(0, 12)}`;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: property, error: propertyError } = await (sb.from("properties") as any)
       .upsert(
         {
-          apn: apn || "TBD",
+          apn: safeApn,
           county: county || "Unknown",
           address: property_address || "Address TBD",
           city: property_city || "",
