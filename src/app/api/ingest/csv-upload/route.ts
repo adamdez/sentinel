@@ -42,6 +42,7 @@ import {
 import type { DistressType } from "@/lib/types";
 import { upsertContact } from "@/lib/upsert-contact";
 import type { SentinelField } from "@/lib/csv-column-map";
+import { resolveMarket } from "@/lib/market-resolver";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PROMOTION_THRESHOLD = 75;
@@ -773,6 +774,7 @@ async function processRow(
       contact_id: contactId,
       status: "staging",
       source: `csv:${meta.source}`,
+      market: resolveMarket(county),
       priority: blended,
       tags: meta.distressTypes,
       notes: `CSV import from ${meta.source}. Preliminary score: ${blended}. Queued for enrichment.`,
