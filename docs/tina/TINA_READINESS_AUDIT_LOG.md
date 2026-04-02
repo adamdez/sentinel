@@ -197,6 +197,13 @@ without adding fake safety blocks when evidence is ambiguous.
   - low + high intercompany clues still produce a blocking result and anchor to the high-confidence fact
   - low + high owner-flow clues on S-corp lanes still produce a blocking result and anchor to the high-confidence fact
 
+27. EIN normalization hardened for undashed references:
+- Tina now normalizes both `12-3456789` and `123456789` into the same EIN token shape.
+- This closes a detection gap where multi-EIN conflicts could be missed when source papers omit hyphens.
+- Added regression coverage proving undashed multi-EIN clues still produce:
+  - explicit `books-multi-ein-conflict`
+  - normalized EIN tokens in human-readable conflict summary output.
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -207,7 +214,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `123` tests passing.
+- Current full Tina count: `23` files, `124` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 

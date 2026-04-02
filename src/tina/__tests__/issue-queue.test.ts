@@ -782,6 +782,49 @@ describe("buildTinaIssueQueue", () => {
     expect(item?.severity).toBe("blocking");
   });
 
+  it("detects multi-ein conflicts when EIN clues are undashed", () => {
+    const draft = buildDraft({
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "ein-a-undashed",
+          sourceDocumentId: "books-a",
+          label: "EIN clue",
+          value: "Books include EIN 123456789 for prior payroll setup.",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+        {
+          id: "ein-b-undashed",
+          sourceDocumentId: "books-a",
+          label: "EIN clue",
+          value: "Legacy mapping table includes EIN 987654321.",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:21:10.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find((candidate) => candidate.id === "books-multi-ein-conflict");
+
+    expect(item?.severity).toBe("blocking");
+    expect(item?.summary).toContain("12-3456789");
+    expect(item?.summary).toContain("98-7654321");
+  });
+
   it("downgrades owner-flow clue for high-risk entity when confidence is low", () => {
     const draft = buildDraft({
       profile: {

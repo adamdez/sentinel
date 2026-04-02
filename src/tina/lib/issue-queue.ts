@@ -149,9 +149,10 @@ function extractFactYears(value: string): string[] {
 }
 
 function extractEinTokens(value: string): string[] {
-  return Array.from(
-    new Set((value.match(/\b\d{2}-\d{7}\b/g) ?? []).map((token) => token.trim()))
-  );
+  const dashed = value.match(/\b\d{2}-\d{7}\b/g) ?? [];
+  const compact = value.match(/\b\d{9}\b/g) ?? [];
+  const normalizedCompact = compact.map((token) => `${token.slice(0, 2)}-${token.slice(2)}`);
+  return Array.from(new Set([...dashed, ...normalizedCompact].map((token) => token.trim())));
 }
 
 function isBooksDocument(document: TinaStoredDocument | undefined): boolean {
