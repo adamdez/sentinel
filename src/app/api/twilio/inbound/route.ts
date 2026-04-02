@@ -156,6 +156,36 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Caller hung up while ringing — skip remaining chain steps, go straight to missed handler.
+    // Without this, "canceled" falls through and tries the next Dial which also fails,
+    // wasting time and risking the missed notification never firing.
+    if (dialStatus === "canceled") {
+      const missedFrom = isTransfer ? (originalFrom || fromNumber) : (originalFrom || fromNumber);
+      console.log(`[inbound] Caller hung up (canceled) during ${step} — firing missed handler immediately`);
+
+      after(async () => {
+        try {
+          if (isTransfer) {
+            await handleMissedTransfer({ originalFrom: missedFrom, callSid, voiceSessionId: transferVsid, siteUrl });
+          } else {
+            await handleMissedInbound({ fromNumber: missedFrom, callSid, siteUrl });
+          }
+        } catch (err) {
+          console.error("[inbound] after() canceled handler failed:", err);
+        }
+      });
+
+      return new NextResponse(
+        [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          "<Response>",
+          '  <Say voice="Polly.Joanna">We missed your call. We will call you back shortly. Thank you for calling Dominion Home Deals.</Say>',
+          "</Response>",
+        ].join("\n"),
+        { headers: { "Content-Type": "text/xml" } },
+      );
+    }
+
     // Nobody answered — move to next step
     // Carry sessionId/callLogId through the chain for Deepgram stream
     const chainSessionId = url.searchParams.get("sessionId") ?? "";
@@ -260,12 +290,15 @@ export async function POST(req: NextRequest) {
     // Determine if this is a missed call:
     // - call_status=no-answer on the initial inbound leg means caller hung up before we answered
     // - dial_complete with dialStatus=no-answer|busy|failed means we tried to forward but failed
+    // - dialStatus=canceled means the caller hung up while the B-leg was still ringing
     const isMissed =
       callStatus === "no-answer" ||
       callStatus === "busy"      ||
+      callStatus === "canceled"  ||
       dialStatus === "no-answer" ||
       dialStatus === "busy"      ||
       dialStatus === "failed"    ||
+      dialStatus === "canceled"  ||
       (dialStatus === "completed" && !wasAnswered);
 
     after(async () => {
