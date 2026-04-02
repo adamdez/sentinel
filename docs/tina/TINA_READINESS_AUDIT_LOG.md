@@ -122,6 +122,15 @@ without adding fake safety blocks when evidence is ambiguous.
   - source-fact capture timestamps
 - This blocks "green badge drift" where queue/review status remains complete even though new facts were added later.
 
+18. Evidence freshness widened and hardened:
+- Freshness gating now also keys off:
+  - document-reading timestamps (`documentReadings.lastReadAt`)
+  - prior-return capture timestamp (`priorReturn.capturedAt`)
+- Invalid evidence timestamps now fail closed for readiness freshness, with explicit not-current messaging.
+- Added regression coverage for:
+  - newer document-reading timestamps after review runs
+  - invalid evidence timestamp values in prior-return metadata
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -132,7 +141,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `106` tests passing.
+- Current full Tina count: `23` files, `108` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 

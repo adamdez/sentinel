@@ -77,17 +77,42 @@ function parseTimestamp(value: string | null): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function latestEvidenceTimestamp(draft: TinaWorkspaceDraft): number {
-  const documentTimestamps = draft.documents.map((document) => parseTimestamp(document.uploadedAt));
-  const sourceFactTimestamps = draft.sourceFacts.map((fact) => parseTimestamp(fact.capturedAt));
+interface EvidenceTimestampRollup {
+  latest: number;
+  hasInvalid: boolean;
+}
 
-  return Math.max(0, ...documentTimestamps, ...sourceFactTimestamps);
+function collectTimestamp(value: string | null): { parsed: number; invalid: boolean } {
+  if (!value || value.trim().length === 0) {
+    return { parsed: 0, invalid: false };
+  }
+
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) {
+    return { parsed: 0, invalid: true };
+  }
+
+  return { parsed, invalid: false };
+}
+
+function latestEvidenceTimestamp(draft: TinaWorkspaceDraft): EvidenceTimestampRollup {
+  const candidates = [
+    ...draft.documents.map((document) => collectTimestamp(document.uploadedAt)),
+    ...draft.sourceFacts.map((fact) => collectTimestamp(fact.capturedAt)),
+    ...draft.documentReadings.map((reading) => collectTimestamp(reading.lastReadAt)),
+    collectTimestamp(draft.priorReturn?.capturedAt ?? null),
+  ];
+
+  const latest = Math.max(0, ...candidates.map((candidate) => candidate.parsed));
+  const hasInvalid = candidates.some((candidate) => candidate.invalid);
+
+  return { latest, hasInvalid };
 }
 
 function hasCurrentReviewRun(
   status: string,
   lastRunAt: string | null,
-  latestEvidenceAt: number
+  evidence: EvidenceTimestampRollup
 ): boolean {
   if (status !== "complete" || typeof lastRunAt !== "string" || lastRunAt.trim().length === 0) {
     return false;
@@ -95,7 +120,8 @@ function hasCurrentReviewRun(
 
   const runAt = parseTimestamp(lastRunAt);
   if (runAt <= 0) return false;
-  if (latestEvidenceAt > 0 && runAt < latestEvidenceAt) return false;
+  if (evidence.hasInvalid) return false;
+  if (evidence.latest > 0 && runAt < evidence.latest) return false;
   return true;
 }
 
@@ -106,7 +132,7 @@ export function buildTinaPackageReadiness(
   const lane = recommendTinaFilingLane(draft.profile);
   const checklist = buildTinaChecklist(draft, lane);
   const items: TinaPackageReadinessItem[] = [];
-  const latestEvidenceAt = latestEvidenceTimestamp(draft);
+  const evidence = latestEvidenceTimestamp(draft);
 
   if (lane.support !== "supported" || lane.laneId !== "schedule_c_single_member_llc") {
     items.push(
@@ -121,36 +147,32 @@ export function buildTinaPackageReadiness(
   }
 
   if (
-    !hasCurrentReviewRun(
-      draft.bootstrapReview.status,
-      draft.bootstrapReview.lastRunAt,
-      latestEvidenceAt
-    )
+    !hasCurrentReviewRun(draft.bootstrapReview.status, draft.bootstrapReview.lastRunAt, evidence)
   ) {
     items.push(
       createItem({
         id: "bootstrap-review-not-current",
         title: "Bootstrap review is not current",
         summary:
-          "Tina needs a current bootstrap review run before claiming package readiness. This keeps setup conflicts from slipping past the filing check.",
+          evidence.hasInvalid
+            ? "Tina found invalid evidence timestamps, so bootstrap review freshness cannot be trusted yet."
+            : "Tina needs a current bootstrap review run before claiming package readiness. This keeps setup conflicts from slipping past the filing check.",
         severity: "blocking",
       })
     );
   }
 
   if (
-    !hasCurrentReviewRun(
-      draft.issueQueue.status,
-      draft.issueQueue.lastRunAt,
-      latestEvidenceAt
-    )
+    !hasCurrentReviewRun(draft.issueQueue.status, draft.issueQueue.lastRunAt, evidence)
   ) {
     items.push(
       createItem({
         id: "issue-queue-not-current",
         title: "Issue queue is not current",
         summary:
-          "Tina needs a current issue-queue run before claiming package readiness. This keeps paper conflicts from slipping past the filing check.",
+          evidence.hasInvalid
+            ? "Tina found invalid evidence timestamps, so issue-queue freshness cannot be trusted yet."
+            : "Tina needs a current issue-queue run before claiming package readiness. This keeps paper conflicts from slipping past the filing check.",
         severity: "blocking",
       })
     );
