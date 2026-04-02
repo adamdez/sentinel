@@ -97,6 +97,15 @@ without adding fake safety blocks when evidence is ambiguous.
   - S-corp organizer + Schedule C paper hint (must conflict)
   - Schedule C organizer + Schedule C paper hint (must not conflict)
 
+14. "Complete but never run" stale-state loophole closed:
+- Package readiness now requires both review-layer status and timestamp evidence for:
+  - bootstrap review
+  - issue queue
+- If a layer is marked `complete` but `lastRunAt` is missing, Tina now blocks readiness rather than trusting stale/invalid state.
+- Added regression coverage in
+  [package-readiness.test.ts](/C:/Users/adamd/Desktop/Sentinel/src/tina/__tests__/package-readiness.test.ts)
+  to ensure this cannot silently regress.
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -107,7 +116,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `101` tests passing.
+- Current full Tina count: `23` files, `102` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 

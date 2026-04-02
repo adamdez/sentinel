@@ -71,6 +71,10 @@ function noteNeedsAttention(note: TinaScheduleCDraftNote): boolean {
   return note.severity === "needs_attention";
 }
 
+function hasCurrentReviewRun(status: string, lastRunAt: string | null): boolean {
+  return status === "complete" && typeof lastRunAt === "string" && lastRunAt.trim().length > 0;
+}
+
 export function buildTinaPackageReadiness(
   draft: TinaWorkspaceDraft
 ): TinaPackageReadinessSnapshot {
@@ -91,7 +95,7 @@ export function buildTinaPackageReadiness(
     );
   }
 
-  if (draft.bootstrapReview.status !== "complete") {
+  if (!hasCurrentReviewRun(draft.bootstrapReview.status, draft.bootstrapReview.lastRunAt)) {
     items.push(
       createItem({
         id: "bootstrap-review-not-current",
@@ -103,7 +107,7 @@ export function buildTinaPackageReadiness(
     );
   }
 
-  if (draft.issueQueue.status !== "complete") {
+  if (!hasCurrentReviewRun(draft.issueQueue.status, draft.issueQueue.lastRunAt)) {
     items.push(
       createItem({
         id: "issue-queue-not-current",
