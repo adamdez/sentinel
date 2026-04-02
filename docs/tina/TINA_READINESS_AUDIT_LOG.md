@@ -82,6 +82,14 @@ without adding fake safety blocks when evidence is ambiguous.
   - primary authority conflict containment
   - secondary-support downgrading to background evidence
 
+12. Zero-vs-positive money mismatch loophole closed:
+- Tina now treats `0` vs large positive money clues as a potential scale/import anomaly instead of ignoring it.
+- Added regression coverage in
+  [issue-queue.test.ts](/C:/Users/adamd/Desktop/Sentinel/src/tina/__tests__/issue-queue.test.ts)
+  for:
+  - zero-vs-large mismatch detection
+  - single-clue false-positive prevention
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -92,7 +100,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `97` tests passing.
+- Current full Tina count: `23` files, `99` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 

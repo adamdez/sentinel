@@ -79,10 +79,17 @@ function findFactsByLabel(sourceFacts: TinaSourceFact[], label: string): TinaSou
 
 function calculateRelativeSpread(values: number[]): number {
   if (values.length < 2) return 0;
-  const sorted = values.slice().sort((left, right) => left - right);
+  const positives = values.filter((value) => value > 0);
+  const hasZero = values.some((value) => value === 0);
+
+  if (positives.length < 2) {
+    if (positives.length === 1 && hasZero) return Number.POSITIVE_INFINITY;
+    return 0;
+  }
+
+  const sorted = positives.slice().sort((left, right) => left - right);
   const min = sorted[0];
   const max = sorted[sorted.length - 1];
-  if (min <= 0) return 0;
   return max / min;
 }
 
@@ -98,10 +105,10 @@ function maybeCreateMoneyScaleMismatchItem(
 
   const moneyInValues = moneyInFacts
     .map((fact) => parseMoneyFactValue(fact.value))
-    .filter((value): value is number => value !== null && value > 0);
+    .filter((value): value is number => value !== null && value >= 0);
   const moneyOutValues = moneyOutFacts
     .map((fact) => parseMoneyFactValue(fact.value))
-    .filter((value): value is number => value !== null && value > 0);
+    .filter((value): value is number => value !== null && value >= 0);
 
   const incomeSpread = calculateRelativeSpread(moneyInValues);
   const expenseSpread = calculateRelativeSpread(moneyOutValues);

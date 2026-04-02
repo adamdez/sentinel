@@ -344,6 +344,56 @@ describe("buildTinaIssueQueue", () => {
     expect(issueQueue.items.some((item) => item.id === "books-money-scale-mismatch")).toBe(true);
   });
 
+  it("flags scale mismatch when one money clue is zero and another is large", () => {
+    const draft = buildDraft({
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+        {
+          id: "books-b",
+          name: "books-b.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-b.csv",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Business bank and card statements",
+          uploadedAt: "2026-03-26T21:16:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "money-in-a",
+          sourceDocumentId: "books-a",
+          label: "Money in clue",
+          value: "$0.00",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          id: "money-in-b",
+          sourceDocumentId: "books-b",
+          label: "Money in clue",
+          value: "$95,000.00",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "books-money-scale-mismatch")).toBe(true);
+  });
+
   it("does not flag scale mismatch for normal money clue variance", () => {
     const draft = buildDraft({
       documents: [
@@ -386,6 +436,37 @@ describe("buildTinaIssueQueue", () => {
           value: "$11,200.00",
           confidence: "medium",
           capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "books-money-scale-mismatch")).toBe(false);
+  });
+
+  it("does not flag scale mismatch from a single money clue with no comparison point", () => {
+    const draft = buildDraft({
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "money-in-a",
+          sourceDocumentId: "books-a",
+          label: "Money in clue",
+          value: "$95,000.00",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:00.000Z",
         },
       ],
     });
