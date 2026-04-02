@@ -125,6 +125,66 @@ describe("buildTinaIssueQueue", () => {
     expect(issueQueue.items.some((item) => item.id === "return-type-hint-conflict")).toBe(false);
   });
 
+  it("flags return-type conflict when one hint matches but another hint conflicts", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Tina Test LLC",
+        entityType: "single_member_llc",
+      },
+      sourceFacts: [
+        {
+          id: "return-type-aligned",
+          sourceDocumentId: "prior-doc-a",
+          label: "Return type hint",
+          value: "Schedule C / 1040",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:10:00.000Z",
+        },
+        {
+          id: "return-type-conflict",
+          sourceDocumentId: "prior-doc-b",
+          label: "Return type hint",
+          value: "1120-S election noted",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:11:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "return-type-hint-conflict")).toBe(true);
+  });
+
+  it("flags return-type conflict when papers point to multiple different lanes", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Tina Mixed Signals LLC",
+        entityType: "unsure",
+      },
+      sourceFacts: [
+        {
+          id: "return-type-c",
+          sourceDocumentId: "prior-doc-a",
+          label: "Return type hint",
+          value: "Schedule C / 1040",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:10:00.000Z",
+        },
+        {
+          id: "return-type-1065",
+          sourceDocumentId: "prior-doc-b",
+          label: "Return type hint",
+          value: "Partnership / 1065",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:11:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "return-type-hint-conflict")).toBe(true);
+  });
+
   it("uses money clues in the books prep summary and flags wrong-year books", () => {
     const draft = buildDraft({
       profile: {

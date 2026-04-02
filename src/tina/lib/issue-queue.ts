@@ -61,6 +61,10 @@ function describeLane(laneId: TinaFilingLaneId): string {
   }
 }
 
+function formatLaneList(lanes: TinaFilingLaneId[]): string {
+  return lanes.map((lane) => describeLane(lane)).join(", ");
+}
+
 export function createDefaultTinaIssueQueue(): TinaIssueQueue {
   return {
     lastRunAt: null,
@@ -299,32 +303,53 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const returnTypeHint = findFactsByLabel(draft.sourceFacts, "Return type hint")
+  const returnTypeHintCandidates = findFactsByLabel(draft.sourceFacts, "Return type hint")
     .map((fact) => ({
       fact,
       hintedLane: inferReturnTypeHintLane(fact.value),
     }))
-    .find((candidate) => candidate.hintedLane !== null);
+    .filter((candidate): candidate is { fact: TinaSourceFact; hintedLane: TinaFilingLaneId } =>
+      candidate.hintedLane !== null
+    );
 
-  if (
-    returnTypeHint &&
+  const hintedLaneSet = new Set(returnTypeHintCandidates.map((candidate) => candidate.hintedLane));
+  const hintedLanes = Array.from(hintedLaneSet);
+  const hasMixedHintedLanes = hintedLanes.length > 1;
+  const singleHintedLane = hintedLanes.length === 1 ? hintedLanes[0] : null;
+
+  const hasHintVsOrganizerConflict =
+    singleHintedLane !== null &&
     recommendation.laneId !== "unknown" &&
-    returnTypeHint.hintedLane !== recommendation.laneId
-  ) {
+    singleHintedLane !== recommendation.laneId;
+
+  if (hasMixedHintedLanes || hasHintVsOrganizerConflict) {
+    const culprit =
+      returnTypeHintCandidates.find((candidate) =>
+        hasMixedHintedLanes
+          ? true
+          : candidate.hintedLane === singleHintedLane
+      ) ?? null;
+
+    const summary = hasMixedHintedLanes
+      ? `Saved papers point to multiple return-type lanes (${formatLaneList(
+          hintedLanes
+        )}). Tina wants this resolved before she trusts the filing lane.`
+      : `One saved paper hints at ${describeLane(
+          singleHintedLane!
+        )}, but the organizer currently points to ${describeLane(
+          recommendation.laneId
+        )}. Tina wants this reviewed before she trusts the filing lane.`;
+
     items.push({
       id: "return-type-hint-conflict",
       title: "Saved paper hints at a different return type",
-      summary: `One saved paper hints at ${describeLane(
-        returnTypeHint.hintedLane!
-      )}, but the organizer currently points to ${describeLane(
-        recommendation.laneId
-      )}. Tina wants this reviewed before she trusts the filing lane.`,
+      summary,
       severity: "blocking",
       status: "open",
       category: "fact_mismatch",
       requestId: null,
-      documentId: returnTypeHint.fact.sourceDocumentId,
-      factId: returnTypeHint.fact.id,
+      documentId: culprit?.fact.sourceDocumentId ?? null,
+      factId: culprit?.fact.id ?? null,
     });
   }
 

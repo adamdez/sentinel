@@ -106,6 +106,15 @@ without adding fake safety blocks when evidence is ambiguous.
   [package-readiness.test.ts](/C:/Users/adamd/Desktop/Sentinel/src/tina/__tests__/package-readiness.test.ts)
   to ensure this cannot silently regress.
 
+15. Return-type hint aggregation hardened:
+- Tina now evaluates all usable `Return type hint` facts, not only the first one.
+- If papers point to multiple different lanes, Tina now raises a blocking return-type conflict.
+- If one hint aligns and another conflicts, the conflict still wins (no silent pass-through).
+
+16. Invalid timestamp spoofing blocked:
+- Package readiness now treats invalid date strings (for example `not-a-date`) as non-current review state.
+- This prevents fake `complete` states from bypassing readiness gates with malformed timestamps.
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -116,7 +125,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `102` tests passing.
+- Current full Tina count: `23` files, `105` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 

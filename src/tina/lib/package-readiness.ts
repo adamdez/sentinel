@@ -72,7 +72,11 @@ function noteNeedsAttention(note: TinaScheduleCDraftNote): boolean {
 }
 
 function hasCurrentReviewRun(status: string, lastRunAt: string | null): boolean {
-  return status === "complete" && typeof lastRunAt === "string" && lastRunAt.trim().length > 0;
+  if (status !== "complete" || typeof lastRunAt !== "string" || lastRunAt.trim().length === 0) {
+    return false;
+  }
+
+  return Number.isFinite(Date.parse(lastRunAt));
 }
 
 export function buildTinaPackageReadiness(
