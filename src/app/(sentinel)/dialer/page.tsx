@@ -34,7 +34,7 @@ import {
 } from "@/hooks/use-dialer";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 import { getSequenceLabel, getCadencePosition } from "@/lib/call-scheduler";
-import { useCallNotes } from "@/hooks/use-call-notes";
+
 import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { useLiveCoach } from "@/hooks/use-live-coach";
 import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
@@ -815,7 +815,7 @@ function DialerPageInner() {
   const phonesActiveCount = activeLeadPhones.length;
   const phonesAttempted = activeLeadPhones.filter((phone) => phone.last_called_at).length;
 
-  const { latestSummary, latestSummaryTime } = useCallNotes(currentLead?.id);
+  // useCallNotes removed — seller memory preview covers last-call context
   const { brief: preCallBrief, loading: briefLoading, error: briefError, regenerate: retryBrief } = usePreCallBrief(currentLead?.id ?? null);
   const { coach: liveCoach, loading: liveCoachLoading, error: liveCoachError } = useLiveCoach({
     sessionId: dialerSessionId,
@@ -830,6 +830,12 @@ function DialerPageInner() {
   const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
   const [idleRailTab, setIdleRailTab] = useState<"history" | "jeff" | "sms">("history");
+  const [briefDetailOpen, setBriefDetailOpen] = useState(false);
+  const prevLeadIdForBrief = useRef<string | null>(null);
+  if (currentLead?.id !== prevLeadIdForBrief.current) {
+    prevLeadIdForBrief.current = currentLead?.id ?? null;
+    if (briefDetailOpen) setBriefDetailOpen(false);
+  }
 
   useCoachSurface("dialer", {});
   const [fileModalOpen, setFileModalOpen] = useState(false);
@@ -2433,6 +2439,33 @@ function DialerPageInner() {
       missingCondition: currentLead.condition_level == null,
     });
 
+    // "Why Now" — the single most important pre-call signal
+    const totalCalls = currentLead.total_calls ?? 0;
+    const dueIso = wf.effectiveDueIso;
+    let whyNow: { text: string; tone: "red" | "amber" | "muted" } = { text: "Queued lead", tone: "muted" };
+    if (totalCalls === 0) {
+      whyNow = { text: "First contact — never called", tone: "muted" };
+    } else if (dueIso) {
+      const dueMs = new Date(dueIso).getTime();
+      const nowMs = Date.now();
+      const diffDays = Math.round((dueMs - nowMs) / 86400000);
+      if (diffDays < 0) {
+        whyNow = { text: `Callback ${Math.abs(diffDays)}d overdue — seller expects you`, tone: "red" };
+      } else if (diffDays === 0) {
+        whyNow = { text: "Callback due today", tone: "amber" };
+      } else {
+        whyNow = { text: `Follow-up in ${diffDays}d`, tone: "muted" };
+      }
+    } else if (totalCalls > 0) {
+      const daysSince = currentLead.last_contact_at
+        ? Math.max(0, Math.floor((Date.now() - new Date(currentLead.last_contact_at).getTime()) / 86400000))
+        : null;
+      whyNow = {
+        text: daysSince != null ? `Re-attempt — last touch ${daysSince}d ago` : "Re-attempt",
+        tone: daysSince != null && daysSince > 7 ? "amber" : "muted",
+      };
+    }
+
     return {
       stage: stageLabel(currentLead.status),
       route: qualificationRouteLabel(currentLead.qualification_route),
@@ -2447,6 +2480,7 @@ function DialerPageInner() {
       motivationLevel: currentLead.motivation_level,
       sellerTimeline:  currentLead.seller_timeline,
       lastContactAt:   currentLead.last_contact_at,
+      whyNow,
     };
   }, [callHistory, currentLead]);
 
@@ -3499,43 +3533,56 @@ function DialerPageInner() {
                     </div>
 
                     {dialerContext && (
-                      <div className="rounded-[10px] bg-overlay-3 border border-overlay-6 p-2.5 space-y-2">
-                        {/* Compact context line */}
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                          <span><span className="text-foreground font-medium">{dialerContext.stage}</span></span>
-                          <span className="text-muted-foreground/30">·</span>
-                          <span>Do now: <span className="text-foreground font-medium">{dialerContext.nextActionLabel}</span></span>
-                          <span className="text-muted-foreground/30">·</span>
-                          <span className={dialerContext.dueText === "Overdue" ? "text-red-400 font-medium" : ""}>Due: {dialerContext.dueText}</span>
-                          {dialerContext.qualificationGapNames.length > 0 && (
-                            <>
-                              <span className="text-muted-foreground/30">·</span>
-                              <span className="text-amber-400">Ask: {dialerContext.qualificationGapNames.slice(0, 3).join(", ")}</span>
-                            </>
-                          )}
-                          {dialerContext.motivationLevel != null && (
-                            <>
-                              <span className="text-muted-foreground/30">·</span>
-                              <span>Motivation: <span className="text-foreground font-medium">{dialerContext.motivationLevel}/5</span></span>
-                            </>
-                          )}
-                          {dialerContext.sellerTimeline && dialerContext.sellerTimeline !== "unknown" && (
-                            <>
-                              <span className="text-muted-foreground/30">·</span>
-                              <span>Timeline: <span className="text-foreground font-medium">{TIMELINE_SHORT[dialerContext.sellerTimeline] ?? dialerContext.sellerTimeline}</span></span>
-                            </>
+                      <>
+                        {/* Why Now — the single most important pre-call signal */}
+                        <div className={cn(
+                          "rounded-[8px] px-3 py-1.5 text-xs font-semibold flex items-center gap-2",
+                          dialerContext.whyNow.tone === "red" && "bg-red-500/10 text-red-400 border border-red-500/20",
+                          dialerContext.whyNow.tone === "amber" && "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+                          dialerContext.whyNow.tone === "muted" && "bg-overlay-3 text-foreground/70 border border-overlay-6",
+                        )}>
+                          {dialerContext.whyNow.tone === "red" && <AlertTriangle className="h-3 w-3 shrink-0" />}
+                          {dialerContext.whyNow.tone === "amber" && <CalendarCheck className="h-3 w-3 shrink-0" />}
+                          {dialerContext.whyNow.text}
+                          {(currentLead?.total_calls ?? 0) > 0 && dialerContext.lastContactAt && (
+                            <span className="ml-auto text-[10px] font-normal text-muted-foreground/50">
+                              Last: <span className="capitalize">{dialerContext.recentOutcome}</span> · {relativeAge(dialerContext.lastContactAt)}
+                            </span>
                           )}
                         </div>
-                        {/* Last outcome + note */}
-                        <p className="text-xs text-muted-foreground/70">
-                          Last: <span className="text-foreground/80 capitalize">{dialerContext.recentOutcome}</span>
-                          {dialerContext.lastContactAt && <> · {relativeAge(dialerContext.lastContactAt)}</>}
-                          {dialerContext.notePreview !== "No recent note" && (
-                            <> — <span className="text-foreground/70">{dialerContext.notePreview}</span></>
-                          )}
-                        </p>
-                        {/* Call assist prompts removed — live coach handles this now */}
-                      </div>
+
+                        <div className="rounded-[10px] bg-overlay-3 border border-overlay-6 p-2.5">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            <span><span className="text-foreground font-medium">{dialerContext.stage}</span></span>
+                            <span className="text-muted-foreground/30">·</span>
+                            <span>{dialerContext.nextActionLabel}</span>
+                            {dialerContext.qualificationGapNames.length > 0 && (
+                              <>
+                                <span className="text-muted-foreground/30">·</span>
+                                <span className="text-amber-400">Ask: {dialerContext.qualificationGapNames.slice(0, 3).join(", ")}</span>
+                              </>
+                            )}
+                            {dialerContext.motivationLevel != null && (
+                              <>
+                                <span className="text-muted-foreground/30">·</span>
+                                <span>Motivation {dialerContext.motivationLevel}/5</span>
+                              </>
+                            )}
+                            {dialerContext.sellerTimeline && dialerContext.sellerTimeline !== "unknown" && (
+                              <>
+                                <span className="text-muted-foreground/30">·</span>
+                                <span>{TIMELINE_SHORT[dialerContext.sellerTimeline] ?? dialerContext.sellerTimeline}</span>
+                              </>
+                            )}
+                            {dialerContext.notePreview !== "No recent note" && (
+                              <>
+                                <span className="text-muted-foreground/30">·</span>
+                                <span className="text-foreground/60 truncate max-w-[200px]">{dialerContext.notePreview}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </>
                     )}
 
                     {/* Compact property vitals — single block instead of 9 tiles */}
@@ -3579,7 +3626,7 @@ function DialerPageInner() {
                       )}
                     </div>
 
-                    {/* Pre-Call Intelligence Brief */}
+                    {/* Pre-Call Brief — compressed: goal + bullets default, questions/flags on expand */}
                     <AnimatePresence>
                       {callState === "idle" && (preCallBrief || briefLoading || briefError) && (
                         <motion.div
@@ -3590,75 +3637,84 @@ function DialerPageInner() {
                         >
                           <div className="flex items-center gap-1.5 mb-1.5">
                             <Sparkles className="h-3 w-3 text-foreground" />
-                            <span className="text-sm font-semibold tracking-wider uppercase text-foreground">Pre-Call Brief</span>
+                            <span className="text-xs font-semibold tracking-wider uppercase text-foreground">Brief</span>
                             {briefLoading && <Loader2 className="h-3 w-3 animate-spin text-foreground/60 ml-auto" />}
                           </div>
                           {briefError && !preCallBrief && (
                             <div className="flex items-center gap-2 rounded-lg bg-amber-500/[0.06] border border-amber-500/20 p-2">
                               <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                              <p className="text-sm text-amber-200/80 flex-1">{briefError}</p>
-                              <button
-                                onClick={retryBrief}
-                                className="text-xs text-amber-300 hover:text-amber-200 underline shrink-0"
-                              >
-                                Retry
-                              </button>
+                              <p className="text-xs text-amber-200/80 flex-1">{briefError}</p>
+                              <button onClick={retryBrief} className="text-xs text-amber-300 hover:text-amber-200 underline shrink-0">Retry</button>
                             </div>
                           )}
                           {preCallBrief && (
                             <>
-                              <div className="grid gap-2 mb-2 md:grid-cols-2">
-                                <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2">
-                                  <p className="text-xs text-muted-foreground/55 uppercase mb-0.5">Stage</p>
-                                  <p className="text-sm text-foreground/75 font-medium">
-                                    {preCallBrief.currentStage.replace(/_/g, " ")}
-                                  </p>
-                                  {preCallBrief.stageReason && (
-                                    <p className="text-xs text-muted-foreground/45 mt-1 leading-snug">
-                                      {preCallBrief.stageReason}
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2">
-                                  <p className="text-xs text-muted-foreground/55 uppercase mb-0.5">Call Goal</p>
-                                  <p className="text-sm text-foreground/75 leading-snug">
-                                    {preCallBrief.primaryGoal || "Clarify situation, timing, and what matters most."}
-                                  </p>
-                                </div>
-                              </div>
-                              <ul className="space-y-1 mb-2">
-                                {preCallBrief.bullets.map((b, i) => (
-                                  <li key={i} className="text-xs text-foreground/80 flex items-start gap-1.5">
-                                    <span className="text-foreground mt-0.5">•</span>
-                                    {b}
-                                  </li>
-                                ))}
-                              </ul>
-                              {/* Suggested Opener removed — live coach handles talk tracks during the call */}
-                              {preCallBrief.nextQuestions.length > 0 && (
-                                <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2 mt-1">
-                                  <p className="text-sm text-muted-foreground/60 uppercase mb-1">Best Questions</p>
-                                  <div className="space-y-1">
-                                    {preCallBrief.nextQuestions.slice(0, 3).map((question, i) => (
-                                      <p key={i} className="text-xs text-foreground/75 leading-snug">
-                                        • {question}
-                                      </p>
-                                    ))}
-                                  </div>
+                              {/* Goal — the most important line */}
+                              <p className="text-xs text-foreground/80 font-medium leading-snug mb-1.5">
+                                {preCallBrief.primaryGoal || "Clarify situation, timing, and what matters most."}
+                              </p>
+                              {/* Top bullets (max 3) */}
+                              {preCallBrief.bullets.length > 0 && (
+                                <ul className="space-y-0.5">
+                                  {preCallBrief.bullets.slice(0, 3).map((b, i) => (
+                                    <li key={i} className="text-xs text-foreground/70 flex items-start gap-1.5">
+                                      <span className="text-foreground/40 mt-0.5">•</span>
+                                      {b}
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                              {/* Inline risk flag count (always visible if flags exist) */}
+                              {preCallBrief.riskFlags.length > 0 && !briefDetailOpen && (
+                                <div className="flex items-center gap-1 mt-1.5 text-xs text-amber-400/80">
+                                  <AlertTriangle className="h-2.5 w-2.5" />
+                                  {preCallBrief.riskFlags.length} risk flag{preCallBrief.riskFlags.length !== 1 ? "s" : ""}
                                 </div>
                               )}
-                              {preCallBrief.riskFlags.length > 0 && (
-                                <div className="rounded-lg bg-muted/[0.06] border border-border/20 p-2 mt-1.5">
-                                  <p className="text-sm text-foreground/70 uppercase mb-1">Risk Flags / Things That May Not Line Up</p>
-                                  <div className="space-y-1">
-                                    {preCallBrief.riskFlags.map((flag, i) => (
-                                      <div key={i} className="flex items-start gap-1.5 text-sm text-foreground/80">
-                                        <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0 text-foreground/70" />
-                                        <p>{flag}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
+                              {/* Expandable detail: questions + risk flags */}
+                              {(preCallBrief.nextQuestions.length > 0 || preCallBrief.riskFlags.length > 0) && (
+                                <>
+                                  <button
+                                    onClick={() => setBriefDetailOpen(!briefDetailOpen)}
+                                    className="mt-1.5 text-[10px] text-primary/70 hover:text-primary transition-colors"
+                                  >
+                                    {briefDetailOpen ? "Less" : "More detail"}
+                                  </button>
+                                  <AnimatePresence>
+                                    {briefDetailOpen && (
+                                      <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: "auto" }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="overflow-hidden"
+                                      >
+                                        {preCallBrief.nextQuestions.length > 0 && (
+                                          <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2 mt-1.5">
+                                            <p className="text-[10px] text-muted-foreground/55 uppercase mb-1">Questions</p>
+                                            <div className="space-y-0.5">
+                                              {preCallBrief.nextQuestions.slice(0, 3).map((q, i) => (
+                                                <p key={i} className="text-xs text-foreground/75 leading-snug">• {q}</p>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                        {preCallBrief.riskFlags.length > 0 && (
+                                          <div className="rounded-lg bg-muted/[0.06] border border-border/20 p-2 mt-1.5">
+                                            <p className="text-[10px] text-amber-400/70 uppercase mb-1">Risk Flags</p>
+                                            <div className="space-y-0.5">
+                                              {preCallBrief.riskFlags.map((flag, i) => (
+                                                <div key={i} className="flex items-start gap-1.5 text-xs text-foreground/75">
+                                                  <AlertTriangle className="h-2.5 w-2.5 mt-0.5 shrink-0 text-amber-400/60" />
+                                                  <p>{flag}</p>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </>
                               )}
                             </>
                           )}
@@ -4066,27 +4122,9 @@ function DialerPageInner() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  {/* ── Pre-call seller memory ── */}
+                  {/* ── Pre-call seller memory (AI summary folded in) ── */}
                   {currentLead && (
                     <SellerMemoryPreview leadId={currentLead.id} className="mb-2" />
-                  )}
-
-                  {/* Last Call AI Summary */}
-                  {currentLead && latestSummary && (
-                    <GlassCard hover={false} className="!p-3 mb-2">
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <Sparkles className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Last Call Summary</span>
-                        {latestSummaryTime && (
-                          <span className="text-xs text-muted-foreground/40 ml-auto">
-                            {new Date(latestSummaryTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-sm text-muted-foreground/80 leading-relaxed whitespace-pre-line max-h-28 overflow-y-auto scrollbar-thin">
-                        {latestSummary}
-                      </div>
-                    </GlassCard>
                   )}
 
                   {/* ── Tab selector: History / Jeff / SMS ── */}
@@ -4199,6 +4237,8 @@ function DialerPageInner() {
         loading={activeCoachLoading}
         error={activeCoachError}
         fileModalOpen={fileModalOpen}
+        sessionId={queueCoachActive ? dialerSessionId : manualCoachActive ? manualSessionId : null}
+        coachMode="outbound"
       />
 
       {/* Master Client File Modal */}

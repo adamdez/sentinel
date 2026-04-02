@@ -11,12 +11,15 @@ import {
 } from "react";
 import {
   Brain,
+  ExternalLink,
   GripHorizontal,
   Maximize2,
   Minimize2,
 } from "lucide-react";
+import { toast } from "sonner";
 import type { PreCallBrief } from "@/hooks/use-pre-call-brief";
 import type { LiveCoachState } from "@/hooks/use-live-coach";
+import type { LiveCoachMode } from "@/hooks/use-live-coach";
 import { cn } from "@/lib/utils";
 import {
   applyExplicitLiveCoachWindowMode,
@@ -32,6 +35,8 @@ import {
 } from "@/lib/live-coach-window";
 import { LiveAssistPanel } from "@/components/sentinel/live-assist-panel";
 
+export const LIVE_COACH_POPOUT_CHANNEL = "sentinel-coach-popout";
+
 interface LiveCoachWindowProps {
   active: boolean;
   brief: PreCallBrief | null;
@@ -39,6 +44,8 @@ interface LiveCoachWindowProps {
   loading?: boolean;
   error?: string | null;
   fileModalOpen?: boolean;
+  sessionId?: string | null;
+  coachMode?: LiveCoachMode;
 }
 
 type InteractionType = "drag" | "resize-right" | "resize-bottom" | "resize-corner";
@@ -113,6 +120,8 @@ export function LiveCoachWindow({
   loading = false,
   error = null,
   fileModalOpen = false,
+  sessionId = null,
+  coachMode = "outbound",
 }: LiveCoachWindowProps) {
   const initialViewport = getLiveCoachViewport();
   const [viewport, setViewport] = useState<LiveCoachViewport>(initialViewport);
@@ -122,6 +131,47 @@ export function LiveCoachWindow({
   const windowStateRef = useRef(windowState);
   const interactionCleanupRef = useRef<(() => void) | null>(null);
   const wasActiveRef = useRef(active);
+  const popoutRef = useRef<Window | null>(null);
+  const broadcastRef = useRef<BroadcastChannel | null>(null);
+
+  useEffect(() => {
+    try {
+      broadcastRef.current = new BroadcastChannel(LIVE_COACH_POPOUT_CHANNEL);
+    } catch {
+      // BroadcastChannel not supported
+    }
+    return () => {
+      broadcastRef.current?.close();
+      broadcastRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (active) return;
+    if (!sessionId) return;
+    broadcastRef.current?.postMessage({ type: "call-ended", sessionId });
+    popoutRef.current = null;
+  }, [active, sessionId]);
+
+  const handlePopOut = useCallback(() => {
+    if (!sessionId) return;
+
+    if (popoutRef.current && !popoutRef.current.closed) {
+      popoutRef.current.focus();
+      return;
+    }
+
+    const params = new URLSearchParams({ sessionId, mode: coachMode });
+    const url = `/coach-popout?${params.toString()}`;
+    const features = "width=520,height=700,menubar=no,toolbar=no,location=no,status=no,scrollbars=yes,resizable=yes";
+
+    const opened = window.open(url, "sentinel-live-coach", features);
+    if (opened) {
+      popoutRef.current = opened;
+    } else {
+      toast.error("Pop-out blocked — check your browser settings");
+    }
+  }, [sessionId, coachMode]);
 
   const compactViewport = isCompactLiveCoachViewport(viewport);
   const stageLabel = useMemo(() => getStageLabel(brief, coach), [brief, coach]);
@@ -308,6 +358,17 @@ export function LiveCoachWindow({
             </div>
             {!compactViewport && (
               <GripHorizontal className="h-4 w-4 text-muted-foreground/45" />
+            )}
+            {sessionId && (
+              <button
+                type="button"
+                aria-label="Pop out live coach"
+                onMouseDown={(event) => event.stopPropagation()}
+                onClick={handlePopOut}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-overlay-8 bg-overlay-3 text-muted-foreground/70 transition-colors hover:text-foreground"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </button>
             )}
             <button
               type="button"
