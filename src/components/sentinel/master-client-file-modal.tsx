@@ -1284,6 +1284,10 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Property Basics</p>
 
+        {cf.fullAddress && (
+          <p className="text-sm text-foreground mb-1.5">{cf.fullAddress}</p>
+        )}
+
         <div className="grid grid-cols-4 gap-x-4 gap-y-1.5 text-sm">
 
           {cf.bedrooms != null && <div><span className="text-muted-foreground/60">Beds</span> <span className="text-foreground font-mono">{cf.bedrooms}</span></div>}
