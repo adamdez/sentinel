@@ -43,6 +43,10 @@ She is currently a guarded prep system with useful risk detection, not a full au
 - Tina now fingerprints organizer profile state for bootstrap + issue-queue runs.
 - Package readiness blocks if those runs were done under an older/different profile state.
 
+7. Overstrictness calibration on weak clues:
+- Tina now distinguishes weak-signal contradictions from strong corroborated contradictions.
+- Low-confidence return-type/owner-flow/multi-EIN patterns can remain visible as `needs_attention` instead of always forcing hard block.
+
 ## Hard truth: what still needs built
 
 ### P0 (must-have for "elite CPA" claim)

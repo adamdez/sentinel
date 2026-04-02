@@ -177,6 +177,15 @@ without adding fake safety blocks when evidence is ambiguous.
   - mismatched profile fingerprint (must block readiness)
   - missing profile fingerprint metadata (must block readiness)
 
+25. Confidence-calibrated blocking to reduce false hard stops:
+- Tina no longer hard-blocks every conflict clue equally when evidence strength is weak.
+- Severity now calibrates by clue confidence and corroboration:
+  - return-type hint conflicts become `needs_attention` when all hints are low-confidence
+  - owner-flow clues on high-risk entities downgrade to `needs_attention` when low-confidence
+  - multi-EIN without corroborating boundary clues downgrades to `needs_attention` unless EIN evidence is high-confidence
+  - intercompany clue blocking now requires at least medium confidence
+- Added regression coverage for the above so we keep strictness where warranted without overstrict false blockers.
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -187,7 +196,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `117` tests passing.
+- Current full Tina count: `23` files, `121` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 

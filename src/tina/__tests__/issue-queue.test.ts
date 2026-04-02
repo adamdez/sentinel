@@ -186,6 +186,37 @@ describe("buildTinaIssueQueue", () => {
     expect(issueQueue.items.some((item) => item.id === "return-type-hint-conflict")).toBe(true);
   });
 
+  it("downgrades return-type conflict to attention when all hints are low confidence", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Tina Mixed Signals LLC",
+        entityType: "unsure",
+      },
+      sourceFacts: [
+        {
+          id: "return-type-c",
+          sourceDocumentId: "prior-doc-a",
+          label: "Return type hint",
+          value: "Schedule C / 1040",
+          confidence: "low",
+          capturedAt: "2026-03-26T21:10:00.000Z",
+        },
+        {
+          id: "return-type-1065",
+          sourceDocumentId: "prior-doc-b",
+          label: "Return type hint",
+          value: "Partnership / 1065",
+          confidence: "low",
+          capturedAt: "2026-03-26T21:11:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find((candidate) => candidate.id === "return-type-hint-conflict");
+    expect(item?.severity).toBe("needs_attention");
+  });
+
   it("uses money clues in the books prep summary and flags wrong-year books", () => {
     const draft = buildDraft({
       profile: {
@@ -584,6 +615,121 @@ describe("buildTinaIssueQueue", () => {
         }),
       ])
     );
+  });
+
+  it("downgrades multi-ein issue to attention when no corroborating boundary clues exist", () => {
+    const draft = buildDraft({
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "ein-a",
+          sourceDocumentId: "books-a",
+          label: "EIN clue",
+          value: "This paper references EIN 12-3456789.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+        {
+          id: "ein-b",
+          sourceDocumentId: "books-a",
+          label: "EIN clue",
+          value: "This paper references EIN 98-7654321.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:21:10.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find((candidate) => candidate.id === "books-multi-ein-conflict");
+    expect(item?.severity).toBe("needs_attention");
+  });
+
+  it("blocks multi-ein issue when strong-evidence EIN clues exist even without other boundary clues", () => {
+    const draft = buildDraft({
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "ein-a",
+          sourceDocumentId: "books-a",
+          label: "EIN clue",
+          value: "This paper references EIN 12-3456789.",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+        {
+          id: "ein-b",
+          sourceDocumentId: "books-a",
+          label: "EIN clue",
+          value: "This paper references EIN 98-7654321.",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:21:10.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find((candidate) => candidate.id === "books-multi-ein-conflict");
+    expect(item?.severity).toBe("blocking");
+  });
+
+  it("downgrades owner-flow clue for high-risk entity when confidence is low", () => {
+    const draft = buildDraft({
+      profile: {
+        entityType: "s_corp",
+      },
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "owner-flow-fact",
+          sourceDocumentId: "books-a",
+          label: "Owner draw clue",
+          value: "Owner draw distributions posted.",
+          confidence: "low",
+          capturedAt: "2026-03-26T21:20:30.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const ownerIssue = issueQueue.items.find((item) => item.id === "books-owner-flow-clue");
+    expect(ownerIssue?.severity).toBe("needs_attention");
   });
 
   it("does not raise a multi-ein conflict from a single EIN clue", () => {

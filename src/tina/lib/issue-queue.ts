@@ -4,6 +4,7 @@ import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
 import type {
   TinaIssueQueue,
   TinaFilingLaneId,
+  TinaDocumentFactConfidence,
   TinaPrepRecord,
   TinaSourceFact,
   TinaReviewItem,
@@ -103,6 +104,27 @@ function parseMoneyFactValue(value: string): number | null {
   if (!sanitized || !/^-?\d*\.?\d+$/.test(sanitized)) return null;
   const parsed = Number(sanitized);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function confidenceRank(confidence: TinaDocumentFactConfidence): number {
+  switch (confidence) {
+    case "high":
+      return 3;
+    case "medium":
+      return 2;
+    case "low":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function hasAtLeastConfidence(
+  facts: TinaSourceFact[],
+  threshold: TinaDocumentFactConfidence
+): boolean {
+  const thresholdRank = confidenceRank(threshold);
+  return facts.some((fact) => confidenceRank(fact.confidence) >= thresholdRank);
 }
 
 function formatMoney(value: number): string {
@@ -337,6 +359,10 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     singleHintedLane !== recommendation.laneId;
 
   if (hasMixedHintedLanes || hasHintVsOrganizerConflict) {
+    const hasStrongReturnHint = hasAtLeastConfidence(
+      returnTypeHintCandidates.map((candidate) => candidate.fact),
+      "medium"
+    );
     const culprit =
       returnTypeHintCandidates.find((candidate) =>
         hasMixedHintedLanes
@@ -358,7 +384,7 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
       id: "return-type-hint-conflict",
       title: "Saved paper hints at a different return type",
       summary,
-      severity: "blocking",
+      severity: hasStrongReturnHint ? "blocking" : "needs_attention",
       status: "open",
       category: "fact_mismatch",
       requestId: null,
@@ -459,7 +485,9 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
       title: "Books may include intercompany transfers",
       summary:
         "Tina found a clue that money may be moving between entities in these papers. She needs a clean separation check before trusting return-facing totals.",
-      severity: "blocking",
+      severity: confidenceRank(intercompanyFact.confidence) >= confidenceRank("medium")
+        ? "blocking"
+        : "needs_attention",
       status: "open",
       category: "books",
       requestId: null,
@@ -488,13 +516,15 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
       draft.profile.entityType === "s_corp" ||
       draft.profile.entityType === "partnership" ||
       draft.profile.entityType === "multi_member_llc";
+    const strongOwnerFlowSignal =
+      confidenceRank(ownerFlowFact.confidence) >= confidenceRank("medium");
 
     items.push({
       id: "books-owner-flow-clue",
       title: "Owner cash flow needs characterization review",
       summary:
         "Tina found owner draw/distribution activity in the papers. She needs a human to confirm the treatment so owner flows do not get carried as ordinary business deductions by mistake.",
-      severity: severeOwnerFlowEntity ? "blocking" : "needs_attention",
+      severity: severeOwnerFlowEntity && strongOwnerFlowSignal ? "blocking" : "needs_attention",
       status: "open",
       category: "books",
       requestId: null,
@@ -505,13 +535,15 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
 
   if (uniqueEinSet.size > 1) {
     const culpritEinFact = einFacts.find((fact) => extractEinTokens(fact.value).length > 0) ?? null;
+    const hasCorroboratingBoundarySignal = Boolean(intercompanyFact || relatedPartyFact);
+    const hasStrongEinClue = hasAtLeastConfidence(einFacts, "high");
     items.push({
       id: "books-multi-ein-conflict",
       title: "Multiple EINs appear in money papers",
       summary: `Tina found references to multiple EINs (${Array.from(uniqueEinSet)
         .sort()
         .join(", ")}). She needs entity-boundary cleanup before those books can be trusted for one return.`,
-      severity: "blocking",
+      severity: hasCorroboratingBoundarySignal || hasStrongEinClue ? "blocking" : "needs_attention",
       status: "open",
       category: "fact_mismatch",
       requestId: null,
