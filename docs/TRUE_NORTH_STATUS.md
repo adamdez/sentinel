@@ -16,23 +16,25 @@ Build a two-founder operating machine that can reach about $2,000,000/year by in
 - Weekly founder true-north scorecard now exists (rolling week vs prior week) with contracts/revenue per founder-hour, Jeff influence, and exception callouts.
 - Weekly health cron now includes the true-north scorecard summary so deltas are pushed into ops review.
 - Explicit founder work-log model is now added (schema + APIs + scorecard integration) and used as primary founder-hour source when logs exist.
+- Morning brief now includes founder work-log reminders when founders had meaningful call activity but low/no logged hours the prior day.
 - Jeff quality tags now drive automated policy-tuning recommendations in the Jeff control center (over-transfer, weak opener, callback miss, tone/target drift).
+- Jeff quality loop now shows policy-version impact (current vs prior pass-rate/score deltas) so policy edits are traceable to outcome movement.
 - KPI summary now includes a lead-linked Jeff attribution funnel (appointments -> offers -> contracts -> closed) instead of only a single closed-deal influence number.
+- Weekly scorecard + deep analytics now use the same lead-linked Jeff funnel model so operator, KPI, and notification surfaces stay aligned.
 
 ### Yellow (partially implemented, needs tightening)
 - Inbound attention UX is materially improved but still needs periodic adversarial UX checks during real call volume windows.
-- Founder work-log adoption/discipline still needs rollout so most windows stop falling back to call-time estimates.
+- Founder work-log adoption/discipline still needs rollout so most windows stop falling back to call-time estimates (fallback is now explicitly flagged in scorecard + weekly health messaging).
 - True-north scorecard is API/notification complete, but still needs dedicated analytics UI polish for fast weekly review.
 
 ### Red (not complete enough for the $2M operating target)
-- Jeff influence attribution still needs the same lead-linked funnel parity in every reporting surface (weekly scorecard + deep analytics), not just KPI summary.
 - Founder work-log capture exists but is not yet consistently used by operators, so some windows still rely on call-time fallback.
 
 ## Immediate build order (highest leverage first)
-1. Tighten Jeff outcome attribution from interaction -> appointment -> offer -> contract so it is fully lead-linked, not inference-only.
-2. Roll out founder work-log operating discipline so founder-hour metrics default to logged effort in weekly reviews.
-3. Add deeper analytics UX for weekly true-north review (faster exception triage and one-click drill-down into weak signals).
-4. Close the quality loop by tracking policy-version changes against recommendation trends and outcome deltas.
+1. Keep pushing founder work-log operating discipline so founder-hour metrics default to logged effort in weekly reviews.
+2. Add deeper analytics UX for weekly true-north review (faster exception triage and one-click drill-down into weak signals).
+3. Close the quality loop by tracking policy-version changes against recommendation trends and outcome deltas.
+4. Tighten founder adoption nudges (daily prompts + missed-log reminders already live) so estimated-hour fallback keeps dropping week over week.
 
 ## Evidence pointers
 - Jeff KPI computation: `src/lib/jeff-control.ts`

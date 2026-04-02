@@ -1,5 +1,75 @@
 [
   {
+    "hash": "ddd9b368",
+    "date": "2026-04-02",
+    "message": "[codex] Tighten Jeff attribution with lead-linked funnel KPIs"
+  },
+  {
+    "hash": "cc5c6c9f",
+    "date": "2026-04-02",
+    "message": "[codex] Add Jeff quality tuning recommendations loop"
+  },
+  {
+    "hash": "7d7ee54e",
+    "date": "2026-04-02",
+    "message": "[codex] Add founder work-log hours and fix migration drift"
+  },
+  {
+    "hash": "8f0fe56f",
+    "date": "2026-04-02",
+    "message": "[codex] Add weekly true-north scorecard and ops alerts"
+  },
+  {
+    "hash": "127535aa",
+    "date": "2026-04-02",
+    "message": "[codex] Harden Vapi webhook assistant setup path"
+  },
+  {
+    "hash": "bc550eb1",
+    "date": "2026-04-02",
+    "message": "[codex] Tighten seller memory card layout and normalize copy"
+  },
+  {
+    "hash": "5b5b1239",
+    "date": "2026-04-02",
+    "message": "[codex] Add Jeff influence attribution and fix operator call metrics"
+  },
+  {
+    "hash": "6a8ad27f",
+    "date": "2026-04-02",
+    "message": "[codex] Add founder-hour leverage KPIs across analytics"
+  },
+  {
+    "hash": "ce6cfb00",
+    "date": "2026-04-02",
+    "message": "[codex] Add true north status anchor for  goal"
+  },
+  {
+    "hash": "09dfbb1a",
+    "date": "2026-04-02",
+    "message": "[codex] Align Jeff KPIs to founder-outcome metrics"
+  },
+  {
+    "hash": "856ba3de",
+    "date": "2026-04-02",
+    "message": "Harden Tina spreadsheet EIN extraction for undashed formats"
+  },
+  {
+    "hash": "45ab4f50",
+    "date": "2026-04-02",
+    "message": "Normalize Tina EIN clues and close undashed conflict gap"
+  },
+  {
+    "hash": "62552176",
+    "date": "2026-04-02",
+    "message": "Harden Tina clue severity against low-confidence overshadowing"
+  },
+  {
+    "hash": "4b99f2da",
+    "date": "2026-04-02",
+    "message": "Harden changelog generation outside git worktrees"
+  },
+  {
     "hash": "830bcb0f",
     "date": "2026-04-02",
     "message": "Fix Next.js output tracing root for Sentinel workspace"
@@ -53,75 +123,5 @@
     "hash": "2462959c",
     "date": "2026-04-02",
     "message": "Harden Tina authority gating and adversarial coverage"
-  },
-  {
-    "hash": "fc6f592b",
-    "date": "2026-04-01",
-    "message": "Fix CI lint gate on main"
-  },
-  {
-    "hash": "c407d482",
-    "date": "2026-04-01",
-    "message": "Fix SMS and missed-call lead routing"
-  },
-  {
-    "hash": "feba2104",
-    "date": "2026-04-01",
-    "message": "[cursor] Compress Client File header and triage Overview surface"
-  },
-  {
-    "hash": "eef67a8e",
-    "date": "2026-04-01",
-    "message": "Downgrade all Opus model refs to Sonnet/Haiku and kill wasteful ads/cycle crons"
-  },
-  {
-    "hash": "a3345a11",
-    "date": "2026-04-01",
-    "message": "[cursor] Pre-call brief trust filtering: suppress generic AI bullets and watch-outs"
-  },
-  {
-    "hash": "99d00cae",
-    "date": "2026-04-01",
-    "message": "[cursor] Pre-call trust tiering: remove AI opener, promote seller memory above brief"
-  },
-  {
-    "hash": "5f6affdd",
-    "date": "2026-04-01",
-    "message": "[cursor] Pre-call command clarity: opener, continuity, seller memory in center column"
-  },
-  {
-    "hash": "3336fe8b",
-    "date": "2026-04-01",
-    "message": "[cursor] Live Coach: compact-first layout with progressive disclosure"
-  },
-  {
-    "hash": "00ef5fe2",
-    "date": "2026-04-01",
-    "message": "[cursor] Fix coach-popout: wrap useSearchParams in Suspense boundary"
-  },
-  {
-    "hash": "325cf64a",
-    "date": "2026-04-01",
-    "message": "[cursor] Live Coach: true pop-out window via window.open"
-  },
-  {
-    "hash": "04ce89aa",
-    "date": "2026-04-01",
-    "message": "[cursor] Drive By leaves Lead Queue — complete bucket purity"
-  },
-  {
-    "hash": "81a7d989",
-    "date": "2026-04-01",
-    "message": "[cursor] Lead Queue bucket purity + control compression"
-  },
-  {
-    "hash": "26286e70",
-    "date": "2026-04-01",
-    "message": "[cursor] Drive By queue-truth, Active sorting, Today launchpad, Dispo action clarity"
-  },
-  {
-    "hash": "4ee8fdac",
-    "date": "2026-04-01",
-    "message": "[cursor] Fix typecheck: move nowMs declaration before Drive By block, fix unreachable viewFilter comparison"
   }
 ]
