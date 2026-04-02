@@ -1,5 +1,6 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
 import type {
   TinaBootstrapFact,
   TinaBootstrapReview,
@@ -12,6 +13,7 @@ import type {
 export function createDefaultTinaBootstrapReview(): TinaBootstrapReview {
   return {
     lastRunAt: null,
+    profileFingerprint: null,
     status: "idle",
     summary: "Tina has not checked your setup yet.",
     nextStep: "When you are ready, ask Tina to check what she already knows.",
@@ -98,6 +100,7 @@ export function markTinaBootstrapReviewStale(review: TinaBootstrapReview): TinaB
 }
 
 export function buildTinaBootstrapReview(draft: TinaWorkspaceDraft): TinaBootstrapReview {
+  const profileFingerprint = buildTinaProfileFingerprint(draft.profile);
   const priorReturnDocument = draft.priorReturnDocumentId
     ? draft.documents.find((document) => document.id === draft.priorReturnDocumentId) ?? null
     : null;
@@ -235,6 +238,7 @@ export function buildTinaBootstrapReview(draft: TinaWorkspaceDraft): TinaBootstr
 
   return {
     lastRunAt: new Date().toISOString(),
+    profileFingerprint,
     status: "complete",
     summary: messaging.summary,
     nextStep: messaging.nextStep,

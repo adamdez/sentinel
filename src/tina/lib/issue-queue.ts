@@ -1,5 +1,6 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
 import type {
   TinaIssueQueue,
   TinaFilingLaneId,
@@ -68,6 +69,7 @@ function formatLaneList(lanes: TinaFilingLaneId[]): string {
 export function createDefaultTinaIssueQueue(): TinaIssueQueue {
   return {
     lastRunAt: null,
+    profileFingerprint: null,
     status: "idle",
     summary: "Tina has not checked for document conflicts yet.",
     nextStep: "Ask Tina to look for conflicts when you want a deeper check.",
@@ -202,6 +204,7 @@ function maybeCreateMoneyScaleMismatchItem(
 }
 
 export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
+  const profileFingerprint = buildTinaProfileFingerprint(draft.profile);
   const items: TinaReviewItem[] = [];
   const recommendation = recommendTinaFilingLane(draft.profile);
   const checklist = buildTinaChecklist(draft, recommendation);
@@ -703,6 +706,7 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
 
   return {
     lastRunAt: new Date().toISOString(),
+    profileFingerprint,
     status: "complete",
     summary,
     nextStep,

@@ -1,5 +1,6 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
 import type {
   TinaPackageReadinessItem,
   TinaPackageReadinessLevel,
@@ -112,9 +113,19 @@ function latestEvidenceTimestamp(draft: TinaWorkspaceDraft): EvidenceTimestampRo
 function hasCurrentReviewRun(
   status: string,
   lastRunAt: string | null,
+  runProfileFingerprint: string | null | undefined,
+  currentProfileFingerprint: string,
   evidence: EvidenceTimestampRollup
 ): boolean {
   if (status !== "complete" || typeof lastRunAt !== "string" || lastRunAt.trim().length === 0) {
+    return false;
+  }
+
+  if (
+    typeof runProfileFingerprint !== "string" ||
+    runProfileFingerprint.trim().length === 0 ||
+    runProfileFingerprint !== currentProfileFingerprint
+  ) {
     return false;
   }
 
@@ -133,6 +144,7 @@ export function buildTinaPackageReadiness(
   const checklist = buildTinaChecklist(draft, lane);
   const items: TinaPackageReadinessItem[] = [];
   const evidence = latestEvidenceTimestamp(draft);
+  const currentProfileFingerprint = buildTinaProfileFingerprint(draft.profile);
 
   if (lane.support !== "supported" || lane.laneId !== "schedule_c_single_member_llc") {
     items.push(
@@ -147,7 +159,13 @@ export function buildTinaPackageReadiness(
   }
 
   if (
-    !hasCurrentReviewRun(draft.bootstrapReview.status, draft.bootstrapReview.lastRunAt, evidence)
+    !hasCurrentReviewRun(
+      draft.bootstrapReview.status,
+      draft.bootstrapReview.lastRunAt,
+      draft.bootstrapReview.profileFingerprint,
+      currentProfileFingerprint,
+      evidence
+    )
   ) {
     items.push(
       createItem({
@@ -163,7 +181,13 @@ export function buildTinaPackageReadiness(
   }
 
   if (
-    !hasCurrentReviewRun(draft.issueQueue.status, draft.issueQueue.lastRunAt, evidence)
+    !hasCurrentReviewRun(
+      draft.issueQueue.status,
+      draft.issueQueue.lastRunAt,
+      draft.issueQueue.profileFingerprint,
+      currentProfileFingerprint,
+      evidence
+    )
   ) {
     items.push(
       createItem({

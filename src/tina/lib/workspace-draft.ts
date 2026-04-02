@@ -364,6 +364,7 @@ function normalizeBootstrapReview(value: unknown): TinaBootstrapReview {
 
   return {
     lastRunAt: typeof raw.lastRunAt === "string" ? raw.lastRunAt : null,
+    profileFingerprint: typeof raw.profileFingerprint === "string" ? raw.profileFingerprint : null,
     status:
       raw.status === "stale" || raw.status === "running" || raw.status === "complete"
         ? raw.status
@@ -393,6 +394,7 @@ function normalizeIssueQueue(value: unknown): TinaIssueQueue {
 
   return {
     lastRunAt: typeof raw.lastRunAt === "string" ? raw.lastRunAt : null,
+    profileFingerprint: typeof raw.profileFingerprint === "string" ? raw.profileFingerprint : null,
     status:
       raw.status === "stale" || raw.status === "running" || raw.status === "complete"
         ? raw.status

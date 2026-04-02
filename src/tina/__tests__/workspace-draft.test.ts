@@ -59,6 +59,7 @@ describe("workspace draft helpers", () => {
       JSON.stringify({
         issueQueue: {
           lastRunAt: "2026-03-26T21:25:00.000Z",
+          profileFingerprint: "profile-v1",
           status: "complete",
           summary: "Checked",
           nextStep: "Keep going",
@@ -369,6 +370,7 @@ describe("workspace draft helpers", () => {
     expect(result.issueQueue.items[0]?.documentId).toBe("doc-1");
     expect(result.issueQueue.records).toHaveLength(1);
     expect(result.issueQueue.records[0]?.issueIds).toEqual(["issue-1"]);
+    expect(result.issueQueue.profileFingerprint).toBe("profile-v1");
     expect(result.authorityWork).toHaveLength(1);
     expect(result.authorityWork[0]?.ideaId).toBe("qbi-review");
     expect(result.authorityWork[0]?.missingAuthority).toEqual(["Need primary QBI support"]);

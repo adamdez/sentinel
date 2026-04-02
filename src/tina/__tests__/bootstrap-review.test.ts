@@ -4,6 +4,7 @@ import {
   createDefaultTinaBootstrapReview,
   markTinaBootstrapReviewStale,
 } from "@/tina/lib/bootstrap-review";
+import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 
 describe("buildTinaBootstrapReview", () => {
@@ -13,6 +14,7 @@ describe("buildTinaBootstrapReview", () => {
     const review = buildTinaBootstrapReview(draft);
 
     expect(review.status).toBe("complete");
+    expect(review.profileFingerprint).toBe(buildTinaProfileFingerprint(draft.profile));
     expect(review.items.some((item) => item.severity === "blocking")).toBe(true);
     expect(review.summary).toContain("must be fixed");
   });

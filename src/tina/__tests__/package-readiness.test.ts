@@ -3,16 +3,30 @@ import {
   buildTinaPackageReadiness,
   markTinaPackageReadinessStale,
 } from "@/tina/lib/package-readiness";
+import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 import type { TinaWorkspaceDraft } from "@/tina/types";
 
 function buildDraft(overrides?: Partial<TinaWorkspaceDraft>): TinaWorkspaceDraft {
-  return {
+  const merged = {
     ...createDefaultTinaWorkspaceDraft(),
     ...overrides,
     profile: {
       ...createDefaultTinaWorkspaceDraft().profile,
       ...(overrides?.profile ?? {}),
+    },
+  };
+  const profileFingerprint = buildTinaProfileFingerprint(merged.profile);
+
+  return {
+    ...merged,
+    bootstrapReview: {
+      ...merged.bootstrapReview,
+      profileFingerprint,
+    },
+    issueQueue: {
+      ...merged.issueQueue,
+      profileFingerprint,
     },
   };
 }
@@ -679,6 +693,258 @@ describe("buildTinaPackageReadiness", () => {
     });
 
     const snapshot = buildTinaPackageReadiness(draft);
+    expect(snapshot.level).toBe("blocked");
+    expect(snapshot.items.some((item) => item.id === "bootstrap-review-not-current")).toBe(true);
+    expect(snapshot.items.some((item) => item.id === "issue-queue-not-current")).toBe(true);
+  });
+
+  it("blocks when review runs were completed under a different organizer profile", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Sole Prop",
+        entityType: "sole_prop",
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "doc-bank",
+          name: "bank.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/bank.pdf",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Bank support",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      bootstrapReview: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [
+          {
+            id: "line-1-gross-receipts",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 20000,
+            status: "ready",
+            summary: "Looks good.",
+            reviewerFinalLineIds: ["rf-1"],
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-1"],
+          },
+        ],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+    });
+
+    const withMismatchedProfileRun = {
+      ...draft,
+      bootstrapReview: {
+        ...draft.bootstrapReview,
+        profileFingerprint: "totally-different-profile-token",
+      },
+      issueQueue: {
+        ...draft.issueQueue,
+        profileFingerprint: "totally-different-profile-token",
+      },
+    };
+
+    const snapshot = buildTinaPackageReadiness(withMismatchedProfileRun);
+    expect(snapshot.level).toBe("blocked");
+    expect(snapshot.items.some((item) => item.id === "bootstrap-review-not-current")).toBe(true);
+    expect(snapshot.items.some((item) => item.id === "issue-queue-not-current")).toBe(true);
+  });
+
+  it("blocks when complete review runs are missing profile fingerprint metadata", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Sole Prop",
+        entityType: "sole_prop",
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "doc-bank",
+          name: "bank.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/bank.pdf",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Bank support",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      bootstrapReview: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [
+          {
+            id: "line-1-gross-receipts",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 20000,
+            status: "ready",
+            summary: "Looks good.",
+            reviewerFinalLineIds: ["rf-1"],
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-1"],
+          },
+        ],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+    });
+
+    const withMissingProfileRunMetadata = {
+      ...draft,
+      bootstrapReview: {
+        ...draft.bootstrapReview,
+        profileFingerprint: null,
+      },
+      issueQueue: {
+        ...draft.issueQueue,
+        profileFingerprint: null,
+      },
+    };
+
+    const snapshot = buildTinaPackageReadiness(withMissingProfileRunMetadata);
     expect(snapshot.level).toBe("blocked");
     expect(snapshot.items.some((item) => item.id === "bootstrap-review-not-current")).toBe(true);
     expect(snapshot.items.some((item) => item.id === "issue-queue-not-current")).toBe(true);

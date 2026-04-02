@@ -39,6 +39,10 @@ She is currently a guarded prep system with useful risk detection, not a full au
 - commingled intercompany + owner-flow + multi-EIN hard-block scenario
 - combined cross-year + cross-entity conflict retention scenario
 
+6. Profile-drift freshness lock:
+- Tina now fingerprints organizer profile state for bootstrap + issue-queue runs.
+- Package readiness blocks if those runs were done under an older/different profile state.
+
 ## Hard truth: what still needs built
 
 ### P0 (must-have for "elite CPA" claim)

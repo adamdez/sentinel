@@ -133,6 +133,7 @@ export type TinaBootstrapReviewStatus = "idle" | "stale" | "running" | "complete
 
 export interface TinaBootstrapReview {
   lastRunAt: string | null;
+  profileFingerprint?: string | null;
   status: TinaBootstrapReviewStatus;
   summary: string;
   nextStep: string;
@@ -153,6 +154,7 @@ export interface TinaPrepRecord {
 
 export interface TinaIssueQueue {
   lastRunAt: string | null;
+  profileFingerprint?: string | null;
   status: TinaIssueQueueStatus;
   summary: string;
   nextStep: string;

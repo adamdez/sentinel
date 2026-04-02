@@ -166,6 +166,17 @@ without adding fake safety blocks when evidence is ambiguous.
 - Added gauntlet coverage proving Tina keeps tax-year contamination and multi-entity contamination as separate visible issues when both exist.
 - This prevents one generic warning from hiding another independent blocker.
 
+24. Organizer-profile drift gate hardened:
+- Tina now computes a deterministic profile fingerprint from organizer inputs.
+- Bootstrap review and issue queue runs store that fingerprint at run time.
+- Package readiness now treats those runs as non-current when:
+  - fingerprint is missing, or
+  - fingerprint differs from the current organizer profile.
+- This closes stale-green scenarios where profile/entity settings changed after review runs.
+- Added regression coverage for:
+  - mismatched profile fingerprint (must block readiness)
+  - missing profile fingerprint metadata (must block readiness)
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -176,7 +187,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `115` tests passing.
+- Current full Tina count: `23` files, `117` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 
@@ -202,8 +213,6 @@ without adding fake safety blocks when evidence is ambiguous.
 - Build scenario where mixed tax years and mixed EINs coexist in one books import.
 - Ensure Tina does not collapse these into one generic warning and instead preserves multiple explicit blockers.
 
-6. Profile-edit drift guard:
-- Today readiness freshness keys off evidence timestamps. Add explicit profile/config revision tracking so organizer edits cannot inherit stale `complete` states.
 
 ## Guardrail principle (do not violate)
 

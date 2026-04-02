@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildTinaIssueQueue, markTinaIssueQueueStale } from "@/tina/lib/issue-queue";
+import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 import type { TinaWorkspaceDraft } from "@/tina/types";
 
@@ -562,6 +563,7 @@ describe("buildTinaIssueQueue", () => {
 
     const issueQueue = buildTinaIssueQueue(draft);
 
+    expect(issueQueue.profileFingerprint).toBe(buildTinaProfileFingerprint(draft.profile));
     expect(issueQueue.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
