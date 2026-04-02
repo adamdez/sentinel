@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
+import { backfillSmsLeadForPhone, resolveSmsLead } from "@/lib/sms/lead-resolution";
 
 export const dynamic = "force-dynamic";
 
@@ -35,34 +36,11 @@ export async function GET(req: NextRequest) {
   // Enrich SMS with lead names
   const smsItems = [];
   for (const msg of newSms ?? []) {
-    let name: string | null = null;
-    if (msg.lead_id) {
-      const { data: lead } = await sb
-        .from("leads")
-        .select("property_id")
-        .eq("id", msg.lead_id as string)
-        .maybeSingle();
-      if (lead?.property_id) {
-        const { data: prop } = await sb
-          .from("properties")
-          .select("owner_name")
-          .eq("id", lead.property_id as string)
-          .maybeSingle();
-        name = (prop?.owner_name as string) ?? null;
-      }
+    const resolution = await resolveSmsLead(sb, msg.phone as string);
+    if (resolution.leadId) {
+      await backfillSmsLeadForPhone(sb, msg.phone as string, resolution.leadId, resolution.assignedTo);
     }
-    if (!name) {
-      const digits = (msg.phone as string).replace(/\D/g, "").slice(-10);
-      if (digits.length >= 7) {
-        const { data: prop } = await sb
-          .from("properties")
-          .select("owner_name")
-          .ilike("owner_phone", `%${digits}`)
-          .limit(1)
-          .maybeSingle();
-        name = (prop?.owner_name as string) ?? null;
-      }
-    }
+    const name = resolution.ownerName ?? null;
     const phone = msg.phone as string;
     const d = phone.replace(/\D/g, "").slice(-10);
     const formatted = d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : phone;

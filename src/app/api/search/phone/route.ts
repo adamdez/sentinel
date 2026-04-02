@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   // Build deeplink
   let href: string | null = null;
   if (result.leadId) {
-    href = `/leads/${result.leadId}`;
+    href = `/leads?open=${result.leadId}`;
   } else if (result.intakeLeadId) {
     href = `/intake/${result.intakeLeadId}`;
   }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
+import { backfillSmsLeadForPhone, resolveSmsLead } from "@/lib/sms/lead-resolution";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,7 @@ export async function GET(req: NextRequest) {
   }
 
   const threads = Array.from(threadMap.values());
+  const phoneLevelNames: Record<string, string> = {};
 
   // Enrich with lead names
   const leadIds = [...new Set(threads.map((t) => t.leadId).filter(Boolean))] as string[];
@@ -93,41 +95,30 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Also try to match phones to leads for threads with no lead_id
-  const unmatchedPhones = threads.filter((t) => !t.leadId).map((t) => t.phone);
-  if (unmatchedPhones.length > 0) {
-    for (const phone of unmatchedPhones) {
-      const digits = phone.replace(/\D/g, "").slice(-10);
-      if (digits.length < 7) continue;
-
-      const { data: match } = await sb
-        .from("properties")
-        .select("id, owner_name, owner_phone")
-        .ilike("owner_phone", `%${digits}`)
-        .limit(1)
-        .maybeSingle();
-
-      if (match) {
-        // Find the lead for this property
-        const { data: lead } = await sb
-          .from("leads")
-          .select("id")
-          .eq("property_id", match.id as string)
-          .limit(1)
-          .maybeSingle();
-
-        const thread = threads.find((t) => t.phone === phone);
-        if (thread) {
-          if (lead) thread.leadId = lead.id as string;
-          leadNames[lead?.id as string ?? phone] = match.owner_name as string;
+  const unresolvedThreads = threads.filter((t) => !t.leadId || !leadNames[t.leadId]);
+  if (unresolvedThreads.length > 0) {
+    await Promise.all(
+      unresolvedThreads.map(async (thread) => {
+        const resolution = await resolveSmsLead(sb, thread.phone);
+        if (resolution.leadId) {
+          thread.leadId = resolution.leadId;
+          if (resolution.ownerName) {
+            leadNames[resolution.leadId] = resolution.ownerName;
+          }
+          await backfillSmsLeadForPhone(sb, thread.phone, resolution.leadId, resolution.assignedTo);
+          return;
         }
-      }
-    }
+
+        if (resolution.ownerName) {
+          phoneLevelNames[thread.phone] = resolution.ownerName;
+        }
+      }),
+    );
   }
 
   const enrichedThreads = threads.map((t) => ({
     ...t,
-    leadName: (t.leadId ? leadNames[t.leadId] : null) ?? null,
+    leadName: (t.leadId ? leadNames[t.leadId] : null) ?? phoneLevelNames[t.phone] ?? null,
   }));
 
   // Sort: unread first, then by lastMessageAt DESC

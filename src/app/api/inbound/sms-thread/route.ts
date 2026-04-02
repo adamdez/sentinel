@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { getTwilioCredentials, isTwilioError } from "@/lib/twilio";
+import { backfillSmsLeadForPhone, resolveSmsLead } from "@/lib/sms/lead-resolution";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,21 +17,20 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
  * 3. Logs the outbound message to sms_messages (creates the thread)
  * 4. Auto-matches to an existing lead if phone is known
  *
- * The customer can reply directly — replies hit /api/twilio/sms (inbound webhook)
+ * The customer can reply directly - replies hit /api/twilio/sms (inbound webhook)
  * and appear in Sentinel's SMS tile as part of the same thread.
  *
  * Body: {
  *   firstName: string,
  *   phone: string,
- *   message?: string,     // optional customer message (displayed in thread)
- *   address?: string,     // optional property address for context
+ *   message?: string,
+ *   address?: string,
  *   city?: string,
  *   state?: string,
- *   source?: string,      // e.g. "website_text_form"
+ *   source?: string,
  * }
  */
 export async function POST(req: NextRequest) {
-  // ── Auth: shared intake secret ──────────────────────────────────
   const intakeSecret = process.env.INBOUND_INTAKE_SECRET;
   const providedSecret = req.headers.get("x-intake-secret");
 
@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // ── Parse body ──────────────────────────────────────────────────
   const body = await req.json();
   const firstName = (body.firstName ?? "").trim();
   const rawPhone = (body.phone ?? "").trim();
@@ -52,11 +51,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "phone is required" }, { status: 400 });
   }
 
-  // Normalize to E.164
   const digits = rawPhone.replace(/\D/g, "");
   if (digits.length < 10) {
     return NextResponse.json({ error: "Invalid phone number" }, { status: 400 });
   }
+
   const e164 =
     digits.length === 10
       ? `+1${digits}`
@@ -64,7 +63,6 @@ export async function POST(req: NextRequest) {
         ? `+${digits}`
         : `+${digits}`;
 
-  // ── Twilio credentials ──────────────────────────────────────────
   const creds = getTwilioCredentials();
   if (isTwilioError(creds)) {
     console.error("[sms-thread] Twilio creds missing:", creds);
@@ -72,46 +70,22 @@ export async function POST(req: NextRequest) {
   }
 
   const sb = createServerClient();
+  const resolution = await resolveSmsLead(sb, e164);
+  const matchedLeadId = resolution.leadId;
+  const matchedAssignedTo = resolution.assignedTo;
 
-  // ── Step 1: If customer included a message, log it as inbound ──
   if (customerMessage) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("sms_messages") as any).insert({
       phone: e164,
       direction: "inbound",
       body: customerMessage.slice(0, 2000),
-      twilio_sid: `web_${Date.now()}`, // synthetic SID for web-originated messages
-      lead_id: null, // will be matched below
-      user_id: null,
+      twilio_sid: `web_${Date.now()}`,
+      lead_id: matchedLeadId,
+      user_id: matchedAssignedTo,
     });
   }
 
-  // ── Step 2: Auto-match to existing lead ─────────────────────────
-  let matchedLeadId: string | null = null;
-  const phone10 = digits.slice(-10);
-
-  if (phone10.length === 10) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: props } = await (sb.from("properties") as any)
-      .select("id")
-      .ilike("owner_phone", `%${phone10}`)
-      .limit(5);
-
-    if (props?.length) {
-      const propIds = props.map((p: { id: string }) => p.id);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: leads } = await (sb.from("leads") as any)
-        .select("id")
-        .in("property_id", propIds)
-        .limit(1);
-
-      if (leads?.[0]) {
-        matchedLeadId = leads[0].id;
-      }
-    }
-  }
-
-  // ── Step 3: Build and send welcome SMS to customer ──────────────
   const name = firstName || "there";
   const locationContext = address
     ? ` about ${address}${city ? `, ${city}` : ""}${state ? ` ${state}` : ""}`
@@ -121,9 +95,8 @@ export async function POST(req: NextRequest) {
     `Hi ${name}, this is Logan with Dominion Homes. ` +
     `Thanks for reaching out${locationContext}! ` +
     `I'd love to learn more about your situation. ` +
-    `Feel free to reply here or I can give you a call — whichever you prefer.`;
+    `Feel free to reply here or I can give you a call - whichever you prefer.`;
 
-  // Send from the main Dominion number so replies route to /api/twilio/sms
   const fromNumber = process.env.TWILIO_PHONE_NUMBER ?? creds.from;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sentinel.dominionhomedeals.com";
   const statusCallbackUrl = `${siteUrl}/api/twilio/sms/status`;
@@ -155,7 +128,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── Step 4: Log outbound welcome to sms_messages ────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: insertErr } = await (sb.from("sms_messages") as any).insert({
     phone: e164,
@@ -164,24 +136,17 @@ export async function POST(req: NextRequest) {
     twilio_sid: twilioData.sid ?? null,
     twilio_status: twilioData.status ?? "queued",
     lead_id: matchedLeadId,
-    user_id: null, // system-generated, not user-initiated
+    user_id: matchedAssignedTo,
   });
 
   if (insertErr) {
     console.error("[sms-thread] DB insert failed (SMS was sent):", insertErr);
   }
 
-  // ── Step 5: Update inbound message with matched lead if found ───
-  if (customerMessage && matchedLeadId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("sms_messages") as any)
-      .update({ lead_id: matchedLeadId })
-      .eq("phone", e164)
-      .eq("direction", "inbound")
-      .is("lead_id", null);
+  if (matchedLeadId) {
+    await backfillSmsLeadForPhone(sb, e164, matchedLeadId, matchedAssignedTo);
   }
 
-  // ── Step 6: Audit log ──────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("event_log") as any).insert({
     user_id: SYSTEM_USER_ID,
@@ -189,11 +154,12 @@ export async function POST(req: NextRequest) {
     entity_type: "sms_thread",
     entity_id: twilioData.sid ?? `sms_${Date.now()}`,
     details: {
-      customer_phone: `***${phone10.slice(-4)}`,
+      customer_phone: `***${digits.slice(-4)}`,
       customer_name: firstName || null,
       address: address || null,
       source,
       matched_lead_id: matchedLeadId,
+      match_source: resolution.matchSource,
       welcome_sms_sid: twilioData.sid,
       had_customer_message: !!customerMessage,
       timestamp: new Date().toISOString(),

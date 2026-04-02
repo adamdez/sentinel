@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { cn } from "@/lib/utils";
+import { useModal } from "@/providers/modal-provider";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -128,10 +129,12 @@ function ThreadDetail({
   phone,
   onBack,
   onCallNow,
+  onOpenLead,
 }: {
   phone: string;
   onBack: () => void;
   onCallNow: (phone: string) => void;
+  onOpenLead: (leadId: string) => void;
 }) {
   const [messages, setMessages] = useState<SmsMessage[]>([]);
   const [leadInfo, setLeadInfo] = useState<LeadInfo | null>(null);
@@ -233,6 +236,14 @@ function ThreadDetail({
             <p className="text-xs text-muted-foreground/40 font-mono">{formatPhone(phone)}</p>
           )}
         </div>
+        {leadInfo?.id && (
+          <button
+            onClick={() => onOpenLead(leadInfo.id)}
+            className="text-xs px-2.5 py-1 rounded-[8px] border border-overlay-8 text-muted-foreground/60 hover:text-foreground hover:border-overlay-20 transition-colors"
+          >
+            Open File
+          </button>
+        )}
       </div>
 
       {/* Messages */}
@@ -335,6 +346,7 @@ interface SmsMessagesPanelProps {
 }
 
 export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
+  const { openModal } = useModal();
   const [open, setOpen] = useState(false);
   const [threads, setThreads] = useState<SmsThread[]>([]);
   const [totalUnread, setTotalUnread] = useState(0);
@@ -429,6 +441,7 @@ export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
                     phone={activePhone}
                     onBack={() => { setActivePhone(null); fetchThreads(); }}
                     onCallNow={onCallNumber}
+                    onOpenLead={(leadId) => openModal("client-file", { leadId })}
                   />
                 </div>
               ) : loading ? (
