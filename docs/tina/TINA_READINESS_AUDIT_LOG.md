@@ -90,6 +90,13 @@ without adding fake safety blocks when evidence is ambiguous.
   - zero-vs-large mismatch detection
   - single-clue false-positive prevention
 
+13. Return-type conflict detection is now bidirectional:
+- Tina no longer checks return-type hint conflicts in only one direction.
+- If papers hint `Schedule C` while organizer points to `1120-S` or `1065` (or vice versa), Tina now flags a blocking conflict.
+- Added regression coverage for:
+  - S-corp organizer + Schedule C paper hint (must conflict)
+  - Schedule C organizer + Schedule C paper hint (must not conflict)
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -100,7 +107,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `99` tests passing.
+- Current full Tina count: `23` files, `101` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 

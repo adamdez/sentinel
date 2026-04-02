@@ -81,6 +81,50 @@ describe("buildTinaIssueQueue", () => {
     );
   });
 
+  it("flags return-type conflict when paper hints Schedule C but organizer points to S-corp lane", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Tina Test Corp",
+        entityType: "s_corp",
+      },
+      sourceFacts: [
+        {
+          id: "return-type",
+          sourceDocumentId: "prior-doc",
+          label: "Return type hint",
+          value: "Schedule C / 1040",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:10:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "return-type-hint-conflict")).toBe(true);
+  });
+
+  it("does not flag return-type conflict when paper and organizer both indicate Schedule C lane", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Tina Test LLC",
+        entityType: "single_member_llc",
+      },
+      sourceFacts: [
+        {
+          id: "return-type",
+          sourceDocumentId: "prior-doc",
+          label: "Return type hint",
+          value: "Schedule C / 1040",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:10:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "return-type-hint-conflict")).toBe(false);
+  });
+
   it("uses money clues in the books prep summary and flags wrong-year books", () => {
     const draft = buildDraft({
       profile: {

@@ -2,6 +2,7 @@ import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import type {
   TinaIssueQueue,
+  TinaFilingLaneId,
   TinaPrepRecord,
   TinaSourceFact,
   TinaReviewItem,
@@ -15,6 +16,49 @@ function normalizeForComparison(value: string): string {
 
 function includesNeedle(haystack: string, needle: string): boolean {
   return normalizeForComparison(haystack).includes(normalizeForComparison(needle));
+}
+
+function inferReturnTypeHintLane(value: string): TinaFilingLaneId | null {
+  if (
+    includesNeedle(value, "1120") ||
+    includesNeedle(value, "s corp") ||
+    includesNeedle(value, "s-corp")
+  ) {
+    return "1120_s";
+  }
+
+  if (
+    includesNeedle(value, "1065") ||
+    includesNeedle(value, "partnership") ||
+    includesNeedle(value, "multi member")
+  ) {
+    return "1065";
+  }
+
+  if (
+    includesNeedle(value, "schedule c") ||
+    includesNeedle(value, "1040") ||
+    includesNeedle(value, "sole prop") ||
+    includesNeedle(value, "single member") ||
+    includesNeedle(value, "disregarded")
+  ) {
+    return "schedule_c_single_member_llc";
+  }
+
+  return null;
+}
+
+function describeLane(laneId: TinaFilingLaneId): string {
+  switch (laneId) {
+    case "schedule_c_single_member_llc":
+      return "Schedule C / single-member LLC";
+    case "1120_s":
+      return "1120-S / S-corp";
+    case "1065":
+      return "1065 / partnership";
+    default:
+      return "unknown lane";
+  }
 }
 
 export function createDefaultTinaIssueQueue(): TinaIssueQueue {
@@ -255,32 +299,32 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const returnTypeHint = findFactsByLabel(draft.sourceFacts, "Return type hint").find(
-    (fact) =>
-      includesNeedle(fact.value, "1120") ||
-      includesNeedle(fact.value, "s corp") ||
-      includesNeedle(fact.value, "1065") ||
-      includesNeedle(fact.value, "partnership")
-  );
+  const returnTypeHint = findFactsByLabel(draft.sourceFacts, "Return type hint")
+    .map((fact) => ({
+      fact,
+      hintedLane: inferReturnTypeHintLane(fact.value),
+    }))
+    .find((candidate) => candidate.hintedLane !== null);
+
   if (
     returnTypeHint &&
-    recommendation.laneId === "schedule_c_single_member_llc" &&
-    (includesNeedle(returnTypeHint.value, "1120") ||
-      includesNeedle(returnTypeHint.value, "s corp") ||
-      includesNeedle(returnTypeHint.value, "1065") ||
-      includesNeedle(returnTypeHint.value, "partnership"))
+    recommendation.laneId !== "unknown" &&
+    returnTypeHint.hintedLane !== recommendation.laneId
   ) {
     items.push({
       id: "return-type-hint-conflict",
       title: "Saved paper hints at a different return type",
-      summary:
-        "One saved paper hints that this business may use a different return type than the organizer currently points to. Tina wants this reviewed before she trusts the filing lane.",
+      summary: `One saved paper hints at ${describeLane(
+        returnTypeHint.hintedLane!
+      )}, but the organizer currently points to ${describeLane(
+        recommendation.laneId
+      )}. Tina wants this reviewed before she trusts the filing lane.`,
       severity: "blocking",
       status: "open",
       category: "fact_mismatch",
       requestId: null,
-      documentId: returnTypeHint.sourceDocumentId,
-      factId: returnTypeHint.id,
+      documentId: returnTypeHint.fact.sourceDocumentId,
+      factId: returnTypeHint.fact.id,
     });
   }
 
