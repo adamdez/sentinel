@@ -53,6 +53,7 @@ function LeadsPageInner() {
 
   const {
     leads,
+    loading,
     segment,
     setSegment,
     attentionFocus,
@@ -78,6 +79,7 @@ function LeadsPageInner() {
     currentUser,
     teamMembers,
     distressTagOptions,
+    removeLeadsByIds,
     refetch,
   } = useLeads();
   const { openModal } = useModal();
@@ -342,11 +344,13 @@ function LeadsPageInner() {
         {/* Lead table — dominates the page */}
         <LeadTable
           leads={leads}
+          loading={loading}
           sortField={sortField}
           sortDir={sortDir}
           onSort={toggleSort}
           onSelect={setSelectedId}
           onToggleActive={handleToggleActive}
+          onRemoveMany={removeLeadsByIds}
           onRefresh={refetch}
           currentUserId={currentUser.id}
         />

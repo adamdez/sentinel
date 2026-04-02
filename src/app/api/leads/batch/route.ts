@@ -14,6 +14,7 @@ export const maxDuration = 30;
  *   - stage_transition: Move multiple leads to a new stage
  *   - set_next_action: Set next_action on multiple leads
  *   - set_next_follow_up: Set next_follow_up_at on multiple leads
+ *   - delete_customer_files: Delete many leads in one DB transaction
  *
  * Each operation validates individually — partial success is possible.
  * Returns per-lead results so the UI can show what succeeded/failed.
@@ -37,8 +38,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "operation and leadIds[] required" }, { status: 400 });
   }
 
-  if (leadIds.length > 50) {
-    return NextResponse.json({ error: "Max 50 leads per batch" }, { status: 400 });
+  const maxLeadIds = operation === "delete_customer_files" ? 500 : 50;
+  if (leadIds.length > maxLeadIds) {
+    return NextResponse.json({ error: `Max ${maxLeadIds} leads per batch for ${operation}` }, { status: 400 });
   }
 
   switch (operation) {
@@ -50,6 +52,9 @@ export async function POST(req: NextRequest) {
 
     case "set_next_follow_up":
       return handleBatchSetNextFollowUp(sb, user, leadIds, opParams);
+
+    case "delete_customer_files":
+      return handleBatchDeleteCustomerFiles(sb, user, leadIds);
 
     default:
       return NextResponse.json({ error: `Unknown operation: ${operation}` }, { status: 400 });
@@ -231,4 +236,67 @@ async function handleBatchSetNextFollowUp(
   }).then(() => {}).catch(() => {});
 
   return NextResponse.json({ ok: true, updated: count ?? leadIds.length });
+}
+
+// —— Batch delete customer files ————————————————————————————————————————————————
+
+async function handleBatchDeleteCustomerFiles(
+  sb: ReturnType<typeof createServerClient>,
+  user: { id: string; email?: string | null },
+  leadIds: string[],
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rpcData, error: rpcErr } = await (sb as any).rpc("delete_customer_files", {
+    p_lead_ids: leadIds,
+  });
+
+  if (rpcErr) {
+    console.error("[API/leads/batch] delete_customer_files RPC error:", rpcErr);
+    return NextResponse.json(
+      { ok: false, error: rpcErr.message },
+      { status: 500 },
+    );
+  }
+
+  const result = typeof rpcData === "string" ? JSON.parse(rpcData) : rpcData;
+  if (!result || result.success === false) {
+    return NextResponse.json(
+      { ok: false, error: result?.error ?? "Delete failed" },
+      { status: 500 },
+    );
+  }
+
+  const deletedLeadIds = Array.isArray(result.deleted_lead_ids)
+    ? result.deleted_lead_ids.filter((value: unknown): value is string => typeof value === "string")
+    : [];
+  const skippedLeadIds = Array.isArray(result.skipped_lead_ids)
+    ? result.skipped_lead_ids.filter((value: unknown): value is string => typeof value === "string")
+    : [];
+  const deletedProperties = typeof result.deleted_properties === "number" ? result.deleted_properties : 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (sb.from("event_log") as any).insert({
+    user_id: user.id,
+    action: "lead.batch_delete_customer_files",
+    entity_type: "lead",
+    entity_id: null,
+    details: {
+      requested_lead_ids: leadIds,
+      deleted_lead_ids: deletedLeadIds,
+      skipped_lead_ids: skippedLeadIds,
+      deleted_properties: deletedProperties,
+      deleted_by: user.id,
+      deleted_by_email: user.email ?? null,
+    },
+  }).then(() => {}).catch((error: unknown) => {
+    console.error("[API/leads/batch] Batch delete audit log failed (non-fatal):", error);
+  });
+
+  return NextResponse.json({
+    ok: true,
+    deletedLeadIds,
+    skippedLeadIds,
+    deletedProperties,
+    failed: [],
+  });
 }

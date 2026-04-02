@@ -1,9 +1,15 @@
 import { supabase } from "@/lib/supabase";
+import type { DeleteLeadBatchResult } from "@/lib/lead-queue-contract";
 
 type ApiPayload = {
   error?: string;
   detail?: string;
   property_deleted?: boolean;
+  deletedLeadIds?: string[];
+  skippedLeadIds?: string[];
+  deletedProperties?: number;
+  failed?: Array<{ leadId: string; error: string }>;
+  ok?: boolean;
 };
 
 export type DeleteLeadResult =
@@ -27,14 +33,44 @@ async function readPayload(res: Response): Promise<ApiPayload> {
 }
 
 export async function deleteLeadCustomerFile(leadId: string): Promise<DeleteLeadResult> {
-  const res = await fetch("/api/prospects", {
-    method: "DELETE",
+  const result = await deleteLeadCustomerFiles([leadId]);
+  if (!result.ok) {
+    return {
+      ok: false,
+      status: result.status,
+      error: result.error,
+    };
+  }
+
+  return {
+    ok: true,
+    propertyDeleted: result.deletedProperties > 0,
+  };
+}
+
+export async function deleteLeadCustomerFiles(leadIds: string[]): Promise<DeleteLeadBatchResult> {
+  if (leadIds.length === 0) {
+    return {
+      ok: true,
+      deletedLeadIds: [],
+      skippedLeadIds: [],
+      deletedProperties: 0,
+      failed: [],
+    };
+  }
+
+  const res = await fetch("/api/leads/batch", {
+    method: "POST",
     headers: await sessionJsonHeaders(),
-    body: JSON.stringify({ lead_id: leadId }),
+    body: JSON.stringify({
+      operation: "delete_customer_files",
+      leadIds,
+      params: {},
+    }),
   });
   const data = await readPayload(res);
 
-  if (!res.ok || data.error) {
+  if (!res.ok || data.error || data.ok === false) {
     return {
       ok: false,
       status: res.status,
@@ -44,6 +80,9 @@ export async function deleteLeadCustomerFile(leadId: string): Promise<DeleteLead
 
   return {
     ok: true,
-    propertyDeleted: Boolean(data.property_deleted),
+    deletedLeadIds: Array.isArray(data.deletedLeadIds) ? data.deletedLeadIds : [],
+    skippedLeadIds: Array.isArray(data.skippedLeadIds) ? data.skippedLeadIds : [],
+    deletedProperties: typeof data.deletedProperties === "number" ? data.deletedProperties : 0,
+    failed: Array.isArray(data.failed) ? data.failed : [],
   };
 }

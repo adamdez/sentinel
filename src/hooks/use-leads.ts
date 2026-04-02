@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { extractProspectingSnapshot, sourceChannelLabel } from "@/lib/prospecting";
 import { deriveLeadActionSummary } from "@/lib/action-derivation";
 import { isLeadUnclaimed } from "@/lib/lead-ownership";
+import type { LeadQueueResponse } from "@/lib/lead-queue-contract";
 import { sortLeadRows } from "./use-leads-sort";
 
 export type SortField = "score" | "priority" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "status" | "equity";
@@ -540,6 +541,8 @@ export function useLeads() {
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestVersionRef = useRef(0);
 
   // Dynamic team members loaded from user_profiles (real Supabase UUIDs)
   const [teamMembers, setTeamMembers] = useState<DynamicTeamMember[]>([]);
@@ -584,175 +587,64 @@ export function useLeads() {
     [leads, memberNameById],
   );
 
-  const fetchLeads = useCallback(async () => {
-    setLoading(true);
+  const fetchLeads = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    const requestVersion = ++requestVersionRef.current;
+    if (!silent) setLoading(true);
+
     try {
-      // Fetch inbox-stage leads plus closed records for compact recovery/discovery.
-      // Closed stays hidden by default in client filters so daily queue behavior remains intact.
-      const leadColumns = splitSelectColumns(LEAD_LIST_SELECT);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: leadsRaw, error: leadsErr } = await selectWithMissingColumnFallback<any>(
-        "leads",
-        leadColumns,
-        (columns) =>
-          (supabase.from("leads") as any)
-            .select(columns.join(", "))
-            .neq("status", "prospect")
-            .neq("status", "staging")
-            .order("priority", { ascending: false }),
-      );
-
-      if (leadsErr) {
-        console.error("[useLeads] Fetch failed:", leadsErr);
-        setLoading(false);
-        return;
-      }
-
-      if (!leadsRaw || leadsRaw.length === 0) {
-        setLeads([]);
-        setLoading(false);
-        return;
-      }
-
-      // Collect lead + property IDs for downstream joins.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const leadIds: string[] = [...new Set((leadsRaw as any[]).map((l: any) => l.id).filter(Boolean))];
-
-      // Fetch properties
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const propIds: string[] = [...new Set((leadsRaw as any[]).map((l: any) => l.property_id).filter(Boolean))];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const propsMap: Record<string, any> = {};
-      const firstAttemptByLeadId: Record<string, string> = {};
-
-      const propertyColumns = splitSelectColumns(PROPERTY_LIST_SELECT);
-      const [
-        propsResult,
-        callsResult,
-        attrResult,
-        predResult,
-      ] = await Promise.all([
-        propIds.length > 0
-          ? selectWithMissingColumnFallback<any>(
-              "properties",
-              propertyColumns,
-              (columns) =>
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                (supabase.from("properties") as any)
-                  .select(columns.join(", "))
-                  .in("id", propIds),
-            )
-          : Promise.resolve({ data: [], error: null }),
-        leadIds.length > 0
-          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (supabase.from("calls_log") as any)
-              .select("lead_id, started_at")
-              .in("lead_id", leadIds)
-              .order("started_at", { ascending: true })
-          : Promise.resolve({ data: [], error: null }),
-        leadIds.length > 0
-          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (supabase.from("ads_lead_attribution") as any)
-              .select(`
-                lead_id,
-                gclid,
-                market,
-                ads_campaigns(name),
-                ads_ad_groups(name),
-                ads_keywords(text)
-              `)
-              .in("lead_id", leadIds)
-          : Promise.resolve({ data: [], error: null }),
-        propIds.length > 0
-          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (supabase.from("scoring_predictions") as any)
-              .select("property_id, predictive_score")
-              .in("property_id", propIds)
-              .order("created_at", { ascending: false })
-          : Promise.resolve({ data: [], error: null }),
-      ]);
-
-      if (propsResult.error) {
-        console.warn("[useLeads] properties fetch degraded:", propsResult.error);
-      }
-
-      if (propsResult.data) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        for (const p of propsResult.data as any[]) {
-          if (p.owner_flags && typeof p.owner_flags === "object") {
-            const { pr_raw, deep_crawl, deep_skip, ...lightFlags } = p.owner_flags as Record<string, unknown>;
-            p.owner_flags = lightFlags;
-          }
-          propsMap[p.id] = p;
-        }
-      }
-
-      if (callsResult.error) {
-        console.warn("[useLeads] calls_log fetch failed; falling back to lead timestamps:", callsResult.error);
-      } else if (callsResult.data) {
-        for (const row of callsResult.data as Array<{ lead_id: string | null; started_at: string | null }>) {
-          if (!row.lead_id || !row.started_at) continue;
-          if (!firstAttemptByLeadId[row.lead_id]) {
-            firstAttemptByLeadId[row.lead_id] = row.started_at;
-          }
-        }
-      }
-
-      const attrMap: Record<string, any> = {};
-      if (attrResult.data) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        for (const a of attrResult.data as any[]) {
-          attrMap[a.lead_id] = a;
-        }
-      }
-
-      const predMap: Record<string, number> = {};
-      if (predResult.data) {
-        const seen = new Set<string>();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        for (const p of predResult.data as any[]) {
-          if (!seen.has(p.property_id)) {
-            predMap[p.property_id] = p.predictive_score;
-            seen.add(p.property_id);
-          }
-        }
-      }
-
-      // Map to LeadRow with predictive blend
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rows = (leadsRaw as any[]).map((raw) => {
-        const prop = propsMap[raw.property_id] ?? {};
-        const firstAttemptAt = firstAttemptByLeadId[raw.id] ?? null;
-        const attr = attrMap[raw.id] ?? null;
-        const lead = mapToLeadRow(raw, prop, firstAttemptAt, attr);
-        const pred = predMap[raw.property_id] ?? null;
-        if (pred !== null) {
-          lead.predictivePriority = Math.round(lead.score.composite * 0.6 + pred * 0.4);
-        }
-        return lead;
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/leads/queue", {
+        method: "GET",
+        headers: session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {},
+        cache: "no-store",
       });
 
-      setLeads(rows);
+      const payload = await res.json().catch(() => ({})) as Partial<LeadQueueResponse> & { error?: string };
+      if (!res.ok) {
+        throw new Error(payload.error ?? `HTTP ${res.status}`);
+      }
+
+      if (requestVersion !== requestVersionRef.current) return;
+      setLeads(Array.isArray(payload.leads) ? payload.leads : []);
     } catch (err) {
       console.error("[useLeads] Error:", err);
     } finally {
-      setLoading(false);
+      if (!silent && requestVersion === requestVersionRef.current) {
+        setLoading(false);
+      }
     }
   }, []);
 
+  const scheduleRefetch = useCallback(() => {
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      void fetchLeads({ silent: true });
+    }, 300);
+  }, [fetchLeads]);
+
   useEffect(() => {
-    fetchLeads();
+    void fetchLeads();
 
     const channel = supabase
       .channel("leads_hub_realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchLeads())
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, scheduleRefetch)
       .subscribe();
 
     channelRef.current = channel;
     return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [fetchLeads]);
+  }, [fetchLeads, scheduleRefetch]);
+
+  const removeLeadsByIds = useCallback((leadIds: string[]) => {
+    if (leadIds.length === 0) return;
+    const removed = new Set(leadIds);
+    setLeads((current) => current.filter((lead) => !removed.has(lead.id)));
+    setSelectedId((current) => (current && removed.has(current) ? null : current));
+  }, []);
 
   // Segment filter
 
@@ -1158,6 +1050,7 @@ export function useLeads() {
     totalFiltered: filteredLeads.length,
     currentUser,
     teamMembers: otherTeamMembers,
+    removeLeadsByIds,
     refetch: fetchLeads,
   };
 }

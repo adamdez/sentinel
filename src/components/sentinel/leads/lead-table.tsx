@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { formatOwnerName } from "@/lib/format-name";
 import {
   ArrowUpDown,
@@ -18,7 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
-import { deleteLeadCustomerFile } from "@/lib/lead-write-helpers";
+import { deleteLeadCustomerFile, deleteLeadCustomerFiles } from "@/lib/lead-write-helpers";
 import { canUserClaimLead } from "@/lib/lead-ownership";
 import { runWithConcurrency } from "@/lib/async-batch";
 import {
@@ -35,11 +34,13 @@ import { LogCallModal } from "./log-call-modal";
 
 interface LeadTableProps {
   leads: LeadRow[];
+  loading?: boolean;
   sortField: SortField;
   sortDir: SortDir;
   onSort: (field: SortField) => void;
   onSelect: (id: string) => void;
   onToggleActive: (id: string, active: boolean) => void | Promise<void>;
+  onRemoveMany?: (leadIds: string[]) => void;
   onRefresh?: () => void;
   currentUserId: string;
 }
@@ -47,6 +48,8 @@ interface LeadTableProps {
 // Grid: select · active · property · do now · due · last touch · actions
 const GRID = "grid-cols-[28px_28px_1.65fr_minmax(120px,1.15fr)_minmax(80px,0.9fr)_minmax(88px,0.95fr)_80px]";
 const BULK_ACTION_CONCURRENCY = 6;
+const INITIAL_RENDER_COUNT = 150;
+const RENDER_COUNT_STEP = 150;
 
 // Helpers
 
@@ -111,11 +114,13 @@ function urgencyTextClass(urgency: UrgencyLevel): string {
 
 export function LeadTable({
   leads,
+  loading = false,
   sortField,
   sortDir,
   onSort,
   onSelect,
   onToggleActive,
+  onRemoveMany,
   onRefresh,
   currentUserId,
 }: LeadTableProps) {
@@ -128,9 +133,35 @@ export function LeadTable({
   const [bulkAutoCycling, setBulkAutoCycling] = useState(false);
   const [bulkQueueing, setBulkQueueing] = useState(false);
   const [bulkJeffQueueing, setBulkJeffQueueing] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_RENDER_COUNT);
+
+  useEffect(() => {
+    setVisibleCount(leads.length > INITIAL_RENDER_COUNT ? INITIAL_RENDER_COUNT : leads.length);
+  }, [leads.length]);
+
+  useEffect(() => {
+    const validIds = new Set(leads.map((lead) => lead.id));
+    setSelectedIds((current) => {
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of current) {
+        if (validIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [leads]);
 
   const allSelected = leads.length > 0 && selectedIds.size === leads.length;
   const someSelected = selectedIds.size > 0;
+  const renderedLeads = useMemo(
+    () => leads.slice(0, Math.max(visibleCount, Math.min(leads.length, INITIAL_RENDER_COUNT))),
+    [leads, visibleCount],
+  );
+  const hasHiddenRows = renderedLeads.length < leads.length;
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -160,40 +191,51 @@ export function LeadTable({
       }
       toast.success(`Deleted: ${lead.ownerName}`);
       setSelectedIds((prev) => { const next = new Set(prev); next.delete(lead.id); return next; });
-      onRefresh?.();
+      onRemoveMany?.([lead.id]);
     } finally {
       setDeletingId(null);
     }
-  }, [onRefresh]);
+  }, [onRemoveMany]);
 
   const handleBulkDelete = useCallback(async () => {
     const count = selectedIds.size;
     if (count === 0) return;
     if (!window.confirm(`Delete ${count} selected lead${count > 1 ? "s" : ""}?\n\nThis cannot be undone.`)) return;
     setBulkDeleting(true);
-    let succeeded = 0;
-    let failed = 0;
     const ids = Array.from(selectedIds);
-    const results = await runWithConcurrency(ids, BULK_ACTION_CONCURRENCY, async (id) => {
-      try {
-        return await deleteLeadCustomerFile(id);
-      } catch {
-        return { ok: false as const, status: 500, error: "Unexpected delete failure" };
+    try {
+      const result = await deleteLeadCustomerFiles(ids);
+      if (!result.ok) {
+        toast.error(`Delete failed: ${result.error}`);
+        return;
       }
-    });
-    for (const result of results) {
-      if (result.ok) succeeded++;
-      else failed++;
+
+      const removedIds = [...result.deletedLeadIds, ...result.skippedLeadIds];
+      const deletedCount = result.deletedLeadIds.length;
+      const skippedCount = result.skippedLeadIds.length;
+      const failedCount = result.failed.length;
+
+      if (removedIds.length > 0) {
+        onRemoveMany?.(removedIds);
+      }
+      setSelectedIds(new Set());
+
+      if (failedCount > 0) {
+        toast.error(`Deleted ${deletedCount}, already gone ${skippedCount}, failed ${failedCount}`);
+        onRefresh?.();
+        return;
+      }
+
+      if (skippedCount > 0) {
+        toast.warning(`Deleted ${deletedCount}, already gone ${skippedCount}`);
+        return;
+      }
+
+      toast.success(`Deleted ${deletedCount} lead${deletedCount === 1 ? "" : "s"}`);
+    } finally {
+      setBulkDeleting(false);
     }
-    setBulkDeleting(false);
-    setSelectedIds(new Set());
-    if (failed > 0) {
-      toast.error(`Deleted ${succeeded}, failed ${failed}`);
-    } else {
-      toast.success(`Deleted ${succeeded} lead${succeeded > 1 ? "s" : ""}`);
-    }
-    onRefresh?.();
-  }, [selectedIds, onRefresh]);
+  }, [selectedIds, onRemoveMany, onRefresh]);
 
   const handleBulkClaim = useCallback(async () => {
     const selectedLeads = leads.filter((lead) => selectedIds.has(lead.id));
@@ -433,6 +475,20 @@ export function LeadTable({
     }
   }, [onRefresh]);
 
+  if (loading && leads.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center rounded-[14px] border border-glass-border bg-glass/30">
+        <Loader2 className="h-8 w-8 text-muted-foreground mb-3 animate-spin" />
+        <p className="text-sm text-muted-foreground">
+          Loading leads…
+        </p>
+        <p className="text-sm text-muted-foreground/65 mt-1">
+          Pulling the live queue now.
+        </p>
+      </div>
+    );
+  }
+
   if (leads.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center rounded-[14px] border border-glass-border bg-glass/30">
@@ -553,7 +609,7 @@ export function LeadTable({
       </div>
 
       {/* Rows */}
-      {leads.map((lead, i) => {
+      {renderedLeads.map((lead) => {
         const wf = buildOperatorWorkflowSummary({
           status: lead.status,
           qualificationRoute: lead.qualificationRoute,
@@ -579,11 +635,8 @@ export function LeadTable({
             : 0;
 
         return (
-          <motion.div
+          <div
             key={lead.id}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.15, delay: i * 0.02 }}
             onClick={() => onSelect(lead.id)}
             className={cn(
               "grid gap-3 px-4 py-3 border-b border-overlay-3 cursor-pointer transition-all hover:bg-overlay-3",
@@ -787,9 +840,33 @@ export function LeadTable({
                 <TooltipContent className="text-sm">Delete lead</TooltipContent>
               </Tooltip>
             </div>
-          </motion.div>
+          </div>
         );
       })}
+
+      {hasHiddenRows && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-glass/40">
+          <p className="text-xs text-muted-foreground">
+            Showing {renderedLeads.length} of {leads.length} leads.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((current) => Math.min(leads.length, current + RENDER_COUNT_STEP))}
+              className="text-xs font-medium px-3 py-1.5 rounded-md border border-border/25 text-foreground hover:bg-muted/10 transition-colors"
+            >
+              Show {Math.min(RENDER_COUNT_STEP, leads.length - renderedLeads.length)} more
+            </button>
+            <button
+              type="button"
+              onClick={() => setVisibleCount(leads.length)}
+              className="text-xs font-medium px-3 py-1.5 rounded-md border border-border/25 text-muted-foreground hover:text-foreground hover:bg-muted/10 transition-colors"
+            >
+              Show all
+            </button>
+          </div>
+        </div>
+      )}
 
       {logCallLead && (
         <LogCallModal
