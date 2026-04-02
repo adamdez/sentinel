@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase";
 import { notifyWeeklyHealth } from "@/lib/notify";
 import { withCronTracking } from "@/lib/cron-run-tracker";
 import { summarizeAgentHealth, type AgentRunHealthRow } from "@/lib/agent-health";
+import { getWeeklyFounderScorecard } from "@/lib/weekly-scorecard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -57,6 +58,11 @@ export async function GET(req: NextRequest) {
       if (stats.completed > 0) stats.avgDurationMs = Math.round(stats.avgDurationMs / stats.completed);
     }
     const fleetSummary = summarizeAgentHealth((agentRuns ?? []) as AgentRunHealthRow[], 24 * 7, now.toISOString());
+
+    const founderScorecard = await getWeeklyFounderScorecard({ windowDays: 7 }).catch((error) => {
+      console.error("[weekly-health] founder scorecard failed:", error);
+      return null;
+    });
 
     // ── 2. Pipeline velocity ────────────────────────────────────────
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -196,6 +202,7 @@ export async function GET(req: NextRequest) {
       pipeline,
       intelligence,
       voice,
+      founderScorecard,
       quickWins,
       summary: buildSummary(pipeline, intelligence, voice, quickWins, agentHealth),
     };
@@ -209,6 +216,7 @@ export async function GET(req: NextRequest) {
       pipeline: report.pipeline,
       intelligence: report.intelligence,
       voice: report.voice,
+      founderScorecard: report.founderScorecard ?? undefined,
       quickWins: report.quickWins,
     }).catch(() => {});
 

@@ -23,10 +23,55 @@ const PERIODS: { key: TimePeriod; label: string }[] = [
   { key: "all", label: "All Time" },
 ];
 
+interface WeeklyMetricDelta {
+  current: number;
+  previous: number;
+  absolute: number;
+  pct: number | null;
+  trend: "up" | "down" | "flat";
+}
+
+interface WeeklyTeamWindowMetrics {
+  founderHoursEstimated: number;
+  qualifiedConversations: number;
+  appointmentSignals: number;
+  offersMade: number;
+  contractsSigned: number;
+  dealsClosed: number;
+  totalRevenue: number;
+  jeffInfluencedClosedDeals: number;
+  jeffInfluenceRatePct: number | null;
+  contractsPerFounderHour: number | null;
+  revenuePerFounderHour: number | null;
+}
+
+interface WeeklyScorecardPayload {
+  generatedAt: string;
+  windowDays: number;
+  founderScope: "configured" | "unscoped_fallback";
+  currentWeek: WeeklyTeamWindowMetrics;
+  previousWeek: WeeklyTeamWindowMetrics;
+  deltas: {
+    founderHoursEstimated: WeeklyMetricDelta;
+    qualifiedConversations: WeeklyMetricDelta;
+    appointmentSignals: WeeklyMetricDelta;
+    offersMade: WeeklyMetricDelta;
+    contractsSigned: WeeklyMetricDelta;
+    dealsClosed: WeeklyMetricDelta;
+    totalRevenue: WeeklyMetricDelta;
+    jeffInfluenceRatePct: WeeklyMetricDelta;
+    contractsPerFounderHour: WeeklyMetricDelta;
+    revenuePerFounderHour: WeeklyMetricDelta;
+  };
+  exceptions: Array<{ code: string; severity: "critical" | "high" | "medium" | "info"; message: string }>;
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export default function AnalyticsPage() {
   const { period, setPeriod, data, loading, error, refetch } = useAnalytics();
+  const [weeklyScorecard, setWeeklyScorecard] = useState<WeeklyScorecardPayload | null>(null);
+  const [weeklyLoading, setWeeklyLoading] = useState(true);
 
   const [timedOut, setTimedOut] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,6 +109,40 @@ export default function AnalyticsPage() {
   const contractsPerFounderHour = founderEfficiency?.contractsPerFounderHourEstimated ?? null;
   const founderHoursEstimated = founderEfficiency?.founderHoursEstimated ?? 0;
   const founderCallCount = founderEfficiency?.founderCallCount ?? 0;
+
+  const fetchWeeklyScorecard = useCallback(async () => {
+    try {
+      setWeeklyLoading(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        setWeeklyScorecard(null);
+        return;
+      }
+
+      const res = await fetch("/api/analytics/weekly-scorecard?window_days=7", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        setWeeklyScorecard(null);
+        return;
+      }
+
+      const payload = (await res.json()) as WeeklyScorecardPayload;
+      setWeeklyScorecard(payload);
+    } catch {
+      setWeeklyScorecard(null);
+    } finally {
+      setWeeklyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWeeklyScorecard();
+  }, [fetchWeeklyScorecard]);
 
   const sortedSources = useMemo(() =>
     [...sourceOutcomes].sort((a, b) => {
@@ -212,6 +291,10 @@ export default function AnalyticsPage() {
                   ))}
                 </div>
               </GlassCard>
+            )}
+
+            {!weeklyLoading && weeklyScorecard && (
+              <TrueNorthScorecardCard scorecard={weeklyScorecard} />
             )}
 
             {/* ── Market Split: Spokane vs Kootenai ────────────── */}
@@ -541,6 +624,101 @@ function MiniMetric({ label, value, tone = "default" }: { label: string; value: 
 function TrustBadge({ type }: { type: "hard" | "estimated" | "informational" }) {
   const labels = { hard: "Hard truth", estimated: "Estimated", informational: "Informational" };
   return <Badge variant="outline" className="text-[10px]">{labels[type]}</Badge>;
+}
+
+function DeltaChip({ delta, invertGood }: { delta: WeeklyMetricDelta; invertGood?: boolean }) {
+  const positive = delta.absolute > 0;
+  const negative = delta.absolute < 0;
+  const good = invertGood ? negative : positive;
+  const bad = invertGood ? positive : negative;
+  const label = delta.pct != null
+    ? `${delta.pct > 0 ? "+" : ""}${delta.pct}%`
+    : `${delta.absolute > 0 ? "+" : ""}${delta.absolute}`;
+
+  return (
+    <span className={cn(
+      "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] tabular-nums",
+      good && "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-300",
+      bad && "border-amber-500/30 bg-amber-500/[0.08] text-amber-300",
+      !good && !bad && "border-border/30 bg-muted/[0.06] text-muted-foreground",
+    )}>
+      {label} WoW
+    </span>
+  );
+}
+
+function TrueNorthScorecardCard({ scorecard }: { scorecard: WeeklyScorecardPayload }) {
+  const current = scorecard.currentWeek;
+  const delta = scorecard.deltas;
+
+  return (
+    <GlassCard hover={false} className="!p-4 border-primary/20 bg-primary/[0.03]">
+      <div className="flex flex-wrap items-center gap-2 justify-between mb-3">
+        <div>
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            True North Weekly Scorecard
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Rolling {scorecard.windowDays} days vs prior {scorecard.windowDays} days
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <TrustBadge type="hard" />
+          <TrustBadge type="estimated" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+        <div className="rounded-[10px] border border-glass-border bg-glass/30 px-2.5 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Contracts / Founder Hr</p>
+          <p className="text-sm font-semibold tabular-nums">{current.contractsPerFounderHour ?? "n/a"}</p>
+          <DeltaChip delta={delta.contractsPerFounderHour} />
+        </div>
+        <div className="rounded-[10px] border border-glass-border bg-glass/30 px-2.5 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Revenue / Founder Hr</p>
+          <p className="text-sm font-semibold tabular-nums">
+            {current.revenuePerFounderHour != null ? formatCurrency(current.revenuePerFounderHour) : "n/a"}
+          </p>
+          <DeltaChip delta={delta.revenuePerFounderHour} />
+        </div>
+        <div className="rounded-[10px] border border-glass-border bg-glass/30 px-2.5 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Qualified Jeff Conversations</p>
+          <p className="text-sm font-semibold tabular-nums">{current.qualifiedConversations}</p>
+          <DeltaChip delta={delta.qualifiedConversations} />
+        </div>
+        <div className="rounded-[10px] border border-glass-border bg-glass/30 px-2.5 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Offers to Contracts</p>
+          <p className="text-sm font-semibold tabular-nums">{current.offersMade} {"->"} {current.contractsSigned}</p>
+          <DeltaChip delta={delta.contractsSigned} />
+        </div>
+        <div className="rounded-[10px] border border-glass-border bg-glass/30 px-2.5 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Jeff Influence Rate</p>
+          <p className="text-sm font-semibold tabular-nums">
+            {current.jeffInfluenceRatePct != null ? `${current.jeffInfluenceRatePct}%` : "n/a"}
+          </p>
+          <DeltaChip delta={delta.jeffInfluenceRatePct} />
+        </div>
+      </div>
+
+      {scorecard.exceptions.length > 0 && (
+        <div className="mt-3 border-t border-overlay-4 pt-2.5 space-y-1">
+          {scorecard.exceptions.slice(0, 4).map((issue) => (
+            <div key={issue.code} className="flex items-center gap-2 text-xs">
+              <span className={cn(
+                "h-1.5 w-1.5 rounded-full shrink-0",
+                issue.severity === "critical" && "bg-red-400",
+                issue.severity === "high" && "bg-amber-400",
+                issue.severity === "medium" && "bg-yellow-300",
+                issue.severity === "info" && "bg-primary/60",
+              )} />
+              <span className="text-muted-foreground">{issue.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </GlassCard>
+  );
 }
 
 // ── Dispo Funnel ─────────────────────────────────────────────────────────────

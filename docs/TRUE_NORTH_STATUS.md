@@ -13,19 +13,22 @@ Build a two-founder operating machine that can reach about $2,000,000/year by in
 - Cost and outcome KPI calculation for Jeff now includes qualified conversations, appointment/offer/contract signals, and cost per qualified conversation.
 - Source-attribution API exists with cost-per-contract-first ranking.
 - Contracts-per-founder-hour (estimated) is now surfaced in analytics and KPI summaries using closed deals plus founder call effort.
+- Weekly founder true-north scorecard now exists (rolling week vs prior week) with contracts/revenue per founder-hour, Jeff influence, and exception callouts.
+- Weekly health cron now includes the true-north scorecard summary so deltas are pushed into ops review.
 
 ### Yellow (partially implemented, needs tightening)
 - Inbound attention UX is materially improved but still needs periodic adversarial UX checks during real call volume windows.
 - Jeff quality loop exists, but quality tags are not yet tied to automated policy-tuning recommendations.
 - Founder-hour leverage is currently an estimate based on call duration + wrap-time, not a full founder work-log model.
+- True-north scorecard is API/notification complete, but still needs dedicated analytics UI polish for fast weekly review.
 
 ### Red (not complete enough for the $2M operating target)
-- No strict weekly operator scorecard that ties Jeff outputs directly to appointments, offers, contracts, and realized revenue.
+- No explicit founder work-log capture yet (still call-effort proxy).
 
 ## Immediate build order (highest leverage first)
 1. Upgrade founder-hour estimation from call-effort proxy to explicit founder work-log windows.
-2. Add Jeff outcome attribution from interaction -> appointment -> offer -> contract to quantify Jeff-influenced revenue.
-3. Add a weekly auto-generated operator scorecard (Adam/Logan) with delta vs prior week and exception callouts.
+2. Tighten Jeff outcome attribution from interaction -> appointment -> offer -> contract so it is fully lead-linked, not inference-only.
+3. Add analytics page widgets for the weekly true-north scorecard and exception triage.
 4. Add policy tuning suggestions from quality reviews (for example: over-transfer, weak-labeling, callback-miss trends).
 
 ## Evidence pointers
@@ -37,3 +40,6 @@ Build a two-founder operating machine that can reach about $2,000,000/year by in
 - Founder-hour rollup service: `src/lib/analytics.ts`
 - Founder-hour KPI endpoint: `src/app/api/analytics/kpi-summary/route.ts`
 - Founder-hour UI surfaces: `src/app/(sentinel)/analytics/page.tsx`, `src/components/sentinel/kpi-summary-row.tsx`
+- Weekly true-north scorecard service: `src/lib/weekly-scorecard.ts`
+- Weekly true-north scorecard API: `src/app/api/analytics/weekly-scorecard/route.ts`
+- Weekly health scorecard push: `src/app/api/cron/weekly-health/route.ts`, `src/lib/notify.ts`

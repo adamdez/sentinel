@@ -1,4 +1,5 @@
 import type { AgentHealthSummary } from "@/lib/agent-health";
+import type { WeeklyFounderScorecard } from "@/lib/weekly-scorecard";
 
 /**
  * Direct Notification Dispatcher — Slack + Twilio SMS
@@ -344,6 +345,7 @@ export function notifyWeeklyHealth(data: {
   summary: string;
   agentHealth: Record<string, { total: number; completed: number; failed: number; totalCostCents: number }>;
   fleetSummary?: AgentHealthSummary;
+  founderScorecard?: WeeklyFounderScorecard;
   pipeline: { leadsCreated: number; callsLogged: number; stageTransitions: number; tasksCompleted: number };
   intelligence: { artifactsCreated: number; factsCreated: number; dossiersCreated: number; reviewItemsProcessed: number };
   voice: { totalCalls: number; transferred: number; sellerCalls: number; callbacksRequested: number };
@@ -356,6 +358,37 @@ export function notifyWeeklyHealth(data: {
     `*Intel:* ${data.intelligence.dossiersCreated} dossiers | ${data.intelligence.factsCreated} facts | ${data.intelligence.artifactsCreated} artifacts | ${data.intelligence.reviewItemsProcessed} reviews`,
     `*Voice:* ${data.voice.totalCalls} AI calls | ${data.voice.sellerCalls} sellers | ${data.voice.transferred} transferred | ${data.voice.callbacksRequested} callbacks`,
   ];
+
+  if (data.founderScorecard) {
+    const score = data.founderScorecard;
+    const current = score.currentWeek;
+    const previous = score.previousWeek;
+    const contractsPerFounderHour = current.contractsPerFounderHour != null
+      ? current.contractsPerFounderHour.toFixed(1)
+      : "n/a";
+    const revenuePerFounderHour = current.revenuePerFounderHour != null
+      ? `$${current.revenuePerFounderHour.toLocaleString("en-US")}`
+      : "n/a";
+    lines.push("");
+    lines.push(
+      `*True North (${score.windowDays}d vs prior):* ${current.contractsSigned} contracts (prev ${previous.contractsSigned}) | `
+      + `${contractsPerFounderHour} contracts/founder-hr | ${revenuePerFounderHour} revenue/founder-hr | `
+      + `Jeff influence ${current.jeffInfluenceRatePct != null ? `${current.jeffInfluenceRatePct.toFixed(1)}%` : "n/a"}`,
+    );
+
+    if (score.exceptions.length > 0) {
+      const severityIcon: Record<string, string> = {
+        critical: "[CRIT]",
+        high: "[HIGH]",
+        medium: "[MED]",
+        info: "[INFO]",
+      };
+      lines.push("*True North exceptions:*");
+      for (const issue of score.exceptions.slice(0, 4)) {
+        lines.push(`  ${severityIcon[issue.severity] ?? "-"} ${issue.message}`);
+      }
+    }
+  }
 
   // Agent summary
   const agents = Object.entries(data.agentHealth);
