@@ -37,6 +37,32 @@ describe("unwrapVendorPayload", () => {
       message: "TIMELINE: ASAP",
     });
   });
+
+  it("unwraps embedded JSON strings stored under an empty key", () => {
+    const payload = {
+      "": JSON.stringify({
+        name: "Renae Banks",
+        phone: "++1 509 389 3805",
+        address: "34124 N Newport hwy trlr 29: Chattaroy, WA 99003",
+        city: "Spokane",
+        state: "WA",
+        zip: "99003",
+        message: "Living in with mom due to medical reasons",
+      }),
+      source_vendor: "lead_house",
+    };
+
+    expect(unwrapVendorPayload(payload)).toMatchObject({
+      source_vendor: "lead_house",
+      name: "Renae Banks",
+      phone: "++1 509 389 3805",
+      address: "34124 N Newport hwy trlr 29: Chattaroy, WA 99003",
+      city: "Spokane",
+      state: "WA",
+      zip: "99003",
+      message: "Living in with mom due to medical reasons",
+    });
+  });
 });
 
 describe("buildNormalizedVendorCandidate", () => {
@@ -88,5 +114,30 @@ describe("buildNormalizedVendorCandidate", () => {
     expect(candidate.sourceCampaign).toBe("Test Funnel");
     expect(candidate.sourceVendor).toBe("lead_house");
     expect(candidate.sourceChannel).toBe("vendor_inbound");
+  });
+
+  it("builds a normalized candidate from embedded JSON strings stored under an empty key", () => {
+    const candidate = buildNormalizedVendorCandidate({
+      "": JSON.stringify({
+        name: "Renae Banks",
+        phone: "++1 509 389 3805",
+        address: "34124 N Newport hwy trlr 29: Chattaroy, WA 99003",
+        city: "Spokane",
+        state: "WA",
+        zip: "99003",
+        message: "Living in with mom due to medical reasons",
+      }),
+    }, {
+      sourceVendor: "lead_house",
+      sourceChannel: "vendor_inbound",
+      intakeMethod: "lead_house_webhook",
+    });
+
+    expect(candidate.ownerName).toBe("Renae Banks");
+    expect(candidate.phone).toBe("5093893805");
+    expect(candidate.propertyAddress).toBe("34124 N Newport hwy trlr 29: Chattaroy, WA 99003");
+    expect(candidate.propertyCity).toBe("Spokane");
+    expect(candidate.propertyState).toBe("WA");
+    expect(candidate.propertyZip).toBe("99003");
   });
 });

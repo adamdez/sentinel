@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { runClaimEnrichment } from "@/lib/intake-claim-enrichment";
 
 /**
  * POST /api/intake/claim
@@ -215,6 +216,16 @@ export async function POST(req: NextRequest) {
     if (updateError) {
       console.error("[Intake Claim] Status update failed:", updateError);
       // Don't fail here - the lead was created successfully
+    }
+
+    try {
+      await runClaimEnrichment({
+        sb: sb as never,
+        propertyId: property.id,
+        leadId: lead.id,
+      });
+    } catch (error) {
+      console.error("[Intake Claim] Claim enrichment failed:", error);
     }
 
     // Step 5: Log the claim event
