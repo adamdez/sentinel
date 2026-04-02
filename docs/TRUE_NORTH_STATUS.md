@@ -17,6 +17,7 @@ Build a two-founder operating machine that can reach about $2,000,000/year by in
 - Weekly health cron now includes the true-north scorecard summary so deltas are pushed into ops review.
 - Explicit founder work-log model is now added (schema + APIs + scorecard integration) and used as primary founder-hour source when logs exist.
 - Jeff quality tags now drive automated policy-tuning recommendations in the Jeff control center (over-transfer, weak opener, callback miss, tone/target drift).
+- KPI summary now includes a lead-linked Jeff attribution funnel (appointments -> offers -> contracts -> closed) instead of only a single closed-deal influence number.
 
 ### Yellow (partially implemented, needs tightening)
 - Inbound attention UX is materially improved but still needs periodic adversarial UX checks during real call volume windows.
@@ -24,7 +25,7 @@ Build a two-founder operating machine that can reach about $2,000,000/year by in
 - True-north scorecard is API/notification complete, but still needs dedicated analytics UI polish for fast weekly review.
 
 ### Red (not complete enough for the $2M operating target)
-- Jeff influence attribution is still partly inference-based in edge cases and needs tighter lead-linked lineage from interaction -> appointment -> offer -> contract.
+- Jeff influence attribution still needs the same lead-linked funnel parity in every reporting surface (weekly scorecard + deep analytics), not just KPI summary.
 - Founder work-log capture exists but is not yet consistently used by operators, so some windows still rely on call-time fallback.
 
 ## Immediate build order (highest leverage first)

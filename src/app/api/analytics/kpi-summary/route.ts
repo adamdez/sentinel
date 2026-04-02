@@ -11,7 +11,12 @@ import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import { getPeriodStart, type TimePeriod } from "@/lib/analytics";
 import { normalizeSource, sourceLabel as getSourceLabel } from "@/lib/source-normalization";
-import { computeFounderEffortFromCalls, computeJeffInfluenceSummary, isContractStatus, parseFounderUserIds } from "@/lib/analytics-helpers";
+import {
+  computeFounderEffortFromCalls,
+  computeJeffAttributionFunnel,
+  isContractStatus,
+  parseFounderUserIds,
+} from "@/lib/analytics-helpers";
 import { isContacted, contactRate as calcContactRate } from "@/lib/comm-truth";
 import { computeFounderHoursFromWorkLogs } from "@/lib/founder-worklog";
 
@@ -20,6 +25,7 @@ export const runtime = "nodejs";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const tbl = (sb: ReturnType<typeof createServerClient>, name: string) => sb.from(name) as any;
+const APPOINTMENT_DISPOSITIONS = new Set(["appointment", "appointment_set"]);
 
 function toMs(iso: string | null | undefined): number | null {
   if (!iso) return null;
@@ -83,6 +89,7 @@ export async function GET(req: NextRequest) {
     const { data: periodLeadsRaw, error: periodLeadsErr } = await periodLeadsQuery;
     if (periodLeadsErr) throw periodLeadsErr;
     const periodLeads: LeadRow[] = (periodLeadsRaw ?? []) as LeadRow[];
+    const periodLeadIds = periodLeads.map((lead) => lead.id).filter((id) => typeof id === "string" && id.length > 0);
 
     // ── 2. Active pipeline (current snapshot, not period-filtered) ───
     const activeStages = new Set(["prospect", "lead", "negotiation", "disposition"]);
@@ -169,16 +176,57 @@ export async function GET(req: NextRequest) {
         }
       }
     }
-    const jeffInfluence = computeJeffInfluenceSummary(
-      closedDeals.map((deal) => ({
+
+    interface AppointmentCallRow {
+      lead_id: string | null;
+      disposition: string | null;
+      started_at: string | null;
+    }
+    let appointmentEvents: Array<{ lead_id: string | null; event_at: string | null }> = [];
+    if (periodLeadIds.length > 0) {
+      let appointmentCallsQuery = tbl(sb, "calls_log")
+        .select("lead_id, disposition, started_at")
+        .not("lead_id", "is", null)
+        .in("lead_id", periodLeadIds);
+      if (periodStart) {
+        appointmentCallsQuery = appointmentCallsQuery.gte("started_at", periodStart);
+      }
+      const { data: appointmentCallsRaw } = await appointmentCallsQuery;
+      appointmentEvents = ((appointmentCallsRaw ?? []) as AppointmentCallRow[])
+        .filter((row) => APPOINTMENT_DISPOSITIONS.has((row.disposition ?? "").toLowerCase()))
+        .map((row) => ({
+          lead_id: row.lead_id,
+          event_at: row.started_at,
+        }));
+    }
+
+    const offerEvents = periodDeals
+      .filter((deal) => typeof deal.lead_id === "string" && deal.lead_id.length > 0)
+      .map((deal) => ({
+        lead_id: deal.lead_id,
+        event_at: deal.created_at,
+      }));
+
+    const contractEvents = periodDeals
+      .filter((deal) => (typeof deal.lead_id === "string" && deal.lead_id.length > 0) && (isContractStatus(deal.status) || Boolean(deal.closed_at)))
+      .map((deal) => ({
+        lead_id: deal.lead_id,
+        event_at: deal.closed_at ?? deal.created_at,
+      }));
+
+    const jeffAttribution = computeJeffAttributionFunnel({
+      deals: closedDeals.map((deal) => ({
         lead_id: deal.lead_id,
         assignment_fee: deal.assignment_fee,
         closed_at: deal.closed_at,
         created_at: deal.created_at,
       })),
-      jeffInteractionRows,
-      120,
-    );
+      interactions: jeffInteractionRows,
+      appointments: appointmentEvents,
+      offers: offerEvents,
+      contracts: contractEvents,
+      lookbackDays: 120,
+    });
 
     // ── 3b. Founder effort + leverage metrics (estimated) ────────────────
     const founderIds = parseFounderUserIds(process.env.FOUNDER_USER_IDS);
@@ -346,9 +394,12 @@ export async function GET(req: NextRequest) {
         // Revenue
         total_revenue,
         avg_assignment_fee,
-        jeff_influenced_closed_deals: jeffInfluence.influencedClosedDeals,
-        jeff_influenced_revenue: jeffInfluence.influencedRevenue,
-        jeff_influence_rate: jeffInfluence.influenceRatePct,
+        jeff_influenced_appointment_leads: jeffAttribution.influencedAppointmentLeads,
+        jeff_influenced_offer_leads: jeffAttribution.influencedOfferLeads,
+        jeff_influenced_contract_leads: jeffAttribution.influencedContractLeads,
+        jeff_influenced_closed_deals: jeffAttribution.influencedClosedDeals,
+        jeff_influenced_revenue: jeffAttribution.influencedRevenue,
+        jeff_influence_rate: jeffAttribution.influenceRatePct,
         founder_call_count: founderEffort.callCount,
         founder_hours_estimated,
         founder_hours_source,

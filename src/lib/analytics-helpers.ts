@@ -79,10 +79,29 @@ export interface JeffInfluenceInteractionRow {
   createdAt?: string | null;
 }
 
+export interface JeffAttributionEventRow {
+  lead_id?: string | null;
+  leadId?: string | null;
+  event_at?: string | null;
+  eventAt?: string | null;
+  created_at?: string | null;
+  createdAt?: string | null;
+  offered_at?: string | null;
+  offeredAt?: string | null;
+  started_at?: string | null;
+  startedAt?: string | null;
+}
+
 export interface JeffInfluenceSummary {
   influencedClosedDeals: number;
   influencedRevenue: number;
   influenceRatePct: number | null;
+}
+
+export interface JeffAttributionFunnelSummary extends JeffInfluenceSummary {
+  influencedAppointmentLeads: number;
+  influencedOfferLeads: number;
+  influencedContractLeads: number;
 }
 
 function safeMs(value: string | null | undefined): number | null {
@@ -131,10 +150,76 @@ export function computeJeffInfluenceSummary(
   interactions: JeffInfluenceInteractionRow[],
   lookbackDays = 120,
 ): JeffInfluenceSummary {
-  const lookbackMs = Math.max(1, lookbackDays) * 24 * 60 * 60 * 1000;
+  const summary = computeJeffAttributionFunnel({
+    deals,
+    interactions,
+    lookbackDays,
+  });
+
+  return {
+    influencedClosedDeals: summary.influencedClosedDeals,
+    influencedRevenue: summary.influencedRevenue,
+    influenceRatePct: summary.influenceRatePct,
+  };
+}
+
+function readEventMs(row: JeffAttributionEventRow): number | null {
+  return safeMs(
+    row.event_at
+    ?? row.eventAt
+    ?? row.offered_at
+    ?? row.offeredAt
+    ?? row.started_at
+    ?? row.startedAt
+    ?? row.created_at
+    ?? row.createdAt
+    ?? null,
+  );
+}
+
+function hasJeffInteractionWithinLookback(
+  leadId: string,
+  eventMs: number,
+  interactionsByLead: Map<string, number[]>,
+  lookbackMs: number,
+): boolean {
+  const interactionTimes = interactionsByLead.get(leadId) ?? [];
+  if (interactionTimes.length === 0) return false;
+  const lowerBoundMs = eventMs - lookbackMs;
+  return interactionTimes.some((interactionMs) => interactionMs <= eventMs && interactionMs >= lowerBoundMs);
+}
+
+function countInfluencedStageLeads(
+  events: JeffAttributionEventRow[],
+  interactionsByLead: Map<string, number[]>,
+  lookbackMs: number,
+): number {
+  const influencedLeadIds = new Set<string>();
+
+  for (const row of events) {
+    const leadId = (row.lead_id ?? row.leadId ?? "").trim();
+    if (!leadId) continue;
+    const eventMs = readEventMs(row);
+    if (eventMs == null) continue;
+    if (!hasJeffInteractionWithinLookback(leadId, eventMs, interactionsByLead, lookbackMs)) continue;
+    influencedLeadIds.add(leadId);
+  }
+
+  return influencedLeadIds.size;
+}
+
+export function computeJeffAttributionFunnel(input: {
+  deals: JeffInfluenceDealRow[];
+  interactions: JeffInfluenceInteractionRow[];
+  appointments?: JeffAttributionEventRow[];
+  offers?: JeffAttributionEventRow[];
+  contracts?: JeffAttributionEventRow[];
+  lookbackDays?: number;
+}): JeffAttributionFunnelSummary {
+  const lookbackMs = Math.max(1, input.lookbackDays ?? 120) * 24 * 60 * 60 * 1000;
   const byLead = new Map<string, number[]>();
 
-  for (const interaction of interactions) {
+  for (const interaction of input.interactions) {
     const leadId = (interaction.lead_id ?? interaction.leadId ?? "").trim();
     if (!leadId) continue;
     const interactionType = (interaction.interaction_type ?? interaction.interactionType ?? "").toLowerCase().trim();
@@ -151,25 +236,42 @@ export function computeJeffInfluenceSummary(
   let influencedClosedDeals = 0;
   let influencedRevenue = 0;
 
-  for (const deal of deals) {
+  for (const deal of input.deals) {
     const leadId = (deal.lead_id ?? deal.leadId ?? "").trim();
     if (!leadId) continue;
 
     const dealOutcomeMs = safeMs(deal.closed_at ?? deal.closedAt ?? deal.created_at ?? deal.createdAt ?? null);
     if (dealOutcomeMs == null) continue;
 
-    const interactionTimes = byLead.get(leadId) ?? [];
-    const lowerBoundMs = dealOutcomeMs - lookbackMs;
-    const influenced = interactionTimes.some((interactionMs) => interactionMs <= dealOutcomeMs && interactionMs >= lowerBoundMs);
+    const influenced = hasJeffInteractionWithinLookback(leadId, dealOutcomeMs, byLead, lookbackMs);
     if (!influenced) continue;
 
     influencedClosedDeals += 1;
     influencedRevenue += Number(deal.assignment_fee ?? deal.assignmentFee ?? 0);
   }
 
+  const influencedAppointmentLeads = countInfluencedStageLeads(
+    input.appointments ?? [],
+    byLead,
+    lookbackMs,
+  );
+  const influencedOfferLeads = countInfluencedStageLeads(
+    input.offers ?? [],
+    byLead,
+    lookbackMs,
+  );
+  const influencedContractLeads = countInfluencedStageLeads(
+    input.contracts ?? [],
+    byLead,
+    lookbackMs,
+  );
+
   return {
+    influencedAppointmentLeads,
+    influencedOfferLeads,
+    influencedContractLeads,
     influencedClosedDeals,
     influencedRevenue,
-    influenceRatePct: deals.length > 0 ? round1((influencedClosedDeals / deals.length) * 100) : null,
+    influenceRatePct: input.deals.length > 0 ? round1((influencedClosedDeals / input.deals.length) * 100) : null,
   };
 }

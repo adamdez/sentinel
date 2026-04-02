@@ -4,6 +4,7 @@ import {
   isClosedDeal,
   parseFounderUserIds,
   computeFounderEffortFromCalls,
+  computeJeffAttributionFunnel,
   computeJeffInfluenceSummary,
 } from "@/lib/analytics-helpers";
 import { normalizeSource } from "@/lib/source-normalization";
@@ -147,5 +148,36 @@ describe("Jeff influence helpers", () => {
     expect(summary.influencedClosedDeals).toBe(1);
     expect(summary.influencedRevenue).toBe(12000);
     expect(summary.influenceRatePct).toBeCloseTo(33.3, 1);
+  });
+
+  it("builds a lead-linked Jeff attribution funnel across appointment, offer, contract, and close", () => {
+    const summary = computeJeffAttributionFunnel({
+      deals: [
+        { lead_id: "lead-1", assignment_fee: 12000, closed_at: "2026-03-20T12:00:00.000Z" },
+        { lead_id: "lead-2", assignment_fee: 9000, closed_at: "2026-03-20T12:00:00.000Z" },
+      ],
+      interactions: [
+        { lead_id: "lead-1", interaction_type: "warm_transfer", created_at: "2026-03-18T10:00:00.000Z" },
+        { lead_id: "lead-2", interaction_type: "fyi_only", created_at: "2026-03-18T10:00:00.000Z" },
+      ],
+      appointments: [
+        { lead_id: "lead-1", event_at: "2026-03-18T12:00:00.000Z" },
+        { lead_id: "lead-2", event_at: "2026-03-18T12:00:00.000Z" },
+      ],
+      offers: [
+        { lead_id: "lead-1", event_at: "2026-03-19T12:00:00.000Z" },
+      ],
+      contracts: [
+        { lead_id: "lead-1", event_at: "2026-03-19T18:00:00.000Z" },
+      ],
+      lookbackDays: 30,
+    });
+
+    expect(summary.influencedAppointmentLeads).toBe(1);
+    expect(summary.influencedOfferLeads).toBe(1);
+    expect(summary.influencedContractLeads).toBe(1);
+    expect(summary.influencedClosedDeals).toBe(1);
+    expect(summary.influencedRevenue).toBe(12000);
+    expect(summary.influenceRatePct).toBeCloseTo(50, 5);
   });
 });

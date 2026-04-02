@@ -28,6 +28,9 @@ interface KpiData {
   deals_closed: number;
   total_revenue: number;
   avg_assignment_fee: number | null;
+  jeff_influenced_appointment_leads: number;
+  jeff_influenced_offer_leads: number;
+  jeff_influenced_contract_leads: number;
   jeff_influenced_closed_deals: number;
   jeff_influenced_revenue: number;
   jeff_influence_rate: number | null;
@@ -132,7 +135,7 @@ export function KpiSummaryRow({ period }: { period: TimePeriod }) {
       label: "Contracts",
       value: `${kpis.contracts_signed} of ${kpis.offers_made} offers`,
       subtitle: kpis.deals_closed > 0
-        ? `${kpis.deals_closed} closed • Jeff ${kpis.jeff_influenced_closed_deals}`
+        ? `Jeff path ${kpis.jeff_influenced_appointment_leads}\u2192${kpis.jeff_influenced_offer_leads}\u2192${kpis.jeff_influenced_contract_leads}\u2192${kpis.jeff_influenced_closed_deals}`
         : null,
     },
     {
