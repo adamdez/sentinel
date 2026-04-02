@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, ChevronRight, MapPin } from "lucide-react";
+import { Plus, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
@@ -38,29 +38,6 @@ function mapFilterToAttention(f: InboundFilter): AttentionFocus {
   }
 }
 
-function InboxStat({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string | number;
-  tone?: "neutral" | "warn" | "danger";
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-[10px] border px-3 py-2 min-w-[100px]",
-        tone === "danger" && "border-red-500/25 bg-red-500/[0.04]",
-        tone === "warn" && "border-amber-500/25 bg-amber-500/[0.04]",
-        tone === "neutral" && "border-glass-border bg-glass/30",
-      )}
-    >
-      <p className="text-sm uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="text-sm font-semibold tabular-nums">{value}</p>
-    </div>
-  );
-}
 
 export default function LeadsPage() {
   return (
@@ -95,7 +72,6 @@ function LeadsPageInner() {
     nicheOptions,
     importBatchOptions,
     callStatusOptions,
-    inboxMetrics,
     outboundSourceMetrics,
     nicheMetrics,
     totalFiltered,
@@ -184,11 +160,11 @@ function LeadsPageInner() {
         </div>
       }
     >
-      <div className="space-y-3">
+      <div className="space-y-2">
         {/* Active filter banner from Today deep-link */}
         {inboundFilter && FILTER_LABELS[inboundFilter] && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-primary/20 bg-primary/[0.04]">
-            <span className="text-sm font-medium text-primary">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/[0.04]">
+            <span className="text-xs font-medium text-primary">
               Filtered: {FILTER_LABELS[inboundFilter]}
             </span>
             <button
@@ -196,57 +172,14 @@ function LeadsPageInner() {
                 setAttentionFocus("none");
                 window.history.replaceState(null, "", "/leads");
               }}
-              className="ml-auto text-sm text-muted-foreground hover:text-foreground"
+              className="ml-auto text-xs text-muted-foreground hover:text-foreground"
             >
-              Clear filter
+              Clear
             </button>
           </div>
         )}
 
-        {/* Compact health strip */}
-        <div className="flex flex-wrap items-center gap-2">
-          <InboxStat label="Overdue" value={inboxMetrics.overdue} tone={inboxMetrics.overdue > 0 ? "danger" : "neutral"} />
-          <InboxStat label="Due Today" value={inboxMetrics.dueToday} tone={inboxMetrics.dueToday > 0 ? "warn" : "neutral"} />
-          <InboxStat label="Awaiting Contact" value={inboxMetrics.uncontacted} tone={inboxMetrics.uncontacted > 0 ? "warn" : "neutral"} />
-          {inboxMetrics.newToday > 0 && (
-            <InboxStat label="New Today" value={inboxMetrics.newToday} />
-          )}
-        </div>
-
-        {/* Needs attention quick focus */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-muted-foreground mr-1">Focus:</span>
-          {attentionItems.filter((item) => item.count > 0).map((item) => {
-            const active = attentionFocus === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setAttentionFocus(active ? "none" : item.id)}
-                className={cn(
-                  "text-sm px-2.5 py-1 rounded-md border transition-all",
-                  active
-                    ? "border-primary/25 bg-primary/10 text-primary"
-                    : "border-border/20 text-foreground hover:border-border/35"
-                )}
-              >
-                {item.label} ({item.count})
-              </button>
-            );
-          })}
-          {attentionFocus !== "none" && (
-            <button
-              onClick={() => {
-                setAttentionFocus("none");
-                if (inboundFilter) window.history.replaceState(null, "", "/leads");
-              }}
-              className="text-sm px-2.5 py-1 rounded-md border border-overlay-10 text-muted-foreground hover:text-foreground hover:border-overlay-20"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-
-        {/* Segment + market row */}
+        {/* Row 1: Segment tabs + market selector + search/filters */}
         <div className="flex flex-wrap items-center gap-3">
           <LeadSegmentControl
             value={segment}
@@ -256,48 +189,75 @@ function LeadsPageInner() {
             currentUserRole={currentUser.role}
             teamMembers={teamMembers}
           />
-          <div className="flex items-center gap-2 ml-auto">
-            <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-            <select
-              value={filters.markets.length === 1 ? filters.markets[0] : "all"}
-              onChange={(e) => {
-                const val = e.target.value as MarketFilter | "all";
-                updateFilter("markets", val === "all" ? [] : [val]);
-              }}
-              className="h-7 rounded-md border border-glass-border bg-glass/40 px-2 text-xs text-foreground focus:border-primary/30 focus:outline-none focus:ring-1 focus:ring-ring/20"
-            >
-              <option value="all">All Markets</option>
-              <option value="spokane">Spokane</option>
-              <option value="kootenai">Kootenai</option>
-              <option value="other">Other</option>
-            </select>
-            {filters.markets.length > 0 && (
-              <button
-                onClick={() => updateFilter("markets", [])}
-                className="text-sm text-muted-foreground hover:text-foreground"
-              >
-                Clear
-              </button>
-            )}
+          <select
+            value={filters.markets.length === 1 ? filters.markets[0] : "all"}
+            onChange={(e) => {
+              const val = e.target.value as MarketFilter | "all";
+              updateFilter("markets", val === "all" ? [] : [val]);
+            }}
+            className="h-7 rounded-md border border-glass-border bg-glass/40 px-2 text-xs text-foreground focus:border-primary/30 focus:outline-none focus:ring-1 focus:ring-ring/20"
+          >
+            <option value="all">All Markets</option>
+            <option value="spokane">Spokane</option>
+            <option value="kootenai">Kootenai</option>
+            <option value="other">Other</option>
+          </select>
+          <div className="ml-auto">
+            <LeadFilters
+              filters={filters}
+              onUpdate={updateFilter}
+              onReset={resetFilters}
+              totalFiltered={totalFiltered}
+              totalAll={segmentTotal}
+              sourceOptions={sourceOptions}
+              nicheOptions={nicheOptions}
+              importBatchOptions={importBatchOptions}
+              callStatusOptions={callStatusOptions}
+            />
           </div>
         </div>
 
-        {/* Filters + search */}
-        <LeadFilters
-          filters={filters}
-          onUpdate={updateFilter}
-          onReset={resetFilters}
-          totalFiltered={totalFiltered}
-          totalAll={segmentTotal}
-          sourceOptions={sourceOptions}
-          nicheOptions={nicheOptions}
-          importBatchOptions={importBatchOptions}
-          callStatusOptions={callStatusOptions}
-        />
-
-        {/* Dialer-prep quick-filters — always visible */}
+        {/* Row 2: Focus chips — replaces stat tiles + old focus row */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider mr-0.5">Prep</span>
+          {attentionItems.filter((item) => item.count > 0).map((item) => {
+            const isActive = attentionFocus === item.id;
+            const isDanger = item.id === "overdue";
+            const isWarn = item.id === "drive_by" || item.id === "needs_qualification" || item.id === "escalated_review";
+            return (
+              <button
+                key={item.id}
+                onClick={() => setAttentionFocus(isActive ? "none" : item.id)}
+                className={cn(
+                  "text-xs px-2 py-0.5 rounded border transition-all font-medium",
+                  isActive
+                    ? "border-primary/25 bg-primary/10 text-primary"
+                    : isDanger && item.count > 0
+                      ? "border-red-500/20 text-red-400 hover:bg-red-500/5"
+                      : isWarn && item.count > 0
+                        ? "border-amber-500/20 text-amber-400/80 hover:bg-amber-500/5"
+                        : "border-border/20 text-foreground/70 hover:border-border/35"
+                )}
+              >
+                {item.label} <span className="tabular-nums">{item.count}</span>
+              </button>
+            );
+          })}
+          {attentionFocus !== "none" && (
+            <button
+              onClick={() => {
+                setAttentionFocus("none");
+                if (inboundFilter) window.history.replaceState(null, "", "/leads");
+              }}
+              className="text-xs px-2 py-0.5 rounded border border-overlay-10 text-muted-foreground hover:text-foreground hover:border-overlay-20"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        {/* Row 3: Dialer-prep quick-filters — only non-redundant prep controls */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider mr-0.5">Prep</span>
           <button
             onClick={() => updateFilter("hasPhone", filters.hasPhone === "yes" ? "any" : "yes")}
             className={cn(
@@ -337,51 +297,13 @@ function LeadsPageInner() {
           </button>
           <span className="text-muted-foreground/20">·</span>
           <button
-            onClick={() => updateFilter("followUp", filters.followUp === "overdue" ? "all" : "overdue")}
-            className={cn(
-              "text-xs px-2 py-0.5 rounded border transition-all",
-              filters.followUp === "overdue" ? "bg-red-500/10 text-red-400 border-red-500/20" : filterChip.idle,
-            )}
-          >
-            Overdue
-          </button>
-          <button
-            onClick={() => updateFilter("followUp", filters.followUp === "today" ? "all" : "today")}
-            className={cn(
-              "text-xs px-2 py-0.5 rounded border transition-all",
-              filters.followUp === "today" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : filterChip.idle,
-            )}
-          >
-            Due today
-          </button>
-          <span className="text-muted-foreground/20">·</span>
-          <button
-            onClick={() => setSegment(segment === "mine" ? "all" : "mine")}
-            className={cn(
-              "text-xs px-2 py-0.5 rounded border transition-all",
-              segment === "mine" ? filterChip.active : filterChip.idle,
-            )}
-          >
-            Assigned to me
-          </button>
-          <button
-            onClick={() => setSegment(segment === "all" ? "mine" : "all")}
-            className={cn(
-              "text-xs px-2 py-0.5 rounded border transition-all",
-              segment === "all" ? filterChip.active : filterChip.idle,
-            )}
-          >
-            Unclaimed
-          </button>
-          <span className="text-muted-foreground/20">·</span>
-          <button
             onClick={() => updateFilter("inDialQueue", filters.inDialQueue === "yes" ? "any" : "yes")}
             className={cn(
               "text-xs px-2 py-0.5 rounded border transition-all",
               filters.inDialQueue === "yes" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : filterChip.idle,
             )}
           >
-            In Dialer Queue
+            In Queue
           </button>
           <button
             onClick={() => updateFilter("inDialQueue", filters.inDialQueue === "no" ? "any" : "no")}
@@ -390,12 +312,11 @@ function LeadsPageInner() {
               filters.inDialQueue === "no" ? filterChip.active : filterChip.idle,
             )}
           >
-            Not in Dialer Queue
+            Not in Queue
           </button>
           {distressTagOptions.length > 0 && (
             <>
               <span className="text-muted-foreground/20">·</span>
-              <span className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-wider mr-0.5">Situation</span>
               {distressTagOptions.map((opt) => (
                 <button
                   key={opt.value}

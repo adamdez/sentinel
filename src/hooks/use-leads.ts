@@ -758,9 +758,11 @@ export function useLeads() {
   // Segment filter
 
   const segmentedLeads = useMemo(() => {
-    if (segment === "all") return leadsWithAssigneeNames.filter((l) => isLeadUnclaimed(l.assignedTo));
-    if (segment === "mine") return leadsWithAssigneeNames.filter((l) => l.assignedTo === currentUser.id);
-    return leadsWithAssigneeNames.filter((l) => l.assignedTo === segment);
+    // Active (pinned) leads belong in the Active board, not Lead Queue
+    const base = leadsWithAssigneeNames.filter((l) => !l.pinned);
+    if (segment === "all") return base.filter((l) => isLeadUnclaimed(l.assignedTo));
+    if (segment === "mine") return base.filter((l) => l.assignedTo === currentUser.id);
+    return base.filter((l) => l.assignedTo === segment);
   }, [leadsWithAssigneeNames, segment, currentUser.id]);
 
   const closedVisible = filters.includeClosed || filters.statuses.includes("closed");
@@ -961,9 +963,10 @@ export function useLeads() {
   );
 
   const segmentCounts = useMemo(() => {
-    const base = filters.includeClosed
+    const base = (filters.includeClosed
       ? leadsWithAssigneeNames
-      : leadsWithAssigneeNames.filter((l) => l.status !== "closed");
+      : leadsWithAssigneeNames.filter((l) => l.status !== "closed")
+    ).filter((l) => !l.pinned); // Active leads excluded from Lead Queue counts
     const all = base.filter((l) => isLeadUnclaimed(l.assignedTo)).length;
     const mine = base.filter((l) => l.assignedTo === currentUser.id).length;
     const byMember: Record<string, number> = {};
