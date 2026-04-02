@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Brain } from "lucide-react";
 import { useLiveCoach, type LiveCoachMode } from "@/hooks/use-live-coach";
@@ -8,7 +8,7 @@ import { LiveAssistPanel } from "@/components/sentinel/live-assist-panel";
 
 const CHANNEL_NAME = "sentinel-coach-popout";
 
-export default function CoachPopoutPage() {
+function CoachPopoutContent() {
   const params = useSearchParams();
   const sessionId = params.get("sessionId");
   const mode = (params.get("mode") as LiveCoachMode) || "outbound";
@@ -94,5 +94,19 @@ export default function CoachPopoutPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function CoachPopoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center p-8">
+          <Brain className="h-5 w-5 animate-pulse text-primary/50" />
+        </div>
+      }
+    >
+      <CoachPopoutContent />
+    </Suspense>
   );
 }
