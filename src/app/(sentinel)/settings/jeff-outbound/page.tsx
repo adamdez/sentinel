@@ -52,12 +52,18 @@ type JeffQueueRow = {
 type JeffKpis = {
   attempts: number;
   liveAnswers: number;
+  qualifiedConversations: number;
+  qualifiedConversationRate: number;
+  appointmentSignals: number;
+  offerSignals: number;
+  contractSignals: number;
   transferAttempts: number;
   successfulTransfers: number;
   callbackRequests: number;
   machineEnds: number;
   totalCostCents: number;
   averageDurationSec: number;
+  costPerQualifiedConversationCents: number | null;
   costPerSuccessfulTransferCents: number | null;
   callbackRate: number;
   answerRate: number;
@@ -807,13 +813,17 @@ export default function JeffOutboundPage() {
                 {[
                   { label: "Attempts", value: kpis?.attempts ?? 0 },
                   { label: "Live Answers", value: kpis?.liveAnswers ?? 0 },
+                  { label: "Qualified Convos", value: kpis?.qualifiedConversations ?? 0 },
+                  { label: "Qualified Rate", value: formatPercent(kpis?.qualifiedConversationRate ?? 0) },
+                  { label: "Appointment Signals", value: kpis?.appointmentSignals ?? 0 },
+                  { label: "Offer Signals", value: kpis?.offerSignals ?? 0 },
+                  { label: "Contract Signals", value: kpis?.contractSignals ?? 0 },
                   { label: "Transfers", value: kpis?.successfulTransfers ?? 0 },
-                  { label: "Callbacks", value: kpis?.callbackRequests ?? 0 },
-                  { label: "Avg Duration", value: formatDuration(kpis?.averageDurationSec ?? 0) },
-                  { label: "Answer Rate", value: formatPercent(kpis?.answerRate ?? 0) },
-                  { label: "Callback Rate", value: formatPercent(kpis?.callbackRate ?? 0) },
+                  { label: "Callback Requests", value: kpis?.callbackRequests ?? 0 },
                   { label: "Quality Pass", value: formatPercent(kpis?.qualityReviewPassRate ?? null) },
+                  { label: "Avg Duration", value: formatDuration(kpis?.averageDurationSec ?? 0) },
                   { label: "Total Cost", value: formatCurrency(kpis?.totalCostCents ?? 0) },
+                  { label: "Cost / Qualified", value: formatCurrency(kpis?.costPerQualifiedConversationCents ?? null) },
                   { label: "Cost / Transfer", value: formatCurrency(kpis?.costPerSuccessfulTransferCents ?? null) },
                 ].map((metric) => (
                   <div key={metric.label} className="rounded-xl border border-border/15 bg-muted/5 p-3">

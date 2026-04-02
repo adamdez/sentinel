@@ -93,12 +93,18 @@ export interface JeffRecentLeadLite {
 export interface JeffKpiSnapshot {
   attempts: number;
   liveAnswers: number;
+  qualifiedConversations: number;
+  qualifiedConversationRate: number;
+  appointmentSignals: number;
+  offerSignals: number;
+  contractSignals: number;
   transferAttempts: number;
   successfulTransfers: number;
   callbackRequests: number;
   machineEnds: number;
   totalCostCents: number;
   averageDurationSec: number;
+  costPerQualifiedConversationCents: number | null;
   costPerSuccessfulTransferCents: number | null;
   callbackRate: number;
   answerRate: number;
@@ -141,6 +147,10 @@ const HUMAN_ANSWER_DISPOSITIONS = new Set([
   "callback",
   "completed",
   "contract",
+  "contracted",
+  "under_contract",
+  "assigned",
+  "closed",
   "not_interested",
 ]);
 
@@ -152,6 +162,37 @@ const MACHINE_DISPOSITIONS = new Set([
   "disconnected",
   "dead_phone",
   "wrong_number",
+]);
+
+const QUALIFIED_CONVERSATION_DISPOSITIONS = new Set([
+  "interested",
+  "follow_up",
+  "appointment",
+  "appointment_set",
+  "offer_made",
+  "contract",
+  "contracted",
+  "under_contract",
+  "assigned",
+  "closed",
+]);
+
+const APPOINTMENT_DISPOSITIONS = new Set([
+  "appointment",
+  "appointment_set",
+]);
+
+const OFFER_DISPOSITIONS = new Set([
+  "offer",
+  "offer_made",
+]);
+
+const CONTRACT_DISPOSITION_SIGNALS = new Set([
+  "contract",
+  "contracted",
+  "under_contract",
+  "assigned",
+  "closed",
 ]);
 
 function defaultJeffSettings(): JeffControlSettings {
@@ -467,6 +508,10 @@ export function computeJeffKpis(
   );
 
   let liveAnswers = 0;
+  let qualifiedConversations = 0;
+  let appointmentSignals = 0;
+  let offerSignals = 0;
+  let contractSignals = 0;
   let transferAttempts = 0;
   let successfulTransfers = 0;
   let callbackRequests = 0;
@@ -480,9 +525,27 @@ export function computeJeffKpis(
     const cost = Number(session.cost_cents ?? 0);
     const didTransfer = Boolean(session.transferred_to) || Boolean(session.transfer_reason) || session.status === "transferred";
     const didCallback = Boolean(session.callback_requested);
+    const isQualifiedDisposition = QUALIFIED_CONVERSATION_DISPOSITIONS.has(disposition);
+    const isQualifiedSession = didTransfer || didCallback || isQualifiedDisposition;
 
     totalDurationSec += duration;
     totalCostCents += cost;
+
+    if (isQualifiedSession) {
+      qualifiedConversations += 1;
+    }
+
+    if (APPOINTMENT_DISPOSITIONS.has(disposition)) {
+      appointmentSignals += 1;
+    }
+
+    if (OFFER_DISPOSITIONS.has(disposition)) {
+      offerSignals += 1;
+    }
+
+    if (CONTRACT_DISPOSITION_SIGNALS.has(disposition)) {
+      contractSignals += 1;
+    }
 
     if (didTransfer) {
       transferAttempts += 1;
@@ -513,12 +576,18 @@ export function computeJeffKpis(
   return {
     attempts: sessions.length,
     liveAnswers,
+    qualifiedConversations,
+    qualifiedConversationRate: sessions.length > 0 ? qualifiedConversations / sessions.length : 0,
+    appointmentSignals,
+    offerSignals,
+    contractSignals,
     transferAttempts,
     successfulTransfers,
     callbackRequests,
     machineEnds,
     totalCostCents,
     averageDurationSec: sessions.length > 0 ? Math.round(totalDurationSec / sessions.length) : 0,
+    costPerQualifiedConversationCents: qualifiedConversations > 0 ? Math.round(totalCostCents / qualifiedConversations) : null,
     costPerSuccessfulTransferCents: successfulTransfers > 0 ? Math.round(totalCostCents / successfulTransfers) : null,
     callbackRate: sessions.length > 0 ? callbackRequests / sessions.length : 0,
     answerRate: sessions.length > 0 ? liveAnswers / sessions.length : 0,

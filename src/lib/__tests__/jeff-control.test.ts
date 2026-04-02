@@ -15,7 +15,7 @@ describe("Jeff controller access", () => {
 });
 
 describe("Jeff KPI aggregation", () => {
-  it("tracks live answers, transfers, callbacks, machine ends, and quality pass rate", async () => {
+  it("tracks operational and qualified-conversation outcomes in one snapshot", async () => {
     const { computeJeffKpis } = await import("@/lib/jeff-control");
     const snapshot = computeJeffKpis(
       [
@@ -56,16 +56,46 @@ describe("Jeff KPI aggregation", () => {
 
     expect(snapshot.attempts).toBe(3);
     expect(snapshot.liveAnswers).toBe(2);
+    expect(snapshot.qualifiedConversations).toBe(2);
+    expect(snapshot.qualifiedConversationRate).toBeCloseTo(2 / 3, 5);
+    expect(snapshot.appointmentSignals).toBe(0);
+    expect(snapshot.offerSignals).toBe(0);
+    expect(snapshot.contractSignals).toBe(0);
     expect(snapshot.transferAttempts).toBe(1);
     expect(snapshot.successfulTransfers).toBe(1);
     expect(snapshot.callbackRequests).toBe(1);
     expect(snapshot.machineEnds).toBe(1);
     expect(snapshot.totalCostCents).toBe(480);
     expect(snapshot.averageDurationSec).toBe(96);
+    expect(snapshot.costPerQualifiedConversationCents).toBe(240);
     expect(snapshot.costPerSuccessfulTransferCents).toBe(480);
     expect(snapshot.answerRate).toBeCloseTo(2 / 3, 5);
     expect(snapshot.callbackRate).toBeCloseTo(1 / 3, 5);
     expect(snapshot.qualityReviewPassRate).toBe(0.5);
+  });
+
+  it("maps appointment, offer, and contract dispositions to founder-outcome signals", async () => {
+    const { computeJeffKpis } = await import("@/lib/jeff-control");
+    const snapshot = computeJeffKpis(
+      [
+        { id: "s1", status: "completed", metadata: { source: "jeff-supervised-queue" }, duration_seconds: 150, cost_cents: 180 },
+        { id: "s2", status: "completed", metadata: { source: "jeff-supervised-queue" }, duration_seconds: 175, cost_cents: 210 },
+        { id: "s3", status: "completed", metadata: { source: "jeff-supervised-queue" }, duration_seconds: 200, cost_cents: 240 },
+      ],
+      [
+        { voice_session_id: "s1", disposition: "appointment_set", duration_sec: 150 },
+        { voice_session_id: "s2", disposition: "offer_made", duration_sec: 175 },
+        { voice_session_id: "s3", disposition: "contracted", duration_sec: 200 },
+      ],
+      [],
+    );
+
+    expect(snapshot.liveAnswers).toBe(3);
+    expect(snapshot.qualifiedConversations).toBe(3);
+    expect(snapshot.appointmentSignals).toBe(1);
+    expect(snapshot.offerSignals).toBe(1);
+    expect(snapshot.contractSignals).toBe(1);
+    expect(snapshot.costPerQualifiedConversationCents).toBe(210);
   });
 });
 
