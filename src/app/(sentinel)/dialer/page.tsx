@@ -3621,7 +3621,12 @@ function DialerPageInner() {
                       )}
                     </div>
 
-                    {/* Pre-Call Brief — compressed: goal + bullets default, questions/flags on expand */}
+                    {/* Seller memory — factual continuity outranks AI brief */}
+                    {callState === "idle" && currentLead && (
+                      <SellerMemoryPreview leadId={currentLead.id} />
+                    )}
+
+                    {/* Pre-Call Brief — goal + bullets + watch-outs, expandable detail */}
                     <AnimatePresence>
                       {callState === "idle" && (preCallBrief || briefLoading || briefError) && (
                         <motion.div
@@ -3644,21 +3649,12 @@ function DialerPageInner() {
                           )}
                           {preCallBrief && (
                             <>
-                              {/* Suggested opener — the most useful pre-call sentence */}
-                              {preCallBrief.suggestedOpener && (
-                                <div
-                                  role="button"
-                                  onClick={() => { navigator.clipboard.writeText(preCallBrief.suggestedOpener).then(() => toast.success("Opener copied")).catch(() => {}); }}
-                                  className="rounded-[8px] border border-primary/20 bg-primary/[0.05] px-2.5 py-1.5 mb-1.5 cursor-pointer hover:bg-primary/[0.08] transition-colors"
-                                >
-                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-primary/60 mb-0.5">Start with</p>
-                                  <p className="text-xs text-foreground/85 leading-snug">{preCallBrief.suggestedOpener}</p>
-                                </div>
+                              {/* Goal — only show if the API returned something specific */}
+                              {preCallBrief.primaryGoal && (
+                                <p className="text-xs text-foreground/80 font-medium leading-snug mb-1.5">
+                                  {preCallBrief.primaryGoal}
+                                </p>
                               )}
-                              {/* Goal */}
-                              <p className="text-xs text-foreground/80 font-medium leading-snug mb-1.5">
-                                {preCallBrief.primaryGoal || "Clarify situation, timing, and what matters most."}
-                              </p>
                               {/* Top bullets (max 3) */}
                               {preCallBrief.bullets.length > 0 && (
                                 <ul className="space-y-0.5">
@@ -3734,11 +3730,6 @@ function DialerPageInner() {
                         </motion.div>
                       )}
                     </AnimatePresence>
-
-                    {/* Seller memory — continuity context next to the call button */}
-                    {callState === "idle" && currentLead && (
-                      <SellerMemoryPreview leadId={currentLead.id} />
-                    )}
 
                     {/* Phone roster from lead_phones */}
                     {callState === "idle" && activeLeadPhones.length > 1 && (() => {
