@@ -50,12 +50,20 @@ export type ImportTargetField =
   | "mobile_home_flag"
   | "possible_developer_flag"
   | "out_of_area_flag"
+  | "owner_occupied_flag"
+  | "mail_vacant_flag"
   | "do_not_call_flag"
   | "bad_data_flag"
   | "lien_amount"
   | "amount_due"
+  | "equity_amount"
+  | "annual_taxes"
+  | "estimated_tax_rate"
+  | "purchase_amount"
+  | "purchase_date"
   | "foreclosure_flag"
   | "pre_foreclosure_flag"
+  | "pre_probate_flag"
   | "list_type"
   | "estimated_value"
   | "property_type"
@@ -217,6 +225,14 @@ export interface NormalizedImportRecord {
   sqft: string | null;
   yearBuilt: string | null;
   lienAmount: string | null;
+  equityAmount: string | null;
+  annualTaxes: string | null;
+  estimatedTaxRate: string | null;
+  purchaseAmount: string | null;
+  purchaseDate: string | null;
+  ownerOccupied: string | null;
+  mailVacant: string | null;
+  preProbate: string | null;
   sourceVendor: string | null;
   sourceListName: string | null;
   distressTags: string[];
@@ -292,8 +308,8 @@ const FIELD_DEFINITIONS: FieldDefinition[] = [
   { field: "mailing_zip", label: "Mailing Zip", group: "Mailing", aliases: ["mailing zip", "owner zip", "mail zip"] },
   { field: "apn", label: "APN / Parcel", group: "Property", aliases: ["apn", "parcel", "parcel id", "parcel number", "tax id", "pin"] },
   { field: "county", label: "County", group: "Property", aliases: ["county", "county name", "market"] },
-  { field: "phone", label: "Primary Phone", group: "Contact", aliases: ["phone", "owner phone", "contact phone", "mobile", "cell", "phone 1", "wireless 1"] },
-  { field: "phone2", label: "Phone 2", group: "Contact", aliases: ["phone 2", "secondary phone", "other phone", "alternate phone", "wireless 2", "mobile 2", "mobile-2"] },
+  { field: "phone", label: "Primary Phone", group: "Contact", aliases: ["phone", "owner phone", "contact phone", "mobile", "cell", "phone 1", "wireless 1", "primary phone", "primary phone 1", "primary phone1", "primary mobile", "primary mobile 1", "primary mobile phone 1", "primary mobile phone1"] },
+  { field: "phone2", label: "Phone 2", group: "Contact", aliases: ["phone 2", "secondary phone", "other phone", "alternate phone", "wireless 2", "mobile 2", "mobile-2", "secondary phone 1", "secondary phone1", "secondary mobile", "secondary mobile 1", "secondary mobile phone 1", "secondary mobile phone1"] },
   { field: "phone3", label: "Phone 3", group: "Contact", aliases: ["phone 3", "wireless 3", "mobile 3", "mobile-3"] },
   { field: "phone4", label: "Phone 4", group: "Contact", aliases: ["phone 4", "wireless 4", "mobile 4", "mobile-4"] },
   { field: "phone5", label: "Phone 5", group: "Contact", aliases: ["phone 5", "wireless 5", "mobile 5", "mobile-5"] },
@@ -320,15 +336,23 @@ const FIELD_DEFINITIONS: FieldDefinition[] = [
   { field: "mobile_home_flag", label: "Mobile Home Flag", group: "Tags", aliases: ["mobile home", "manufactured"] },
   { field: "possible_developer_flag", label: "Possible Developer Flag", group: "Tags", aliases: ["developer", "development", "subdivide"] },
   { field: "out_of_area_flag", label: "Out Of Area Flag", group: "Tags", aliases: ["out of area", "out-of-area"] },
+  { field: "owner_occupied_flag", label: "Owner Occupied", group: "Property", aliases: ["owner occupied", "owner occupied?", "owner occ", "owner occ?", "owner occupancy"] },
+  { field: "mail_vacant_flag", label: "Mail Vacant", group: "Mailing", aliases: ["mail vacant", "mail vacant?", "mailing vacant", "mailing vacant?"] },
   { field: "do_not_call_flag", label: "Do Not Call Flag", group: "Tags", aliases: ["do not call", "dnc"] },
   { field: "bad_data_flag", label: "Bad Data Flag", group: "Tags", aliases: ["bad data", "bad record", "invalid data"] },
   { field: "lien_amount", label: "Lien Amount", group: "Financial", aliases: ["lien amount", "lien balance", "tax lien amount", "lien"] },
-  { field: "amount_due", label: "Amount Due", group: "Financial", aliases: ["amount due", "amount owed", "total due", "balance due", "delinquent amount", "tax due"] },
+  { field: "amount_due", label: "Amount Due", group: "Financial", aliases: ["amount due", "amount owed", "total due", "balance due", "delinquent amount", "tax due", "tax delinquent $", "tax delinquent amount"] },
+  { field: "equity_amount", label: "Estimated Equity", group: "Financial", aliases: ["estimated equity", "est equity", "est equity $", "equity amount", "equity $"] },
+  { field: "annual_taxes", label: "Annual Taxes", group: "Financial", aliases: ["taxes / yr", "taxes per year", "annual taxes", "property taxes", "taxes yr"] },
+  { field: "estimated_tax_rate", label: "Estimated Tax Rate", group: "Financial", aliases: ["est tax %", "estimated tax %", "tax rate", "estimated tax rate"] },
+  { field: "purchase_amount", label: "Purchase Amount", group: "Financial", aliases: ["purchase amount", "purchase amt", "purchase price", "sale amount"] },
+  { field: "purchase_date", label: "Purchase Date", group: "Financial", aliases: ["purchase date", "sale date", "acquired date"] },
   { field: "foreclosure_flag", label: "Foreclosure Flag", group: "Tags", aliases: ["foreclosure", "in foreclosure", "foreclosure status"] },
   { field: "pre_foreclosure_flag", label: "Pre-Foreclosure Flag", group: "Tags", aliases: ["pre foreclosure", "pre-foreclosure", "preforeclosure", "lis pendens", "notice of default"] },
+  { field: "pre_probate_flag", label: "Pre-Probate Flag", group: "Tags", aliases: ["pre probate", "pre-probate", "pre probate?", "pre-probate?"] },
   { field: "list_type", label: "List Type", group: "Context", aliases: ["list type", "record type", "lead type", "category type"] },
-  { field: "estimated_value", label: "Estimated Value", group: "Property", aliases: ["estimated value", "total assessment", "assessed value", "avm", "market value", "appraised value", "total value", "property value", "property value last assessed", "last assessed value", "last assessed"] },
-  { field: "property_type", label: "Property Type", group: "Property", aliases: ["property type", "prop type", "land use", "property class", "use code", "property use"] },
+  { field: "estimated_value", label: "Estimated Value", group: "Property", aliases: ["estimated value", "est value", "total assessment", "assessed value", "avm", "market value", "appraised value", "total value", "property value", "property value last assessed", "last assessed value", "last assessed"] },
+  { field: "property_type", label: "Property Type", group: "Property", aliases: ["property type", "prop type", "land use", "property class", "use code", "property use", "type"] },
   { field: "bedrooms", label: "Bedrooms", group: "Property", aliases: ["bedrooms", "beds", "bed count", "br"] },
   { field: "bathrooms", label: "Bathrooms", group: "Property", aliases: ["bathrooms", "baths", "bath count", "ba"] },
   { field: "sqft", label: "Square Footage", group: "Property", aliases: ["square footage", "sqft", "sq ft", "living area", "building area", "gla"] },
@@ -665,6 +689,12 @@ function coerceBoolean(value: string | null): boolean {
   return YES_VALUES.has(normalized);
 }
 
+function coerceFalseBoolean(value: string | null): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "0" || normalized === "false" || normalized === "no" || normalized === "n";
+}
+
 function cleanPhone(value: string | null): string | null {
   if (!value) return null;
   const digits = value.replace(/\D/g, "");
@@ -761,6 +791,8 @@ export function normalizeImportedRow(args: {
   tagIf(coerceBoolean(pick("out_of_area_flag")), "out_of_area", tags);
   tagIf(coerceBoolean(pick("foreclosure_flag")), "pre_foreclosure", tags);
   tagIf(coerceBoolean(pick("pre_foreclosure_flag")), "pre_foreclosure", tags);
+  tagIf(coerceBoolean(pick("pre_probate_flag")), "inherited", tags);
+  tagIf(coerceFalseBoolean(pick("owner_occupied_flag")), "absentee_owner", tags);
 
   // Lien amount or amount due > 0 implies tax_lien distress
   const lienAmt = pick("lien_amount");
@@ -915,6 +947,14 @@ export function normalizeImportedRow(args: {
     sqft: pick("sqft"),
     yearBuilt: pick("year_built"),
     lienAmount: lienAmt ?? amtDue ?? null,
+    equityAmount: pick("equity_amount"),
+    annualTaxes: pick("annual_taxes"),
+    estimatedTaxRate: pick("estimated_tax_rate"),
+    purchaseAmount: pick("purchase_amount"),
+    purchaseDate: pick("purchase_date"),
+    ownerOccupied: pick("owner_occupied_flag"),
+    mailVacant: pick("mail_vacant_flag"),
+    preProbate: pick("pre_probate_flag"),
     sourceVendor: pick("source_vendor") ?? cleanString(defaults.sourceVendor),
     sourceListName: pick("source_list_name") ?? cleanString(defaults.sourceListName),
     distressTags: [...tags],
@@ -1041,6 +1081,7 @@ export function buildProspectPayload(record: NormalizedImportRecord, defaults: N
     mailing_zip: record.mailingZip,
     co_owner_name: record.coOwnerName,
     skip_auto_bricked: true,
+    skip_auto_gis: true,
     import_phones: importPhones.length > 0 ? importPhones : undefined,
     import_emails: importEmails.length > 0 ? importEmails : undefined,
     legal_metadata: legalMetadata || undefined,
@@ -1052,6 +1093,16 @@ export function buildProspectPayload(record: NormalizedImportRecord, defaults: N
       import_batch_id: defaults.importBatchId,
       template_id: defaults.templateId || null,
       file_row_number: record.rowNumber,
+      mapped_import_data: {
+        purchase_amount: record.purchaseAmount,
+        purchase_date: record.purchaseDate,
+        annual_taxes: record.annualTaxes,
+        estimated_tax_rate: record.estimatedTaxRate,
+        estimated_equity_amount: record.equityAmount,
+        owner_occupied_flag: record.ownerOccupied,
+        mail_vacant_flag: record.mailVacant,
+        pre_probate_flag: record.preProbate,
+      },
       raw_row_payload: record.rawRowPayload,
       unmapped_columns: record.unmappedColumns,
       warnings: [...record.warnings, ...record.mappingWarnings, ...record.duplicate.reasons],

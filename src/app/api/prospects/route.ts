@@ -1141,8 +1141,8 @@ export async function POST(req: NextRequest) {
       gclid, landing_page,
       // Enrichment data from search preview (Bricked AI + County GIS)
       bricked_data, gis_data,
-      // Bulk import flag — skip auto-Bricked to avoid cost/latency on large imports
-      skip_auto_bricked,
+      // Bulk import flags — skip synchronous enrichment on large imports
+      skip_auto_bricked, skip_auto_gis,
       // Vendor list import fields
       owner_suffix, owner_phone2,
       import_phones, import_emails,
@@ -1201,6 +1201,11 @@ export async function POST(req: NextRequest) {
     const mailingState = typeof mailing_state === "string" ? mailing_state.trim().toUpperCase() || null : null;
     const mailingZip = typeof mailing_zip === "string" ? mailing_zip.trim() || null : null;
     const coOwnerName = typeof co_owner_name === "string" ? co_owner_name.trim() || null : null;
+    const shouldSkipImmediateEnrichment =
+      skip_auto_bricked === true
+      || skip_auto_gis === true
+      || sourceChannel === "csv_import"
+      || importBatchId != null;
 
     const toInt = (v: unknown) => { const n = parseInt(String(v), 10); return isNaN(n) ? null : n; };
     const toFloat = (v: unknown) => { const n = parseFloat(String(v)); return isNaN(n) ? null : n; };
@@ -1448,7 +1453,7 @@ export async function POST(req: NextRequest) {
     // ── 3.0: Auto-fetch County GIS if not provided by client ──────
     // County GIS is free and fast — always fetch it on lead creation
     let effectiveGisData = gis_data;
-    if (!effectiveGisData || effectiveGisData.skipped) {
+    if ((!effectiveGisData || effectiveGisData.skipped) && !shouldSkipImmediateEnrichment) {
       try {
         const countyForGis = finalCounty;
         const stateForGis = (state?.trim().toUpperCase()) || "WA";
@@ -1526,7 +1531,7 @@ export async function POST(req: NextRequest) {
     // ── 3.1: Auto-fetch Bricked AI if not provided by client ──────
     // Bricked is slower (~15s) but provides ARV, CMV, repairs, comps
     let effectiveBrickedData = bricked_data;
-    if (!effectiveBrickedData && address?.trim() && !skip_auto_bricked) {
+    if (!effectiveBrickedData && address?.trim() && !shouldSkipImmediateEnrichment) {
       try {
         const brickedHeaders: Record<string, string> = { "Content-Type": "application/json" };
         const incomingAuth = req.headers.get("authorization");

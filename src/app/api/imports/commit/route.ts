@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("event_log") as any).insert({
+    const { error: batchAuditError } = await (sb.from("event_log") as any).insert({
       user_id: user.id,
       action: "import.batch.completed",
       entity_type: "import_batch",
@@ -227,6 +227,9 @@ export async function POST(req: NextRequest) {
         error_rows: errorRows.slice(0, 75),
       },
     });
+    if (batchAuditError) {
+      console.error("[Import Commit] Failed to write batch audit log:", batchAuditError);
+    }
 
     return NextResponse.json({
       success: errorRows.length === 0,

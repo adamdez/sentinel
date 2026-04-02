@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildProspectPayload,
   buildTemplateSignature,
   inferFieldMappings,
   normalizeImportedRow,
@@ -41,6 +42,47 @@ describe("import normalization", () => {
     expect(result.mapped.property_address).toBe("Property Address");
     expect(result.mapped.phone).toBe("Phone 1");
     expect(result.mapped.apn).toBe("APN");
+  });
+
+  it("recognizes workbook-style phone and financial headers", () => {
+    const headers = [
+      "Primary Mobile Phone1",
+      "Secondary Phone1",
+      "Tax Delinquent $",
+      "Purchase Amt",
+      "Purchase Date",
+      "Owner Occ?",
+      "Pre-Probate?",
+      "Mail Vacant?",
+    ];
+    const rows = [
+      {
+        "Primary Mobile Phone1": "(509) 555-1212",
+        "Secondary Phone1": "(509) 555-3434",
+        "Tax Delinquent $": "2500",
+        "Purchase Amt": "180000",
+        "Purchase Date": "2021-05-01",
+        "Owner Occ?": "0",
+        "Pre-Probate?": "1",
+        "Mail Vacant?": "1",
+      },
+    ];
+
+    const result = inferFieldMappings(headers, rows);
+    const amountDueSuggestion = result.suggestions.find((s) => s.field === "amount_due");
+
+    expect(result.mapped.phone).toBe("Primary Mobile Phone1");
+    expect(result.mapped.phone2).toBe("Secondary Phone1");
+    expect([
+      result.mapped.amount_due,
+      result.mapped.tax_delinquent_flag,
+      amountDueSuggestion?.header,
+    ]).toContain("Tax Delinquent $");
+    expect(result.mapped.purchase_amount).toBe("Purchase Amt");
+    expect(result.mapped.purchase_date).toBe("Purchase Date");
+    expect(result.mapped.owner_occupied_flag).toBe("Owner Occ?");
+    expect(result.mapped.pre_probate_flag).toBe("Pre-Probate?");
+    expect(result.mapped.mail_vacant_flag).toBe("Mail Vacant?");
   });
 
   it("routes risky rows into review-oriented outbound statuses", () => {
@@ -85,6 +127,34 @@ describe("import normalization", () => {
     expect(doNotCall.reviewStatus).toBe("do_not_call");
   });
 
+  it("derives absentee and inherited context from owner-occupied and pre-probate flags", () => {
+    const mapping = {
+      owner_name: "Owner",
+      property_address: "Address",
+      county: "County",
+      phone: "Phone",
+      owner_occupied_flag: "Owner Occ?",
+      pre_probate_flag: "Pre-Probate?",
+    } as const;
+
+    const result = normalizeImportedRow({
+      row: {
+        Owner: "John Seller",
+        Address: "456 Oak Ave",
+        County: "Spokane",
+        Phone: "(509) 555-1212",
+        "Owner Occ?": "0",
+        "Pre-Probate?": "1",
+      },
+      rowNumber: 2,
+      mapping,
+      defaults: DEFAULTS,
+    });
+
+    expect(result.distressTags).toContain("absentee_owner");
+    expect(result.distressTags).toContain("inherited");
+  });
+
   it("scores template similarity by sheet signature overlap", () => {
     const signature = buildTemplateSignature(["Owner Name", "Property Address", "APN"], "Absentee");
     const score = scoreTemplateMatch(
@@ -94,5 +164,83 @@ describe("import normalization", () => {
     );
 
     expect(score).toBeGreaterThan(0.7);
+  });
+
+  it("marks bulk imports to skip synchronous enrichment", () => {
+    const mapping = {
+      owner_name: "Owner",
+      property_address: "Address",
+      county: "County",
+      phone: "Phone",
+    } as const;
+
+    const record = normalizeImportedRow({
+      row: {
+        Owner: "John Seller",
+        Address: "456 Oak Ave",
+        County: "Spokane",
+        Phone: "(509) 555-1212",
+      },
+      rowNumber: 2,
+      mapping,
+      defaults: DEFAULTS,
+    });
+
+    const payload = buildProspectPayload(record, DEFAULTS);
+
+    expect(payload.skip_auto_bricked).toBe(true);
+    expect(payload.skip_auto_gis).toBe(true);
+  });
+
+  it("carries mapped import financials into source metadata", () => {
+    const mapping = {
+      owner_name: "Owner",
+      property_address: "Address",
+      county: "County",
+      phone: "Phone",
+      purchase_amount: "Purchase Amt",
+      purchase_date: "Purchase Date",
+      amount_due: "Tax Delinquent $",
+      annual_taxes: "Taxes / Yr",
+      estimated_tax_rate: "Est Tax %",
+      equity_amount: "Est Equity $",
+      owner_occupied_flag: "Owner Occ?",
+      mail_vacant_flag: "Mail Vacant?",
+      pre_probate_flag: "Pre-Probate?",
+    } as const;
+
+    const record = normalizeImportedRow({
+      row: {
+        Owner: "John Seller",
+        Address: "456 Oak Ave",
+        County: "Spokane",
+        Phone: "(509) 555-1212",
+        "Purchase Amt": "180000",
+        "Purchase Date": "2021-05-01",
+        "Tax Delinquent $": "2500",
+        "Taxes / Yr": "3200",
+        "Est Tax %": "1.1",
+        "Est Equity $": "140000",
+        "Owner Occ?": "0",
+        "Mail Vacant?": "1",
+        "Pre-Probate?": "1",
+      },
+      rowNumber: 2,
+      mapping,
+      defaults: DEFAULTS,
+    });
+
+    const payload = buildProspectPayload(record, DEFAULTS);
+
+    expect(payload.source_metadata.mapped_import_data).toEqual({
+      purchase_amount: "180000",
+      purchase_date: "2021-05-01",
+      annual_taxes: "3200",
+      estimated_tax_rate: "1.1",
+      estimated_equity_amount: "140000",
+      owner_occupied_flag: "0",
+      mail_vacant_flag: "1",
+      pre_probate_flag: "1",
+    });
   });
 });
