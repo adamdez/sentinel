@@ -16,6 +16,8 @@
     "lint": "next lint",
     "test": "npx vitest run",
     "test:watch": "npx vitest",
+    "test:tina": "npx vitest run src/tina/__tests__",
+    "test:tina:adversarial": "npx vitest run src/tina/__tests__/adversarial-gauntlet.test.ts src/tina/__tests__/issue-queue.test.ts src/tina/__tests__/research-policy.test.ts src/tina/__tests__/package-readiness.test.ts",
     "test:smoke": "npx playwright test --config e2e/playwright.config.ts --project smoke",
     "test:smoke:dial-queue": "npx playwright test --config e2e/playwright.config.ts --project smoke e2e/tests/smoke/leads-dial-queue.spec.ts",
     "typecheck": "tsc --noEmit",

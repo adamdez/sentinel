@@ -35,6 +35,30 @@ interface TinaTaxIdeaSeed {
   searchPrompt: string;
 }
 
+function parseYear(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d{4}$/.test(trimmed)) return trimmed;
+  const parsed = Date.parse(trimmed);
+  if (Number.isNaN(parsed)) return null;
+  return new Date(parsed).getUTCFullYear().toString();
+}
+
+function isLikelyRealEstateBusiness(draft: TinaWorkspaceDraft): boolean {
+  const haystack = `${draft.profile.businessName} ${draft.profile.notes} ${draft.profile.naicsCode}`
+    .toLowerCase()
+    .trim();
+
+  if (!haystack) return false;
+
+  const naics = draft.profile.naicsCode.trim();
+  if (naics.startsWith("531")) return true;
+
+  return /\b(real estate|wholesale|wholesaler|house|homes|property|rental|flip|flipper|investor)\b/.test(
+    haystack
+  );
+}
+
 function normalizeForComparison(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -82,6 +106,9 @@ function collectLinkedIds(sourceFacts: TinaSourceFact[]): Pick<TinaTaxIdeaLead, 
 export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLead[] {
   const recommendation = recommendTinaFilingLane(draft.profile);
   const ideas: TinaTaxIdeaLead[] = [];
+  const formationYear = parseYear(draft.profile.formationDate);
+  const currentTaxYear = draft.profile.taxYear.trim();
+  const likelyRealEstateBusiness = isLikelyRealEstateBusiness(draft);
 
   const priorReturnSourceLabel =
     draft.priorReturnDocumentId || draft.priorReturn
@@ -122,6 +149,59 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
           "Research whether this Schedule C or disregarded single-member LLC business qualifies for the qualified business income deduction, including any SSTB or income-limit issues.",
       })
     );
+
+    ideas.push(
+      buildLead({
+        id: "self-employed-retirement-review",
+        title: "Check owner retirement contribution options",
+        summary:
+          "Tina should test legal retirement contribution paths for the owner, including limits and timing rules tied to net earnings.",
+        whyItMatters:
+          "For small owner-operated businesses, retirement deductions are one of the most meaningful legal tax levers when the facts support them.",
+        category: "deduction",
+        sourceLabels: [
+          "The filing lane is Schedule C or single-member LLC, so owner-level retirement options may apply.",
+        ],
+        searchPrompt:
+          "Research self-employed retirement contribution options and deduction treatment for this taxpayer profile, including contribution limits, deadlines, and interaction with net self-employment earnings.",
+      })
+    );
+
+    ideas.push(
+      buildLead({
+        id: "self-employed-health-insurance-review",
+        title: "Check self-employed health insurance deduction",
+        summary:
+          "Tina should verify whether owner-paid health coverage qualifies for above-the-line deduction treatment.",
+        whyItMatters:
+          "This deduction is legal and often missed when records are scattered across personal and business accounts.",
+        category: "deduction",
+        sourceLabels: [
+          "The filing lane is Schedule C or single-member LLC, where self-employed health insurance treatment may apply.",
+        ],
+        searchPrompt:
+          "Research self-employed health insurance deduction eligibility and limits for this taxpayer profile, including interaction with other coverage and earned income constraints.",
+      })
+    );
+
+    if (formationYear && currentTaxYear && formationYear === currentTaxYear) {
+      ideas.push(
+        buildLead({
+          id: "startup-costs-review",
+          title: "Check startup and organizational cost treatment",
+          summary:
+            "Tina should review first-year startup and organizational costs for potential election and amortization treatment.",
+          whyItMatters:
+            "New-business costs are often misclassified, and correct treatment can materially affect first-year taxable income.",
+          category: "deduction",
+          sourceLabels: [
+            "The organizer suggests this business formed in the current tax year.",
+          ],
+          searchPrompt:
+            "Research startup and organizational cost treatment for a newly formed business in this tax year, including election mechanics, amortization, and immediate-deduction thresholds.",
+        })
+      );
+    }
   }
 
   if (draft.profile.hasFixedAssets) {
@@ -139,6 +219,40 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
           "Review fixed assets for depreciation treatment, placed-in-service dates, Section 179, bonus depreciation, and any disposal history that affects the current-year return.",
       })
     );
+
+    ideas.push(
+      buildLead({
+        id: "de-minimis-safe-harbor-review",
+        title: "Check de minimis capitalization safe harbor",
+        summary:
+          "Tina should test whether smaller fixed-asset purchases can be handled under de minimis safe harbor rules instead of capitalization.",
+        whyItMatters:
+          "This is legal, often overlooked, and can simplify books while improving current-year deduction timing when properly supported.",
+        category: "deduction",
+        sourceLabels: ["The organizer says this business has equipment or other big purchases."],
+        searchPrompt:
+          "Research de minimis capitalization safe harbor eligibility and implementation for this business, including documentation requirements and interaction with existing capitalization policy.",
+      })
+    );
+
+    if (likelyRealEstateBusiness) {
+      ideas.push(
+        buildLead({
+          id: "real-property-repair-vs-improvement-review",
+          title: "Check repair vs improvement treatment for real property",
+          summary:
+            "Tina should test whether real-property costs belong in current deductions or must be capitalized under repair regulations.",
+          whyItMatters:
+            "This is a high-impact, often misunderstood area in real-estate-heavy businesses and can materially change taxable income timing.",
+          category: "deduction",
+          sourceLabels: [
+            "This business looks real-estate focused and has fixed-asset activity.",
+          ],
+          searchPrompt:
+            "Research repair-regulation treatment for this real-estate business profile, including deductible repairs vs capital improvements, unit-of-property framing, and documentation needed for defensible treatment.",
+        })
+      );
+    }
   }
 
   const inventoryFacts = findFactsByLabel(draft.sourceFacts, "Inventory clue");
@@ -260,6 +374,53 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
       })
     );
   }
+
+  if (likelyRealEstateBusiness) {
+    ideas.push(
+      buildLead({
+        id: "real-estate-characterization-review",
+        title: "Check dealer vs investor characterization",
+        summary:
+          "Tina should evaluate whether the business facts point to dealer treatment, investor treatment, or mixed characterization risk.",
+        whyItMatters:
+          "Characterization can drive ordinary income vs capital treatment and affects multiple downstream tax positions.",
+        category: "compliance",
+        sourceLabels: ["Business profile and naming patterns suggest real-estate activity."],
+        searchPrompt:
+          "Research dealer-versus-investor characterization factors for this real-estate business profile and tax year, including indicators that increase recharacterization risk and documentation that supports the intended treatment.",
+      })
+    );
+
+    ideas.push(
+      buildLead({
+        id: "installment-and-imputed-interest-review",
+        title: "Check installment and imputed-interest treatment",
+        summary:
+          "Tina should test whether any structured seller-finance or delayed-payment arrangements trigger installment-method or imputed-interest rules.",
+        whyItMatters:
+          "These rules are legal but frequently missed, and they can materially alter timing and character of taxable income.",
+        category: "compliance",
+        sourceLabels: ["Real-estate transactions often include structured or delayed payment terms."],
+        searchPrompt:
+          "Research installment-method eligibility and imputed-interest rules for this real-estate profile, including fact patterns that disqualify installment treatment and conditions that require interest recharacterization.",
+      })
+    );
+  }
+
+  ideas.push(
+    buildLead({
+      id: "fringe-opportunities-scan",
+      title: "Run a legal fringe-opportunities scan",
+      summary:
+        "Tina should run a focused search for lesser-known but legal tax opportunities that fit this business profile and tax year.",
+      whyItMatters:
+        "High-value tax savings often hide in unusual but legal positions that are missed in standard prep checklists.",
+      category: "deduction",
+      sourceLabels: ["Tina has enough organizer and paper context to run a tailored opportunity hunt."],
+      searchPrompt:
+        "Find lesser-known but legal federal and Washington-state business tax opportunities for this taxpayer profile and tax year. Prioritize high-impact, fact-dependent opportunities; exclude abusive shelters; cite primary authority and clearly mark disclosure or risk conditions.",
+    })
+  );
 
   const uniqueIdeas = ideas.filter(
     (idea, index) => ideas.findIndex((candidate) => candidate.id === idea.id) === index

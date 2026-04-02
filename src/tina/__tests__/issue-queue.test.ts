@@ -170,6 +170,229 @@ describe("buildTinaIssueQueue", () => {
     expect(booksRecord?.summary).toContain("$4,000 going out");
     expect(booksRecord?.summary).toContain("2024");
   });
+
+  it("flags mixed-year money papers even when the target tax year is present", () => {
+    const draft = buildDraft({
+      profile: {
+        taxYear: "2025",
+      },
+      documents: [
+        {
+          id: "books-doc",
+          name: "mixed-year-books.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/mixed-year-books.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "books-range-2024",
+          sourceDocumentId: "books-doc",
+          label: "Date range clue",
+          value: "2024-01-01 through 2024-12-31",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          id: "books-range-2025",
+          sourceDocumentId: "books-doc",
+          label: "Date range clue",
+          value: "2025-01-01 through 2025-01-03",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+
+    expect(issueQueue.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "books-multi-year-mix",
+          category: "books",
+          severity: "needs_attention",
+        }),
+      ])
+    );
+  });
+
+  it("does not flag a mixed-year issue when all money-paper date clues are the target year", () => {
+    const draft = buildDraft({
+      profile: {
+        taxYear: "2025",
+      },
+      documents: [
+        {
+          id: "books-doc",
+          name: "single-year-books.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/single-year-books.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "books-range-q1",
+          sourceDocumentId: "books-doc",
+          label: "Date range clue",
+          value: "2025-01-01 through 2025-03-31",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          id: "books-range-q2",
+          sourceDocumentId: "books-doc",
+          label: "Date range clue",
+          value: "2025-04-01 through 2025-06-30",
+          confidence: "high",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "books-multi-year-mix")).toBe(false);
+    expect(issueQueue.items.some((item) => item.id === "books-tax-year-mismatch")).toBe(false);
+  });
+
+  it("flags Idaho scope when any matching state clue says Idaho", () => {
+    const draft = buildDraft({
+      profile: {
+        hasIdahoActivity: false,
+      },
+      sourceFacts: [
+        {
+          id: "state-clue-generic",
+          sourceDocumentId: "doc-1",
+          label: "State clue",
+          value: "This paper mentions Washington.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          id: "state-clue-idaho",
+          sourceDocumentId: "doc-2",
+          label: "State clue",
+          value: "This paper mentions Idaho.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "idaho-state-clue")).toBe(true);
+  });
+
+  it("flags likely scale mismatch when money clues vary by extreme ratios", () => {
+    const draft = buildDraft({
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+        {
+          id: "books-b",
+          name: "books-b.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-b.csv",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Business bank and card statements",
+          uploadedAt: "2026-03-26T21:16:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "money-in-a",
+          sourceDocumentId: "books-a",
+          label: "Money in clue",
+          value: "$1,200.00",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          id: "money-in-b",
+          sourceDocumentId: "books-b",
+          label: "Money in clue",
+          value: "$120,000.00",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "books-money-scale-mismatch")).toBe(true);
+  });
+
+  it("does not flag scale mismatch for normal money clue variance", () => {
+    const draft = buildDraft({
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+        {
+          id: "books-b",
+          name: "books-b.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-b.csv",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Business bank and card statements",
+          uploadedAt: "2026-03-26T21:16:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "money-out-a",
+          sourceDocumentId: "books-a",
+          label: "Money out clue",
+          value: "$8,500.00",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          id: "money-out-b",
+          sourceDocumentId: "books-b",
+          label: "Money out clue",
+          value: "$11,200.00",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "books-money-scale-mismatch")).toBe(false);
+  });
 });
 
 describe("markTinaIssueQueueStale", () => {

@@ -91,6 +91,30 @@ export function buildTinaPackageReadiness(
     );
   }
 
+  if (draft.bootstrapReview.status !== "complete") {
+    items.push(
+      createItem({
+        id: "bootstrap-review-not-current",
+        title: "Bootstrap review is not current",
+        summary:
+          "Tina needs a current bootstrap review run before claiming package readiness. This keeps setup conflicts from slipping past the filing check.",
+        severity: "blocking",
+      })
+    );
+  }
+
+  if (draft.issueQueue.status !== "complete") {
+    items.push(
+      createItem({
+        id: "issue-queue-not-current",
+        title: "Issue queue is not current",
+        summary:
+          "Tina needs a current issue-queue run before claiming package readiness. This keeps paper conflicts from slipping past the filing check.",
+        severity: "blocking",
+      })
+    );
+  }
+
   if (draft.reviewerFinal.status !== "complete") {
     items.push(
       createItem({
@@ -146,6 +170,9 @@ export function buildTinaPackageReadiness(
   draft.issueQueue.items
     .filter((item) => item.status === "open")
     .forEach((item) => {
+      if (item.severity === "watch") {
+        return;
+      }
       items.push(
         createItem({
           id: `issue-${item.id}`,

@@ -40,13 +40,16 @@ export interface TinaTaxIdeaDecision {
 
 const PRIMARY_AUTHORITY_DOMAINS = [
   "irs.gov",
+  "treasury.gov",
   "dor.wa.gov",
   "ecfr.gov",
+  "federalregister.gov",
   "govinfo.gov",
   "congress.gov",
   "uscode.house.gov",
   "uscourts.gov",
   "supremecourt.gov",
+  "ustaxcourt.gov",
 ];
 
 const SECONDARY_ANALYSIS_DOMAINS = [
@@ -171,6 +174,19 @@ export function evaluateTinaTaxIdea(input: TinaTaxIdeaEvaluationInput): TinaTaxI
       requirePrimaryAuthority: true,
       summary: "This idea should be rejected because it looks frivolous or plainly unsafe.",
       nextStep: "Keep it out of the return and do not spend more model effort on it.",
+    };
+  }
+
+  if (input.isTaxShelterLike) {
+    return {
+      bucket: "interesting_but_unsupported",
+      allowReturnImpact: false,
+      requireHumanReview: true,
+      requirePrimaryAuthority: true,
+      summary:
+        "This idea has shelter-like characteristics, so Tina should not let it change return values automatically.",
+      nextStep:
+        "Route this to elevated human review with primary authority support before any return-impact decision.",
     };
   }
 

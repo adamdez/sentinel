@@ -71,8 +71,73 @@ function isBooksDocument(document: TinaStoredDocument | undefined): boolean {
   return document?.requestId === "quickbooks" || document?.requestId === "bank-support";
 }
 
-function findFirstFactByLabel(sourceFacts: TinaSourceFact[], label: string): TinaSourceFact | undefined {
-  return sourceFacts.find((fact) => normalizeForComparison(fact.label) === normalizeForComparison(label));
+function findFactsByLabel(sourceFacts: TinaSourceFact[], label: string): TinaSourceFact[] {
+  return sourceFacts.filter(
+    (fact) => normalizeForComparison(fact.label) === normalizeForComparison(label)
+  );
+}
+
+function calculateRelativeSpread(values: number[]): number {
+  if (values.length < 2) return 0;
+  const sorted = values.slice().sort((left, right) => left - right);
+  const min = sorted[0];
+  const max = sorted[sorted.length - 1];
+  if (min <= 0) return 0;
+  return max / min;
+}
+
+function maybeCreateMoneyScaleMismatchItem(
+  bookFacts: TinaSourceFact[]
+): TinaReviewItem | null {
+  const moneyInFacts = bookFacts.filter(
+    (fact) => normalizeForComparison(fact.label) === "money in clue"
+  );
+  const moneyOutFacts = bookFacts.filter(
+    (fact) => normalizeForComparison(fact.label) === "money out clue"
+  );
+
+  const moneyInValues = moneyInFacts
+    .map((fact) => parseMoneyFactValue(fact.value))
+    .filter((value): value is number => value !== null && value > 0);
+  const moneyOutValues = moneyOutFacts
+    .map((fact) => parseMoneyFactValue(fact.value))
+    .filter((value): value is number => value !== null && value > 0);
+
+  const incomeSpread = calculateRelativeSpread(moneyInValues);
+  const expenseSpread = calculateRelativeSpread(moneyOutValues);
+  const spreadThreshold = 20;
+
+  if (incomeSpread < spreadThreshold && expenseSpread < spreadThreshold) {
+    return null;
+  }
+
+  const culpritFact =
+    (incomeSpread >= spreadThreshold
+      ? moneyInFacts
+      : moneyOutFacts
+    ).find((fact) => parseMoneyFactValue(fact.value) !== null) ?? null;
+
+  const summaryParts: string[] = [];
+  if (incomeSpread >= spreadThreshold) {
+    summaryParts.push("money-in clues vary sharply");
+  }
+  if (expenseSpread >= spreadThreshold) {
+    summaryParts.push("money-out clues vary sharply");
+  }
+
+  return {
+    id: "books-money-scale-mismatch",
+    title: "Money totals look wildly different across papers",
+    summary: `Tina sees potential import scale mismatch: ${summaryParts.join(
+      " and "
+    )}. This could be partial files, duplicate exports, or format errors (for example cents vs dollars).`,
+    severity: "needs_attention",
+    status: "open",
+    category: "books",
+    requestId: null,
+    documentId: culpritFact?.sourceDocumentId ?? null,
+    factId: culpritFact?.id ?? null,
+  };
 }
 
 export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
@@ -134,7 +199,11 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const businessNameFact = findFirstFactByLabel(draft.sourceFacts, "Business name");
+  const businessNameFact = findFactsByLabel(draft.sourceFacts, "Business name").find(
+    (fact) =>
+      draft.profile.businessName.trim() &&
+      normalizeForComparison(fact.value) !== normalizeForComparison(draft.profile.businessName)
+  );
   if (
     businessNameFact &&
     draft.profile.businessName.trim() &&
@@ -155,7 +224,11 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const taxYearFact = findFirstFactByLabel(draft.sourceFacts, "Tax year");
+  const taxYearFact = findFactsByLabel(draft.sourceFacts, "Tax year").find(
+    (fact) =>
+      draft.profile.taxYear.trim() &&
+      normalizeForComparison(fact.value) !== normalizeForComparison(draft.profile.taxYear)
+  );
   if (
     taxYearFact &&
     draft.profile.taxYear.trim() &&
@@ -175,7 +248,13 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const returnTypeHint = findFirstFactByLabel(draft.sourceFacts, "Return type hint");
+  const returnTypeHint = findFactsByLabel(draft.sourceFacts, "Return type hint").find(
+    (fact) =>
+      includesNeedle(fact.value, "1120") ||
+      includesNeedle(fact.value, "s corp") ||
+      includesNeedle(fact.value, "1065") ||
+      includesNeedle(fact.value, "partnership")
+  );
   if (
     returnTypeHint &&
     recommendation.laneId === "schedule_c_single_member_llc" &&
@@ -198,7 +277,9 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const stateClue = findFirstFactByLabel(draft.sourceFacts, "State clue");
+  const stateClue = findFactsByLabel(draft.sourceFacts, "State clue").find((fact) =>
+    includesNeedle(fact.value, "idaho")
+  );
   if (
     stateClue &&
     includesNeedle(stateClue.value, "idaho") &&
@@ -218,7 +299,7 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const payrollClue = findFirstFactByLabel(draft.sourceFacts, "Payroll clue");
+  const payrollClue = findFactsByLabel(draft.sourceFacts, "Payroll clue")[0];
   if (payrollClue && !draft.profile.hasPayroll) {
     items.push({
       id: "payroll-clue",
@@ -234,7 +315,7 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const salesTaxClue = findFirstFactByLabel(draft.sourceFacts, "Sales tax clue");
+  const salesTaxClue = findFactsByLabel(draft.sourceFacts, "Sales tax clue")[0];
   if (salesTaxClue && !draft.profile.collectsSalesTax) {
     items.push({
       id: "sales-tax-clue",
@@ -250,7 +331,7 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const contractorClue = findFirstFactByLabel(draft.sourceFacts, "Contractor clue");
+  const contractorClue = findFactsByLabel(draft.sourceFacts, "Contractor clue")[0];
   if (contractorClue && !draft.profile.paysContractors) {
     items.push({
       id: "contractor-clue",
@@ -266,7 +347,7 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const inventoryClue = findFirstFactByLabel(draft.sourceFacts, "Inventory clue");
+  const inventoryClue = findFactsByLabel(draft.sourceFacts, "Inventory clue")[0];
   if (inventoryClue && !draft.profile.hasInventory) {
     items.push({
       id: "inventory-clue",
@@ -301,9 +382,28 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
       documentId: firstMismatchFact?.sourceDocumentId ?? null,
       factId: firstMismatchFact?.id ?? null,
     });
+  } else if (
+    draft.profile.taxYear.trim() &&
+    bookDateFacts.length > 0 &&
+    bookYears.size > 1 &&
+    bookYears.has(draft.profile.taxYear.trim())
+  ) {
+    const firstMixedFact = bookDateFacts[0];
+    items.push({
+      id: "books-multi-year-mix",
+      title: "Money papers include multiple tax years",
+      summary:
+        "Tina found money-paper dates across multiple years. Even with the target year present, a human should confirm only in-scope rows flow into this return.",
+      severity: "needs_attention",
+      status: "open",
+      category: "books",
+      requestId: null,
+      documentId: firstMixedFact?.sourceDocumentId ?? null,
+      factId: firstMixedFact?.id ?? null,
+    });
   }
 
-  const partialWarning = findFirstFactByLabel(draft.sourceFacts, "Partial file warning");
+  const partialWarning = findFactsByLabel(draft.sourceFacts, "Partial file warning")[0];
   if (partialWarning) {
     items.push({
       id: "partial-file-warning",
@@ -317,6 +417,11 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
       documentId: partialWarning.sourceDocumentId,
       factId: partialWarning.id,
     });
+  }
+
+  const moneyScaleMismatch = maybeCreateMoneyScaleMismatchItem(bookFacts);
+  if (moneyScaleMismatch) {
+    items.push(moneyScaleMismatch);
   }
 
   const quickbooksCovered = checklist.find((item) => item.id === "quickbooks")?.status === "covered";

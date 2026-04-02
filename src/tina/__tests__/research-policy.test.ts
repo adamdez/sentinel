@@ -13,6 +13,15 @@ describe("classifyTinaResearchSource", () => {
     expect(classifyTinaResearchSource("https://dor.wa.gov/taxes-rates/business-occupation-tax").sourceClass).toBe(
       "primary_authority"
     );
+    expect(classifyTinaResearchSource("https://www.ustaxcourt.gov/opinions/2026").sourceClass).toBe(
+      "primary_authority"
+    );
+    expect(classifyTinaResearchSource("https://www.treasury.gov/resource-center/tax-policy").sourceClass).toBe(
+      "primary_authority"
+    );
+    expect(classifyTinaResearchSource("https://www.federalregister.gov/documents/search?conditions%5Bagencies%5D%5B%5D=internal-revenue-service").sourceClass).toBe(
+      "primary_authority"
+    );
   });
 
   it("treats community sites as discovery-only leads", () => {
@@ -77,6 +86,21 @@ describe("evaluateTinaTaxIdea", () => {
     });
 
     expect(decision.bucket).toBe("usable_with_disclosure");
+    expect(decision.requireHumanReview).toBe(true);
+  });
+
+  it("keeps shelter-like ideas out of return impact even with strong support", () => {
+    const decision = evaluateTinaTaxIdea({
+      sourceClasses: ["primary_authority"],
+      hasPrimaryAuthority: true,
+      hasSubstantialAuthority: true,
+      hasReasonableBasis: true,
+      needsDisclosure: false,
+      isTaxShelterLike: true,
+      isFrivolous: false,
+    });
+
+    expect(decision.allowReturnImpact).toBe(false);
     expect(decision.requireHumanReview).toBe(true);
   });
 });

@@ -37,6 +37,15 @@ const TinaResearchRunSchema = z.object({
 
 type TinaResearchRunParsed = z.infer<typeof TinaResearchRunSchema>;
 
+interface TinaCitationRollup {
+  citations: ReturnType<typeof normalizeCitations>;
+  hasPrimarySupport: boolean;
+  hasPrimaryWarning: boolean;
+}
+
+const PRIMARY_AUTHORITY_CONFLICT_MESSAGE =
+  "Primary authority appears conflicted (both support and warning signals). Human conflict resolution required before return impact.";
+
 function buildResearchPrompt(
   draft: TinaWorkspaceDraft,
   dossier: TinaResearchDossier,
@@ -157,6 +166,22 @@ function normalizeCitations(parsed: TinaResearchRunParsed) {
     .filter((citation) => citation.title.trim().length > 0 && citation.url.trim().length > 0);
 }
 
+function rollupCitationSignals(parsed: TinaResearchRunParsed): TinaCitationRollup {
+  const citations = normalizeCitations(parsed);
+  const hasPrimarySupport = citations.some(
+    (citation) => citation.sourceClass === "primary_authority" && citation.effect === "supports"
+  );
+  const hasPrimaryWarning = citations.some(
+    (citation) => citation.sourceClass === "primary_authority" && citation.effect === "warns"
+  );
+
+  return {
+    citations,
+    hasPrimarySupport,
+    hasPrimaryWarning,
+  };
+}
+
 export async function runTinaAuthorityResearch(args: {
   draft: TinaWorkspaceDraft;
   dossier: TinaResearchDossier;
@@ -206,13 +231,11 @@ export async function runTinaAuthorityResearch(args: {
     throw new Error("Tina did not get a usable research result back.");
   }
 
-  const citations = normalizeCitations(parsed);
-  const sourceClasses = citations.map((citation) => citation.sourceClass);
+  const rollup = rollupCitationSignals(parsed);
+  const sourceClasses = rollup.citations.map((citation) => citation.sourceClass);
   const decision = evaluateTinaTaxIdea({
     sourceClasses,
-    hasPrimaryAuthority: citations.some(
-      (citation) => citation.sourceClass === "primary_authority" && citation.effect === "supports"
-    ),
+    hasPrimaryAuthority: rollup.hasPrimarySupport,
     hasSubstantialAuthority: parsed.substantialAuthorityLikely,
     hasReasonableBasis: parsed.reasonableBasisLikely,
     needsDisclosure: parsed.needsDisclosure,
@@ -220,14 +243,33 @@ export async function runTinaAuthorityResearch(args: {
     isFrivolous: parsed.isFrivolous,
   });
 
+  const hasPrimaryConflict = rollup.hasPrimarySupport && rollup.hasPrimaryWarning;
+
+  const missingAuthority = hasPrimaryConflict
+    ? Array.from(
+        new Set([
+          ...parsed.missingAuthority,
+          PRIMARY_AUTHORITY_CONFLICT_MESSAGE,
+        ])
+      )
+    : parsed.missingAuthority;
+
+  const status: TinaAuthorityResearchRunResult["status"] = hasPrimaryConflict
+    ? "researching"
+    : toWorkStatus(decision.bucket);
+
+  const reviewerDecision: TinaAuthorityResearchRunResult["reviewerDecision"] = hasPrimaryConflict
+    ? "need_more_support"
+    : toReviewerDecision(decision.bucket);
+
   const now = new Date().toISOString();
 
   return {
     memo: sanitizeResearchMemo(parsed.summary, parsed.memo),
-    citations,
-    missingAuthority: parsed.missingAuthority,
-    status: toWorkStatus(decision.bucket),
-    reviewerDecision: toReviewerDecision(decision.bucket),
+    citations: rollup.citations,
+    missingAuthority,
+    status,
+    reviewerDecision,
     disclosureDecision: toDisclosureDecision(parsed),
     lastAiRunAt: now,
   };
