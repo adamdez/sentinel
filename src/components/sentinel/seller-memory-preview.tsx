@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SellerMemoryPreview — abbreviated pre-call memory block.
+ * SellerMemoryPreview - abbreviated pre-call memory block.
  *
  * Shown in the idle state when a lead is selected but before a call starts.
  * Fetches from the existing call-memory endpoint and displays the most
@@ -13,7 +13,7 @@
 
 import { useState, useEffect } from "react";
 import {
-  Phone, Handshake, AlertTriangle, CalendarClock, Thermometer,
+  Handshake, AlertTriangle, CalendarClock,
   MessageSquare, Loader2, User,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -74,15 +74,15 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
     return (
       <div className={`flex items-center gap-2 py-3 text-xs text-muted-foreground/50 ${className}`}>
         <Loader2 className="h-3 w-3 animate-spin" />
-        Loading seller memory…
+        Loading seller memory...
       </div>
     );
   }
 
-  // No memory at all and no objections — show first-contact hint instead of nothing
+  // No memory at all and no objections - show first-contact hint instead of nothing
   if (!memory || memory.recentCalls.length === 0) {
     if (objections.length > 0) {
-      // Edge case: objections exist but no calls loaded — show objections only
+      // Edge case: objections exist but no calls loaded - show objections only
       return (
         <div className={`rounded-xl border border-border/20 bg-muted/[0.04] p-3 space-y-2 ${className}`}>
           <div className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-foreground/70">
@@ -109,7 +109,7 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
           Seller Memory
         </div>
         <p className="text-sm text-muted-foreground/40 italic mt-1.5">
-          First contact — memory will populate after calls
+          First contact - memory will populate after calls
         </p>
       </div>
     );
@@ -124,69 +124,69 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
     memory.lastCallDealTemperature
   );
 
+  const hasCallback = !!memory.lastCallCallbackTiming;
+  const lastNote = memory.recentCalls[0]?.notes || memory.recentCalls[0]?.aiSummary;
+
   return (
-    <div className={`rounded-xl border border-border/20 bg-muted/[0.04] p-3 space-y-2 ${className}`}>
-      <div className="flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-foreground/70">
+    <div className={`rounded-xl border border-border/20 bg-muted/[0.04] p-3 space-y-1.5 ${className}`}>
+      {/* Header: title + quick stats */}
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/60">
         <User className="h-3 w-3" />
         Seller Memory
-        {staleDays !== null && (
-          <span className={`ml-auto text-xs font-normal ${staleWarn ? "text-foreground" : "text-muted-foreground/40"}`}>
-            Last contact {staleDays}d ago
+        <span className="flex items-center gap-2 ml-auto font-normal text-[10px]">
+          <span className="text-muted-foreground/40">
+            {memory.recentCalls.length} call{memory.recentCalls.length !== 1 ? "s" : ""}
           </span>
-        )}
-      </div>
-
-      {/* Quick stats */}
-      <div className="flex gap-3 text-sm text-muted-foreground/60">
-        <span className="flex items-center gap-1">
-          <Phone className="h-2.5 w-2.5" />
-          {memory.recentCalls.length} recent call{memory.recentCalls.length !== 1 ? "s" : ""}
+          {staleDays !== null && (
+            <span className={staleWarn ? "text-amber-400/80" : "text-muted-foreground/40"}>
+              {staleDays}d ago
+            </span>
+          )}
+          {memory.lastCallDealTemperature && (
+            <span className={TEMP_COLORS[memory.lastCallDealTemperature] ?? "text-muted-foreground/50"}>
+              {memory.lastCallDealTemperature}
+            </span>
+          )}
         </span>
-        {memory.lastCallDealTemperature && (
-          <span className={`flex items-center gap-1 ${TEMP_COLORS[memory.lastCallDealTemperature] ?? "text-muted-foreground/50"}`}>
-            <Thermometer className="h-2.5 w-2.5" />
-            {memory.lastCallDealTemperature}
-          </span>
-        )}
       </div>
 
-      {/* Structured fields from last call */}
-      {hasStructuredFields && (
-        <div className="space-y-1">
-          {memory.lastCallPromises && (
-            <div className="flex items-start gap-1.5 text-sm">
-              <Handshake className="h-3 w-3 text-foreground/60 shrink-0 mt-0.5" />
-              <span className="text-foreground/70">{memory.lastCallPromises}</span>
-            </div>
-          )}
-          {memory.lastCallObjection && (
-            <div className="flex items-start gap-1.5 text-sm">
-              <AlertTriangle className="h-3 w-3 text-foreground/60 shrink-0 mt-0.5" />
-              <span className="text-foreground/70">{memory.lastCallObjection}</span>
-            </div>
-          )}
-          {memory.lastCallNextAction && (
-            <div className="flex items-start gap-1.5 text-sm">
-              <MessageSquare className="h-3 w-3 text-primary/60 shrink-0 mt-0.5" />
-              <span className="text-foreground/70">{memory.lastCallNextAction}</span>
-            </div>
-          )}
-          {memory.lastCallCallbackTiming && (
-            <div className="flex items-start gap-1.5 text-sm">
-              <CalendarClock className="h-3 w-3 text-primary/50 shrink-0 mt-0.5" />
-              <span className="text-foreground/70">{memory.lastCallCallbackTiming}</span>
-            </div>
-          )}
+      {/* Callback continuity - strongest signal, shown first */}
+      {hasCallback && (
+        <div className="flex items-center gap-1.5 rounded-[6px] bg-primary/[0.06] border border-primary/15 px-2 py-1 text-xs text-primary/90">
+          <CalendarClock className="h-3 w-3 shrink-0" />
+          <span className="font-medium">{memory.lastCallCallbackTiming}</span>
         </div>
       )}
 
-      {/* Open objections */}
+      {/* Promises / next action - seller expectations */}
+      {memory.lastCallPromises && (
+        <div className="flex items-start gap-1.5 text-xs">
+          <Handshake className="h-3 w-3 text-foreground/50 shrink-0 mt-0.5" />
+          <span className="text-foreground/70 line-clamp-2">{memory.lastCallPromises}</span>
+        </div>
+      )}
+      {memory.lastCallNextAction && (
+        <div className="flex items-start gap-1.5 text-xs">
+          <MessageSquare className="h-3 w-3 text-foreground/50 shrink-0 mt-0.5" />
+          <span className="text-foreground/70 line-clamp-2">{memory.lastCallNextAction}</span>
+        </div>
+      )}
+
+      {/* Last objection */}
+      {memory.lastCallObjection && (
+        <div className="flex items-start gap-1.5 text-xs">
+          <AlertTriangle className="h-3 w-3 text-amber-400/60 shrink-0 mt-0.5" />
+          <span className="text-foreground/70 line-clamp-2">{memory.lastCallObjection}</span>
+        </div>
+      )}
+
+      {/* Open objection tags */}
       {objections.length > 0 && (
-        <div className="flex flex-wrap gap-1 pt-0.5">
+        <div className="flex flex-wrap gap-1">
           {objections.map((obj, i) => (
             <span
               key={i}
-              className="inline-flex items-center rounded-full bg-muted/10 border border-border/20 px-1.5 py-0.5 text-xs text-foreground"
+              className="inline-flex items-center rounded-full bg-muted/10 border border-border/20 px-1.5 py-0.5 text-[10px] text-foreground/80"
             >
               {OBJECTION_TAG_LABELS[obj.tag as ObjectionTag] ?? obj.tag}
             </span>
@@ -194,17 +194,16 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
         </div>
       )}
 
-      {/* Last call note preview — show notes/summary when calls exist */}
-      {memory.recentCalls[0] && (
-        <div className="text-sm text-muted-foreground/50 leading-snug line-clamp-2 border-t border-border/10 pt-1.5 mt-1">
-          {memory.recentCalls[0].notes || memory.recentCalls[0].aiSummary || "No notes from last call"}
-        </div>
+      {/* Last call note / AI summary - compact, truncated */}
+      {lastNote && (
+        <p className="text-xs text-muted-foreground/50 leading-snug line-clamp-2 border-t border-border/10 pt-1.5">
+          {lastNote}
+        </p>
       )}
 
-      {/* Hint when calls exist but no structured data was captured */}
-      {!hasStructuredFields && memory.recentCalls.length > 0 && (
-        <p className="text-xs text-muted-foreground/30 italic">
-          Structured memory will populate after next call
+      {!hasStructuredFields && memory.recentCalls.length > 0 && !lastNote && (
+        <p className="text-[10px] text-muted-foreground/30 italic">
+          Memory populates after next call
         </p>
       )}
     </div>
