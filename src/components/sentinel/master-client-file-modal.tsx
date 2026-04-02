@@ -24,16 +24,15 @@ import {
 
   MessageSquare, Flame, Smartphone, ShieldAlert, PhoneOff, Circle,
 
-  RefreshCw, Target, ArrowRight, ChevronDown, Trash2, Lock, Contact2, Plus,
+  RefreshCw, Target, ChevronDown, Trash2, Lock, Contact2, Plus,
 
-  Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff, ListPlus, Pin, Star,
+  Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff, ListPlus, Pin,
 
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -101,8 +100,6 @@ import {
 
 } from "@/lib/valuation";
 
-import { getSequenceLabel, getSequenceProgress, getCadencePosition, suggestNextCadenceDate } from "@/lib/call-scheduler";
-
 import { useCallNotes, type CallNote } from "@/hooks/use-call-notes";
 
 import { CompsMap, getSatelliteTileUrl, getGoogleStreetViewLink, haversine, scoreComp, getCompQualityLabel, getCompRationale, type CompProperty, type SubjectProperty, type CompScore } from "@/components/sentinel/comps/comps-map";
@@ -134,8 +131,6 @@ import { useSentinelStore } from "@/lib/store";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 
 import { NumericInput } from "@/components/sentinel/numeric-input";
-
-import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 
 import { SellerMemoryPreview } from "@/components/sentinel/seller-memory-preview";
 
@@ -891,15 +886,8 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
   const displayEmail = cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
 
-  const { notes: callHistory, loading: callHistoryLoading } = useCallNotes(cf.id, 20, activityRefreshToken);
-
-  const summaryNotes = callHistory.filter((n) => n.ai_summary);
-
-  const lastSummary = summaryNotes[0] ?? null;
-
-
-
-  const { brief, loading: briefLoading } = usePreCallBrief(cf.id);
+  const { loading: callHistoryLoading } = useCallNotes(cf.id, 20, activityRefreshToken);
+  const sellerContinuity = cf.sellerSituationSummaryShort?.trim() || null;
 
 
 
@@ -1262,37 +1250,15 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
         {/* --�----�-- 3. SELLER MEMORY --�----�-- */}
 
-        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+        {sellerContinuity && (
+          <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
 
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Seller Memory</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Seller Memory</p>
 
-          {lastSummary ? (
+            <p className="text-sm text-foreground line-clamp-3">{sellerContinuity}</p>
 
-            <div className="space-y-1">
-
-              <p className="text-sm text-foreground line-clamp-4">{lastSummary.ai_summary}</p>
-
-              <p className="text-xs text-muted-foreground/50">{formatRelativeFromNow(lastSummary.started_at)}</p>
-
-            </div>
-
-          ) : cf.sellerSituationSummaryShort ? (
-
-            <p className="text-sm text-foreground line-clamp-4">{cf.sellerSituationSummaryShort}</p>
-
-          ) : cf.totalCalls > 0 ? (
-
-            <p className="text-sm text-muted-foreground/50 italic">
-              {cf.totalCalls} call{cf.totalCalls === 1 ? "" : "s"} logged — no summary yet
-            </p>
-
-          ) : (
-
-            <p className="text-sm text-muted-foreground/50 italic">No contact yet</p>
-
-          )}
-
-        </div>
+          </div>
+        )}
 
       </div>
 
@@ -1332,120 +1298,35 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
 
 
-      {/* --�----�-- Second 2x2 TILE GRID --�----�-- */}
-
-      <div className="grid grid-cols-2 gap-3">
-
-        {/* --�----�-- 5. TALKING POINTS --�----�-- */}
-
+      {(cf.recommendedCallAngle || bestArv > 0) && (
         <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Talking Points</p>
-
-          {briefLoading ? (
-
-            <div className="flex items-center gap-2 text-sm text-muted-foreground/50"><Loader2 className="h-3 w-3 animate-spin" />Loading...</div>
-
-          ) : brief?.talkingPoints?.length ? (
-
-            <ul className="space-y-1">
-
-              {brief.talkingPoints.slice(0, 3).map((tp, i) => (
-
-                <li key={i} className="text-sm text-foreground flex gap-1.5">
-
-                  <span className="text-muted-foreground/40 shrink-0">•</span>
-
-                  <span className="line-clamp-2">{tp}</span>
-
-                </li>
-
-              ))}
-
-            </ul>
-
-          ) : cf.recommendedCallAngle ? (
-
-            <p className="text-sm text-foreground line-clamp-3">{cf.recommendedCallAngle}</p>
-
-          ) : (
-
-            <p className="text-sm text-muted-foreground/50 italic">No talking points yet</p>
-
-          )}
-
-        </div>
-
-
-
-
-        {/* --�----�-- 7. MONEY TILE --�----�-- */}
-
-        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Valuation</p>
-
-          {bestArv > 0 ? (
-
-            <div className="space-y-1.5 text-sm">
-
-              <div className="flex justify-between"><span className="text-muted-foreground/60">ARV</span><span className="text-foreground font-mono font-semibold">{formatCurrency(bestArv)}</span></div>
-
-              {brickedCmv > 0 && <div className="flex justify-between"><span className="text-muted-foreground/60">CMV</span><span className="text-foreground font-mono">{formatCurrency(brickedCmv)}</span></div>}
-
-              {cf.estimatedValue != null && cf.estimatedValue !== bestArv && <div className="flex justify-between"><span className="text-muted-foreground/60">AVM</span><span className="text-foreground font-mono">{formatCurrency(cf.estimatedValue)}</span></div>}
-
-              {repairCost > 0 && <div className="flex justify-between"><span className="text-muted-foreground/60">Repairs</span><span className="text-foreground font-mono">-{formatCurrency(repairCost)}</span></div>}
-
-              {cf.equityPercent != null && <div className="flex justify-between"><span className="text-muted-foreground/60">Equity</span><span className={cn("font-mono", cf.equityPercent >= 50 ? "text-foreground" : "text-muted-foreground")}>{cf.equityPercent}%</span></div>}
-
-            </div>
-
-          ) : (
-
-            <p className="text-sm text-muted-foreground/50 italic">Not enriched — open Property Intel</p>
-
-          )}
-
-        </div>
-
-
-
-        {/* --�----�-- 8. DEAL PROGRESS --�----�-- */}
-
-        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Deal Progress</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Call Context</p>
 
           <div className="space-y-1.5 text-sm">
+            {cf.recommendedCallAngle && (
+              <p className="text-foreground line-clamp-2">{cf.recommendedCallAngle}</p>
+            )}
 
-            <div className="flex justify-between"><span className="text-muted-foreground/60">Stage</span><span className="text-foreground capitalize">{cf.status.replace(/_/g, " ")}</span></div>
-
-            {cf.qualificationRoute && <div className="flex justify-between"><span className="text-muted-foreground/60">Route</span><span className="text-foreground capitalize">{cf.qualificationRoute.replace(/_/g, " ")}</span></div>}
-
-            {cf.offerAmount != null && <div className="flex justify-between"><span className="text-muted-foreground/60">Offer</span><span className="text-foreground font-mono">{formatCurrency(cf.offerAmount)}</span></div>}
-
-            {cf.totalCalls > 0 && <div className="flex justify-between"><span className="text-muted-foreground/60">Calls</span><span className="text-foreground font-mono">{cf.totalCalls} ({cf.liveAnswers} live)</span></div>}
-
-            {(() => {
-              const effectiveDue = cf.nextAction
-                ? (cf.nextActionDueAt ?? cf.nextCallScheduledAt ?? cf.followUpDate)
-                : (cf.nextCallScheduledAt ?? cf.nextActionDueAt ?? cf.followUpDate);
-              if (!effectiveDue) return null;
-              const label = cf.nextAction || "Next Due";
-              return (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground/60">{label}</span>
-                  <span className="text-foreground text-xs">{formatRelativeFromNow(effectiveDue)}</span>
-                </div>
-              );
-            })()}
-
+            {bestArv > 0 && (
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <span className="text-muted-foreground">
+                  ARV <span className="text-foreground font-mono font-semibold">{formatCurrency(bestArv)}</span>
+                </span>
+                {repairCost > 0 && (
+                  <span className="text-muted-foreground">
+                    Repairs <span className="text-foreground font-mono">-{formatCurrency(repairCost)}</span>
+                  </span>
+                )}
+                {cf.equityPercent != null && (
+                  <span className="text-muted-foreground">
+                    Equity <span className={cn("font-mono", cf.equityPercent >= 50 ? "text-foreground" : "text-muted-foreground")}>{cf.equityPercent}%</span>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-
         </div>
-
-      </div>
+      )}
 
 
 
@@ -1453,7 +1334,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
       <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3.5">
 
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Notes & Call History</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Recent Notes & Calls</p>
 
         <div className="flex gap-2 mb-3">
 
@@ -1483,7 +1364,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling }:
 
         {activityLog.length > 0 ? (
 
-          <div className="space-y-1 max-h-[320px] overflow-y-auto pr-1">
+          <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
 
             {activityLog.map((entry) => {
 
@@ -4365,6 +4246,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const [reassigning, setReassigning] = useState(false);
 
   const [activeUpdating, setActiveUpdating] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<"" | "active" | "drive_by" | "dead">("");
 
 
 
@@ -7921,6 +7803,63 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     }
   }, [clientFile?.id, clientFile?.pinned, onRefresh, activeUpdating]);
 
+  const handleApplyMove = useCallback(() => {
+    if (!clientFile || !moveTarget) return;
+
+    if (moveTarget === "active") {
+      if (clientFile.pinned) {
+        toast.message("Already Active");
+      } else {
+        void handleToggleActive();
+      }
+      setMoveTarget("");
+      return;
+    }
+
+    if (moveTarget === "drive_by") {
+      setCloseoutOpen(true);
+      setCloseoutOutcome(clientFile.dispositionCode ?? "");
+      setCloseoutNote("");
+      setCloseoutAction("drive_by");
+      setCloseoutPreset("drive_by_tomorrow");
+      setCloseoutAt(
+        toLocalDateTimeInput(clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate) || presetDateTimeLocal(1),
+      );
+      setCloseoutPresetTouched(false);
+      setCloseoutDateTouched(false);
+      setNextActionEditorOpen(false);
+      setNoteEditorOpen(false);
+      setMoveTarget("");
+      return;
+    }
+
+    const currentStatus = normalizeWorkflowStage(clientFile.status);
+    if (currentStatus === "dead") {
+      toast.message("Already Dead");
+      setMoveTarget("");
+      return;
+    }
+
+    const deadTransition = allowedTransitions.find((t) => t.status === "dead");
+    if (!deadTransition) {
+      toast.error("Cannot move to Dead from current stage");
+      setMoveTarget("");
+      return;
+    }
+
+    setSelectedStage("dead");
+    if (deadTransition.requires_next_action && !stageNextAction.trim()) {
+      setStageNextAction("Marked dead - no further follow-up");
+    }
+    setMoveTarget("");
+  }, [
+    allowedTransitions,
+    clientFile,
+    handleToggleActive,
+    moveTarget,
+    stageNextAction,
+  ]);
+
   if (!clientFile) return null;
 
 
@@ -7937,14 +7876,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const marketLabel = marketDisplayLabel(clientFile.county);
 
   const sourceLabel = sourceDisplayLabel(clientFile.source);
-
-  const currentSequenceLabel =
-
-    clientFile.totalCalls > 0
-
-      ? getCadencePosition(clientFile.totalCalls).label
-
-      : "No sequence activity";
 
   const operatorWf = buildOperatorWorkflowSummary({
 
@@ -7971,6 +7902,32 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
     promotedAt: clientFile.promotedAt,
 
   });
+
+  const compactPropertyFacts = useMemo(() => {
+    const facts: string[] = [];
+    if (clientFile.bedrooms != null || clientFile.bathrooms != null) {
+      facts.push(`${clientFile.bedrooms ?? "?"}/${clientFile.bathrooms ?? "?"} bd/ba`);
+    }
+    if (clientFile.sqft != null) facts.push(`${clientFile.sqft.toLocaleString()} sqft`);
+    if (clientFile.yearBuilt != null) facts.push(`Yr ${clientFile.yearBuilt}`);
+    if (clientFile.estimatedValue != null) facts.push(`AVM ${formatCurrency(clientFile.estimatedValue)}`);
+    if (clientFile.delinquentAmount != null && clientFile.delinquentAmount > 0) {
+      facts.push(`Tax ${formatCurrency(clientFile.delinquentAmount)}`);
+    }
+    return facts.slice(0, 4);
+  }, [
+    clientFile.bathrooms,
+    clientFile.bedrooms,
+    clientFile.delinquentAmount,
+    clientFile.estimatedValue,
+    clientFile.sqft,
+    clientFile.yearBuilt,
+  ]);
+
+  const compactContextTags = useMemo(() => {
+    const allow = new Set(["probate", "inherited", "vacant", "tax_lien", "tax_delinquency"]);
+    return (clientFile.tags ?? []).filter((tag) => allow.has(tag)).slice(0, 2);
+  }, [clientFile.tags]);
 
   const qualificationEditable = currentStage === "lead";
 
@@ -8127,106 +8084,15 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                       <span className="shrink-0">·</span>
 
-                      {allowedTransitions.length > 0 ? (
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <select
-                            value={selectedStage}
-                            onChange={(e) => setSelectedStage(e.target.value as WorkflowStageId)}
-                            className="h-6 px-1.5 rounded-md text-xs font-bold border border-overlay-20 bg-overlay-4 text-foreground appearance-none cursor-pointer focus:outline-none focus:border-primary/30"
-                          >
-                            <option value={currentStage}>{currentStageLabel}</option>
-                            {allowedTransitions.map((t) => (
-                              <option key={t.status} value={t.status}>
-                                → {workflowStageLabel(t.status)}{t.requires_next_action ? " *" : ""}
-                              </option>
-                            ))}
-                          </select>
-                          {selectedStage !== currentStage && (
-                            <button
-                              onClick={handleMoveStage}
-                              disabled={stageUpdating}
-                              className="h-6 px-2 rounded-md text-xs font-bold bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25 transition-colors disabled:opacity-40"
-                            >
-                              {stageUpdating ? "..." : "Move"}
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <Badge variant="outline" className="text-xs gap-1 border-overlay-20 text-foreground shrink-0">
-                          <Target className="h-2.5 w-2.5" />{currentStageLabel}
-                        </Badge>
-                      )}
-
-                      <span className="shrink-0 text-xs">Owner: {assigneeLabel}</span>
-
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-1.5">
-
-                      {clientFile.qualificationRoute === "escalate" && (
-
-                        <Badge variant="outline" className="text-xs gap-1 border-red-500/20 text-red-400">
-
-                          <AlertTriangle className="h-2.5 w-2.5" />Escalated
-
-                        </Badge>
-
-                      )}
-
-                      {clientFile.status === "nurture" && (() => {
-
-                        const fuIso = clientFile.nextActionDueAt ?? clientFile.followUpDate ?? clientFile.nextCallScheduledAt;
-
-                        const fuMs = fuIso ? new Date(fuIso).getTime() : NaN;
-
-                        const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-
-                        const isStale = !Number.isNaN(fuMs) ? fuMs < sevenDaysAgo : true;
-
-                        return isStale ? (
-
-                          <Badge variant="outline" className="text-xs gap-1 border-amber-500/20 text-amber-400">
-
-                            <AlertTriangle className="h-2.5 w-2.5" />Stale Nurture
-
-                          </Badge>
-
-                        ) : null;
-
-                      })()}
+                      <Badge variant="outline" className="text-xs gap-1 border-overlay-20 text-foreground shrink-0">
+                        <Target className="h-2.5 w-2.5" />{currentStageLabel}
+                      </Badge>
 
                     </div>
 
                   </div>
 
                   <div className="flex items-start gap-2 shrink-0">
-
-                    <div className="flex items-center gap-1.5">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            aria-label={clientFile.pinned ? "Remove Active" : "Mark Active"}
-                            aria-pressed={clientFile.pinned}
-                            onClick={handleToggleActive}
-                            disabled={activeUpdating}
-                            className={cn(
-                              "flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-bold transition-colors disabled:opacity-50",
-                              clientFile.pinned
-                                ? "border-primary/30 bg-primary/12 text-primary hover:bg-primary/18"
-                                : "border-overlay-15 bg-overlay-4 text-muted-foreground hover:text-foreground hover:border-overlay-30 hover:bg-overlay-6",
-                            )}
-                          >
-                            <Star className={cn("h-3.5 w-3.5", clientFile.pinned && "fill-current")} />
-                            {activeUpdating ? "Saving..." : clientFile.pinned ? "Active" : "Mark Active"}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent className="text-sm">
-                          {clientFile.pinned ? "Remove from Active" : "Mark Active"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-
                     {clientFile.prediction && (
 
                       <PredictiveDistressBadge data={clientFile.prediction as PredictiveDistressData} size="sm" />
@@ -8342,108 +8208,100 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     <CheckCircle2 className="h-3 w-3 text-foreground" />Log Outcome
 
                   </Button>
-                  {/* Secondary: queue + owner + assign */}
-
-                  <div className="ml-auto flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={moveTarget}
+                      onChange={(e) => setMoveTarget(e.target.value as "" | "active" | "drive_by" | "dead")}
+                      className="h-7 rounded-md border border-overlay-15 bg-overlay-4 px-2 text-xs text-foreground focus:outline-none focus:border-primary/30"
+                      aria-label="Move file"
+                    >
+                      <option value="">Move…</option>
+                      <option value="active">Active</option>
+                      <option value="drive_by">Drive By</option>
+                      <option value="dead">Dead</option>
+                    </select>
                     <Button
                       size="sm"
                       variant="outline"
-                      className="gap-1.5 h-7 border-overlay-6 text-muted-foreground/60 hover:border-primary/40 hover:bg-primary/10 hover:text-primary font-medium"
-                      disabled={claiming}
-                      onClick={async () => {
-                        try {
-                          setClaiming(true);
-                          const { data: { session: sess } } = await supabase.auth.getSession();
-                          const hdrs: Record<string, string> = sess?.access_token
-                            ? { Authorization: `Bearer ${sess.access_token}` }
-                            : {};
-                          await fetch(`/api/prospects?lead_id=${clientFile.id}`, {
-                            method: "PATCH",
-                            headers: { ...hdrs, "Content-Type": "application/json" },
-                            body: JSON.stringify({ assign_to: currentUserId }),
-                          });
-                          window.location.href = "/dialer";
-                        } catch {
-                          setClaiming(false);
-                        }
-                      }}
+                      className="h-7 px-2 text-xs border-overlay-15"
+                      disabled={!moveTarget || stageUpdating || activeUpdating}
+                      onClick={handleApplyMove}
                     >
-                      <ListPlus className="h-3 w-3" />Queue
+                      Go
                     </Button>
+                  </div>
 
-                    {!(isAssignedToCurrentUser && assignmentOptions.length > 0) && !isAssignedToCurrentUser && (
-
+                  <details className="relative ml-auto">
+                    <summary className="list-none h-7 px-2.5 inline-flex items-center gap-1 rounded-md border border-overlay-15 bg-overlay-4 text-xs text-muted-foreground hover:text-foreground hover:border-overlay-30 cursor-pointer">
+                      More
+                      <ChevronDown className="h-3 w-3" />
+                    </summary>
+                    <div className="absolute right-0 top-8 z-20 w-[260px] rounded-[10px] border border-overlay-10 bg-panel p-2.5 shadow-lg space-y-2">
                       <Button
-
                         size="sm"
-
                         variant="outline"
-
-                        className="gap-1.5 h-7 text-sm"
-
-                        disabled={claiming || isAssignedToCurrentUser}
-
-                        onClick={handleClaimLead}
-
+                        className="w-full justify-start gap-1.5 h-7 border-overlay-6 text-muted-foreground/75 hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+                        disabled={claiming}
+                        onClick={async () => {
+                          try {
+                            setClaiming(true);
+                            const { data: { session: sess } } = await supabase.auth.getSession();
+                            const hdrs: Record<string, string> = sess?.access_token
+                              ? { Authorization: `Bearer ${sess.access_token}` }
+                              : {};
+                            await fetch(`/api/prospects?lead_id=${clientFile.id}`, {
+                              method: "PATCH",
+                              headers: { ...hdrs, "Content-Type": "application/json" },
+                              body: JSON.stringify({ assign_to: currentUserId }),
+                            });
+                            window.location.href = "/dialer";
+                          } catch {
+                            setClaiming(false);
+                          }
+                        }}
                       >
-
-                        {claiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <Users className="h-3 w-3" />}
-
-                        {claiming ? "..." : claimButtonLabel}
-
+                        <ListPlus className="h-3 w-3" />Queue
                       </Button>
 
-                    )}
-
-                    {assignmentOptions.length > 0 && (
-
-                      <div className="flex items-center gap-1 rounded-[6px] border border-overlay-10 bg-overlay-2 px-1 py-0.5">
-
-                        <select
-
-                          value={reassignTargetId}
-
-                          onChange={(e) => setReassignTargetId(e.target.value)}
-
-                          className="h-6 rounded border border-overlay-10 bg-overlay-4 px-1.5 text-sm text-foreground focus:outline-none focus:border-overlay-30"
-
-                          aria-label="Select lead owner"
-
-                        >
-
-                          <option value="">Owner</option>
-
-                          {assignmentOptions.map((option) => (
-
-                            <option key={option.id} value={option.id}>{option.name}</option>
-
-                          ))}
-
-                        </select>
-
+                      {!(isAssignedToCurrentUser && assignmentOptions.length > 0) && !isAssignedToCurrentUser && (
                         <Button
-
                           size="sm"
-
                           variant="outline"
-
-                          className="h-6 text-sm px-1.5 border-overlay-15"
-
-                          disabled={reassigning || !reassignTargetId || reassignTargetId === (clientFile.assignedTo ?? "")}
-
-                          onClick={handleReassignLead}
-
+                          className="w-full justify-start gap-1.5 h-7 text-xs"
+                          disabled={claiming || isAssignedToCurrentUser}
+                          onClick={handleClaimLead}
                         >
-
-                          {reassigning ? <Loader2 className="h-3 w-3 animate-spin" /> : "Go"}
-
+                          {claiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <Users className="h-3 w-3" />}
+                          {claiming ? "..." : claimButtonLabel}
                         </Button>
+                      )}
 
-                      </div>
-
-                    )}
-
-                  </div>
+                      {assignmentOptions.length > 0 && (
+                        <div className="flex items-center gap-1 rounded-[6px] border border-overlay-10 bg-overlay-2 px-1 py-1">
+                          <select
+                            value={reassignTargetId}
+                            onChange={(e) => setReassignTargetId(e.target.value)}
+                            className="h-6 flex-1 rounded border border-overlay-10 bg-overlay-4 px-1.5 text-xs text-foreground focus:outline-none focus:border-overlay-30"
+                            aria-label="Select lead owner"
+                          >
+                            <option value="">Owner</option>
+                            {assignmentOptions.map((option) => (
+                              <option key={option.id} value={option.id}>{option.name}</option>
+                            ))}
+                          </select>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-xs px-1.5 border-overlay-15"
+                            disabled={reassigning || !reassignTargetId || reassignTargetId === (clientFile.assignedTo ?? "")}
+                            onClick={handleReassignLead}
+                          >
+                            {reassigning ? <Loader2 className="h-3 w-3 animate-spin" /> : "Go"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </details>
 
                 </div>
 
@@ -8657,102 +8515,63 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
               <div className="shrink-0 px-4 py-1.5 border-b border-overlay-6 bg-[rgba(8,10,18,0.55)]">
 
-                {(clientFile.status === "prospect" || clientFile.status === "staging") ? (
+                <div className="flex items-center gap-x-4 gap-y-1 text-xs flex-wrap">
+                  <span className="text-muted-foreground">
+                    Stage <span className="text-foreground font-semibold">{currentStageLabel}</span>
+                  </span>
 
-                  <div className="flex items-center gap-2">
-
-                    <span className="text-sm text-muted-foreground">Not in pipeline yet.</span>
-
-                    <button
-
-                      type="button"
-
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-md text-sm font-semibold text-foreground hover:bg-overlay-10 border border-overlay-25 transition-colors"
-
-                      onClick={() => { setSelectedStage("lead"); }}
-
+                  <span className="text-muted-foreground">
+                    Do now{" "}
+                    <span
+                      className={cn(
+                        "font-semibold",
+                        operatorWf.urgency === "critical" && "text-red-400",
+                        operatorWf.urgency === "high" && "text-amber-300/90",
+                        operatorWf.urgency !== "critical" && operatorWf.urgency !== "high" && "text-foreground",
+                      )}
                     >
+                      {operatorWf.doNow}
+                    </span>
+                  </span>
 
-                      Move to Active <ArrowRight className="h-2.5 w-2.5" />
+                  <span className="text-muted-foreground">
+                    Due{" "}
+                    <span className={cn(operatorWf.dueOverdue ? "text-amber-300 font-medium" : "text-foreground")}>
+                      {operatorWf.dueLabel}
+                    </span>
+                  </span>
 
-                    </button>
-
-                  </div>
-
-                ) : (
-
-                  <div className="flex items-center gap-x-4 gap-y-1 text-xs flex-wrap">
-
-                    {clientFile.nextAction?.toLowerCase().startsWith("drive by") && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/25 font-bold text-xs uppercase tracking-wide">
-                        <MapPin className="h-3 w-3" />
-                        Drive By
+                  <span className="text-muted-foreground inline-flex items-center gap-1.5">
+                    Last touch <span className="text-foreground">{operatorWf.lastTouchLabel}</span>
+                    {operatorWf.workedToday && (
+                      <span className="rounded px-1 py-0 text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 border border-primary/20">
+                        Today
                       </span>
                     )}
+                  </span>
 
-                    <span className="text-muted-foreground">
-
-                      Do now{" "}
-
-                      <span
-
-                        className={cn(
-
-                          "font-semibold",
-
-                          operatorWf.urgency === "critical" && "text-red-400",
-
-                          operatorWf.urgency === "high" && "text-amber-300/90",
-
-                          operatorWf.urgency !== "critical" && operatorWf.urgency !== "high" && "text-foreground",
-
-                        )}
-
-                      >
-
-                        {operatorWf.doNow}
-
-                      </span>
-
+                  {compactPropertyFacts.length > 0 && (
+                    <span className="text-muted-foreground/80">
+                      {compactPropertyFacts.join(" · ")}
                     </span>
+                  )}
 
-                    <span className="text-muted-foreground">
-
-                      Due{" "}
-
-                      <span className={cn(operatorWf.dueOverdue ? "text-amber-300 font-medium" : "text-foreground")}>
-
-                        {operatorWf.dueLabel}
-
-                      </span>
-
+                  {compactContextTags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 px-1.5 py-0 rounded border border-overlay-15 bg-overlay-4 text-muted-foreground/85 uppercase tracking-wide text-[10px]"
+                    >
+                      {tag.replace(/_/g, " ")}
                     </span>
+                  ))}
 
-                    <span className="text-muted-foreground inline-flex items-center gap-1.5">
-
-                      Last touch <span className="text-foreground">{operatorWf.lastTouchLabel}</span>
-
-                      {operatorWf.workedToday && (
-
-                        <span className="rounded px-1 py-0 text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 border border-primary/20">
-
-                          Today
-
-                        </span>
-
-                      )}
-
+                  {clientFile.nextAction?.toLowerCase().startsWith("drive by") && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/25 font-bold text-xs uppercase tracking-wide">
+                      <MapPin className="h-3 w-3" />
+                      Drive By
                     </span>
-
-                    <span className="text-muted-foreground/70">
-
-                      Seq <span className="text-foreground/90">{currentSequenceLabel}</span>
-
-                    </span>
-
-                  </div>
-
-                )}
+                  )}
+                </div>
 
               </div>
 
