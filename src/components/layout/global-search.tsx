@@ -262,20 +262,21 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const c of (contacts as any[] ?? [])) {
     const lead = leadByContact[c.id];
-    if (!lead || seenIds.has(lead.id)) continue;
-    seenIds.add(lead.id);
+    const resultId = lead?.id ?? c.id;
+    if (seenIds.has(resultId)) continue;
+    seenIds.add(resultId);
 
     const score = lead?.priority ?? 0;
     const contactName = [c.first_name, c.last_name].filter(Boolean).join(" ") || "Unknown";
     records.push({
-      id: lead.id,
-      kind: lead.status === "prospect" ? "prospect" : "lead",
+      id: resultId,
+      kind: lead ? (lead.status === "prospect" ? "prospect" : "lead") : "contact",
       primary: contactName,
       secondary: [c.phone, c.email].filter(Boolean).join(" · "),
-      href: `/leads?open=${lead.id}`,
+      href: lead?.id ? `/leads?open=${lead.id}` : `/leads`,
       score: score > 0 ? score : undefined,
       scoreLabel: score > 0 ? labelFromScore(score) : undefined,
-      status: lead?.status ?? "prospect",
+      status: lead?.status ?? "contact",
     });
   }
 
