@@ -194,7 +194,6 @@ export async function POST(req: NextRequest) {
           sourceUrl: property.apn ? `https://cp.spokanecounty.org/SCOUT/Map/?PID=${encodeURIComponent(property.apn)}` : undefined,
           sourceLabel: "Spokane County GIS",
           rawExcerpt: JSON.stringify(gisResult.rawPayload).slice(0, 10000),
-          capturedBy: "admin/backfill-spokane-scout",
         });
 
         for (const fact of gisResult.facts) {
@@ -218,7 +217,6 @@ export async function POST(req: NextRequest) {
           sourceUrl: scoutSummary.sourceUrl,
           sourceLabel: "Spokane County SCOUT",
           rawExcerpt: scoutSummary.rawExcerpt,
-          capturedBy: "admin/backfill-spokane-scout",
         });
 
         const scoutFacts: Array<{ type: string; value: string | number }> = [];
