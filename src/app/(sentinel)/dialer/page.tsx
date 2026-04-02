@@ -3574,12 +3574,7 @@ function DialerPageInner() {
                                 <span>{TIMELINE_SHORT[dialerContext.sellerTimeline] ?? dialerContext.sellerTimeline}</span>
                               </>
                             )}
-                            {dialerContext.notePreview !== "No recent note" && (
-                              <>
-                                <span className="text-muted-foreground/30">·</span>
-                                <span className="text-foreground/60 truncate max-w-[200px]">{dialerContext.notePreview}</span>
-                              </>
-                            )}
+                            {/* Note preview removed — seller memory preview now shows full continuity context */}
                           </div>
                         </div>
                       </>
@@ -3649,7 +3644,18 @@ function DialerPageInner() {
                           )}
                           {preCallBrief && (
                             <>
-                              {/* Goal — the most important line */}
+                              {/* Suggested opener — the most useful pre-call sentence */}
+                              {preCallBrief.suggestedOpener && (
+                                <div
+                                  role="button"
+                                  onClick={() => { navigator.clipboard.writeText(preCallBrief.suggestedOpener).then(() => toast.success("Opener copied")).catch(() => {}); }}
+                                  className="rounded-[8px] border border-primary/20 bg-primary/[0.05] px-2.5 py-1.5 mb-1.5 cursor-pointer hover:bg-primary/[0.08] transition-colors"
+                                >
+                                  <p className="text-[10px] font-semibold uppercase tracking-wider text-primary/60 mb-0.5">Start with</p>
+                                  <p className="text-xs text-foreground/85 leading-snug">{preCallBrief.suggestedOpener}</p>
+                                </div>
+                              )}
+                              {/* Goal */}
                               <p className="text-xs text-foreground/80 font-medium leading-snug mb-1.5">
                                 {preCallBrief.primaryGoal || "Clarify situation, timing, and what matters most."}
                               </p>
@@ -3663,6 +3669,13 @@ function DialerPageInner() {
                                     </li>
                                   ))}
                                 </ul>
+                              )}
+                              {/* Watch-out — compact risk line */}
+                              {preCallBrief.watchOuts.length > 0 && preCallBrief.watchOuts[0] && (
+                                <div className="flex items-start gap-1.5 mt-1.5 text-xs text-amber-300/70">
+                                  <AlertTriangle className="h-2.5 w-2.5 shrink-0 mt-0.5" />
+                                  <span className="leading-snug line-clamp-2">{preCallBrief.watchOuts[0]}</span>
+                                </div>
                               )}
                               {/* Inline risk flag count (always visible if flags exist) */}
                               {preCallBrief.riskFlags.length > 0 && !briefDetailOpen && (
@@ -3721,6 +3734,11 @@ function DialerPageInner() {
                         </motion.div>
                       )}
                     </AnimatePresence>
+
+                    {/* Seller memory — continuity context next to the call button */}
+                    {callState === "idle" && currentLead && (
+                      <SellerMemoryPreview leadId={currentLead.id} />
+                    )}
 
                     {/* Phone roster from lead_phones */}
                     {callState === "idle" && activeLeadPhones.length > 1 && (() => {
@@ -4122,11 +4140,6 @@ function DialerPageInner() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  {/* ── Pre-call seller memory (AI summary folded in) ── */}
-                  {currentLead && (
-                    <SellerMemoryPreview leadId={currentLead.id} className="mb-2" />
-                  )}
-
                   {/* ── Tab selector: History / Jeff / SMS ── */}
                   <div className="flex items-center gap-0.5 mb-2 rounded-[8px] border border-overlay-6 bg-overlay-2 p-0.5">
                     {([
