@@ -107,7 +107,6 @@ function LeadsPageInner() {
     { id: "new_inbound", label: "New", count: needsAttention.newInbound },
     { id: "needs_qualification", label: "Qualify", count: needsAttention.needsQualification },
     { id: "escalated_review", label: "Escalated", count: needsAttention.escalatedReview },
-    { id: "drive_by", label: "Drive By", count: needsAttention.driveBy },
     { id: "unassigned_hot", label: "Unassigned", count: needsAttention.unassignedHot },
     { id: "slow_or_missing", label: "Slow Response", count: needsAttention.slowOrMissing },
   ];
@@ -222,7 +221,7 @@ function LeadsPageInner() {
           {attentionItems.filter((item) => item.count > 0).map((item) => {
             const isActive = attentionFocus === item.id;
             const isDanger = item.id === "overdue";
-            const isWarn = item.id === "drive_by" || item.id === "needs_qualification" || item.id === "escalated_review";
+            const isWarn = item.id === "needs_qualification" || item.id === "escalated_review";
             return (
               <button
                 key={item.id}

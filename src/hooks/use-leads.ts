@@ -30,8 +30,7 @@ export type AttentionFocus =
   | "unassigned_hot"
   | "slow_or_missing"
   | "needs_qualification"
-  | "escalated_review"
-  | "drive_by";
+  | "escalated_review";
 
 const SPEED_TO_LEAD_SLA_MS = 15 * 60 * 1000;
 const IMPORTANT_SCORE_THRESHOLD = 65;
@@ -758,8 +757,8 @@ export function useLeads() {
   // Segment filter
 
   const segmentedLeads = useMemo(() => {
-    // Active (pinned) leads belong in the Active board, not Lead Queue
-    const base = leadsWithAssigneeNames.filter((l) => !l.pinned);
+    // Active (pinned) and Drive By leads belong in their own buckets, not Lead Queue
+    const base = leadsWithAssigneeNames.filter((l) => !l.pinned && !isDriveByLead(l));
     if (segment === "all") return base.filter((l) => isLeadUnclaimed(l.assignedTo));
     if (segment === "mine") return base.filter((l) => l.assignedTo === currentUser.id);
     return base.filter((l) => l.assignedTo === segment);
@@ -923,9 +922,6 @@ export function useLeads() {
         if (attentionFocus === "escalated_review") {
           return isEscalatedReviewAttention(l);
         }
-        if (attentionFocus === "drive_by") {
-          return isDriveByLead(l);
-        }
         return true;
       });
     }
@@ -966,7 +962,7 @@ export function useLeads() {
     const base = (filters.includeClosed
       ? leadsWithAssigneeNames
       : leadsWithAssigneeNames.filter((l) => l.status !== "closed")
-    ).filter((l) => !l.pinned); // Active leads excluded from Lead Queue counts
+    ).filter((l) => !l.pinned && !isDriveByLead(l));
     const all = base.filter((l) => isLeadUnclaimed(l.assignedTo)).length;
     const mine = base.filter((l) => l.assignedTo === currentUser.id).length;
     const byMember: Record<string, number> = {};
@@ -988,7 +984,6 @@ export function useLeads() {
     let slowOrMissing = 0;
     let needsQualification = 0;
     let escalatedReview = 0;
-    let driveBy = 0;
 
     for (const l of segmentedLeads) {
       const isNewInbound = isNewInboundNeedsAttention(l, dayStartMs, dayEndMs);
@@ -997,27 +992,12 @@ export function useLeads() {
       const isSlowOrMissing = isSlowOrMissingFirstResponseNeedsAttention(l, nowMs);
       const needsQualificationFlag = isNeedsQualificationAttention(l, nowMs);
 
-      if (isNewInbound) {
-        newInbound++;
-      }
-      if (isOverdue) {
-        overdue++;
-      }
-      if (isUnassignedHot) {
-        unassignedHot++;
-      }
-      if (isSlowOrMissing) {
-        slowOrMissing++;
-      }
-      if (needsQualificationFlag) {
-        needsQualification++;
-      }
-      if (isEscalatedReviewAttention(l)) {
-        escalatedReview++;
-      }
-      if (isDriveByLead(l)) {
-        driveBy++;
-      }
+      if (isNewInbound) newInbound++;
+      if (isOverdue) overdue++;
+      if (isUnassignedHot) unassignedHot++;
+      if (isSlowOrMissing) slowOrMissing++;
+      if (needsQualificationFlag) needsQualification++;
+      if (isEscalatedReviewAttention(l)) escalatedReview++;
     }
 
     return {
@@ -1027,7 +1007,6 @@ export function useLeads() {
       slowOrMissing,
       needsQualification,
       escalatedReview,
-      driveBy,
     };
   }, [segmentedLeads]);
 
