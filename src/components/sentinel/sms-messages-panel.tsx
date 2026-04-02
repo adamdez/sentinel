@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   MessageSquare, ChevronDown, ChevronRight, ArrowLeft, Send,
-  Phone, UserPlus, Loader2, Check, CheckCheck, XCircle,
+  Phone, UserPlus, Loader2, Check, CheckCheck, XCircle, SquarePen,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -339,6 +339,112 @@ function ThreadDetail({
   );
 }
 
+// ── Compose New ───────────────────────────────────────────────────────
+
+function ComposeNew({
+  onBack,
+  onSent,
+}: {
+  onBack: () => void;
+  onSent: (phone: string) => void;
+}) {
+  const [to, setTo] = useState("");
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const normalizePhone = (raw: string) => {
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length === 10) return `+1${digits}`;
+    if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+    return raw;
+  };
+
+  const handleSend = async () => {
+    const phone = normalizePhone(to.trim());
+    if (!phone || !body.trim() || sending) return;
+    setSending(true);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch("/api/twilio/sms/send", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ to: phone, body: body.trim(), leadId: null }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Send failed");
+      } else {
+        onSent(phone);
+      }
+    } catch {
+      toast.error("Network error");
+    }
+    setSending(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3 pt-1">
+      <div className="flex items-center gap-2 pb-2 border-b border-overlay-6">
+        <button onClick={onBack} className="p-1 rounded hover:bg-overlay-6 transition-colors">
+          <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+        <span className="text-sm font-semibold text-foreground">New Message</span>
+      </div>
+
+      <div className="space-y-2">
+        <div>
+          <label className="text-xs text-muted-foreground/60 mb-1 block">To (phone number)</label>
+          <input
+            type="tel"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="(509) 555-0100"
+            className="w-full bg-overlay-3 border border-overlay-8 rounded-[10px] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary/30"
+            autoFocus
+          />
+        </div>
+
+        <div>
+          <label className="text-xs text-muted-foreground/60 mb-1 block">Message</label>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your message..."
+            rows={3}
+            className="w-full bg-overlay-3 border border-overlay-8 rounded-[10px] px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 resize-none focus:outline-none focus:ring-1 focus:ring-primary/30 max-h-36"
+          />
+        </div>
+      </div>
+
+      <button
+        onClick={handleSend}
+        disabled={!to.trim() || !body.trim() || sending}
+        className={cn(
+          "flex items-center justify-center gap-1.5 py-2 rounded-[10px] text-sm font-medium transition-all",
+          to.trim() && body.trim()
+            ? "bg-primary/15 text-primary border border-primary/20 hover:bg-primary/25"
+            : "bg-overlay-3 text-muted-foreground/30 border border-overlay-6 cursor-not-allowed",
+        )}
+      >
+        {sending ? (
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        ) : (
+          <Send className="h-3.5 w-3.5" />
+        )}
+        Send Message
+      </button>
+    </div>
+  );
+}
+
 // ── Main Panel ────────────────────────────────────────────────────────
 
 interface SmsMessagesPanelProps {
@@ -352,6 +458,7 @@ export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
   const [totalUnread, setTotalUnread] = useState(0);
   const [loading, setLoading] = useState(false);
   const [activePhone, setActivePhone] = useState<string | null>(null);
+  const [composing, setComposing] = useState(false);
   const prevUnreadRef = useRef(0);
 
   const fetchThreads = useCallback(async () => {
@@ -389,6 +496,7 @@ export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
 
   const handleOpenThread = (phone: string) => {
     setActivePhone(phone);
+    setComposing(false);
     // Optimistically decrement unread for this thread
     setThreads((prev) =>
       prev.map((t) =>
@@ -404,25 +512,39 @@ export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
   return (
     <GlassCard hover={false} className="!p-3 mb-3">
       {/* Section header */}
-      <button
-        onClick={() => { setOpen((prev) => !prev); setActivePhone(null); }}
-        className="w-full flex items-center justify-between group"
-      >
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-          <MessageSquare className="h-3.5 w-3.5 text-primary" />
-          Messages
-          {totalUnread > 0 && (
-            <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-bold border border-blue-500/30">
-              {totalUnread}
-            </span>
+      <div className="flex items-center justify-between">
+        <button
+          onClick={() => { setOpen((prev) => !prev); setActivePhone(null); setComposing(false); }}
+          className="flex items-center gap-1.5 group"
+        >
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <MessageSquare className="h-3.5 w-3.5 text-primary" />
+            Messages
+            {totalUnread > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-bold border border-blue-500/30">
+                {totalUnread}
+              </span>
+            )}
+          </h2>
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
           )}
-        </h2>
-        {open ? (
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-foreground transition-colors" />
-        )}
-      </button>
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+            setActivePhone(null);
+            setComposing(true);
+          }}
+          title="New message"
+          className="p-1 rounded hover:bg-overlay-6 transition-colors text-muted-foreground/50 hover:text-primary"
+        >
+          <SquarePen className="h-3.5 w-3.5" />
+        </button>
+      </div>
 
       {/* Content */}
       <AnimatePresence>
@@ -435,7 +557,16 @@ export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
             className="overflow-hidden"
           >
             <div className="pt-2 mt-2 border-t border-overlay-6" style={{ maxHeight: "70vh", minHeight: "300px" }}>
-              {activePhone ? (
+              {composing ? (
+                <ComposeNew
+                  onBack={() => setComposing(false)}
+                  onSent={(phone) => {
+                    setComposing(false);
+                    setActivePhone(phone);
+                    fetchThreads();
+                  }}
+                />
+              ) : activePhone ? (
                 <div style={{ height: "min(65vh, 600px)" }}>
                   <ThreadDetail
                     phone={activePhone}
