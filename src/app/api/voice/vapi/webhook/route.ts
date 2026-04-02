@@ -25,6 +25,31 @@ export const maxDuration = 30;
 /** System user for automated writes (Vapi has no authenticated operator). */
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
+function normalizeBaseUrl(raw: string | null | undefined): string | null {
+  const value = (raw ?? "").trim();
+  if (!value) return null;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function deriveWebhookBaseUrl(req: NextRequest): string {
+  const envBase =
+    normalizeBaseUrl(process.env.NEXT_PUBLIC_SITE_URL) ??
+    normalizeBaseUrl(process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+  if (envBase) return envBase;
+
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+  if (host) {
+    const proto = (req.headers.get("x-forwarded-proto") ?? req.nextUrl.protocol.replace(":", "") ?? "https").trim();
+    return `${proto}://${host}`;
+  }
+
+  return req.nextUrl.origin;
+}
+
 /**
  * POST /api/voice/vapi/webhook
  *
@@ -55,7 +80,7 @@ export async function POST(req: NextRequest) {
 
     switch (message.type) {
       case "assistant-request":
-        return handleAssistantRequest(message);
+        return handleAssistantRequest(message, req);
 
       case "function-call":
         return handleFunctionCall(message);
@@ -119,12 +144,13 @@ export async function POST(req: NextRequest) {
 // Vapi calls this when a new inbound call arrives to get the assistant config.
 // This allows dynamic configuration per call.
 
-async function handleAssistantRequest(message: VapiWebhookPayload["message"]) {
+async function handleAssistantRequest(
+  message: VapiWebhookPayload["message"],
+  req: NextRequest,
+) {
   // Build config FIRST — this must always succeed so Vapi never gets an error response.
   // If config building fails, the call will disconnect immediately (the 3-second drop bug).
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+  const siteUrl = deriveWebhookBaseUrl(req);
   const serverUrl = `${siteUrl}/api/voice/vapi/webhook`;
 
   const isOutbound = message.call?.type === "outboundPhoneCall";
@@ -162,31 +188,30 @@ Keep it warm and brief — don't run the full discovery flow after hours. Just t
 
   // Tracing and session creation — fire-and-forget, NEVER block the config response.
   // If these fail, the call still works — we just lose traceability for this call.
-  try {
-    const runId = await createAgentRun({
-      agentName: isOutbound ? "vapi-outbound" : "vapi-inbound",
-      triggerType: "webhook",
-      triggerRef: message.call?.id ?? "unknown",
-      leadId: undefined,
-      model: "claude-sonnet-4-6",
-      promptVersion: isOutbound ? JEFF_OUTBOUND_POLICY_VERSION : "inbound-v1",
-      inputs: {
-        callId: message.call?.id,
-        fromNumber: message.call?.customer?.number ?? null,
-      },
-    });
-
-    const vapiCallId = message.call?.id;
-    if (vapiCallId) {
-      resolveVoiceSession(vapiCallId, message.call, runId).catch((err) => {
+  const vapiCallId = message.call?.id;
+  void createAgentRun({
+    agentName: isOutbound ? "vapi-outbound" : "vapi-inbound",
+    triggerType: "webhook",
+    triggerRef: vapiCallId ?? "unknown",
+    leadId: undefined,
+    model: "claude-sonnet-4-6",
+    promptVersion: isOutbound ? JEFF_OUTBOUND_POLICY_VERSION : "inbound-v1",
+    inputs: {
+      callId: vapiCallId,
+      fromNumber: message.call?.customer?.number ?? null,
+    },
+  })
+    .then((runId) => {
+      if (!vapiCallId) return;
+      void resolveVoiceSession(vapiCallId, message.call, runId).catch((err) => {
         console.error("[vapi/webhook] resolveVoiceSession failed:", err instanceof Error ? err.message : String(err));
       });
-    }
-  } catch (err) {
-    // Tracing failure must NEVER prevent the assistant config from being returned.
-    // Without the config, Vapi disconnects the call instantly.
-    console.error("[vapi/webhook] Agent run / session creation failed (non-blocking):", err instanceof Error ? err.message : String(err));
-  }
+    })
+    .catch((err) => {
+      // Tracing failure must NEVER prevent the assistant config from being returned.
+      // Without the config, Vapi disconnects the call instantly.
+      console.error("[vapi/webhook] Agent run / session creation failed (non-blocking):", err instanceof Error ? err.message : String(err));
+    });
 
   // ALWAYS return the assistant config — this is the critical response that keeps the call alive.
   return NextResponse.json({ assistant: config });
