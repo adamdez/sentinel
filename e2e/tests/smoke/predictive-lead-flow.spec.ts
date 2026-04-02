@@ -1,68 +1,59 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Predictive Lead Flow", () => {
-  test("leads page shows predictive priority data", async ({ page }) => {
+  test("prospects page shows AI score pipeline", async ({ page }) => {
     await page.goto("/sales-funnel/prospects");
-    await expect(page.getByText("Prospects")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "Prospects" })).toBeVisible({
+      timeout: 15_000,
+    });
     await page.waitForTimeout(3000);
 
-    // Check if any score badges are rendered (FIRE, HOT, WARM, COLD)
-    const scoreBadges = page.locator("text=FIRE").or(
-      page.locator("text=HOT"),
-    ).or(
-      page.locator("text=WARM"),
-    ).or(
-      page.locator("text=COLD"),
-    );
-
-    const count = await scoreBadges.count();
-    // If there are prospects, they should have score labels
-    if (count > 0) {
-      await expect(scoreBadges.first()).toBeVisible();
-    }
+    await expect(page.getByRole("columnheader", { name: /AI Score/i })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
-  test("dialer queue prioritizes by blended score", async ({ page }) => {
+  test("dialer queue panel renders", async ({ page }) => {
     await page.goto("/dialer");
-    await expect(page.getByText("Dialer")).toBeVisible({ timeout: 15_000 });
-    await page.waitForTimeout(3000);
+    await expect(page.getByRole("heading", { name: "Dialer" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await page.waitForTimeout(2000);
 
-    // The queue panel should render
-    const queueItems = page.locator("[class*='glass'] [class*='glass']");
-    const count = await queueItems.count();
-
-    // If queue has items, verify they display some scoring info
-    if (count >= 2) {
-      // First item should exist (highest priority)
-      await expect(queueItems.first()).toBeVisible();
-    }
+    await expect(page.getByRole("heading", { name: "Dial Queue" })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
-  test("next best action widget shows AI recommendation", async ({ page }) => {
+  test("today dashboard renders core action surfaces", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByText("Dashboard")).toBeVisible({ timeout: 15_000 });
-    await page.waitForTimeout(3000);
+    await expect(
+      page.getByPlaceholder("Find lead, address, APN, or phone..."),
+    ).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(2000);
 
-    // AI Recommendation or "No actions queued" should appear
-    const aiRec = page.getByText("AI Recommendation").or(
-      page.getByText("No actions queued"),
+    const actionSurface = page.getByText("Tasks").or(
+      page.getByText("Overdue"),
     );
-    await expect(aiRec.first()).toBeVisible({ timeout: 10_000 });
+    await expect(actionSurface.first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test("predictive badge visible on leads with predictive scoring", async ({ page }) => {
-    await page.goto("/dashboard");
-    await expect(page.getByText("Dashboard")).toBeVisible({ timeout: 15_000 });
+  test("prospects list exposes score labels when rows exist", async ({ page }) => {
+    await page.goto("/sales-funnel/prospects");
+    await expect(page.getByRole("heading", { name: "Prospects" })).toBeVisible({
+      timeout: 15_000,
+    });
     await page.waitForTimeout(3000);
 
-    // Check for "Predictive" badge from the Next Best Action widget
-    const predictiveBadge = page.getByText("Predictive");
-    const isVisible = await predictiveBadge.first().isVisible().catch(() => false);
+    const rows = page.locator("table tbody tr");
+    const rowCount = await rows.count();
+    test.skip(rowCount === 0, "No prospects rows available");
 
-    // This is data-dependent — if no predictive leads, that's OK
-    if (!isVisible) {
-      // Verify at least the dashboard rendered correctly
-      await expect(page.getByText("Dashboard")).toBeVisible();
-    }
+    const scoreLabels = page.locator("text=HIGH").or(
+      page.locator("text=MED"),
+    ).or(
+      page.locator("text=LOW"),
+    );
+    await expect(scoreLabels.first()).toBeVisible({ timeout: 10_000 });
   });
 });

@@ -22,21 +22,20 @@ test.describe("Dashboard", () => {
 
   test("sidebar navigation links are present", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByText("Dashboard")).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByPlaceholder("Find lead, address, APN, or phone..."),
+    ).toBeVisible({ timeout: 15_000 });
 
     const sidebarLinks = [
-      "Dashboard",
+      "Today",
+      "Lead Queue",
       "Dialer",
-      "Prospects",
-      "Pipeline",
-      "Analytics",
-      "Settings",
+      "Active",
+      "Dispo",
     ];
 
     for (const link of sidebarLinks) {
-      await expect(page.getByRole("link", { name: link }).or(
-        page.getByText(link, { exact: true }).first(),
-      )).toBeVisible();
+      await expect(page.getByRole("link", { name: link })).toBeVisible();
     }
   });
 

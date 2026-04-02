@@ -8,17 +8,17 @@ export class ProspectsPage {
   }
 
   async expectLoaded() {
-    await expect(this.page.getByText("Prospects")).toBeVisible({ timeout: 15_000 });
+    await expect(this.page.getByRole("heading", { name: "Prospects" })).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   async waitForProspectsTable() {
-    // Wait for at least one prospect row or the "no prospects" message
-    const row = this.page.locator("table tbody tr, [class*='glass']").first();
+    const row = this.page.locator("table tbody tr, [data-testid='prospect-row']").first();
     await expect(row).toBeVisible({ timeout: 15_000 });
   }
 
   async clickFirstProspectRow() {
-    // Click the first data row to open Master Client File modal
     const rows = this.page.locator("table tbody tr");
     const count = await rows.count();
     if (count > 0) {

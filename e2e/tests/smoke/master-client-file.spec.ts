@@ -1,38 +1,29 @@
 import { test, expect } from "@playwright/test";
 import { ProspectsPage } from "../../pages/prospects.page";
 
-test.describe("Master Client File Modal", () => {
-  test("opens from prospect row and shows all tabs", async ({ page }) => {
+test.describe("Master Client File Panel", () => {
+  test("opens from prospect row and shows primary tabs", async ({ page }) => {
     const prospects = new ProspectsPage(page);
     await prospects.goto();
     await prospects.expectLoaded();
 
-    // Wait for data to load
     await page.waitForTimeout(3000);
 
-    // Click first prospect row to open MCF
-    const rows = page.locator("table tbody tr, [data-testid='prospect-row']");
+    const rows = page.locator("table tbody tr");
     const rowCount = await rows.count();
-    test.skip(rowCount === 0, "No prospects in DB — skip MCF test");
+    test.skip(rowCount === 0, "No prospects in DB — skip Client File test");
 
     await rows.first().click();
 
-    // Modal should appear
-    const modal = page.locator("[role='dialog']");
-    await expect(modal).toBeVisible({ timeout: 10_000 });
-
-    // Verify tabs exist
-    const expectedTabs = ["Overview", "Timeline", "Comps", "Calculator", "Documents"];
+    const expectedTabs = ["Overview", "Contact", "Property Intel", "Dossier", "Legal"];
     for (const tab of expectedTabs) {
-      await expect(
-        modal.getByText(tab, { exact: true }).or(
-          modal.getByRole("tab", { name: tab }),
-        ).first(),
-      ).toBeVisible();
+      await expect(page.getByRole("button", { name: tab }).first()).toBeVisible({
+        timeout: 10_000,
+      });
     }
   });
 
-  test("comps map renders without crash", async ({ page }) => {
+  test("property intel tab renders without crash", async ({ page }) => {
     const prospects = new ProspectsPage(page);
     await prospects.goto();
     await page.waitForTimeout(3000);
@@ -42,24 +33,17 @@ test.describe("Master Client File Modal", () => {
     test.skip(rowCount === 0, "No prospects in DB");
 
     await rows.first().click();
-    const modal = page.locator("[role='dialog']");
-    await expect(modal).toBeVisible({ timeout: 10_000 });
+    const intelTab = page.getByRole("button", { name: "Property Intel" }).first();
+    await expect(intelTab).toBeVisible({ timeout: 10_000 });
+    await intelTab.click();
 
-    // Click Comps tab
-    const compsTab = modal.getByText("Comps", { exact: true }).or(
-      modal.getByRole("tab", { name: "Comps" }),
+    const intelSection = page.getByText("Property Basics").or(
+      page.getByText("Property Intel"),
     );
-    if (await compsTab.isVisible()) {
-      await compsTab.first().click();
-      await page.waitForTimeout(2000);
-
-      // Map container should render (leaflet)
-      const map = modal.locator(".leaflet-container, [class*='map']");
-      // Map may not have data but should not crash
-    }
+    await expect(intelSection.first()).toBeVisible({ timeout: 10_000 });
   });
 
-  test("offer calculator updates live values", async ({ page }) => {
+  test("dossier tab renders without crash", async ({ page }) => {
     const prospects = new ProspectsPage(page);
     await prospects.goto();
     await page.waitForTimeout(3000);
@@ -69,21 +53,13 @@ test.describe("Master Client File Modal", () => {
     test.skip(rowCount === 0, "No prospects in DB");
 
     await rows.first().click();
-    const modal = page.locator("[role='dialog']");
-    await expect(modal).toBeVisible({ timeout: 10_000 });
+    const dossierTab = page.getByRole("button", { name: "Dossier" }).first();
+    await expect(dossierTab).toBeVisible({ timeout: 10_000 });
+    await dossierTab.click();
 
-    // Click Calculator tab
-    const calcTab = modal.getByText("Calculator", { exact: true }).or(
-      modal.getByRole("tab", { name: "Calculator" }),
+    const dossierSection = page.getByText("Dossier").or(
+      page.getByText("facts", { exact: false }),
     );
-    if (await calcTab.isVisible()) {
-      await calcTab.first().click();
-      await page.waitForTimeout(1000);
-
-      // Calculator inputs should be present
-      const inputs = modal.locator("input[type='number'], input[type='text']");
-      const inputCount = await inputs.count();
-      expect(inputCount).toBeGreaterThanOrEqual(1);
-    }
+    await expect(dossierSection.first()).toBeVisible({ timeout: 10_000 });
   });
 });

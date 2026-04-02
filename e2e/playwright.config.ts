@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
+import { loadEnvConfig } from "@next/env";
 import path from "path";
+
+loadEnvConfig(process.cwd());
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 

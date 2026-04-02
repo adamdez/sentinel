@@ -8,23 +8,27 @@ export class DashboardPage {
   }
 
   async expectLoaded() {
-    await expect(this.page.getByText("Dashboard")).toBeVisible({ timeout: 15_000 });
+    await expect(
+      this.page.getByPlaceholder("Find lead, address, APN, or phone..."),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(this.page.getByRole("link", { name: "Today" })).toBeVisible({
+      timeout: 10_000,
+    });
   }
 
   async expectWidgetsVisible() {
-    // At least some widget containers should be rendered
-    const cards = this.page.locator("[class*='glass']");
-    await expect(cards.first()).toBeVisible({ timeout: 10_000 });
-    const count = await cards.count();
-    expect(count).toBeGreaterThanOrEqual(2);
+    await expect(this.page.getByText("Overdue").first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(this.page.getByText("Tasks").first()).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   async expectBreakingLeadsTicker() {
-    // The sidebar or ticker should contain "Breaking" or lead-related content
-    const ticker = this.page.locator("text=New Priority Leads").or(
-      this.page.locator("[class*='breaking']"),
+    const reviewSurface = this.page.locator("text=Review Blockers").or(
+      this.page.locator("text=Unlinked Calls"),
     );
-    // Ticker may not show if no leads — just verify no crash
-    await this.page.waitForTimeout(1000);
+    await expect(reviewSurface.first()).toBeVisible({ timeout: 15_000 });
   }
 }

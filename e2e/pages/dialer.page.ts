@@ -8,28 +8,28 @@ export class DialerPage {
   }
 
   async expectLoaded() {
-    await expect(this.page.getByText("Dialer")).toBeVisible({ timeout: 15_000 });
+    await expect(this.page.getByRole("heading", { name: "Dialer" })).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   async expectQueuePresent() {
-    // Queue section should exist even if empty
-    const queue = this.page.locator("text=Queue").or(
-      this.page.locator("text=No leads"),
-    );
-    await expect(queue.first()).toBeVisible({ timeout: 10_000 });
+    await expect(this.page.getByRole("heading", { name: "Dial Queue" })).toBeVisible({
+      timeout: 10_000,
+    });
   }
 
   async expectStatCards() {
-    const statLabels = ["My Calls", "Team Calls", "Connect %"];
+    const statLabels = ["Outbound", "Pickups", "Inbound", "Missed Calls", "Talk Time"];
     for (const label of statLabels) {
-      await expect(this.page.getByText(label)).toBeVisible();
+      await expect(this.page.getByText(label).first()).toBeVisible({
+        timeout: 10_000,
+      });
     }
   }
 
   async expectHotkeysRespond() {
-    // Press "1" key — should not crash, may trigger disposition if in call
     await this.page.keyboard.press("1");
-    // No crash = pass
     await this.page.waitForTimeout(300);
   }
 }

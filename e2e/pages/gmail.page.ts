@@ -8,13 +8,13 @@ export class GmailPage {
   }
 
   async expectLoaded() {
-    await expect(this.page.getByText("Gmail").first()).toBeVisible({ timeout: 15_000 });
+    await expect(this.page.getByRole("heading", { name: "Gmail" })).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   async expectConnectButton() {
-    await expect(
-      this.page.getByRole("button", { name: /connect gmail/i }),
-    ).toBeVisible();
+    await expect(this.page.getByRole("button", { name: /connect gmail/i })).toBeVisible();
   }
 
   async expectConnectedState() {
