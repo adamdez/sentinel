@@ -67,6 +67,7 @@ interface CallsLogLite {
 interface JeffReviewLite {
   voice_session_id: string;
   score?: number | null;
+  review_tags?: string[] | null;
 }
 
 export interface JeffRecentSessionLite {
@@ -109,6 +110,25 @@ export interface JeffKpiSnapshot {
   callbackRate: number;
   answerRate: number;
   qualityReviewPassRate: number | null;
+}
+
+export type JeffPolicySuggestionSeverity = "critical" | "high" | "medium";
+
+export interface JeffPolicyTuningSuggestion {
+  code: string;
+  severity: JeffPolicySuggestionSeverity;
+  title: string;
+  message: string;
+  action: string;
+  signalCount: number;
+  signalRate: number;
+}
+
+export interface JeffQualityTuningSummary {
+  sampleSize: number;
+  scoredSampleSize: number;
+  passRate: number | null;
+  suggestions: JeffPolicyTuningSuggestion[];
 }
 
 export function buildJeffRecentSessions(
@@ -648,6 +668,205 @@ export async function listJeffReviews(limit = 50) {
     .order("created_at", { ascending: false })
     .limit(limit);
   return data ?? [];
+}
+
+function normalizeReviewTags(review: Record<string, unknown>): string[] {
+  const rawTags = Array.isArray(review.review_tags)
+    ? review.review_tags
+    : Array.isArray(review.reviewTags)
+      ? review.reviewTags
+      : [];
+  return rawTags
+    .map((tag) => String(tag).trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function severityFromRate(rate: number, highThreshold = 0.25, criticalThreshold = 0.45): JeffPolicySuggestionSeverity {
+  if (rate >= criticalThreshold) return "critical";
+  if (rate >= highThreshold) return "high";
+  return "medium";
+}
+
+function compareSuggestionPriority(a: JeffPolicyTuningSuggestion, b: JeffPolicyTuningSuggestion) {
+  const order: Record<JeffPolicySuggestionSeverity, number> = { critical: 3, high: 2, medium: 1 };
+  if (order[a.severity] !== order[b.severity]) {
+    return order[b.severity] - order[a.severity];
+  }
+  if (a.signalCount !== b.signalCount) {
+    return b.signalCount - a.signalCount;
+  }
+  if (a.signalRate !== b.signalRate) {
+    return b.signalRate - a.signalRate;
+  }
+  return a.title.localeCompare(b.title);
+}
+
+export function buildJeffQualityTuningSummary(
+  reviews: Array<Record<string, unknown>>,
+  options?: { maxSuggestions?: number },
+): JeffQualityTuningSummary {
+  const sampleSize = reviews.length;
+  const maxSuggestions = Math.max(1, Math.min(options?.maxSuggestions ?? 4, 8));
+
+  const scored = reviews.filter((review) => typeof review.score === "number");
+  const passCount = scored.filter((review) => Number(review.score) >= 4).length;
+  const passRate = scored.length > 0 ? passCount / scored.length : null;
+
+  if (sampleSize === 0) {
+    return {
+      sampleSize: 0,
+      scoredSampleSize: 0,
+      passRate: null,
+      suggestions: [],
+    };
+  }
+
+  const reviewTagSets = reviews.map((review) => new Set(normalizeReviewTags(review)));
+  const countTag = (tag: string) => reviewTagSets.reduce((count, tags) => count + (tags.has(tag) ? 1 : 0), 0);
+  const suggestions: JeffPolicyTuningSuggestion[] = [];
+  const suggestionCodes = new Set<string>();
+
+  const pushSuggestion = (next: JeffPolicyTuningSuggestion) => {
+    if (suggestionCodes.has(next.code)) return;
+    suggestions.push(next);
+    suggestionCodes.add(next.code);
+  };
+
+  if (sampleSize >= 4) {
+    const weakOpeners = countTag("weak opener");
+    if (weakOpeners >= 2) {
+      const rate = weakOpeners / sampleSize;
+      pushSuggestion({
+        code: "weak_openers",
+        severity: severityFromRate(rate, 0.25, 0.5),
+        title: "Openers are missing early trust",
+        message: `${weakOpeners} of ${sampleSize} reviewed calls were tagged "weak opener".`,
+        action: "Tighten opener policy: permission-based opener first, then one short situation question before deeper discovery.",
+        signalCount: weakOpeners,
+        signalRate: Number(rate.toFixed(2)),
+      });
+    }
+
+    const transferredEarly = countTag("transferred too early");
+    const transferredLate = countTag("transferred too late");
+    if (transferredEarly >= 2 || transferredLate >= 2) {
+      const dominant = transferredEarly >= transferredLate ? transferredEarly : transferredLate;
+      const rate = dominant / sampleSize;
+      if (Math.abs(transferredEarly - transferredLate) <= 1 && transferredEarly >= 2 && transferredLate >= 2) {
+        pushSuggestion({
+          code: "transfer_timing_inconsistent",
+          severity: severityFromRate(rate, 0.3, 0.5),
+          title: "Transfer timing is inconsistent",
+          message: `${transferredEarly} early-transfer and ${transferredLate} late-transfer tags suggest inconsistent handoff timing.`,
+          action: "Refine transfer triggers with a strict threshold: transfer only after motive + timeline + willingness signal are clear.",
+          signalCount: transferredEarly + transferredLate,
+          signalRate: Number(((transferredEarly + transferredLate) / sampleSize).toFixed(2)),
+        });
+      } else if (transferredEarly > transferredLate) {
+        pushSuggestion({
+          code: "transfer_too_early",
+          severity: severityFromRate(rate, 0.25, 0.45),
+          title: "Jeff is transferring too early",
+          message: `${transferredEarly} of ${sampleSize} reviewed calls flagged early transfer.`,
+          action: "Raise the transfer bar so Jeff confirms motivation and callback fallback before handoff.",
+          signalCount: transferredEarly,
+          signalRate: Number((transferredEarly / sampleSize).toFixed(2)),
+        });
+      } else {
+        pushSuggestion({
+          code: "transfer_too_late",
+          severity: severityFromRate(rate, 0.25, 0.45),
+          title: "Jeff is transferring too late",
+          message: `${transferredLate} of ${sampleSize} reviewed calls flagged late transfer.`,
+          action: "Trigger handoff earlier when seller intent is clear instead of running extended AI discovery.",
+          signalCount: transferredLate,
+          signalRate: Number((transferredLate / sampleSize).toFixed(2)),
+        });
+      }
+    }
+
+    const awkwardLabels = countTag("awkward label");
+    const goodLabels = countTag("good label");
+    if (awkwardLabels >= 2 && awkwardLabels >= goodLabels) {
+      const rate = awkwardLabels / sampleSize;
+      pushSuggestion({
+        code: "labeling_quality",
+        severity: severityFromRate(rate, 0.2, 0.4),
+        title: "Labeling sounds unnatural",
+        message: `${awkwardLabels} awkward-label tags vs ${goodLabels} good-label tags in reviewed calls.`,
+        action: "Reduce label frequency to one concise label at emotional pivots; avoid stacked labels or over-mirroring.",
+        signalCount: awkwardLabels,
+        signalRate: Number(rate.toFixed(2)),
+      });
+    }
+
+    const callbackMiss = countTag("missed callback opportunity");
+    const callbackCaptured = countTag("callback captured well");
+    if (callbackMiss >= 2 && callbackMiss >= callbackCaptured) {
+      const rate = callbackMiss / sampleSize;
+      pushSuggestion({
+        code: "callback_capture",
+        severity: severityFromRate(rate, 0.2, 0.35),
+        title: "Callback capture quality is weak",
+        message: `${callbackMiss} callback misses were tagged, versus ${callbackCaptured} captured-well tags.`,
+        action: "Require callback commitment capture: exact day window, preferred number confirmation, and explicit next step summary.",
+        signalCount: callbackMiss,
+        signalRate: Number(rate.toFixed(2)),
+      });
+    }
+
+    const robotic = countTag("too robotic");
+    const pushy = countTag("too pushy");
+    const toneIssues = reviewTagSets.reduce((count, tags) => count + ((tags.has("too robotic") || tags.has("too pushy")) ? 1 : 0), 0);
+    if (toneIssues >= 2) {
+      const rate = toneIssues / sampleSize;
+      pushSuggestion({
+        code: "tone_naturalness",
+        severity: severityFromRate(rate, 0.25, 0.45),
+        title: "Jeff tone is too scripted or pushy",
+        message: `${toneIssues} reviewed calls flagged tone issues (${robotic} robotic, ${pushy} pushy).`,
+        action: "Shorten scripted blocks and move to one-question pacing with more direct acknowledgment statements.",
+        signalCount: toneIssues,
+        signalRate: Number(rate.toFixed(2)),
+      });
+    }
+
+    const wrongTarget = countTag("wrong target");
+    if (wrongTarget >= 2) {
+      const rate = wrongTarget / sampleSize;
+      pushSuggestion({
+        code: "targeting_hygiene",
+        severity: severityFromRate(rate, 0.2, 0.35),
+        title: "Queue targeting needs cleanup",
+        message: `${wrongTarget} reviewed calls were tagged "wrong target".`,
+        action: "Tighten queue eligibility and suppression rules so Jeff spends capacity on verified owner contacts.",
+        signalCount: wrongTarget,
+        signalRate: Number(rate.toFixed(2)),
+      });
+    }
+  }
+
+  if (passRate != null && scored.length >= 4 && passRate < 0.75) {
+    const severity: JeffPolicySuggestionSeverity = passRate < 0.5 ? "critical" : "high";
+    pushSuggestion({
+      code: "review_pass_rate",
+      severity,
+      title: "Quality pass rate is below target",
+      message: `${passCount} of ${scored.length} scored reviews passed (4/5+).`,
+      action: "Hold policy version steady and prioritize fixing top quality failure tags before increasing Jeff call volume.",
+      signalCount: scored.length - passCount,
+      signalRate: Number((1 - passRate).toFixed(2)),
+    });
+  }
+
+  suggestions.sort(compareSuggestionPriority);
+
+  return {
+    sampleSize,
+    scoredSampleSize: scored.length,
+    passRate: passRate != null ? Number(passRate.toFixed(2)) : null,
+    suggestions: suggestions.slice(0, maxSuggestions),
+  };
 }
 
 export async function upsertJeffReview(input: {

@@ -169,3 +169,37 @@ describe("Jeff queue launch rules", () => {
     expect(isJeffCallableQueueEntry({ queueStatus: "removed", queueTier: "auto" } as never)).toBe(false);
   });
 });
+
+describe("Jeff quality tuning summary", () => {
+  it("derives policy tuning suggestions from recurring review tags", async () => {
+    const { buildJeffQualityTuningSummary } = await import("@/lib/jeff-control");
+    const summary = buildJeffQualityTuningSummary([
+      { voice_session_id: "s1", score: 2, review_tags: ["weak opener", "transferred too early"] },
+      { voice_session_id: "s2", score: 2, review_tags: ["weak opener", "missed callback opportunity"] },
+      { voice_session_id: "s3", score: 3, review_tags: ["transferred too early", "too robotic"] },
+      { voice_session_id: "s4", score: 2, review_tags: ["transferred too early", "missed callback opportunity"] },
+      { voice_session_id: "s5", score: 4, review_tags: ["good transfer timing"] },
+      { voice_session_id: "s6", score: 3, review_tags: ["weak opener"] },
+    ] as Array<Record<string, unknown>>);
+
+    expect(summary.sampleSize).toBe(6);
+    expect(summary.scoredSampleSize).toBe(6);
+    expect(summary.passRate).toBeCloseTo(0.17, 2);
+    expect(summary.suggestions.length).toBeGreaterThan(0);
+    expect(summary.suggestions.some((s) => s.code === "transfer_too_early")).toBe(true);
+    expect(summary.suggestions.some((s) => s.code === "weak_openers")).toBe(true);
+    expect(summary.suggestions.some((s) => s.code === "review_pass_rate")).toBe(true);
+  });
+
+  it("avoids noisy recommendations when review volume is too low", async () => {
+    const { buildJeffQualityTuningSummary } = await import("@/lib/jeff-control");
+    const summary = buildJeffQualityTuningSummary([
+      { voice_session_id: "s1", score: 4, review_tags: ["great opener"] },
+      { voice_session_id: "s2", score: 3, review_tags: ["weak opener"] },
+      { voice_session_id: "s3", score: 5, review_tags: ["good transfer timing"] },
+    ] as Array<Record<string, unknown>>);
+
+    expect(summary.sampleSize).toBe(3);
+    expect(summary.suggestions).toHaveLength(0);
+  });
+});

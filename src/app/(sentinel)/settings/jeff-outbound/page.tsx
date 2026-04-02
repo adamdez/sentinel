@@ -79,6 +79,23 @@ type JeffReview = {
   created_at: string;
 };
 
+type JeffPolicyTuningSuggestion = {
+  code: string;
+  severity: "critical" | "high" | "medium";
+  title: string;
+  message: string;
+  action: string;
+  signalCount: number;
+  signalRate: number;
+};
+
+type JeffQualityTuningSummary = {
+  sampleSize: number;
+  scoredSampleSize: number;
+  passRate: number | null;
+  suggestions: JeffPolicyTuningSuggestion[];
+};
+
 type JeffActivity = {
   window: string;
   since: string;
@@ -298,6 +315,7 @@ export default function JeffOutboundPage() {
   const [queue, setQueue] = useState<JeffQueueRow[]>([]);
   const [kpis, setKpis] = useState<JeffKpis | null>(null);
   const [reviews, setReviews] = useState<JeffReview[]>([]);
+  const [tuning, setTuning] = useState<JeffQualityTuningSummary | null>(null);
   const [interactions, setInteractions] = useState<JeffInteraction[]>([]);
   const [activity, setActivity] = useState<JeffActivity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -340,6 +358,7 @@ export default function JeffOutboundPage() {
       setQueue(queueJson.queue ?? []);
       setKpis(kpiJson.kpis ?? null);
       setReviews(reviewJson.reviews ?? []);
+      setTuning(reviewJson.tuning ?? null);
       setActivity(activityJson ?? null);
       setInteractions(interactionJson.interactions ?? []);
     } catch (error) {
@@ -375,6 +394,7 @@ export default function JeffOutboundPage() {
 
     setKpis(kpiJson.kpis ?? null);
     setReviews(reviewJson.reviews ?? []);
+    setTuning(reviewJson.tuning ?? null);
     setInteractions(interactionJson.interactions ?? []);
   }, [rangeFrom, rangeTo]);
 
@@ -842,6 +862,47 @@ export default function JeffOutboundPage() {
               <p className="text-sm text-muted-foreground/70">
                 Jeff should sound skilled, not manipulative. Review for transfer timing, good labels, weak openers, and callback misses.
               </p>
+              <div className="rounded-xl border border-primary/15 bg-primary/[0.04] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-primary/80">
+                    Policy tuning signals
+                  </div>
+                  <div className="text-[11px] text-muted-foreground/70">
+                    {tuning?.sampleSize ?? 0} reviewed
+                    {typeof tuning?.passRate === "number" ? ` • ${Math.round(tuning.passRate * 100)}% pass` : ""}
+                  </div>
+                </div>
+                {tuning?.suggestions?.length ? (
+                  <div className="mt-2 space-y-2">
+                    {tuning.suggestions.map((suggestion) => {
+                      const severityClass = suggestion.severity === "critical"
+                        ? "border-red-500/30 bg-red-500/[0.08] text-red-200"
+                        : suggestion.severity === "high"
+                          ? "border-amber-500/30 bg-amber-500/[0.08] text-amber-200"
+                          : "border-primary/30 bg-primary/[0.07] text-primary";
+                      return (
+                        <div key={suggestion.code} className="rounded-lg border border-border/20 bg-muted/5 p-2.5 text-xs">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide ${severityClass}`}>
+                              {suggestion.severity}
+                            </span>
+                            <span className="font-medium text-foreground">{suggestion.title}</span>
+                            <span className="text-muted-foreground/60">
+                              {suggestion.signalCount} signals ({Math.round(suggestion.signalRate * 100)}%)
+                            </span>
+                          </div>
+                          <p className="mt-1 text-muted-foreground/80">{suggestion.message}</p>
+                          <p className="mt-1 text-foreground/85">{suggestion.action}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground/70">
+                    No strong recurring quality patterns yet. Keep reviewing calls to build tuning confidence.
+                  </p>
+                )}
+              </div>
               <div className="space-y-2">
                 {reviews.slice(0, 5).map((review) => (
                   <div key={review.id} className="rounded-xl border border-border/15 bg-muted/5 p-3">

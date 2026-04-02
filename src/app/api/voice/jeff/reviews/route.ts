@@ -3,7 +3,13 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
-import { getUserProfile, isJeffController, listJeffReviews, upsertJeffReview } from "@/lib/jeff-control";
+import {
+  buildJeffQualityTuningSummary,
+  getUserProfile,
+  isJeffController,
+  listJeffReviews,
+  upsertJeffReview,
+} from "@/lib/jeff-control";
 
 export async function GET(req: NextRequest) {
   const sb = createServerClient();
@@ -12,7 +18,8 @@ export async function GET(req: NextRequest) {
 
   const limit = Math.min(Number(req.nextUrl.searchParams.get("limit") ?? "50"), 100);
   const reviews = await listJeffReviews(limit);
-  return NextResponse.json({ reviews });
+  const tuning = buildJeffQualityTuningSummary(reviews as Array<Record<string, unknown>>);
+  return NextResponse.json({ reviews, tuning });
 }
 
 export async function POST(req: NextRequest) {
@@ -44,5 +51,6 @@ export async function POST(req: NextRequest) {
     notes: body.notes ?? null,
   });
 
-  return NextResponse.json({ reviews });
+  const tuning = buildJeffQualityTuningSummary(reviews as Array<Record<string, unknown>>);
+  return NextResponse.json({ reviews, tuning });
 }
