@@ -131,6 +131,41 @@ without adding fake safety blocks when evidence is ambiguous.
   - newer document-reading timestamps after review runs
   - invalid evidence timestamp values in prior-return metadata
 
+19. Commingled-books and owner-flow detection expanded:
+- Spreadsheet signal extraction now emits explicit high-risk clues for:
+  - owner draws/distributions
+  - intercompany transfers and due-to/due-from flows
+  - related-party balances/loan language
+  - EIN references found in paper text
+- AI document-reading label schema now supports the same clue set so non-spreadsheet intake can produce equivalent risk signals.
+
+20. Multi-entity integrity gates added to issue queue:
+- Tina now raises explicit issue-queue items for:
+  - intercompany transfer clues (`books-intercompany-transfer-clue`, blocking)
+  - related-party clues (`books-related-party-clue`, needs attention)
+  - owner-flow clues (`books-owner-flow-clue`, blocking for S-corp/partnership lanes; attention for sole-prop paths)
+  - multiple EIN references across books (`books-multi-ein-conflict`, blocking)
+- Added regression coverage to ensure:
+  - high-risk commingled scenarios escalate correctly
+  - single-EIN scenarios do not false-positive
+  - owner-flow severity adjusts by entity profile.
+
+21. “Tax skill lanes” expanded for hard entity-boundary problems:
+- Tina research ideas now add targeted lanes when clues exist for:
+  - intercompany separation/reconciliation
+  - owner-flow characterization
+  - related-party transaction treatment
+  - multi-entity boundary cleanup (multi-EIN)
+- Added regression coverage so these lanes appear only when supporting clues exist.
+
+22. Wild adversarial gauntlet expanded:
+- Added end-to-end stress scenario for commingled books (intercompany + owner-flow + multi-EIN).
+- Verified Tina issue queue escalates and package readiness remains blocked until resolved.
+
+23. Compound-scope conflict retention verified:
+- Added gauntlet coverage proving Tina keeps tax-year contamination and multi-entity contamination as separate visible issues when both exist.
+- This prevents one generic warning from hiding another independent blocker.
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -141,7 +176,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `108` tests passing.
+- Current full Tina count: `23` files, `115` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 
@@ -162,6 +197,13 @@ without adding fake safety blocks when evidence is ambiguous.
 4. End-to-end workspace simulation tests:
 - Build from uploaded docs -> source facts -> issue queue -> tax adjustments -> package readiness.
 - Confirm no false `ready_for_cpa` on contradictory/edge data.
+
+5. Cross-year + cross-entity contamination stress:
+- Build scenario where mixed tax years and mixed EINs coexist in one books import.
+- Ensure Tina does not collapse these into one generic warning and instead preserves multiple explicit blockers.
+
+6. Profile-edit drift guard:
+- Today readiness freshness keys off evidence timestamps. Add explicit profile/config revision tracking so organizer edits cannot inherit stale `complete` states.
 
 ## Guardrail principle (do not violate)
 

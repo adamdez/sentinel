@@ -79,6 +79,70 @@ describe("buildTinaResearchIdeas", () => {
     expect(multistateIdea?.documentIds).toEqual(["prior-doc"]);
   });
 
+  it("adds ownership and intercompany skill lanes when risky clues are present", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Dominion Ops LLC",
+        entityType: "s_corp" as const,
+      },
+      sourceFacts: [
+        {
+          id: "intercompany-fact",
+          sourceDocumentId: "books-doc",
+          label: "Intercompany transfer clue",
+          value: "Due to/from affiliate activity.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:05:00.000Z",
+        },
+        {
+          id: "owner-draw-fact",
+          sourceDocumentId: "books-doc",
+          label: "Owner draw clue",
+          value: "Shareholder distribution posted.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:06:00.000Z",
+        },
+        {
+          id: "related-party-fact",
+          sourceDocumentId: "books-doc",
+          label: "Related-party clue",
+          value: "Due from shareholder.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:07:00.000Z",
+        },
+        {
+          id: "ein-fact-1",
+          sourceDocumentId: "books-doc",
+          label: "EIN clue",
+          value: "This paper references EIN 12-3456789.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:08:00.000Z",
+        },
+        {
+          id: "ein-fact-2",
+          sourceDocumentId: "books-doc",
+          label: "EIN clue",
+          value: "This paper references EIN 98-7654321.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:09:00.000Z",
+        },
+      ],
+    };
+
+    const ideas = buildTinaResearchIdeas(draft);
+
+    expect(ideas.map((idea) => idea.id)).toEqual(
+      expect.arrayContaining([
+        "intercompany-separation-review",
+        "owner-flow-characterization-review",
+        "related-party-transaction-review",
+        "multi-entity-boundary-review",
+      ])
+    );
+  });
+
   it("adds startup cost review when formation year matches tax year", () => {
     const draft = {
       ...createDefaultTinaWorkspaceDraft(),

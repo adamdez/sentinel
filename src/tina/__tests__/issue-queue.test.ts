@@ -498,6 +498,158 @@ describe("buildTinaIssueQueue", () => {
     expect(issueQueue.items.some((item) => item.id === "books-money-scale-mismatch")).toBe(true);
   });
 
+  it("escalates commingled multi-entity clues with blocking integrity issues", () => {
+    const draft = buildDraft({
+      profile: {
+        entityType: "s_corp",
+      },
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "intercompany-fact",
+          sourceDocumentId: "books-a",
+          label: "Intercompany transfer clue",
+          value: "Due to/from affiliate entity activity detected.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          id: "owner-flow-fact",
+          sourceDocumentId: "books-a",
+          label: "Owner draw clue",
+          value: "Owner draw distributions posted.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:30.000Z",
+        },
+        {
+          id: "related-party-fact",
+          sourceDocumentId: "books-a",
+          label: "Related-party clue",
+          value: "Due from shareholder loan balance.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:40.000Z",
+        },
+        {
+          id: "ein-a",
+          sourceDocumentId: "books-a",
+          label: "EIN clue",
+          value: "This paper references EIN 12-3456789.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+        {
+          id: "ein-b",
+          sourceDocumentId: "books-a",
+          label: "EIN clue",
+          value: "This paper references EIN 98-7654321.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:21:10.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+
+    expect(issueQueue.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "books-intercompany-transfer-clue",
+          severity: "blocking",
+        }),
+        expect.objectContaining({
+          id: "books-owner-flow-clue",
+          severity: "blocking",
+        }),
+        expect.objectContaining({
+          id: "books-related-party-clue",
+          severity: "needs_attention",
+        }),
+        expect.objectContaining({
+          id: "books-multi-ein-conflict",
+          severity: "blocking",
+        }),
+      ])
+    );
+  });
+
+  it("does not raise a multi-ein conflict from a single EIN clue", () => {
+    const draft = buildDraft({
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "ein-a",
+          sourceDocumentId: "books-a",
+          label: "EIN clue",
+          value: "This paper references EIN 12-3456789.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:21:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "books-multi-ein-conflict")).toBe(false);
+  });
+
+  it("treats owner draw clues as attention-level for sole-prop lanes", () => {
+    const draft = buildDraft({
+      profile: {
+        entityType: "sole_prop",
+      },
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "owner-flow-fact",
+          sourceDocumentId: "books-a",
+          label: "Owner draw clue",
+          value: "Owner draw distributions posted.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:30.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const ownerIssue = issueQueue.items.find((item) => item.id === "books-owner-flow-clue");
+    expect(ownerIssue?.severity).toBe("needs_attention");
+  });
+
   it("does not flag scale mismatch for normal money clue variance", () => {
     const draft = buildDraft({
       documents: [

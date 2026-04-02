@@ -219,5 +219,229 @@ describe("tina adversarial gauntlet", () => {
     expect(readiness.level).toBe("blocked");
     expect(readiness.items.some((item) => item.id === "issue-return-type-hint-conflict")).toBe(true);
   });
+
+  it("hard-blocks multi-entity commingled books until entity boundaries are resolved", () => {
+    const baseDraft = buildDraft({
+      profile: {
+        businessName: "Dominion Entity Mix",
+        entityType: "s_corp",
+        taxYear: "2025",
+      },
+      documents: [
+        {
+          id: "qb-doc",
+          name: "qb-export.csv",
+          size: 2500,
+          mimeType: "text/csv",
+          storagePath: "tina/qb-export.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-04-01T23:00:00.000Z",
+        },
+        {
+          id: "bank-doc",
+          name: "bank-export.csv",
+          size: 2500,
+          mimeType: "text/csv",
+          storagePath: "tina/bank-export.csv",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Bank support",
+          uploadedAt: "2026-04-01T23:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "intercompany-fact",
+          sourceDocumentId: "qb-doc",
+          label: "Intercompany transfer clue",
+          value: "Intercompany transfers and due-to/due-from activity detected.",
+          confidence: "high",
+          capturedAt: "2026-04-01T23:00:01.000Z",
+        },
+        {
+          id: "owner-flow-fact",
+          sourceDocumentId: "qb-doc",
+          label: "Owner draw clue",
+          value: "Shareholder distribution and owner draw activity detected.",
+          confidence: "high",
+          capturedAt: "2026-04-01T23:00:02.000Z",
+        },
+        {
+          id: "ein-fact-a",
+          sourceDocumentId: "qb-doc",
+          label: "EIN clue",
+          value: "This paper references EIN 12-3456789.",
+          confidence: "high",
+          capturedAt: "2026-04-01T23:00:03.000Z",
+        },
+        {
+          id: "ein-fact-b",
+          sourceDocumentId: "bank-doc",
+          label: "EIN clue",
+          value: "This paper references EIN 98-7654321.",
+          confidence: "high",
+          capturedAt: "2026-04-01T23:00:04.000Z",
+        },
+      ],
+    });
+
+    const queue = buildTinaIssueQueue(baseDraft);
+    expect(queue.items.some((item) => item.id === "books-intercompany-transfer-clue")).toBe(true);
+    expect(queue.items.some((item) => item.id === "books-owner-flow-clue")).toBe(true);
+    expect(queue.items.some((item) => item.id === "books-multi-ein-conflict")).toBe(true);
+
+    const draft = buildDraft({
+      ...baseDraft,
+      issueQueue: {
+        ...queue,
+        status: "complete",
+      },
+      bootstrapReview: {
+        lastRunAt: "2026-04-01T23:05:00.000Z",
+        status: "complete",
+        summary: "Checked",
+        nextStep: "Done",
+        facts: [],
+        items: [],
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-04-01T23:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Done",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-04-01T23:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Done",
+        fields: [
+          {
+            id: "line-1",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 100000,
+            status: "ready",
+            summary: "Ready",
+            reviewerFinalLineIds: ["rf-1"],
+            taxAdjustmentIds: ["adj-1"],
+            sourceDocumentIds: ["qb-doc"],
+          },
+        ],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-04-01T23:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Done",
+        adjustments: [
+          {
+            id: "adj-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry line",
+            summary: "Approved",
+            suggestedTreatment: "Carry",
+            whyItMatters: "Traceability",
+            amount: 100000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["qb-doc"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+    });
+
+    const readiness = buildTinaPackageReadiness(draft);
+    expect(readiness.level).toBe("blocked");
+    expect(readiness.items.some((item) => item.id === "issue-books-intercompany-transfer-clue")).toBe(
+      true
+    );
+    expect(readiness.items.some((item) => item.id === "issue-books-multi-ein-conflict")).toBe(
+      true
+    );
+  });
+
+  it("keeps year-scope and entity-scope conflicts distinct when both are present", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Dominion Cross Scope LLC",
+        entityType: "single_member_llc",
+        taxYear: "2025",
+      },
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2400,
+          mimeType: "text/csv",
+          storagePath: "tina/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-04-01T23:00:00.000Z",
+        },
+        {
+          id: "books-b",
+          name: "books-b.csv",
+          size: 2400,
+          mimeType: "text/csv",
+          storagePath: "tina/books-b.csv",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Bank support",
+          uploadedAt: "2026-04-01T23:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "books-range-2024",
+          sourceDocumentId: "books-a",
+          label: "Date range clue",
+          value: "2024-01-01 through 2024-12-31",
+          confidence: "high",
+          capturedAt: "2026-04-01T23:00:01.000Z",
+        },
+        {
+          id: "books-range-2025",
+          sourceDocumentId: "books-b",
+          label: "Date range clue",
+          value: "2025-01-01 through 2025-12-31",
+          confidence: "high",
+          capturedAt: "2026-04-01T23:00:02.000Z",
+        },
+        {
+          id: "ein-fact-a",
+          sourceDocumentId: "books-a",
+          label: "EIN clue",
+          value: "This paper references EIN 12-3456789.",
+          confidence: "high",
+          capturedAt: "2026-04-01T23:00:03.000Z",
+        },
+        {
+          id: "ein-fact-b",
+          sourceDocumentId: "books-b",
+          label: "EIN clue",
+          value: "This paper references EIN 98-7654321.",
+          confidence: "high",
+          capturedAt: "2026-04-01T23:00:04.000Z",
+        },
+      ],
+    });
+
+    const queue = buildTinaIssueQueue(draft);
+    const itemIds = queue.items.map((item) => item.id);
+
+    expect(itemIds).toContain("books-multi-year-mix");
+    expect(itemIds).toContain("books-multi-ein-conflict");
+  });
 });
 

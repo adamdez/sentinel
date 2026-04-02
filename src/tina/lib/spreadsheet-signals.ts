@@ -331,6 +331,57 @@ function detectKeywordClues(rows: Record<string, string>[], textHeaders: string[
     });
   }
 
+  if (
+    /\b(owner draw|owners draw|owner withdrawal|member draw|partner draw|distribution to owner|shareholder distribution)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Owner draw clue",
+      value: "This paper mentions owner draws, owner withdrawals, or owner distributions.",
+      confidence: "medium",
+    });
+  }
+
+  const hasEntityNameToken = /\b(llc|inc|corp|corporation|company|co\.|lp|l\.p\.)\b/.test(
+    haystack
+  );
+  if (
+    /\b(intercompany|due to|due from|inter-company)\b/.test(haystack) ||
+    (hasEntityNameToken && /\b(transfer to|transfer from|loan to|loan from)\b/.test(haystack))
+  ) {
+    clues.push({
+      label: "Intercompany transfer clue",
+      value:
+        "This paper may include transfers, loans, or due-to/due-from activity between entities.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(related party|shareholder loan|officer loan|loan from owner|loan to owner|family loan|due from shareholder|due to shareholder|due from member|due to member)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Related-party clue",
+      value:
+        "This paper mentions related-party balances or owner/shareholder/member loan activity.",
+      confidence: "medium",
+    });
+  }
+
+  const einMatches = Array.from(
+    new Set(haystack.match(/\b\d{2}-\d{7}\b/g) ?? [])
+  );
+  einMatches.slice(0, 3).forEach((ein) => {
+    clues.push({
+      label: "EIN clue",
+      value: `This paper references EIN ${ein}.`,
+      confidence: "medium",
+    });
+  });
+
   if (/\bidaho\b/.test(haystack)) {
     clues.push({
       label: "State clue",

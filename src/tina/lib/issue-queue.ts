@@ -115,6 +115,12 @@ function extractFactYears(value: string): string[] {
   return Array.from(new Set(value.match(/\b20\d{2}\b/g) ?? []));
 }
 
+function extractEinTokens(value: string): string[] {
+  return Array.from(
+    new Set((value.match(/\b\d{2}-\d{7}\b/g) ?? []).map((token) => token.trim()))
+  );
+}
+
 function isBooksDocument(document: TinaStoredDocument | undefined): boolean {
   return document?.requestId === "quickbooks" || document?.requestId === "bank-support";
 }
@@ -223,6 +229,11 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     .filter((fact) => normalizeForComparison(fact.label) === "money out clue")
     .reduce((total, fact) => total + (parseMoneyFactValue(fact.value) ?? 0), 0);
   const bookYears = new Set(bookDateFacts.flatMap((fact) => extractFactYears(fact.value)));
+  const ownerFlowFact = findFactsByLabel(bookFacts, "Owner draw clue")[0] ?? null;
+  const intercompanyFact = findFactsByLabel(bookFacts, "Intercompany transfer clue")[0] ?? null;
+  const relatedPartyFact = findFactsByLabel(bookFacts, "Related-party clue")[0] ?? null;
+  const einFacts = findFactsByLabel(bookFacts, "EIN clue");
+  const uniqueEinSet = new Set(einFacts.flatMap((fact) => extractEinTokens(fact.value)));
 
   if (priorReturnDocument && !priorReturnReading) {
     items.push({
@@ -436,6 +447,73 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
       requestId: null,
       documentId: inventoryClue.sourceDocumentId,
       factId: inventoryClue.id,
+    });
+  }
+
+  if (intercompanyFact) {
+    items.push({
+      id: "books-intercompany-transfer-clue",
+      title: "Books may include intercompany transfers",
+      summary:
+        "Tina found a clue that money may be moving between entities in these papers. She needs a clean separation check before trusting return-facing totals.",
+      severity: "blocking",
+      status: "open",
+      category: "books",
+      requestId: null,
+      documentId: intercompanyFact.sourceDocumentId,
+      factId: intercompanyFact.id,
+    });
+  }
+
+  if (relatedPartyFact) {
+    items.push({
+      id: "books-related-party-clue",
+      title: "Books may include related-party balances or loans",
+      summary:
+        "Tina found a related-party clue. A human should confirm treatment for owner/member/shareholder flows before filing numbers are trusted.",
+      severity: "needs_attention",
+      status: "open",
+      category: "books",
+      requestId: null,
+      documentId: relatedPartyFact.sourceDocumentId,
+      factId: relatedPartyFact.id,
+    });
+  }
+
+  if (ownerFlowFact) {
+    const severeOwnerFlowEntity =
+      draft.profile.entityType === "s_corp" ||
+      draft.profile.entityType === "partnership" ||
+      draft.profile.entityType === "multi_member_llc";
+
+    items.push({
+      id: "books-owner-flow-clue",
+      title: "Owner cash flow needs characterization review",
+      summary:
+        "Tina found owner draw/distribution activity in the papers. She needs a human to confirm the treatment so owner flows do not get carried as ordinary business deductions by mistake.",
+      severity: severeOwnerFlowEntity ? "blocking" : "needs_attention",
+      status: "open",
+      category: "books",
+      requestId: null,
+      documentId: ownerFlowFact.sourceDocumentId,
+      factId: ownerFlowFact.id,
+    });
+  }
+
+  if (uniqueEinSet.size > 1) {
+    const culpritEinFact = einFacts.find((fact) => extractEinTokens(fact.value).length > 0) ?? null;
+    items.push({
+      id: "books-multi-ein-conflict",
+      title: "Multiple EINs appear in money papers",
+      summary: `Tina found references to multiple EINs (${Array.from(uniqueEinSet)
+        .sort()
+        .join(", ")}). She needs entity-boundary cleanup before those books can be trusted for one return.`,
+      severity: "blocking",
+      status: "open",
+      category: "fact_mismatch",
+      requestId: null,
+      documentId: culpritEinFact?.sourceDocumentId ?? null,
+      factId: culpritEinFact?.id ?? null,
     });
   }
 

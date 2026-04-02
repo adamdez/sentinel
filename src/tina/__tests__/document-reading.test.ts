@@ -57,6 +57,53 @@ describe("readTinaDocument", () => {
     );
   });
 
+  it("extracts high-risk ownership and intercompany clues from spreadsheet text", async () => {
+    const document: TinaStoredDocument = {
+      id: "doc-risky-ledger",
+      name: "risky-ledger.csv",
+      size: 96,
+      mimeType: "text/csv",
+      storagePath: "user/2025/doc-risky-ledger.csv",
+      category: "supporting_document",
+      requestId: "quickbooks",
+      requestLabel: "QuickBooks or your profit-and-loss report",
+      uploadedAt: "2026-03-26T21:05:00.000Z",
+    };
+
+    const file = new File(
+      [
+        [
+          "Date,Description,Amount",
+          "2025-01-01,Intercompany transfer to Apex Homes LLC,-5000",
+          "2025-01-02,Owner draw distribution to member,-1200",
+          "2025-01-03,Due from shareholder loan 12-3456789,0",
+          "2025-01-04,Transfer from Harbor Acquisitions Inc 98-7654321,8000",
+        ].join("\n"),
+      ],
+      document.name,
+      { type: document.mimeType }
+    );
+
+    const reading = await readTinaDocument(document, file);
+
+    expect(reading.status).toBe("complete");
+    expect(reading.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Intercompany transfer clue" }),
+        expect.objectContaining({ label: "Owner draw clue" }),
+        expect.objectContaining({ label: "Related-party clue" }),
+        expect.objectContaining({
+          label: "EIN clue",
+          value: "This paper references EIN 12-3456789.",
+        }),
+        expect.objectContaining({
+          label: "EIN clue",
+          value: "This paper references EIN 98-7654321.",
+        }),
+      ])
+    );
+  });
+
   it("marks pdf files as waiting for deeper reading", async () => {
     const document: TinaStoredDocument = {
       id: "doc-pdf",

@@ -18,6 +18,10 @@ const TINA_ALLOWED_FACT_LABELS = [
   "Net income clue",
   "Payroll clue",
   "Sales tax clue",
+  "Owner draw clue",
+  "Intercompany transfer clue",
+  "Related-party clue",
+  "EIN clue",
   "Partial file warning",
 ] as const;
 

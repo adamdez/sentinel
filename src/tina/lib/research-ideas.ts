@@ -303,6 +303,93 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     );
   }
 
+  const intercompanyFacts = findFactsByLabel(draft.sourceFacts, "Intercompany transfer clue");
+  if (intercompanyFacts.length > 0) {
+    const linkedIds = collectLinkedIds(intercompanyFacts);
+    ideas.push(
+      buildLead({
+        id: "intercompany-separation-review",
+        title: "Check intercompany transfer separation and support",
+        summary:
+          "Tina should verify that intercompany transfers and due-to/due-from activity are separated cleanly from return-facing P&L totals.",
+        whyItMatters:
+          "Commingled intercompany flows can distort taxable income if not classified and reconciled correctly before filing.",
+        category: "compliance",
+        sourceLabels: ["Tina found intercompany transfer clues in uploaded papers."],
+        factIds: linkedIds.factIds,
+        documentIds: linkedIds.documentIds,
+        searchPrompt:
+          "Research defensible treatment, documentation, and reconciliation standards for intercompany transfers and due-to/due-from balances in small-business books used for federal business return prep.",
+      })
+    );
+  }
+
+  const relatedPartyFacts = findFactsByLabel(draft.sourceFacts, "Related-party clue");
+  if (relatedPartyFacts.length > 0) {
+    const linkedIds = collectLinkedIds(relatedPartyFacts);
+    ideas.push(
+      buildLead({
+        id: "related-party-transaction-review",
+        title: "Check related-party transaction treatment",
+        summary:
+          "Tina should evaluate related-party balances and transactions for correct characterization, documentation, and disclosure risk.",
+        whyItMatters:
+          "Related-party activity can shift tax outcomes materially and often requires stronger support to stay defensible.",
+        category: "compliance",
+        sourceLabels: ["Tina found related-party clues in uploaded papers."],
+        factIds: linkedIds.factIds,
+        documentIds: linkedIds.documentIds,
+        searchPrompt:
+          "Research federal treatment and documentation expectations for related-party transactions in small-business return prep, including characterization, deductibility limits, and disclosure triggers.",
+      })
+    );
+  }
+
+  const ownerFlowFacts = findFactsByLabel(draft.sourceFacts, "Owner draw clue");
+  if (ownerFlowFacts.length > 0) {
+    const linkedIds = collectLinkedIds(ownerFlowFacts);
+    ideas.push(
+      buildLead({
+        id: "owner-flow-characterization-review",
+        title: "Check owner draws vs compensation vs loan treatment",
+        summary:
+          "Tina should test owner cash flows for proper characterization rather than letting books labels decide tax treatment automatically.",
+        whyItMatters:
+          "Owner flow misclassification is common and can create material over- or under-reporting if not normalized before return prep.",
+        category: "compliance",
+        sourceLabels: ["Tina found owner draw or owner distribution clues in uploaded papers."],
+        factIds: linkedIds.factIds,
+        documentIds: linkedIds.documentIds,
+        searchPrompt:
+          "Research how to distinguish owner draws, compensation, and shareholder/member loan activity for this entity profile and tax year, including documentation and reclassification considerations.",
+      })
+    );
+  }
+
+  const einFacts = findFactsByLabel(draft.sourceFacts, "EIN clue");
+  const uniqueEinSet = new Set(
+    einFacts.flatMap((fact) => fact.value.match(/\b\d{2}-\d{7}\b/g) ?? [])
+  );
+  if (uniqueEinSet.size > 1) {
+    const linkedIds = collectLinkedIds(einFacts);
+    ideas.push(
+      buildLead({
+        id: "multi-entity-boundary-review",
+        title: "Check multi-entity boundary before return prep",
+        summary:
+          "Tina should confirm that books and source papers are scoped to the intended filing entity when multiple EINs are present.",
+        whyItMatters:
+          "Cross-entity commingling can silently contaminate return numbers and create major filing risk if not resolved first.",
+        category: "compliance",
+        sourceLabels: ["Tina found multiple EIN references across source papers."],
+        factIds: linkedIds.factIds,
+        documentIds: linkedIds.documentIds,
+        searchPrompt:
+          "Research practical controls and reconciliation steps for separating mixed-entity books when multiple EINs appear in intake papers for one business return package.",
+      })
+    );
+  }
+
   const payrollFacts = findFactsByLabel(draft.sourceFacts, "Payroll clue");
   if (draft.profile.hasPayroll || payrollFacts.length > 0) {
     const linkedIds = collectLinkedIds(payrollFacts);
