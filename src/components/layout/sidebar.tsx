@@ -5,28 +5,8 @@ import { usePathname } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Activity,
-  CalendarCheck,
-  Calculator,
   Phone,
-  Users,
-  BarChart3,
-  Settings,
   ChevronRight,
-  Zap,
-  Target,
-  Upload,
-  Handshake,
-  KanbanSquare,
-  MapPin,
-  ShieldCheck,
-  Mail,
-  Bug,
-  Megaphone,
-  Car,
-  Contact,
-  Inbox,
-  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
@@ -35,6 +15,15 @@ import { useHydrated } from "@/providers/hydration-provider";
 import { supabase } from "@/lib/supabase";
 import { usePsalm20 } from "@/components/sentinel/psalm20/use-psalm20";
 import { ShieldIcon, BannerIcon, GoldDivider } from "@/components/sentinel/psalm20/icons";
+import {
+  adminSection,
+  brandIcon as BrandIcon,
+  primaryItems,
+  reviewSection,
+  toolsSection,
+  type NavItem,
+  type NavSection,
+} from "@/components/layout/sidebar-config";
 
 interface SidebarBadges {
   adsAlerts: number;
@@ -83,64 +72,6 @@ function useSidebarBadges(): SidebarBadges {
 
   return badges;
 }
-
-interface NavItem {
-  label: string;
-  href: string;
-  icon: LucideIcon;
-  children?: NavItem[];
-  badge?: string;
-}
-
-interface NavSection {
-  title: string;
-  items: NavItem[];
-}
-
-const primaryItems: NavItem[] = [
-  { label: "Today", href: "/dashboard", icon: CalendarCheck },
-  { label: "Lead Queue", href: "/leads", icon: Users },
-  { label: "PPL Inbox", href: "/intake", icon: Inbox, badge: "intake-pending" },
-  { label: "Dialer", href: "/dialer", icon: Phone },
-  { label: "Active", href: "/pipeline", icon: KanbanSquare },
-  { label: "Drive By", href: "/drive-by", icon: Car },
-  { label: "Dispo", href: "/dispo", icon: Handshake },
-];
-
-const toolsSection: NavSection = {
-  title: "Tools",
-  items: [
-    { label: "Property Research", href: "/properties/lookup", icon: MapPin },
-    { label: "Tina", href: "/tina", icon: Calculator },
-    { label: "Buyers", href: "/buyers", icon: Handshake },
-    { label: "Contacts", href: "/contacts", icon: Contact },
-    { label: "Ads", href: "/ads", icon: Target, badge: "ads-alerts" },
-    { label: "Campaigns", href: "/campaigns", icon: Megaphone },
-  ],
-};
-
-const reviewSection: NavSection = {
-  title: "Ops Review",
-  items: [
-    { label: "Research Review", href: "/dialer/review/dossier-queue", icon: ShieldCheck, badge: "review-queue" },
-    { label: "Call QA", href: "/dialer/qa", icon: ShieldCheck },
-    { label: "Call Review", href: "/dialer/war-room", icon: Phone },
-    { label: "Dialer Ops Metrics", href: "/dialer/review", icon: BarChart3 },
-  ],
-};
-
-const adminSection: NavSection = {
-  title: "Admin",
-  items: [
-    { label: "Analytics", href: "/analytics", icon: BarChart3 },
-    { label: "Jeff Outbound", href: "/settings/jeff-outbound", icon: Phone },
-    { label: "Settings", href: "/settings", icon: Settings },
-    { label: "Gmail", href: "/gmail", icon: Mail },
-    { label: "Import", href: "/admin/import", icon: Upload },
-    { label: "System Health", href: "/admin/health", icon: Activity },
-    { label: "Grok", href: "/grok", icon: Bug },
-  ],
-};
 
 function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; badges?: SidebarBadges }) {
   const pathname = usePathname();
@@ -337,7 +268,7 @@ function SidebarBranding({ isPsalm20 }: { isPsalm20: boolean }) {
   return (
     <div className="p-4 flex items-center gap-2.5">
       <div className="h-8 w-8 rounded-[12px] bg-primary/8 flex items-center justify-center border border-primary/18" style={{ boxShadow: "0 0 1px var(--overlay-80), 0 0 4px var(--overlay-35), 0 0 12px var(--overlay-15), 0 0 20px var(--overlay-6)" }}>
-        <Zap className="h-4 w-4 text-primary drop-shadow-[0_0_8px_var(--overlay-60)]" />
+        <BrandIcon className="h-4 w-4 text-primary drop-shadow-[0_0_8px_var(--overlay-60)]" />
       </div>
       <div>
         <h1 className="text-base font-bold tracking-tight text-foreground title-glow">
