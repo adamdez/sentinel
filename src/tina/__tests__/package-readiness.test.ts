@@ -560,6 +560,130 @@ describe("buildTinaPackageReadiness", () => {
     expect(snapshot.items.some((item) => item.id === "issue-queue-not-current")).toBe(true);
   });
 
+  it("blocks when new evidence is newer than the last review runs", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Sole Prop",
+        entityType: "sole_prop",
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "doc-bank",
+          name: "bank.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/bank.pdf",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Bank support",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "late-fact",
+          sourceDocumentId: "doc-qb",
+          label: "State clue",
+          value: "Idaho reference found.",
+          confidence: "medium",
+          capturedAt: "2026-03-27T04:10:00.000Z",
+        },
+      ],
+      bootstrapReview: {
+        lastRunAt: "2026-03-27T04:05:00.000Z",
+        status: "complete",
+        summary: "Claimed complete",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-03-27T04:05:00.000Z",
+        status: "complete",
+        summary: "Claimed complete",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [
+          {
+            id: "line-1-gross-receipts",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 20000,
+            status: "ready",
+            summary: "Looks good.",
+            reviewerFinalLineIds: ["rf-1"],
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-1"],
+          },
+        ],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+    expect(snapshot.level).toBe("blocked");
+    expect(snapshot.items.some((item) => item.id === "bootstrap-review-not-current")).toBe(true);
+    expect(snapshot.items.some((item) => item.id === "issue-queue-not-current")).toBe(true);
+  });
+
   it("marks the package ready for CPA when no blockers or review items remain", () => {
     const draft = buildDraft({
       profile: {

@@ -71,12 +71,32 @@ function noteNeedsAttention(note: TinaScheduleCDraftNote): boolean {
   return note.severity === "needs_attention";
 }
 
-function hasCurrentReviewRun(status: string, lastRunAt: string | null): boolean {
+function parseTimestamp(value: string | null): number {
+  if (!value || value.trim().length === 0) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function latestEvidenceTimestamp(draft: TinaWorkspaceDraft): number {
+  const documentTimestamps = draft.documents.map((document) => parseTimestamp(document.uploadedAt));
+  const sourceFactTimestamps = draft.sourceFacts.map((fact) => parseTimestamp(fact.capturedAt));
+
+  return Math.max(0, ...documentTimestamps, ...sourceFactTimestamps);
+}
+
+function hasCurrentReviewRun(
+  status: string,
+  lastRunAt: string | null,
+  latestEvidenceAt: number
+): boolean {
   if (status !== "complete" || typeof lastRunAt !== "string" || lastRunAt.trim().length === 0) {
     return false;
   }
 
-  return Number.isFinite(Date.parse(lastRunAt));
+  const runAt = parseTimestamp(lastRunAt);
+  if (runAt <= 0) return false;
+  if (latestEvidenceAt > 0 && runAt < latestEvidenceAt) return false;
+  return true;
 }
 
 export function buildTinaPackageReadiness(
@@ -86,6 +106,7 @@ export function buildTinaPackageReadiness(
   const lane = recommendTinaFilingLane(draft.profile);
   const checklist = buildTinaChecklist(draft, lane);
   const items: TinaPackageReadinessItem[] = [];
+  const latestEvidenceAt = latestEvidenceTimestamp(draft);
 
   if (lane.support !== "supported" || lane.laneId !== "schedule_c_single_member_llc") {
     items.push(
@@ -99,7 +120,13 @@ export function buildTinaPackageReadiness(
     );
   }
 
-  if (!hasCurrentReviewRun(draft.bootstrapReview.status, draft.bootstrapReview.lastRunAt)) {
+  if (
+    !hasCurrentReviewRun(
+      draft.bootstrapReview.status,
+      draft.bootstrapReview.lastRunAt,
+      latestEvidenceAt
+    )
+  ) {
     items.push(
       createItem({
         id: "bootstrap-review-not-current",
@@ -111,7 +138,13 @@ export function buildTinaPackageReadiness(
     );
   }
 
-  if (!hasCurrentReviewRun(draft.issueQueue.status, draft.issueQueue.lastRunAt)) {
+  if (
+    !hasCurrentReviewRun(
+      draft.issueQueue.status,
+      draft.issueQueue.lastRunAt,
+      latestEvidenceAt
+    )
+  ) {
     items.push(
       createItem({
         id: "issue-queue-not-current",

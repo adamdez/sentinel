@@ -115,6 +115,13 @@ without adding fake safety blocks when evidence is ambiguous.
 - Package readiness now treats invalid date strings (for example `not-a-date`) as non-current review state.
 - This prevents fake `complete` states from bypassing readiness gates with malformed timestamps.
 
+17. Evidence freshness gating added for review runs:
+- Package readiness now treats review layers as stale when new evidence arrived after their `lastRunAt`.
+- Evidence freshness currently keys off:
+  - document upload timestamps
+  - source-fact capture timestamps
+- This blocks "green badge drift" where queue/review status remains complete even though new facts were added later.
+
 ## Current verification status
 
 - Targeted tests pass:
@@ -125,7 +132,7 @@ without adding fake safety blocks when evidence is ambiguous.
   - `npm run test:tina`
 - Adversarial command passes:
   - `npm run test:tina:adversarial`
-- Current full Tina count: `23` files, `105` tests passing.
+- Current full Tina count: `23` files, `106` tests passing.
 - Typecheck passes:
   - `npm run typecheck`
 
