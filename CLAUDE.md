@@ -117,6 +117,18 @@ If mostly no — don't build it.
 
 ---
 
+## Cleanup Discipline
+
+Every file touched must be left cleaner than it was found. This is not optional.
+
+- **When fixing a bug:** Remove dead imports, unused variables, and obvious slop in the same commit.
+- **When adding a feature:** Check for existing patterns before creating new ones. Never add a new utility if one already exists.
+- **When generating code:** Every new API route must have a caller. Every DB record with a temporary status must have a handler that resolves it. Every new import must be necessary.
+- **Dead code audit:** See `docs/plans/2026-04-02-dead-code-audit.md`. 32 dead components, 8 dead lib files, 2 dead hooks identified. Delete when adjacent work touches those areas.
+- **Data hygiene:** Schema ≠ data. Don't create columns without pipelines. Don't leave `in_progress` records without cleanup handlers.
+
+---
+
 ## What to Avoid
 
 - Enterprise sprawl, ERP behavior, internal chat features
@@ -126,6 +138,7 @@ If mostly no — don't build it.
 - Auto-skip-tracing every lookup (trace on promotion only)
 - Features added because they're technically possible
 - Evaluating tools by past familiarity — evaluate against 2026 fit and contracts-per-hour impact
+- **AI slop** — code that compiles but was never reviewed, tested, or verified against reality
 
 ---
 
