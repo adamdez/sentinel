@@ -888,6 +888,8 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
   const displayEmail = cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
 
+  const alreadySkipTraced = Boolean(cf.ownerFlags?.skip_traced);
+
   const { loading: callHistoryLoading } = useCallNotes(cf.id, 20, activityRefreshToken);
   const sellerContinuity = cf.sellerSituationSummaryShort?.trim() || null;
 
@@ -1118,7 +1120,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
               <div className="flex items-center gap-2">
                 <p className="text-sm text-muted-foreground/60 italic">No phone</p>
-                {onSkipTrace && (
+                {onSkipTrace && !alreadySkipTraced && (
                   <button
                     onClick={onSkipTrace}
                     disabled={skipTracing}
@@ -1126,6 +1128,9 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
                   >
                     {skipTracing ? "Skipping..." : "Run Skip Trace"}
                   </button>
+                )}
+                {alreadySkipTraced && (
+                  <span className="text-xs text-muted-foreground/40">skip traced — no results</span>
                 )}
               </div>
 
@@ -1135,6 +1140,10 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
               <p className="text-sm text-muted-foreground">{displayEmail}</p>
 
+            )}
+
+            {cf.isAbsentee && Boolean(cf.ownerFlags?.mailing_address) && (
+              <p className="text-xs text-muted-foreground/60">Mailing: {String(cf.ownerFlags.mailing_address)}</p>
             )}
 
           </div>
