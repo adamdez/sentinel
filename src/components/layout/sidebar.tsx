@@ -100,6 +100,7 @@ interface NavSection {
 const primaryItems: NavItem[] = [
   { label: "Today", href: "/dashboard", icon: CalendarCheck },
   { label: "Lead Queue", href: "/leads", icon: Users },
+  { label: "PPL Inbox", href: "/intake", icon: Inbox, badge: "intake-pending" },
   { label: "Dialer", href: "/dialer", icon: Phone },
   { label: "Active", href: "/pipeline", icon: KanbanSquare },
   { label: "Drive By", href: "/drive-by", icon: Car },
@@ -109,7 +110,6 @@ const primaryItems: NavItem[] = [
 const toolsSection: NavSection = {
   title: "Tools",
   items: [
-    { label: "PPL Inbox", href: "/intake", icon: Inbox, badge: "intake-pending" },
     { label: "Property Research", href: "/properties/lookup", icon: MapPin },
     { label: "Tina", href: "/tina", icon: Calculator },
     { label: "Buyers", href: "/buyers", icon: Handshake },
