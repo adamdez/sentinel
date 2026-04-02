@@ -41,6 +41,7 @@ import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
 import { useCallHistory, type CallHistoryEntry } from "@/hooks/use-call-history";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-workflow-summary";
+import { filterBriefBullets, filterBriefWatchOuts, filterBriefGoal } from "@/lib/brief-trust-filter";
 import { Eye } from "lucide-react";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
@@ -831,6 +832,14 @@ function DialerPageInner() {
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
   const [idleRailTab, setIdleRailTab] = useState<"history" | "jeff" | "sms">("history");
   const [briefDetailOpen, setBriefDetailOpen] = useState(false);
+  const filteredBrief = useMemo(() => {
+    if (!preCallBrief) return null;
+    const goal = filterBriefGoal(preCallBrief.primaryGoal);
+    const bullets = filterBriefBullets(preCallBrief.bullets).slice(0, 3);
+    const watchOuts = filterBriefWatchOuts(preCallBrief.watchOuts);
+    const hasContent = !!(goal || bullets.length || watchOuts.length || preCallBrief.riskFlags.length || preCallBrief.nextQuestions.length);
+    return hasContent ? { goal, bullets, watchOuts, riskFlags: preCallBrief.riskFlags, nextQuestions: preCallBrief.nextQuestions } : null;
+  }, [preCallBrief]);
   const prevLeadIdForBrief = useRef<string | null>(null);
   if (currentLead?.id !== prevLeadIdForBrief.current) {
     prevLeadIdForBrief.current = currentLead?.id ?? null;
@@ -3626,9 +3635,9 @@ function DialerPageInner() {
                       <SellerMemoryPreview leadId={currentLead.id} />
                     )}
 
-                    {/* Pre-Call Brief — goal + bullets + watch-outs, expandable detail */}
+                    {/* Pre-Call Brief — trust-filtered: only specific, useful AI content */}
                     <AnimatePresence>
-                      {callState === "idle" && (preCallBrief || briefLoading || briefError) && (
+                      {callState === "idle" && (filteredBrief || briefLoading || (briefError && !preCallBrief)) && (
                         <motion.div
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: "auto" }}
@@ -3647,18 +3656,16 @@ function DialerPageInner() {
                               <button onClick={retryBrief} className="text-xs text-amber-300 hover:text-amber-200 underline shrink-0">Retry</button>
                             </div>
                           )}
-                          {preCallBrief && (
+                          {filteredBrief && (
                             <>
-                              {/* Goal — only show if the API returned something specific */}
-                              {preCallBrief.primaryGoal && (
+                              {filteredBrief.goal && (
                                 <p className="text-xs text-foreground/80 font-medium leading-snug mb-1.5">
-                                  {preCallBrief.primaryGoal}
+                                  {filteredBrief.goal}
                                 </p>
                               )}
-                              {/* Top bullets (max 3) */}
-                              {preCallBrief.bullets.length > 0 && (
+                              {filteredBrief.bullets.length > 0 && (
                                 <ul className="space-y-0.5">
-                                  {preCallBrief.bullets.slice(0, 3).map((b, i) => (
+                                  {filteredBrief.bullets.map((b, i) => (
                                     <li key={i} className="text-xs text-foreground/70 flex items-start gap-1.5">
                                       <span className="text-foreground/40 mt-0.5">•</span>
                                       {b}
@@ -3666,22 +3673,19 @@ function DialerPageInner() {
                                   ))}
                                 </ul>
                               )}
-                              {/* Watch-out — compact risk line */}
-                              {preCallBrief.watchOuts.length > 0 && preCallBrief.watchOuts[0] && (
+                              {filteredBrief.watchOuts.length > 0 && (
                                 <div className="flex items-start gap-1.5 mt-1.5 text-xs text-amber-300/70">
                                   <AlertTriangle className="h-2.5 w-2.5 shrink-0 mt-0.5" />
-                                  <span className="leading-snug line-clamp-2">{preCallBrief.watchOuts[0]}</span>
+                                  <span className="leading-snug line-clamp-2">{filteredBrief.watchOuts[0]}</span>
                                 </div>
                               )}
-                              {/* Inline risk flag count (always visible if flags exist) */}
-                              {preCallBrief.riskFlags.length > 0 && !briefDetailOpen && (
+                              {filteredBrief.riskFlags.length > 0 && !briefDetailOpen && (
                                 <div className="flex items-center gap-1 mt-1.5 text-xs text-amber-400/80">
                                   <AlertTriangle className="h-2.5 w-2.5" />
-                                  {preCallBrief.riskFlags.length} risk flag{preCallBrief.riskFlags.length !== 1 ? "s" : ""}
+                                  {filteredBrief.riskFlags.length} risk flag{filteredBrief.riskFlags.length !== 1 ? "s" : ""}
                                 </div>
                               )}
-                              {/* Expandable detail: questions + risk flags */}
-                              {(preCallBrief.nextQuestions.length > 0 || preCallBrief.riskFlags.length > 0) && (
+                              {(filteredBrief.nextQuestions.length > 0 || filteredBrief.riskFlags.length > 0) && (
                                 <>
                                   <button
                                     onClick={() => setBriefDetailOpen(!briefDetailOpen)}
@@ -3697,21 +3701,21 @@ function DialerPageInner() {
                                         exit={{ opacity: 0, height: 0 }}
                                         className="overflow-hidden"
                                       >
-                                        {preCallBrief.nextQuestions.length > 0 && (
+                                        {filteredBrief.nextQuestions.length > 0 && (
                                           <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2 mt-1.5">
                                             <p className="text-[10px] text-muted-foreground/55 uppercase mb-1">Questions</p>
                                             <div className="space-y-0.5">
-                                              {preCallBrief.nextQuestions.slice(0, 3).map((q, i) => (
+                                              {filteredBrief.nextQuestions.slice(0, 3).map((q, i) => (
                                                 <p key={i} className="text-xs text-foreground/75 leading-snug">• {q}</p>
                                               ))}
                                             </div>
                                           </div>
                                         )}
-                                        {preCallBrief.riskFlags.length > 0 && (
+                                        {filteredBrief.riskFlags.length > 0 && (
                                           <div className="rounded-lg bg-muted/[0.06] border border-border/20 p-2 mt-1.5">
                                             <p className="text-[10px] text-amber-400/70 uppercase mb-1">Risk Flags</p>
                                             <div className="space-y-0.5">
-                                              {preCallBrief.riskFlags.map((flag, i) => (
+                                              {filteredBrief.riskFlags.map((flag, i) => (
                                                 <div key={i} className="flex items-start gap-1.5 text-xs text-foreground/75">
                                                   <AlertTriangle className="h-2.5 w-2.5 mt-0.5 shrink-0 text-amber-400/60" />
                                                   <p>{flag}</p>
