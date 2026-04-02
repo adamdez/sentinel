@@ -7903,31 +7903,21 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   });
 
-  const compactPropertyFacts = useMemo(() => {
-    const facts: string[] = [];
-    if (clientFile.bedrooms != null || clientFile.bathrooms != null) {
-      facts.push(`${clientFile.bedrooms ?? "?"}/${clientFile.bathrooms ?? "?"} bd/ba`);
-    }
-    if (clientFile.sqft != null) facts.push(`${clientFile.sqft.toLocaleString()} sqft`);
-    if (clientFile.yearBuilt != null) facts.push(`Yr ${clientFile.yearBuilt}`);
-    if (clientFile.estimatedValue != null) facts.push(`AVM ${formatCurrency(clientFile.estimatedValue)}`);
-    if (clientFile.delinquentAmount != null && clientFile.delinquentAmount > 0) {
-      facts.push(`Tax ${formatCurrency(clientFile.delinquentAmount)}`);
-    }
-    return facts.slice(0, 4);
-  }, [
-    clientFile.bathrooms,
-    clientFile.bedrooms,
-    clientFile.delinquentAmount,
-    clientFile.estimatedValue,
-    clientFile.sqft,
-    clientFile.yearBuilt,
-  ]);
+  const compactPropertyFacts: string[] = [];
+  if (clientFile.bedrooms != null || clientFile.bathrooms != null) {
+    compactPropertyFacts.push(`${clientFile.bedrooms ?? "?"}/${clientFile.bathrooms ?? "?"} bd/ba`);
+  }
+  if (clientFile.sqft != null) compactPropertyFacts.push(`${clientFile.sqft.toLocaleString()} sqft`);
+  if (clientFile.yearBuilt != null) compactPropertyFacts.push(`Yr ${clientFile.yearBuilt}`);
+  if (clientFile.estimatedValue != null) compactPropertyFacts.push(`AVM ${formatCurrency(clientFile.estimatedValue)}`);
+  if (clientFile.delinquentAmount != null && clientFile.delinquentAmount > 0) {
+    compactPropertyFacts.push(`Tax ${formatCurrency(clientFile.delinquentAmount)}`);
+  }
+  compactPropertyFacts.splice(4);
 
-  const compactContextTags = useMemo(() => {
-    const allow = new Set(["probate", "inherited", "vacant", "tax_lien", "tax_delinquency"]);
-    return (clientFile.tags ?? []).filter((tag) => allow.has(tag)).slice(0, 2);
-  }, [clientFile.tags]);
+  const compactContextTags = (clientFile.tags ?? [])
+    .filter((tag) => ["probate", "inherited", "vacant", "tax_lien", "tax_delinquency"].includes(tag))
+    .slice(0, 2);
 
   const qualificationEditable = currentStage === "lead";
 
