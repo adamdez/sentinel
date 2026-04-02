@@ -4,6 +4,7 @@ import {
   isContractStatus,
   parseFounderUserIds,
 } from "@/lib/analytics-helpers";
+import { computeFounderHoursFromWorkLogs } from "@/lib/founder-worklog";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const JEFF_INFLUENCE_LOOKBACK_DAYS = 120;
@@ -47,6 +48,12 @@ interface TaskRow {
   completed_at: string | null;
 }
 
+interface WorkLogRow {
+  user_id: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+}
+
 interface DealCreatedRow {
   id: string;
   lead_id: string | null;
@@ -85,6 +92,7 @@ export interface WeeklyMetricDelta {
 export interface WeeklyOperatorWindowMetrics {
   calls: number;
   founderHoursEstimated: number;
+  founderHoursSource: "work_log" | "call_estimate";
   appointmentSignals: number;
   offersMade: number;
   tasksCompleted: number;
@@ -109,6 +117,7 @@ export interface WeeklyTeamWindowMetrics {
   windowEnd: string;
   founderCallCount: number;
   founderHoursEstimated: number;
+  founderHoursSource: "work_log" | "call_estimate";
   qualifiedConversations: number;
   appointmentSignals: number;
   offersMade: number;
@@ -200,6 +209,8 @@ export function buildWeeklyMetricDelta(currentRaw: number | null, previousRaw: n
 function computeTeamWindowMetrics(input: {
   window: TimeWindow;
   founderCalls: CallRow[];
+  founderWorkLogs: WorkLogRow[];
+  founderIdsForLogs: string[];
   dealsCreated: DealCreatedRow[];
   closedDeals: DealClosedRow[];
   offers: OfferRow[];
@@ -211,6 +222,16 @@ function computeTeamWindowMetrics(input: {
     windowCalls.map((row) => ({ duration_sec: row.duration_sec })),
     2,
   );
+  const workLogEffort = computeFounderHoursFromWorkLogs(
+    input.founderWorkLogs,
+    input.window.fromIso,
+    input.window.toIso,
+    input.founderIdsForLogs,
+  );
+  const founderHoursSource: "work_log" | "call_estimate" =
+    workLogEffort.founderHours > 0 ? "work_log" : "call_estimate";
+  const founderHoursEstimated =
+    founderHoursSource === "work_log" ? workLogEffort.founderHours : founderEffort.founderHours;
 
   const windowDealsCreated = input.dealsCreated.filter((row) => withinWindow(row.created_at, input.window));
   const windowClosedDeals = input.closedDeals.filter((row) => withinWindow(row.closed_at, input.window));
@@ -248,15 +269,16 @@ function computeTeamWindowMetrics(input: {
   );
 
   const contractsPerFounderHour =
-    founderEffort.founderHours > 0 ? round1(contractsSigned / founderEffort.founderHours) : null;
+    founderHoursEstimated > 0 ? round1(contractsSigned / founderHoursEstimated) : null;
   const revenuePerFounderHour =
-    founderEffort.founderHours > 0 ? Math.round(totalRevenue / founderEffort.founderHours) : null;
+    founderHoursEstimated > 0 ? Math.round(totalRevenue / founderHoursEstimated) : null;
 
   return {
     windowStart: input.window.fromIso,
     windowEnd: input.window.toIso,
     founderCallCount: founderEffort.callCount,
-    founderHoursEstimated: founderEffort.founderHours,
+    founderHoursEstimated,
+    founderHoursSource,
     qualifiedConversations,
     appointmentSignals,
     offersMade: windowOffers.length,
@@ -275,6 +297,7 @@ function computeOperatorWindowMetrics(input: {
   userId: string;
   window: TimeWindow;
   founderCalls: CallRow[];
+  founderWorkLogs: WorkLogRow[];
   offers: OfferRow[];
   tasks: TaskRow[];
 }): WeeklyOperatorWindowMetrics {
@@ -285,6 +308,16 @@ function computeOperatorWindowMetrics(input: {
     calls.map((row) => ({ duration_sec: row.duration_sec })),
     2,
   );
+  const workLogEffort = computeFounderHoursFromWorkLogs(
+    input.founderWorkLogs,
+    input.window.fromIso,
+    input.window.toIso,
+    [input.userId],
+  );
+  const founderHoursSource: "work_log" | "call_estimate" =
+    workLogEffort.founderHours > 0 ? "work_log" : "call_estimate";
+  const founderHoursEstimated =
+    founderHoursSource === "work_log" ? workLogEffort.founderHours : founderEffort.founderHours;
 
   const appointmentSignals = calls.filter((row) => APPOINTMENT_DISPOSITIONS.has(normalizeKey(row.disposition))).length;
   const offersMade = input.offers.filter((row) => row.offered_by === input.userId && withinWindow(row.offered_at, input.window)).length;
@@ -292,7 +325,8 @@ function computeOperatorWindowMetrics(input: {
 
   return {
     calls: calls.length,
-    founderHoursEstimated: founderEffort.founderHours,
+    founderHoursEstimated,
+    founderHoursSource,
     appointmentSignals,
     offersMade,
     tasksCompleted,
@@ -463,6 +497,20 @@ export async function getWeeklyFounderScorecard(options?: {
   const { data: tasksRaw } = await tasksQuery;
   const tasks = (tasksRaw ?? []) as TaskRow[];
 
+  const operatorIds = rankOperatorIds({ founderIds, calls: founderCalls, offers, tasks });
+  const founderIdsForLogs = founderIds.length > 0 ? founderIds : operatorIds;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let founderWorkLogQuery = (sb.from("founder_work_logs") as any)
+    .select("user_id, started_at, ended_at")
+    .lt("started_at", allToIso)
+    .or(`ended_at.is.null,ended_at.gte.${allFromIso}`);
+  if (founderIdsForLogs.length > 0) {
+    founderWorkLogQuery = founderWorkLogQuery.in("user_id", founderIdsForLogs);
+  }
+  const { data: founderWorkLogsRaw } = await founderWorkLogQuery;
+  const founderWorkLogs = (founderWorkLogsRaw ?? []) as WorkLogRow[];
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: dealsCreatedRaw } = await (sb.from("deals") as any)
     .select("id, lead_id, status, closed_at, created_at")
@@ -513,6 +561,8 @@ export async function getWeeklyFounderScorecard(options?: {
   const currentWeek = computeTeamWindowMetrics({
     window: currentWindow,
     founderCalls,
+    founderWorkLogs,
+    founderIdsForLogs,
     dealsCreated,
     closedDeals,
     offers,
@@ -523,6 +573,8 @@ export async function getWeeklyFounderScorecard(options?: {
   const previousWeek = computeTeamWindowMetrics({
     window: previousWindow,
     founderCalls,
+    founderWorkLogs,
+    founderIdsForLogs,
     dealsCreated,
     closedDeals,
     offers,
@@ -530,7 +582,6 @@ export async function getWeeklyFounderScorecard(options?: {
     jeffInfluenceRows,
   });
 
-  const operatorIds = rankOperatorIds({ founderIds, calls: founderCalls, offers, tasks });
   const profileMap = new Map<string, { full_name?: string | null; email?: string | null }>();
   if (operatorIds.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -547,6 +598,7 @@ export async function getWeeklyFounderScorecard(options?: {
       userId,
       window: currentWindow,
       founderCalls,
+      founderWorkLogs,
       offers,
       tasks,
     });
@@ -554,6 +606,7 @@ export async function getWeeklyFounderScorecard(options?: {
       userId,
       window: previousWindow,
       founderCalls,
+      founderWorkLogs,
       offers,
       tasks,
     });

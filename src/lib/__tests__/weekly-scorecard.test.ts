@@ -11,6 +11,7 @@ function makeWindow(overrides?: Partial<WeeklyTeamWindowMetrics>): WeeklyTeamWin
     windowEnd: "2026-03-27T00:00:00.000Z",
     founderCallCount: 40,
     founderHoursEstimated: 22,
+    founderHoursSource: "call_estimate",
     qualifiedConversations: 14,
     appointmentSignals: 6,
     offersMade: 4,

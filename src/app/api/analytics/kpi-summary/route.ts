@@ -13,6 +13,7 @@ import { getPeriodStart, type TimePeriod } from "@/lib/analytics";
 import { normalizeSource, sourceLabel as getSourceLabel } from "@/lib/source-normalization";
 import { computeFounderEffortFromCalls, computeJeffInfluenceSummary, isContractStatus, parseFounderUserIds } from "@/lib/analytics-helpers";
 import { isContacted, contactRate as calcContactRate } from "@/lib/comm-truth";
+import { computeFounderHoursFromWorkLogs } from "@/lib/founder-worklog";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -195,7 +196,27 @@ export async function GET(req: NextRequest) {
       ((founderCallsRaw ?? []) as Array<{ duration_sec?: number | null }>),
       2,
     );
-    const founder_hours_estimated = founderEffort.founderHours;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let founderWorkLogQuery = (sb.from("founder_work_logs") as any)
+      .select("user_id, started_at, ended_at")
+      .lt("started_at", nowIso);
+    if (periodStart) {
+      founderWorkLogQuery = founderWorkLogQuery.or(`ended_at.is.null,ended_at.gte.${periodStart}`);
+    }
+    if (founderIds.length > 0) {
+      founderWorkLogQuery = founderWorkLogQuery.in("user_id", founderIds);
+    }
+    const { data: founderWorkLogsRaw } = await founderWorkLogQuery;
+    const founderWorkLogEffort = computeFounderHoursFromWorkLogs(
+      (founderWorkLogsRaw ?? []) as Array<{ user_id?: string | null; started_at?: string | null; ended_at?: string | null }>,
+      periodStart ?? "1970-01-01T00:00:00.000Z",
+      nowIso,
+      founderIds,
+    );
+    const founder_hours_source: "work_log" | "call_estimate" =
+      founderWorkLogEffort.founderHours > 0 ? "work_log" : "call_estimate";
+    const founder_hours_estimated =
+      founder_hours_source === "work_log" ? founderWorkLogEffort.founderHours : founderEffort.founderHours;
     const contracts_per_founder_hour_estimated =
       founder_hours_estimated > 0 ? round1(deals_closed / founder_hours_estimated) : null;
     const revenue_per_founder_hour_estimated =
@@ -330,6 +351,7 @@ export async function GET(req: NextRequest) {
         jeff_influence_rate: jeffInfluence.influenceRatePct,
         founder_call_count: founderEffort.callCount,
         founder_hours_estimated,
+        founder_hours_source,
         contracts_per_founder_hour_estimated,
         revenue_per_founder_hour_estimated,
 

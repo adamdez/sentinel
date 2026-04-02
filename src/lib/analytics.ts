@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { normalizeSource, sourceLabel as canonicalSourceLabel } from "@/lib/source-normalization";
 import { computeFounderEffortFromCalls, computeJeffInfluenceSummary, parseFounderUserIds } from "@/lib/analytics-helpers";
+import { computeFounderHoursFromWorkLogs } from "@/lib/founder-worklog";
 
 export type TimePeriod = "today" | "week" | "month" | "all";
 export type MarketKey = "spokane" | "kootenai" | "other";
@@ -143,6 +144,7 @@ export interface RevenueSummary {
 export interface FounderEfficiencySummary {
   founderCallCount: number;
   founderHoursEstimated: number;
+  founderHoursSource: "work_log" | "call_estimate";
   contractsPerFounderHourEstimated: number | null;
   revenuePerFounderHourEstimated: number | null;
 }
@@ -333,6 +335,7 @@ function emptyAnalytics(periodStart: string | null): DominionAnalyticsData {
     founderEfficiency: {
       founderCallCount: 0,
       founderHoursEstimated: 0,
+      founderHoursSource: "call_estimate",
       contractsPerFounderHourEstimated: null,
       revenuePerFounderHourEstimated: null,
     },
@@ -487,6 +490,27 @@ export async function fetchDominionAnalytics(periodStart: string | null, userId?
     ((founderCallRowsRaw ?? []) as Array<{ duration_sec?: number | null }>),
     2,
   );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let founderWorkLogQuery = (supabase.from("founder_work_logs") as any)
+    .select("user_id, started_at, ended_at")
+    .lt("started_at", new Date().toISOString());
+  if (periodStart) {
+    founderWorkLogQuery = founderWorkLogQuery.or(`ended_at.is.null,ended_at.gte.${periodStart}`);
+  }
+  if (userId) {
+    founderWorkLogQuery = founderWorkLogQuery.eq("user_id", userId);
+  } else if (founderIds.length > 0) {
+    founderWorkLogQuery = founderWorkLogQuery.in("user_id", founderIds);
+  }
+  const { data: founderWorkLogRowsRaw } = await founderWorkLogQuery;
+  const founderWorkLogEffort = computeFounderHoursFromWorkLogs(
+    (founderWorkLogRowsRaw ?? []) as Array<{ user_id?: string | null; started_at?: string | null; ended_at?: string | null }>,
+    periodStart ?? "1970-01-01T00:00:00.000Z",
+    new Date().toISOString(),
+    userId ? [userId] : founderIds,
+  );
+  const founderHoursSource: "work_log" | "call_estimate" =
+    founderWorkLogEffort.founderHours > 0 ? "work_log" : "call_estimate";
 
   const enrichedLeads: EnrichedLead[] = rawLeads.map((lead) => {
     const county = lead.property_id ? propertyCountyById.get(lead.property_id) ?? null : null;
@@ -732,7 +756,9 @@ export async function fetchDominionAnalytics(periodStart: string | null, userId?
 
   const totalRevenue = closedDealFacts.reduce((sum, deal) => sum + deal.assignmentFee, 0);
   const closedDeals = closedDealFacts.length;
-  const founderHoursEstimated = founderEffort.founderHours;
+  const founderHoursEstimated = founderHoursSource === "work_log"
+    ? founderWorkLogEffort.founderHours
+    : founderEffort.founderHours;
   const contractsPerFounderHourEstimated =
     founderHoursEstimated > 0 ? round1(closedDeals / founderHoursEstimated) : null;
   const revenuePerFounderHourEstimated =
@@ -758,6 +784,7 @@ export async function fetchDominionAnalytics(periodStart: string | null, userId?
     founderEfficiency: {
       founderCallCount: founderEffort.callCount,
       founderHoursEstimated,
+      founderHoursSource,
       contractsPerFounderHourEstimated,
       revenuePerFounderHourEstimated,
     },

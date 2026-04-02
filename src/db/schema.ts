@@ -291,6 +291,26 @@ export const tasks = pgTable("tasks", {
   uniqueIndex("uq_tasks_source_identity").on(table.sourceType, table.sourceKey),
 ]);
 
+// ── Founder Work Logs ─────────────────────────────────────────────
+// Explicit founder effort tracking for contracts-per-founder-hour.
+// Used as primary effort source when available; call-effort remains fallback.
+
+export const founderWorkLogs = pgTable("founder_work_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  source: varchar("source", { length: 40 }).notNull().default("manual"),
+  note: text("note"),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_founder_work_logs_user_start").on(table.userId, table.startedAt),
+  index("idx_founder_work_logs_start").on(table.startedAt),
+  index("idx_founder_work_logs_end").on(table.endedAt),
+]);
+
 // ── Campaigns ───────────────────────────────────────────────────────
 
 export const campaigns = pgTable("campaigns", {

@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { count: tasksCompleted } = await (sb.from("tasks") as any)
       .select("id", { count: "exact", head: true })
-      .eq("status", "done")
+      .in("status", ["completed", "done"])
       .gte("updated_at", sevenDaysAgo);
 
     const pipeline = {

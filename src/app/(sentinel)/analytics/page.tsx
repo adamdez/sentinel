@@ -33,6 +33,7 @@ interface WeeklyMetricDelta {
 
 interface WeeklyTeamWindowMetrics {
   founderHoursEstimated: number;
+  founderHoursSource: "work_log" | "call_estimate";
   qualifiedConversations: number;
   appointmentSignals: number;
   offersMade: number;
@@ -108,6 +109,7 @@ export default function AnalyticsPage() {
   const jeffInfluenceRate = revenue?.jeffInfluenceRatePct ?? null;
   const contractsPerFounderHour = founderEfficiency?.contractsPerFounderHourEstimated ?? null;
   const founderHoursEstimated = founderEfficiency?.founderHoursEstimated ?? 0;
+  const founderHoursSource = founderEfficiency?.founderHoursSource ?? "call_estimate";
   const founderCallCount = founderEfficiency?.founderCallCount ?? 0;
 
   const fetchWeeklyScorecard = useCallback(async () => {
@@ -240,7 +242,7 @@ export default function AnalyticsPage() {
                 label="Contracts / Founder Hr"
                 value={contractsPerFounderHour != null ? String(contractsPerFounderHour) : "n/a"}
                 icon={TrendingUp}
-                sub={`${founderHoursEstimated}h est`}
+                sub={`${founderHoursEstimated}h ${founderHoursSource === "work_log" ? "logged" : "est"}`}
                 tone={contractsPerFounderHour != null && contractsPerFounderHour > 0 ? "positive" : "default"}
               />
               <SummaryCard label="Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} tone={totalRevenue > 0 ? "positive" : "default"} />

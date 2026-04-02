@@ -33,6 +33,7 @@ interface KpiData {
   jeff_influence_rate: number | null;
   founder_call_count: number;
   founder_hours_estimated: number;
+  founder_hours_source?: "work_log" | "call_estimate";
   contracts_per_founder_hour_estimated: number | null;
   revenue_per_founder_hour_estimated: number | null;
   contact_rate: number | null;
@@ -168,7 +169,9 @@ export function KpiSummaryRow({ period }: { period: TimePeriod }) {
       value: kpis.contracts_per_founder_hour_estimated != null
         ? `${kpis.contracts_per_founder_hour_estimated}`
         : "n/a",
-      subtitle: `${kpis.founder_hours_estimated}h est (${kpis.founder_call_count} calls)`,
+      subtitle: kpis.founder_hours_source === "work_log"
+        ? `${kpis.founder_hours_estimated}h logged (${kpis.founder_call_count} calls)`
+        : `${kpis.founder_hours_estimated}h est (${kpis.founder_call_count} calls)`,
     },
   ];
 
