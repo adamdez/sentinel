@@ -76,6 +76,7 @@ type JeffReview = {
   review_tags: string[];
   score: number | null;
   notes: string | null;
+  policy_version?: string | null;
   created_at: string;
 };
 
@@ -94,6 +95,23 @@ type JeffQualityTuningSummary = {
   scoredSampleSize: number;
   passRate: number | null;
   suggestions: JeffPolicyTuningSuggestion[];
+};
+
+type JeffPolicyVersionComparison = {
+  currentPolicyVersion: string | null;
+  previousPolicyVersion: string | null;
+  currentReviewCount: number;
+  previousReviewCount: number;
+  currentScoredCount: number;
+  previousScoredCount: number;
+  currentPassRate: number | null;
+  previousPassRate: number | null;
+  passRateDeltaPctPoints: number | null;
+  currentAverageScore: number | null;
+  previousAverageScore: number | null;
+  averageScoreDelta: number | null;
+  minScoredForComparison: number;
+  hasSufficientData: boolean;
 };
 
 type JeffActivity = {
@@ -267,6 +285,11 @@ function formatPercent(value: number | null) {
   return `${Math.round(value * 100)}%`;
 }
 
+function formatPolicyVersion(value: string | null) {
+  if (!value) return "unknown";
+  return value.replace(/^jeff-outbound-/, "");
+}
+
 function formatDuration(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const remaining = Math.max(0, seconds % 60);
@@ -316,6 +339,7 @@ export default function JeffOutboundPage() {
   const [kpis, setKpis] = useState<JeffKpis | null>(null);
   const [reviews, setReviews] = useState<JeffReview[]>([]);
   const [tuning, setTuning] = useState<JeffQualityTuningSummary | null>(null);
+  const [policyComparison, setPolicyComparison] = useState<JeffPolicyVersionComparison | null>(null);
   const [interactions, setInteractions] = useState<JeffInteraction[]>([]);
   const [activity, setActivity] = useState<JeffActivity | null>(null);
   const [loading, setLoading] = useState(true);
@@ -359,6 +383,7 @@ export default function JeffOutboundPage() {
       setKpis(kpiJson.kpis ?? null);
       setReviews(reviewJson.reviews ?? []);
       setTuning(reviewJson.tuning ?? null);
+      setPolicyComparison(reviewJson.policyComparison ?? null);
       setActivity(activityJson ?? null);
       setInteractions(interactionJson.interactions ?? []);
     } catch (error) {
@@ -395,6 +420,7 @@ export default function JeffOutboundPage() {
     setKpis(kpiJson.kpis ?? null);
     setReviews(reviewJson.reviews ?? []);
     setTuning(reviewJson.tuning ?? null);
+    setPolicyComparison(reviewJson.policyComparison ?? null);
     setInteractions(interactionJson.interactions ?? []);
   }, [rangeFrom, rangeTo]);
 
@@ -872,6 +898,34 @@ export default function JeffOutboundPage() {
                     {typeof tuning?.passRate === "number" ? ` • ${Math.round(tuning.passRate * 100)}% pass` : ""}
                   </div>
                 </div>
+                {policyComparison?.currentPolicyVersion ? (
+                  <div className="mt-2 rounded-lg border border-border/20 bg-muted/10 p-2.5 text-xs">
+                    <div className="font-medium text-foreground">
+                      Policy impact: {formatPolicyVersion(policyComparison.currentPolicyVersion)}
+                      {policyComparison.previousPolicyVersion
+                        ? ` vs ${formatPolicyVersion(policyComparison.previousPolicyVersion)}`
+                        : ""}
+                    </div>
+                    {policyComparison.previousPolicyVersion ? (
+                      <div className="mt-1 text-muted-foreground/80">
+                        Pass rate {formatPercent(policyComparison.currentPassRate)} vs {formatPercent(policyComparison.previousPassRate)}
+                        {policyComparison.passRateDeltaPctPoints != null
+                          ? ` (${policyComparison.passRateDeltaPctPoints > 0 ? "+" : ""}${policyComparison.passRateDeltaPctPoints}pp)`
+                          : ""} • Avg score {policyComparison.currentAverageScore ?? "-"} vs {policyComparison.previousAverageScore ?? "-"}.
+                      </div>
+                    ) : (
+                      <div className="mt-1 text-muted-foreground/80">
+                        No prior policy version in the review set yet.
+                      </div>
+                    )}
+                    {!policyComparison.hasSufficientData && policyComparison.previousPolicyVersion ? (
+                      <div className="mt-1 text-amber-200/90">
+                        Sample is light ({policyComparison.currentScoredCount}/{policyComparison.previousScoredCount} scored).
+                        Hold version decisions until each side has {policyComparison.minScoredForComparison}+ scored reviews.
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {tuning?.suggestions?.length ? (
                   <div className="mt-2 space-y-2">
                     {tuning.suggestions.map((suggestion) => {
@@ -908,7 +962,14 @@ export default function JeffOutboundPage() {
                   <div key={review.id} className="rounded-xl border border-border/15 bg-muted/5 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-xs font-medium text-foreground">Session {review.voice_session_id.slice(0, 8)}</div>
-                      <Badge variant="outline">{review.score ?? "-"}/5</Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="outline">{review.score ?? "-"}/5</Badge>
+                        {review.policy_version ? (
+                          <Badge variant="secondary" className="text-[10px]">
+                            {formatPolicyVersion(review.policy_version)}
+                          </Badge>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {(review.review_tags ?? []).map((tag) => (

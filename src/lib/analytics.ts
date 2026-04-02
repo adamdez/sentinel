@@ -1,6 +1,11 @@
 import { supabase } from "@/lib/supabase";
 import { normalizeSource, sourceLabel as canonicalSourceLabel } from "@/lib/source-normalization";
-import { computeFounderEffortFromCalls, computeJeffInfluenceSummary, parseFounderUserIds } from "@/lib/analytics-helpers";
+import {
+  computeFounderEffortFromCalls,
+  computeJeffAttributionFunnel,
+  isContractStatus,
+  parseFounderUserIds,
+} from "@/lib/analytics-helpers";
 import { computeFounderHoursFromWorkLogs } from "@/lib/founder-worklog";
 
 export type TimePeriod = "today" | "week" | "month" | "all";
@@ -10,6 +15,7 @@ export type PipelineStage = "prospect" | "lead" | "negotiation" | "disposition" 
 const MARKET_ORDER: MarketKey[] = ["spokane", "kootenai", "other"];
 const PIPELINE_STAGE_ORDER: PipelineStage[] = ["prospect", "lead", "negotiation", "disposition", "nurture", "closed", "dead"];
 const SPEED_TO_LEAD_SLA_MS = 15 * 60 * 1000;
+const APPOINTMENT_DISPOSITIONS = new Set(["appointment", "appointment_set"]);
 
 interface RawLead {
   id: string;
@@ -30,6 +36,7 @@ interface RawProperty {
 
 interface RawCallAttempt {
   lead_id: string | null;
+  disposition: string | null;
   started_at: string | null;
 }
 
@@ -135,6 +142,9 @@ export interface RevenueSummary {
   assignmentRevenue: number;
   avgAssignmentFee: number | null;
   undatedClosedDealsExcluded: number;
+  jeffInfluencedAppointmentLeads: number;
+  jeffInfluencedOfferLeads: number;
+  jeffInfluencedContractLeads: number;
   jeffInfluencedClosedDeals: number;
   jeffInfluencedRevenue: number;
   jeffInfluenceRatePct: number | null;
@@ -324,6 +334,9 @@ function emptyAnalytics(periodStart: string | null): DominionAnalyticsData {
       assignmentRevenue: 0,
       avgAssignmentFee: null,
       undatedClosedDealsExcluded: 0,
+      jeffInfluencedAppointmentLeads: 0,
+      jeffInfluencedOfferLeads: 0,
+      jeffInfluencedContractLeads: 0,
       jeffInfluencedClosedDeals: 0,
       jeffInfluencedRevenue: 0,
       jeffInfluenceRatePct: null,
@@ -443,14 +456,17 @@ export async function fetchDominionAnalytics(periodStart: string | null, userId?
   }
 
   const firstAttemptByLeadId = new Map<string, string>();
+  const callRows: RawCallAttempt[] = [];
   if (leadIds.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: calls } = await (supabase.from("calls_log") as any)
-      .select("lead_id, started_at")
+      .select("lead_id, disposition, started_at")
       .in("lead_id", leadIds)
       .order("started_at", { ascending: true });
 
-    for (const row of (calls ?? []) as RawCallAttempt[]) {
+    const rows = (calls ?? []) as RawCallAttempt[];
+    callRows.push(...rows);
+    for (const row of rows) {
       if (!row.lead_id || !row.started_at) continue;
       if (!firstAttemptByLeadId.has(row.lead_id)) {
         firstAttemptByLeadId.set(row.lead_id, row.started_at);
@@ -536,15 +552,22 @@ export async function fetchDominionAnalytics(periodStart: string | null, userId?
   const periodLeads = periodStartMs == null
     ? enrichedLeads
     : enrichedLeads.filter((lead) => lead.intakeMs != null && lead.intakeMs >= periodStartMs);
+  const periodLeadIdSet = new Set(periodLeads.map((lead) => lead.id));
 
   const closedDealFacts: ClosedDealFact[] = [];
   let undatedClosedDealsExcluded = 0;
+  const periodDealRows: RawDeal[] = [];
 
   for (const [leadId, deals] of dealsByLeadId.entries()) {
     const lead = leadById.get(leadId);
     if (!lead) continue;
 
     for (const deal of deals) {
+      const dealCreatedMs = toMs(deal.created_at);
+      if (periodLeadIdSet.has(leadId) && (periodStartMs == null || (dealCreatedMs != null && dealCreatedMs >= periodStartMs))) {
+        periodDealRows.push(deal);
+      }
+
       if (!isClosedDeal(deal)) continue;
       if (periodStartMs != null && !deal.closed_at) {
         undatedClosedDealsExcluded++;
@@ -587,16 +610,51 @@ export async function fetchDominionAnalytics(periodStart: string | null, userId?
       }
     }
   }
-  const jeffInfluence = computeJeffInfluenceSummary(
-    closedDealFacts.map((deal) => ({
+
+  const appointmentStageEvents = callRows
+    .filter((row) => {
+      if (!row.lead_id || !row.started_at) return false;
+      if (!periodLeadIdSet.has(row.lead_id)) return false;
+      if (!APPOINTMENT_DISPOSITIONS.has((row.disposition ?? "").toLowerCase())) return false;
+      if (periodStartMs == null) return true;
+      const eventMs = toMs(row.started_at);
+      return eventMs != null && eventMs >= periodStartMs;
+    })
+    .map((row) => ({
+      lead_id: row.lead_id as string,
+      event_at: row.started_at,
+    }));
+
+  const offerStageEvents = periodDealRows
+    .filter((deal) => typeof deal.lead_id === "string" && deal.lead_id.length > 0)
+    .map((deal) => ({
+      lead_id: deal.lead_id as string,
+      event_at: deal.created_at,
+    }));
+
+  const contractStageEvents = periodDealRows
+    .filter((deal) => {
+      const leadId = deal.lead_id;
+      return typeof leadId === "string" && leadId.length > 0 && (isContractStatus(deal.status) || Boolean(deal.closed_at));
+    })
+    .map((deal) => ({
+      lead_id: deal.lead_id as string,
+      event_at: deal.closed_at ?? deal.created_at,
+    }));
+
+  const jeffAttribution = computeJeffAttributionFunnel({
+    deals: closedDealFacts.map((deal) => ({
       lead_id: deal.leadId,
       assignment_fee: deal.assignmentFee,
       closed_at: deal.closedAt,
       created_at: deal.createdAt,
     })),
-    jeffInteractionRows,
-    120,
-  );
+    interactions: jeffInteractionRows,
+    appointments: appointmentStageEvents,
+    offers: offerStageEvents,
+    contracts: contractStageEvents,
+    lookbackDays: 120,
+  });
 
   const speedToLead = buildSpeedSummary(periodLeads, nowMs);
 
@@ -776,9 +834,12 @@ export async function fetchDominionAnalytics(periodStart: string | null, userId?
       assignmentRevenue: totalRevenue,
       avgAssignmentFee: closedDeals > 0 ? totalRevenue / closedDeals : null,
       undatedClosedDealsExcluded: periodStartMs == null ? 0 : undatedClosedDealsExcluded,
-      jeffInfluencedClosedDeals: jeffInfluence.influencedClosedDeals,
-      jeffInfluencedRevenue: jeffInfluence.influencedRevenue,
-      jeffInfluenceRatePct: jeffInfluence.influenceRatePct,
+      jeffInfluencedAppointmentLeads: jeffAttribution.influencedAppointmentLeads,
+      jeffInfluencedOfferLeads: jeffAttribution.influencedOfferLeads,
+      jeffInfluencedContractLeads: jeffAttribution.influencedContractLeads,
+      jeffInfluencedClosedDeals: jeffAttribution.influencedClosedDeals,
+      jeffInfluencedRevenue: jeffAttribution.influencedRevenue,
+      jeffInfluenceRatePct: jeffAttribution.influenceRatePct,
       byMarket: revenueRows,
     },
     founderEfficiency: {

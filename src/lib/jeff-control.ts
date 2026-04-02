@@ -131,6 +131,23 @@ export interface JeffQualityTuningSummary {
   suggestions: JeffPolicyTuningSuggestion[];
 }
 
+export interface JeffPolicyVersionComparison {
+  currentPolicyVersion: string | null;
+  previousPolicyVersion: string | null;
+  currentReviewCount: number;
+  previousReviewCount: number;
+  currentScoredCount: number;
+  previousScoredCount: number;
+  currentPassRate: number | null;
+  previousPassRate: number | null;
+  passRateDeltaPctPoints: number | null;
+  currentAverageScore: number | null;
+  previousAverageScore: number | null;
+  averageScoreDelta: number | null;
+  minScoredForComparison: number;
+  hasSufficientData: boolean;
+}
+
 export function buildJeffRecentSessions(
   sessions: JeffRecentSessionLite[],
   leads: JeffRecentLeadLite[],
@@ -859,6 +876,28 @@ export function buildJeffQualityTuningSummary(
     });
   }
 
+  const policyComparison = buildJeffPolicyVersionComparison(reviews, { minScoredForComparison: 4 });
+  if (
+    policyComparison.currentPolicyVersion &&
+    policyComparison.previousPolicyVersion &&
+    policyComparison.hasSufficientData &&
+    policyComparison.passRateDeltaPctPoints != null &&
+    policyComparison.passRateDeltaPctPoints <= -10
+  ) {
+    const severity: JeffPolicySuggestionSeverity =
+      policyComparison.passRateDeltaPctPoints <= -20 ? "critical" : "high";
+    const deltaLabel = Math.abs(policyComparison.passRateDeltaPctPoints).toFixed(1);
+    pushSuggestion({
+      code: "policy_version_regression",
+      severity,
+      title: "Latest Jeff policy version is underperforming",
+      message: `Pass rate dropped ${deltaLabel}pp from ${policyComparison.previousPolicyVersion} to ${policyComparison.currentPolicyVersion}.`,
+      action: "Freeze rollout volume and patch or roll back the latest policy version before scaling calls.",
+      signalCount: policyComparison.currentScoredCount,
+      signalRate: Number((Math.abs(policyComparison.passRateDeltaPctPoints) / 100).toFixed(2)),
+    });
+  }
+
   suggestions.sort(compareSuggestionPriority);
 
   return {
@@ -866,6 +905,105 @@ export function buildJeffQualityTuningSummary(
     scoredSampleSize: scored.length,
     passRate: passRate != null ? Number(passRate.toFixed(2)) : null,
     suggestions: suggestions.slice(0, maxSuggestions),
+  };
+}
+
+export function buildJeffPolicyVersionComparison(
+  reviews: Array<Record<string, unknown>>,
+  options?: { minScoredForComparison?: number },
+): JeffPolicyVersionComparison {
+  const minScoredForComparison = Math.max(2, Math.min(options?.minScoredForComparison ?? 5, 20));
+  const buckets = new Map<string, {
+    policyVersion: string;
+    reviewCount: number;
+    scoredCount: number;
+    passCount: number;
+    scoreTotal: number;
+    latestMs: number;
+  }>();
+
+  for (const review of reviews) {
+    const rawPolicyVersion =
+      typeof review.policy_version === "string"
+        ? review.policy_version
+        : typeof review.policyVersion === "string"
+          ? review.policyVersion
+          : "";
+    const policyVersion = rawPolicyVersion.trim();
+    if (!policyVersion) continue;
+
+    const updatedMs = typeof review.updated_at === "string"
+      ? new Date(review.updated_at).getTime()
+      : Number.NaN;
+    const createdMs = typeof review.created_at === "string"
+      ? new Date(review.created_at).getTime()
+      : Number.NaN;
+    const activityMs = Number.isFinite(updatedMs) ? updatedMs : createdMs;
+    const score = typeof review.score === "number" && Number.isFinite(review.score)
+      ? review.score
+      : null;
+
+    const current = buckets.get(policyVersion) ?? {
+      policyVersion,
+      reviewCount: 0,
+      scoredCount: 0,
+      passCount: 0,
+      scoreTotal: 0,
+      latestMs: Number.NEGATIVE_INFINITY,
+    };
+
+    current.reviewCount += 1;
+    if (score != null) {
+      current.scoredCount += 1;
+      current.scoreTotal += score;
+      if (score >= 4) current.passCount += 1;
+    }
+    if (Number.isFinite(activityMs) && activityMs > current.latestMs) {
+      current.latestMs = activityMs;
+    }
+    buckets.set(policyVersion, current);
+  }
+
+  const ordered = Array.from(buckets.values())
+    .sort((a, b) => b.latestMs - a.latestMs);
+  const current = ordered[0] ?? null;
+  const previous = ordered[1] ?? null;
+
+  const toPassRate = (row: { scoredCount: number; passCount: number } | null) =>
+    row && row.scoredCount > 0 ? Number((row.passCount / row.scoredCount).toFixed(2)) : null;
+  const toAverageScore = (row: { scoredCount: number; scoreTotal: number } | null) =>
+    row && row.scoredCount > 0 ? Number((row.scoreTotal / row.scoredCount).toFixed(2)) : null;
+
+  const currentPassRate = toPassRate(current);
+  const previousPassRate = toPassRate(previous);
+  const currentAverageScore = toAverageScore(current);
+  const previousAverageScore = toAverageScore(previous);
+  const passRateDeltaPctPoints =
+    currentPassRate != null && previousPassRate != null
+      ? Number(((currentPassRate - previousPassRate) * 100).toFixed(1))
+      : null;
+  const averageScoreDelta =
+    currentAverageScore != null && previousAverageScore != null
+      ? Number((currentAverageScore - previousAverageScore).toFixed(2))
+      : null;
+
+  return {
+    currentPolicyVersion: current?.policyVersion ?? null,
+    previousPolicyVersion: previous?.policyVersion ?? null,
+    currentReviewCount: current?.reviewCount ?? 0,
+    previousReviewCount: previous?.reviewCount ?? 0,
+    currentScoredCount: current?.scoredCount ?? 0,
+    previousScoredCount: previous?.scoredCount ?? 0,
+    currentPassRate,
+    previousPassRate,
+    passRateDeltaPctPoints,
+    currentAverageScore,
+    previousAverageScore,
+    averageScoreDelta,
+    minScoredForComparison,
+    hasSufficientData:
+      (current?.scoredCount ?? 0) >= minScoredForComparison &&
+      (previous?.scoredCount ?? 0) >= minScoredForComparison,
   };
 }
 

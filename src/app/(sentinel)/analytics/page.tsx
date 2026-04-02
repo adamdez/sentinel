@@ -40,6 +40,9 @@ interface WeeklyTeamWindowMetrics {
   contractsSigned: number;
   dealsClosed: number;
   totalRevenue: number;
+  jeffInfluencedAppointmentLeads: number;
+  jeffInfluencedOfferLeads: number;
+  jeffInfluencedContractLeads: number;
   jeffInfluencedClosedDeals: number;
   jeffInfluenceRatePct: number | null;
   contractsPerFounderHour: number | null;
@@ -60,11 +63,66 @@ interface WeeklyScorecardPayload {
     contractsSigned: WeeklyMetricDelta;
     dealsClosed: WeeklyMetricDelta;
     totalRevenue: WeeklyMetricDelta;
+    jeffInfluencedAppointmentLeads: WeeklyMetricDelta;
+    jeffInfluencedOfferLeads: WeeklyMetricDelta;
+    jeffInfluencedContractLeads: WeeklyMetricDelta;
     jeffInfluenceRatePct: WeeklyMetricDelta;
     contractsPerFounderHour: WeeklyMetricDelta;
     revenuePerFounderHour: WeeklyMetricDelta;
   };
   exceptions: Array<{ code: string; severity: "critical" | "high" | "medium" | "info"; message: string }>;
+}
+
+interface WeeklyExceptionAction {
+  label: string;
+  href: string;
+}
+
+const WEEKLY_EXCEPTION_ACTIONS: Record<string, WeeklyExceptionAction> = {
+  founder_worklog_estimated_fallback: {
+    label: "Log founder hours",
+    href: "/analytics#founder-hours",
+  },
+  contracts_per_founder_hour_down: {
+    label: "Open Jeff controls",
+    href: "/settings/jeff-outbound",
+  },
+  revenue_per_founder_hour_down: {
+    label: "Review source mix",
+    href: "/analytics#source-performance",
+  },
+  founder_time_up_without_contract_lift: {
+    label: "Open lead queue",
+    href: "/leads",
+  },
+  qualified_conversations_down: {
+    label: "Review Jeff quality",
+    href: "/settings/jeff-outbound",
+  },
+  appointment_signals_down: {
+    label: "Open dialer review",
+    href: "/dialer/review",
+  },
+  offers_down: {
+    label: "Open pipeline",
+    href: "/pipeline",
+  },
+  zero_contracts_with_high_effort: {
+    label: "Open tasks",
+    href: "/tasks",
+  },
+  zero_jeff_influence_on_closed: {
+    label: "Tune Jeff policy",
+    href: "/settings/jeff-outbound",
+  },
+  jeff_influence_rate_down: {
+    label: "Review Jeff outcomes",
+    href: "/settings/jeff-outbound",
+  },
+};
+
+function getWeeklyExceptionAction(code: string): WeeklyExceptionAction | null {
+  return WEEKLY_EXCEPTION_ACTIONS[code] ?? null;
 }
 
 // ── Main Page ────────────────────────────────────────────────────────────────
@@ -104,6 +162,9 @@ export default function AnalyticsPage() {
   const totalAwaiting = marketScoreboard.reduce((s, r) => s + r.awaitingFirstContact, 0);
   const closedDeals = revenue?.closedDeals ?? 0;
   const totalRevenue = revenue?.assignmentRevenue ?? 0;
+  const jeffInfluencedAppointmentLeads = revenue?.jeffInfluencedAppointmentLeads ?? 0;
+  const jeffInfluencedOfferLeads = revenue?.jeffInfluencedOfferLeads ?? 0;
+  const jeffInfluencedContractLeads = revenue?.jeffInfluencedContractLeads ?? 0;
   const jeffInfluencedClosedDeals = revenue?.jeffInfluencedClosedDeals ?? 0;
   const jeffInfluencedRevenue = revenue?.jeffInfluencedRevenue ?? 0;
   const jeffInfluenceRate = revenue?.jeffInfluenceRatePct ?? null;
@@ -184,8 +245,22 @@ export default function AnalyticsPage() {
     const unknownSourceLeads = sourceOutcomes.find((r) => r.sourceKey === "unknown")?.leads ?? 0;
     if (unknownSourceLeads > 3) items.push({ text: `${unknownSourceLeads} leads have no source attribution`, severity: "info" });
 
+    if (weeklyScorecard?.exceptions?.length) {
+      const urgentWeekly = weeklyScorecard.exceptions
+        .filter((issue) => issue.severity === "critical" || issue.severity === "high")
+        .slice(0, 2);
+      for (const issue of urgentWeekly) {
+        const action = getWeeklyExceptionAction(issue.code);
+        items.push({
+          text: `Weekly scorecard: ${issue.message}`,
+          severity: "warn",
+          href: action?.href,
+        });
+      }
+    }
+
     return items;
-  }, [totalOverdue, totalAwaiting, speed, pipelineHealth, sourceOutcomes, contractsPerFounderHour, founderHoursEstimated, closedDeals, jeffInfluencedClosedDeals]);
+  }, [totalOverdue, totalAwaiting, speed, pipelineHealth, sourceOutcomes, contractsPerFounderHour, founderHoursEstimated, closedDeals, jeffInfluencedClosedDeals, weeklyScorecard]);
 
   return (
     <PageShell
@@ -244,6 +319,7 @@ export default function AnalyticsPage() {
                 icon={TrendingUp}
                 sub={`${founderHoursEstimated}h ${founderHoursSource === "work_log" ? "logged" : "est"}`}
                 tone={contractsPerFounderHour != null && contractsPerFounderHour > 0 ? "positive" : "default"}
+                anchorId="founder-hours"
               />
               <SummaryCard label="Revenue" value={formatCurrency(totalRevenue)} icon={DollarSign} tone={totalRevenue > 0 ? "positive" : "default"} />
               <SummaryCard
@@ -328,7 +404,7 @@ export default function AnalyticsPage() {
             </GlassCard>
 
             {/* ── Source Performance ───────────────────────────── */}
-            <GlassCard hover={false} className="!p-4">
+            <GlassCard hover={false} className="!p-4" id="source-performance">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-primary" />
@@ -414,8 +490,17 @@ export default function AnalyticsPage() {
                 )}
                 {closedDeals > 0 && (
                   <div className="mt-2 border-t border-overlay-4 pt-2 text-xs text-muted-foreground">
-                    Jeff influenced <span className="tabular-nums text-foreground/80">{jeffInfluencedClosedDeals}/{closedDeals}</span>
-                    {" closed"} ({formatPercent(jeffInfluenceRate)}) • {formatCurrency(jeffInfluencedRevenue)}
+                    Jeff path A-&gt;O-&gt;C-&gt;Closed{" "}
+                    <span className="tabular-nums text-foreground/80">
+                      {jeffInfluencedAppointmentLeads}
+                      {"->"}
+                      {jeffInfluencedOfferLeads}
+                      {"->"}
+                      {jeffInfluencedContractLeads}
+                      {"->"}
+                      {jeffInfluencedClosedDeals}
+                    </span>
+                    {" "}({formatPercent(jeffInfluenceRate)}) - {formatCurrency(jeffInfluencedRevenue)}
                   </div>
                 )}
               </GlassCard>
@@ -448,12 +533,13 @@ export default function AnalyticsPage() {
 
 // ── Subcomponents ────────────────────────────────────────────────────────────
 
-function SummaryCard({ label, value, icon: Icon, tone = "default", sub }: {
+function SummaryCard({ label, value, icon: Icon, tone = "default", sub, anchorId }: {
   label: string;
   value: string;
   icon: React.ComponentType<{ className?: string }>;
   tone?: "default" | "positive" | "danger";
   sub?: string;
+  anchorId?: string;
 }) {
   return (
     <div className={cn(
@@ -461,7 +547,7 @@ function SummaryCard({ label, value, icon: Icon, tone = "default", sub }: {
       tone === "default" && "border-glass-border",
       tone === "positive" && "border-emerald-500/25 bg-emerald-500/[0.04]",
       tone === "danger" && "border-red-500/30 bg-red-500/[0.06]",
-    )}>
+    )} id={anchorId}>
       <div className="flex items-center gap-1.5 mb-0.5">
         <Icon className="h-3 w-3 text-primary shrink-0" />
         <span className="text-[11px] uppercase tracking-wider text-muted-foreground truncate">{label}</span>
@@ -652,6 +738,16 @@ function DeltaChip({ delta, invertGood }: { delta: WeeklyMetricDelta; invertGood
 function TrueNorthScorecardCard({ scorecard }: { scorecard: WeeklyScorecardPayload }) {
   const current = scorecard.currentWeek;
   const delta = scorecard.deltas;
+  const prioritizedExceptionActions = scorecard.exceptions
+    .filter((issue) => issue.severity === "critical" || issue.severity === "high")
+    .map((issue) => getWeeklyExceptionAction(issue.code))
+    .filter((action): action is WeeklyExceptionAction => Boolean(action))
+    .reduce<WeeklyExceptionAction[]>((acc, action) => {
+      if (acc.some((existing) => existing.href === action.href)) return acc;
+      acc.push(action);
+      return acc;
+    }, [])
+    .slice(0, 3);
 
   return (
     <GlassCard hover={false} className="!p-4 border-primary/20 bg-primary/[0.03]">
@@ -695,28 +791,98 @@ function TrueNorthScorecardCard({ scorecard }: { scorecard: WeeklyScorecardPaylo
           <DeltaChip delta={delta.contractsSigned} />
         </div>
         <div className="rounded-[10px] border border-glass-border bg-glass/30 px-2.5 py-2">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Jeff Influence Rate</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Jeff Path A-&gt;O-&gt;C-&gt;Closed</p>
           <p className="text-sm font-semibold tabular-nums">
-            {current.jeffInfluenceRatePct != null ? `${current.jeffInfluenceRatePct}%` : "n/a"}
+            {current.jeffInfluencedAppointmentLeads}
+            {"->"}
+            {current.jeffInfluencedOfferLeads}
+            {"->"}
+            {current.jeffInfluencedContractLeads}
+            {"->"}
+            {current.jeffInfluencedClosedDeals}
           </p>
-          <DeltaChip delta={delta.jeffInfluenceRatePct} />
+          <div className="flex items-center gap-1.5">
+            <DeltaChip delta={delta.jeffInfluencedContractLeads} />
+            <span className="text-[10px] text-muted-foreground/70">
+              rate {current.jeffInfluenceRatePct != null ? `${current.jeffInfluenceRatePct}%` : "n/a"}
+            </span>
+          </div>
         </div>
       </div>
 
+      <div className="mt-2 text-[11px] text-muted-foreground/70">
+        Founder hours source:{" "}
+        <span className={cn(
+          "font-medium",
+          current.founderHoursSource === "work_log" ? "text-emerald-300/90" : "text-amber-300/90",
+        )}>
+          {current.founderHoursSource === "work_log" ? "Logged work logs" : "Estimated from call time"}
+        </span>
+      </div>
+
+      {current.founderHoursSource !== "work_log" &&
+        current.founderHoursEstimated > 0 && (
+          <div className="mt-2 rounded-[10px] border border-amber-500/35 bg-amber-500/[0.08] px-2.5 py-2">
+            <p className="text-[11px] text-amber-100/95">
+              Founder efficiency is currently estimated from calls. Log founder work blocks to harden
+              contracts/hour and revenue/hour decisions.
+            </p>
+            <Link
+              href="/analytics#founder-worklog"
+              className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-amber-200 hover:text-amber-100"
+            >
+              Log founder hours
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+        )}
+
+      {prioritizedExceptionActions.length > 0 && (
+        <div className="mt-3 rounded-[10px] border border-primary/20 bg-primary/[0.05] px-2.5 py-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1.5">
+            Priority Drill-Down
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {prioritizedExceptionActions.map((action) => (
+              <Link
+                key={`${action.href}:${action.label}`}
+                href={action.href}
+                className="inline-flex items-center gap-1 rounded-[8px] border border-primary/30 bg-primary/[0.08] px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/[0.14] transition-colors"
+              >
+                {action.label}
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {scorecard.exceptions.length > 0 && (
         <div className="mt-3 border-t border-overlay-4 pt-2.5 space-y-1">
-          {scorecard.exceptions.slice(0, 4).map((issue) => (
-            <div key={issue.code} className="flex items-center gap-2 text-xs">
-              <span className={cn(
-                "h-1.5 w-1.5 rounded-full shrink-0",
-                issue.severity === "critical" && "bg-red-400",
-                issue.severity === "high" && "bg-amber-400",
-                issue.severity === "medium" && "bg-yellow-300",
-                issue.severity === "info" && "bg-primary/60",
-              )} />
-              <span className="text-muted-foreground">{issue.message}</span>
-            </div>
-          ))}
+          {scorecard.exceptions.slice(0, 4).map((issue) => {
+            const action = getWeeklyExceptionAction(issue.code);
+            return (
+              <div key={issue.code} className="flex items-center gap-2 text-xs">
+                <span className={cn(
+                  "h-1.5 w-1.5 rounded-full shrink-0",
+                  issue.severity === "critical" && "bg-red-400",
+                  issue.severity === "high" && "bg-amber-400",
+                  issue.severity === "medium" && "bg-yellow-300",
+                  issue.severity === "info" && "bg-primary/60",
+                )} />
+                <span className="text-muted-foreground flex-1">{issue.message}</span>
+                {action && (
+                  <Link
+                    href={action.href}
+                    className="ml-auto text-[11px] text-primary/70 hover:text-primary transition-colors shrink-0"
+                  >
+                    {action.label}
+                    <ArrowRight className="h-2.5 w-2.5 inline ml-1" />
+                  </Link>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </GlassCard>

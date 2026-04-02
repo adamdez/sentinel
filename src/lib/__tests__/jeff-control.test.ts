@@ -202,4 +202,68 @@ describe("Jeff quality tuning summary", () => {
     expect(summary.sampleSize).toBe(3);
     expect(summary.suggestions).toHaveLength(0);
   });
+
+  it("flags policy-version regressions when pass-rate drops materially", async () => {
+    const { buildJeffQualityTuningSummary } = await import("@/lib/jeff-control");
+    const summary = buildJeffQualityTuningSummary([
+      { voice_session_id: "p1", policy_version: "jeff-outbound-2026-03-21", score: 5, created_at: "2026-03-21T12:00:00.000Z" },
+      { voice_session_id: "p2", policy_version: "jeff-outbound-2026-03-21", score: 4, created_at: "2026-03-21T13:00:00.000Z" },
+      { voice_session_id: "p3", policy_version: "jeff-outbound-2026-03-21", score: 5, created_at: "2026-03-21T14:00:00.000Z" },
+      { voice_session_id: "p4", policy_version: "jeff-outbound-2026-03-21", score: 4, created_at: "2026-03-21T15:00:00.000Z" },
+      { voice_session_id: "c1", policy_version: "jeff-outbound-2026-03-30", score: 2, created_at: "2026-03-30T12:00:00.000Z" },
+      { voice_session_id: "c2", policy_version: "jeff-outbound-2026-03-30", score: 3, created_at: "2026-03-30T13:00:00.000Z" },
+      { voice_session_id: "c3", policy_version: "jeff-outbound-2026-03-30", score: 4, created_at: "2026-03-30T14:00:00.000Z" },
+      { voice_session_id: "c4", policy_version: "jeff-outbound-2026-03-30", score: 2, created_at: "2026-03-30T15:00:00.000Z" },
+    ] as Array<Record<string, unknown>>);
+
+    const regression = summary.suggestions.find((suggestion) => suggestion.code === "policy_version_regression");
+    expect(regression).toBeTruthy();
+    expect(regression?.severity).toBe("critical");
+  });
+
+  it("compares current policy quality against the previous policy version", async () => {
+    const { buildJeffPolicyVersionComparison } = await import("@/lib/jeff-control");
+    const comparison = buildJeffPolicyVersionComparison([
+      { voice_session_id: "c1", policy_version: "jeff-outbound-2026-03-30", score: 5, created_at: "2026-04-01T12:00:00.000Z" },
+      { voice_session_id: "c2", policy_version: "jeff-outbound-2026-03-30", score: 4, created_at: "2026-04-01T13:00:00.000Z" },
+      { voice_session_id: "c3", policy_version: "jeff-outbound-2026-03-30", score: 3, created_at: "2026-04-01T14:00:00.000Z" },
+      { voice_session_id: "c4", policy_version: "jeff-outbound-2026-03-30", score: 4, created_at: "2026-04-01T15:00:00.000Z" },
+      { voice_session_id: "p1", policy_version: "jeff-outbound-2026-03-21", score: 2, created_at: "2026-03-25T12:00:00.000Z" },
+      { voice_session_id: "p2", policy_version: "jeff-outbound-2026-03-21", score: 3, created_at: "2026-03-25T13:00:00.000Z" },
+      { voice_session_id: "p3", policy_version: "jeff-outbound-2026-03-21", score: 4, created_at: "2026-03-25T14:00:00.000Z" },
+      { voice_session_id: "p4", policy_version: "jeff-outbound-2026-03-21", score: 5, created_at: "2026-03-25T15:00:00.000Z" },
+    ] as Array<Record<string, unknown>>, { minScoredForComparison: 4 });
+
+    expect(comparison.currentPolicyVersion).toBe("jeff-outbound-2026-03-30");
+    expect(comparison.previousPolicyVersion).toBe("jeff-outbound-2026-03-21");
+    expect(comparison.currentPassRate).toBe(0.75);
+    expect(comparison.previousPassRate).toBe(0.5);
+    expect(comparison.passRateDeltaPctPoints).toBe(25);
+    expect(comparison.currentAverageScore).toBe(4);
+    expect(comparison.previousAverageScore).toBe(3.5);
+    expect(comparison.averageScoreDelta).toBe(0.5);
+    expect(comparison.hasSufficientData).toBe(true);
+  });
+
+  it("prefers updated_at over created_at when ranking policy recency", async () => {
+    const { buildJeffPolicyVersionComparison } = await import("@/lib/jeff-control");
+    const comparison = buildJeffPolicyVersionComparison([
+      {
+        voice_session_id: "older-created-but-latest-updated",
+        policy_version: "jeff-outbound-2026-04-02",
+        score: 5,
+        created_at: "2026-03-01T12:00:00.000Z",
+        updated_at: "2026-04-02T12:00:00.000Z",
+      },
+      {
+        voice_session_id: "newer-created",
+        policy_version: "jeff-outbound-2026-03-30",
+        score: 4,
+        created_at: "2026-03-31T12:00:00.000Z",
+      },
+    ] as Array<Record<string, unknown>>, { minScoredForComparison: 2 });
+
+    expect(comparison.currentPolicyVersion).toBe("jeff-outbound-2026-04-02");
+    expect(comparison.previousPolicyVersion).toBe("jeff-outbound-2026-03-30");
+  });
 });

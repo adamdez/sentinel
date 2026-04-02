@@ -1,6 +1,6 @@
 import {
   computeFounderEffortFromCalls,
-  computeJeffInfluenceSummary,
+  computeJeffAttributionFunnel,
   isContractStatus,
   parseFounderUserIds,
 } from "@/lib/analytics-helpers";
@@ -32,6 +32,7 @@ interface TimeWindow {
 }
 
 interface CallRow {
+  lead_id: string | null;
   user_id: string | null;
   duration_sec: number | null;
   disposition: string | null;
@@ -124,6 +125,9 @@ export interface WeeklyTeamWindowMetrics {
   contractsSigned: number;
   dealsClosed: number;
   totalRevenue: number;
+  jeffInfluencedAppointmentLeads: number;
+  jeffInfluencedOfferLeads: number;
+  jeffInfluencedContractLeads: number;
   jeffInfluencedClosedDeals: number;
   jeffInfluencedRevenue: number;
   jeffInfluenceRatePct: number | null;
@@ -152,6 +156,9 @@ export interface WeeklyFounderScorecard {
     contractsSigned: WeeklyMetricDelta;
     dealsClosed: WeeklyMetricDelta;
     totalRevenue: WeeklyMetricDelta;
+    jeffInfluencedAppointmentLeads: WeeklyMetricDelta;
+    jeffInfluencedOfferLeads: WeeklyMetricDelta;
+    jeffInfluencedContractLeads: WeeklyMetricDelta;
     jeffInfluenceRatePct: WeeklyMetricDelta;
     contractsPerFounderHour: WeeklyMetricDelta;
     revenuePerFounderHour: WeeklyMetricDelta;
@@ -257,16 +264,49 @@ function computeTeamWindowMetrics(input: {
   const dealsClosed = windowClosedDeals.length;
   const totalRevenue = windowClosedDeals.reduce((sum, row) => sum + toNumber(row.assignment_fee), 0);
 
-  const jeffInfluence = computeJeffInfluenceSummary(
-    windowClosedDeals.map((row) => ({
+  const appointmentEvents = windowCalls
+    .filter((row) => {
+      const leadId = (row.lead_id ?? "").trim();
+      return leadId.length > 0 && APPOINTMENT_DISPOSITIONS.has(normalizeKey(row.disposition));
+    })
+    .map((row) => ({
+      lead_id: row.lead_id,
+      event_at: row.started_at,
+    }));
+
+  const offerEvents = windowDealsCreated
+    .filter((row) => {
+      const leadId = (row.lead_id ?? "").trim();
+      return leadId.length > 0;
+    })
+    .map((row) => ({
+      lead_id: row.lead_id,
+      event_at: row.created_at,
+    }));
+
+  const contractEvents = windowDealsCreated
+    .filter((row) => {
+      const leadId = (row.lead_id ?? "").trim();
+      return leadId.length > 0 && (isContractStatus(row.status) || Boolean(row.closed_at));
+    })
+    .map((row) => ({
+      lead_id: row.lead_id,
+      event_at: row.closed_at ?? row.created_at,
+    }));
+
+  const jeffAttribution = computeJeffAttributionFunnel({
+    deals: windowClosedDeals.map((row) => ({
       lead_id: row.lead_id,
       assignment_fee: row.assignment_fee,
       closed_at: row.closed_at,
       created_at: row.created_at,
     })),
-    input.jeffInfluenceRows,
-    JEFF_INFLUENCE_LOOKBACK_DAYS,
-  );
+    interactions: input.jeffInfluenceRows,
+    appointments: appointmentEvents,
+    offers: offerEvents,
+    contracts: contractEvents,
+    lookbackDays: JEFF_INFLUENCE_LOOKBACK_DAYS,
+  });
 
   const contractsPerFounderHour =
     founderHoursEstimated > 0 ? round1(contractsSigned / founderHoursEstimated) : null;
@@ -285,9 +325,12 @@ function computeTeamWindowMetrics(input: {
     contractsSigned,
     dealsClosed,
     totalRevenue,
-    jeffInfluencedClosedDeals: jeffInfluence.influencedClosedDeals,
-    jeffInfluencedRevenue: jeffInfluence.influencedRevenue,
-    jeffInfluenceRatePct: jeffInfluence.influenceRatePct,
+    jeffInfluencedAppointmentLeads: jeffAttribution.influencedAppointmentLeads,
+    jeffInfluencedOfferLeads: jeffAttribution.influencedOfferLeads,
+    jeffInfluencedContractLeads: jeffAttribution.influencedContractLeads,
+    jeffInfluencedClosedDeals: jeffAttribution.influencedClosedDeals,
+    jeffInfluencedRevenue: jeffAttribution.influencedRevenue,
+    jeffInfluenceRatePct: jeffAttribution.influenceRatePct,
     contractsPerFounderHour,
     revenuePerFounderHour,
   };
@@ -345,6 +388,19 @@ export function buildWeeklyScorecardExceptions(
   const offersDelta = buildWeeklyMetricDelta(current.offersMade, previous.offersMade);
   const contractsDelta = buildWeeklyMetricDelta(current.contractsSigned, previous.contractsSigned);
   const jeffInfluenceDelta = buildWeeklyMetricDelta(current.jeffInfluenceRatePct, previous.jeffInfluenceRatePct);
+
+  if (current.founderHoursSource === "call_estimate" && current.founderHoursEstimated > 0) {
+    const severity: WeeklyExceptionSeverity =
+      previous.founderHoursSource === "work_log" ? "high" : "medium";
+    const message = previous.founderHoursSource === "work_log"
+      ? "Founder work-log coverage regressed to estimated call-time this week."
+      : "Founder efficiency is using estimated call-time because work-log coverage is missing.";
+    exceptions.push({
+      code: "founder_worklog_estimated_fallback",
+      severity,
+      message,
+    });
+  }
 
   if (contractsPerHour.pct != null && contractsPerHour.pct <= -20) {
     exceptions.push({
@@ -465,7 +521,7 @@ export async function getWeeklyFounderScorecard(options?: {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let founderCallsQuery = (sb.from("calls_log") as any)
-    .select("user_id, duration_sec, disposition, started_at")
+    .select("lead_id, user_id, duration_sec, disposition, started_at")
     .gte("started_at", allFromIso)
     .lt("started_at", allToIso);
   if (founderIds.length > 0) {
@@ -540,12 +596,34 @@ export async function getWeeklyFounderScorecard(options?: {
         .filter((leadId): leadId is string => typeof leadId === "string" && leadId.length > 0),
     ),
   );
+  const dealsCreatedLeadIds = Array.from(
+    new Set(
+      dealsCreated
+        .map((row) => row.lead_id)
+        .filter((leadId): leadId is string => typeof leadId === "string" && leadId.length > 0),
+    ),
+  );
+  const appointmentLeadIds = Array.from(
+    new Set(
+      founderCalls
+        .filter((row) => APPOINTMENT_DISPOSITIONS.has(normalizeKey(row.disposition)))
+        .map((row) => row.lead_id)
+        .filter((leadId): leadId is string => typeof leadId === "string" && leadId.length > 0),
+    ),
+  );
+  const attributionLeadIds = Array.from(
+    new Set<string>([
+      ...closedLeadIds,
+      ...dealsCreatedLeadIds,
+      ...appointmentLeadIds,
+    ]),
+  );
 
   const jeffInfluenceFromIso = new Date(previousWindow.fromMs - JEFF_INFLUENCE_LOOKBACK_DAYS * DAY_MS).toISOString();
   const jeffInfluenceRows: JeffInteractionRow[] = [];
-  if (closedLeadIds.length > 0) {
-    for (let i = 0; i < closedLeadIds.length; i += 500) {
-      const batch = closedLeadIds.slice(i, i + 500);
+  if (attributionLeadIds.length > 0) {
+    for (let i = 0; i < attributionLeadIds.length; i += 500) {
+      const batch = attributionLeadIds.slice(i, i + 500);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: rows } = await (sb.from("jeff_interactions") as any)
         .select("lead_id, interaction_type, created_at")
@@ -638,6 +716,18 @@ export async function getWeeklyFounderScorecard(options?: {
     contractsSigned: buildWeeklyMetricDelta(currentWeek.contractsSigned, previousWeek.contractsSigned),
     dealsClosed: buildWeeklyMetricDelta(currentWeek.dealsClosed, previousWeek.dealsClosed),
     totalRevenue: buildWeeklyMetricDelta(currentWeek.totalRevenue, previousWeek.totalRevenue),
+    jeffInfluencedAppointmentLeads: buildWeeklyMetricDelta(
+      currentWeek.jeffInfluencedAppointmentLeads,
+      previousWeek.jeffInfluencedAppointmentLeads,
+    ),
+    jeffInfluencedOfferLeads: buildWeeklyMetricDelta(
+      currentWeek.jeffInfluencedOfferLeads,
+      previousWeek.jeffInfluencedOfferLeads,
+    ),
+    jeffInfluencedContractLeads: buildWeeklyMetricDelta(
+      currentWeek.jeffInfluencedContractLeads,
+      previousWeek.jeffInfluencedContractLeads,
+    ),
     jeffInfluenceRatePct: buildWeeklyMetricDelta(currentWeek.jeffInfluenceRatePct, previousWeek.jeffInfluenceRatePct),
     contractsPerFounderHour: buildWeeklyMetricDelta(currentWeek.contractsPerFounderHour, previousWeek.contractsPerFounderHour),
     revenuePerFounderHour: buildWeeklyMetricDelta(currentWeek.revenuePerFounderHour, previousWeek.revenuePerFounderHour),

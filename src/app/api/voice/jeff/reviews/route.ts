@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 import {
+  buildJeffPolicyVersionComparison,
   buildJeffQualityTuningSummary,
   getUserProfile,
   isJeffController,
@@ -19,7 +20,8 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(Number(req.nextUrl.searchParams.get("limit") ?? "50"), 100);
   const reviews = await listJeffReviews(limit);
   const tuning = buildJeffQualityTuningSummary(reviews as Array<Record<string, unknown>>);
-  return NextResponse.json({ reviews, tuning });
+  const policyComparison = buildJeffPolicyVersionComparison(reviews as Array<Record<string, unknown>>);
+  return NextResponse.json({ reviews, tuning, policyComparison });
 }
 
 export async function POST(req: NextRequest) {
@@ -52,5 +54,6 @@ export async function POST(req: NextRequest) {
   });
 
   const tuning = buildJeffQualityTuningSummary(reviews as Array<Record<string, unknown>>);
-  return NextResponse.json({ reviews, tuning });
+  const policyComparison = buildJeffPolicyVersionComparison(reviews as Array<Record<string, unknown>>);
+  return NextResponse.json({ reviews, tuning, policyComparison });
 }

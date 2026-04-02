@@ -186,6 +186,21 @@ export function KpiSummaryRow({ period }: { period: TimePeriod }) {
         ))}
       </div>
 
+      {kpis.founder_hours_source !== "work_log" &&
+        kpis.founder_hours_estimated > 0 &&
+        kpis.founder_call_count > 0 && (
+          <Link href="/analytics#founder-worklog" className="block">
+            <div className="flex items-center gap-2 rounded-[10px] border border-amber-500/35 bg-amber-500/[0.08] px-3 py-2 text-xs text-amber-100 hover:bg-amber-500/[0.14] transition-colors">
+              <Clock3 className="h-3.5 w-3.5 shrink-0 text-amber-300" />
+              <span>
+                Founder-hour KPIs are using call-time estimates. Log founder work blocks to tighten
+                contracts/hour and revenue/hour trust.
+              </span>
+              <span className="ml-auto text-amber-200 text-sm">Log Hours &rarr;</span>
+            </div>
+          </Link>
+        )}
+
       {kpis.overdue_tasks > 0 && (
         <Link href="/tasks" className="block">
           <div className="flex items-center gap-2 rounded-[10px] border border-border/30 bg-muted/[0.06] px-3 py-2 text-xs text-foreground hover:bg-muted/[0.1] transition-colors">
