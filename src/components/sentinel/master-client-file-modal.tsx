@@ -860,6 +860,30 @@ const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
 
 ];
 
+function recordFromUnknown(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function numberFromUnknown(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().replace(/[$,%\s,]/g, "");
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function stringFromUnknown(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 
 
 
@@ -1079,7 +1103,47 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
   const repairCost = (cf.ownerFlags?.bricked_repair_cost as number) ?? 0;
 
-  const taxAssessedValue = (cf.ownerFlags?.tax_assessed_value as number) ?? 0;
+  const ownerFlags = cf.ownerFlags ?? {};
+  const scoutData = recordFromUnknown(ownerFlags.scout_data);
+  const countyData = recordFromUnknown(ownerFlags.county_data);
+  const scoutTaxOwed = numberFromUnknown(scoutData?.total_charges_owing);
+  const scoutAnnualTaxes = numberFromUnknown(scoutData?.current_annual_taxes);
+  const scoutTaxYear = numberFromUnknown(scoutData?.current_tax_year) ?? numberFromUnknown(scoutData?.assessed_tax_year);
+  const scoutAssessedValue = numberFromUnknown(scoutData?.assessed_value);
+  const scoutBedrooms = numberFromUnknown(scoutData?.bedrooms);
+  const scoutSqft = numberFromUnknown(scoutData?.gross_living_area_sqft);
+  const scoutYearBuilt = numberFromUnknown(scoutData?.year_built);
+  const scoutFullBaths = numberFromUnknown(scoutData?.full_baths);
+  const scoutHalfBaths = numberFromUnknown(scoutData?.half_baths);
+  const scoutBathrooms =
+    scoutFullBaths != null || scoutHalfBaths != null
+      ? (scoutFullBaths ?? 0) + ((scoutHalfBaths ?? 0) * 0.5)
+      : null;
+  const countyAssessedValue = numberFromUnknown(countyData?.county_assessed_value);
+  const countyTaxableValue = numberFromUnknown(countyData?.county_taxable_value);
+  const countyAcreage = numberFromUnknown(countyData?.county_acreage);
+  const countyNeighborhood = stringFromUnknown(countyData?.county_neighborhood_name);
+  const countyUse = stringFromUnknown(countyData?.county_prop_use_desc);
+  const scoutUpdatedAt = stringFromUnknown(ownerFlags.scout_data_at);
+  const countyUpdatedAt = stringFromUnknown(ownerFlags.county_data_at);
+  const displayBedrooms = cf.bedrooms ?? scoutBedrooms;
+  const displayBathrooms = cf.bathrooms ?? scoutBathrooms;
+  const displaySqft = cf.sqft ?? scoutSqft;
+  const displayYearBuilt = cf.yearBuilt ?? scoutYearBuilt;
+  const displayLotSize = cf.lotSize ?? countyAcreage;
+  const displayedTaxOwed = scoutTaxOwed ?? cf.delinquentAmount ?? 0;
+  const scoutAnnualTaxesDisplay = scoutAnnualTaxes ?? 0;
+  const countyTaxableValueDisplay = countyTaxableValue ?? 0;
+  const taxAssessedValue = numberFromUnknown(ownerFlags.tax_assessed_value) ?? countyAssessedValue ?? scoutAssessedValue ?? 0;
+  const hasPropertyBasics =
+    displayBedrooms != null ||
+    displayBathrooms != null ||
+    displaySqft != null ||
+    displayYearBuilt != null ||
+    cf.propertyType != null ||
+    displayLotSize != null ||
+    countyNeighborhood != null ||
+    countyUse != null;
 
 
 
@@ -1292,23 +1356,33 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
         <div className="grid grid-cols-4 gap-x-4 gap-y-1.5 text-sm">
 
-          {cf.bedrooms != null && <div><span className="text-muted-foreground/60">Beds</span> <span className="text-foreground font-mono">{cf.bedrooms}</span></div>}
+          {displayBedrooms != null && <div><span className="text-muted-foreground/60">Beds</span> <span className="text-foreground font-mono">{displayBedrooms}</span></div>}
 
-          {cf.bathrooms != null && <div><span className="text-muted-foreground/60">Baths</span> <span className="text-foreground font-mono">{cf.bathrooms}</span></div>}
+          {displayBathrooms != null && <div><span className="text-muted-foreground/60">Baths</span> <span className="text-foreground font-mono">{Number.isInteger(displayBathrooms) ? displayBathrooms : displayBathrooms.toFixed(1)}</span></div>}
 
-          {cf.sqft != null && <div><span className="text-muted-foreground/60">Sq Ft</span> <span className="text-foreground font-mono">{cf.sqft.toLocaleString()}</span></div>}
+          {displaySqft != null && <div><span className="text-muted-foreground/60">Sq Ft</span> <span className="text-foreground font-mono">{displaySqft.toLocaleString()}</span></div>}
 
-          {cf.yearBuilt != null && <div><span className="text-muted-foreground/60">Year</span> <span className="text-foreground font-mono">{cf.yearBuilt}</span></div>}
+          {displayYearBuilt != null && <div><span className="text-muted-foreground/60">Year</span> <span className="text-foreground font-mono">{displayYearBuilt}</span></div>}
 
           {cf.propertyType && <div><span className="text-muted-foreground/60">Type</span> <span className="text-foreground">{cf.propertyType}</span></div>}
 
-          {cf.lotSize != null && <div><span className="text-muted-foreground/60">Lot</span> <span className="text-foreground font-mono">{cf.lotSize.toFixed(2)} ac</span></div>}
+          {displayLotSize != null && <div><span className="text-muted-foreground/60">Lot</span> <span className="text-foreground font-mono">{displayLotSize.toFixed(2)} ac</span></div>}
 
           {cf.apn && <div className="col-span-2"><span className="text-muted-foreground/60">APN</span> <span className="text-foreground font-mono">{cf.apn}</span></div>}
 
+          {countyNeighborhood && <div className="col-span-2"><span className="text-muted-foreground/60">Neighborhood</span> <span className="text-foreground">{countyNeighborhood}</span></div>}
+
+          {countyUse && <div className="col-span-2"><span className="text-muted-foreground/60">County Use</span> <span className="text-foreground">{countyUse}</span></div>}
+
         </div>
 
-        {!cf.bedrooms && !cf.sqft && !cf.yearBuilt && (
+        {(countyUpdatedAt || scoutUpdatedAt) && (
+          <p className="mt-2 text-xs text-muted-foreground/60">
+            {[countyUpdatedAt ? `County ${formatRelativeFromNow(countyUpdatedAt)}` : null, scoutUpdatedAt ? `Scout ${formatRelativeFromNow(scoutUpdatedAt)}` : null].filter(Boolean).join(" • ")}
+          </p>
+        )}
+
+        {!hasPropertyBasics && (
 
           <p className="text-sm text-muted-foreground/50 italic">No property details enriched yet</p>
 
@@ -1318,7 +1392,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
 
 
-      {(cf.recommendedCallAngle || bestArv > 0 || taxAssessedValue > 0) && (
+      {(cf.recommendedCallAngle || bestArv > 0 || taxAssessedValue > 0 || displayedTaxOwed > 0 || scoutAnnualTaxesDisplay > 0 || countyTaxableValueDisplay > 0) && (
         <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Call Context</p>
 
@@ -1327,7 +1401,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
               <p className="text-foreground line-clamp-2">{cf.recommendedCallAngle}</p>
             )}
 
-            {(bestArv > 0 || taxAssessedValue > 0) && (
+            {(bestArv > 0 || taxAssessedValue > 0 || displayedTaxOwed > 0 || scoutAnnualTaxesDisplay > 0 || countyTaxableValueDisplay > 0) && (
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 {bestArv > 0 && (
                   <span className="text-muted-foreground">
@@ -1337,6 +1411,21 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
                 {taxAssessedValue > 0 && (
                   <span className="text-muted-foreground">
                     Tax Assessed <span className="text-foreground font-mono font-semibold">{formatCurrency(taxAssessedValue)}</span>
+                  </span>
+                )}
+                {countyTaxableValueDisplay > 0 && (
+                  <span className="text-muted-foreground">
+                    County Taxable <span className="text-foreground font-mono font-semibold">{formatCurrency(countyTaxableValueDisplay)}</span>
+                  </span>
+                )}
+                {displayedTaxOwed > 0 && (
+                  <span className="text-muted-foreground">
+                    Scout Owed <span className="text-foreground font-mono font-semibold">{formatCurrency(displayedTaxOwed)}</span>
+                  </span>
+                )}
+                {scoutAnnualTaxesDisplay > 0 && (
+                  <span className="text-muted-foreground">
+                    {scoutTaxYear ? `${scoutTaxYear} Taxes` : "Annual Taxes"} <span className="text-foreground font-mono font-semibold">{formatCurrency(scoutAnnualTaxesDisplay)}</span>
                   </span>
                 )}
                 {repairCost > 0 && (
@@ -7930,6 +8019,10 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   });
 
+  const compactOwnerFlags = clientFile.ownerFlags ?? {};
+  const compactScoutData = recordFromUnknown(compactOwnerFlags.scout_data);
+  const compactScoutTaxOwed = numberFromUnknown(compactScoutData?.total_charges_owing);
+  const compactTaxDisplay = compactScoutTaxOwed ?? clientFile.delinquentAmount;
   const compactPropertyFacts: string[] = [];
   if (clientFile.bedrooms != null || clientFile.bathrooms != null) {
     compactPropertyFacts.push(`${clientFile.bedrooms ?? "?"}/${clientFile.bathrooms ?? "?"} bd/ba`);
@@ -7937,8 +8030,8 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   if (clientFile.sqft != null) compactPropertyFacts.push(`${clientFile.sqft.toLocaleString()} sqft`);
   if (clientFile.yearBuilt != null) compactPropertyFacts.push(`Yr ${clientFile.yearBuilt}`);
   if (clientFile.estimatedValue != null) compactPropertyFacts.push(`AVM ${formatCurrency(clientFile.estimatedValue)}`);
-  if (clientFile.delinquentAmount != null && clientFile.delinquentAmount > 0) {
-    compactPropertyFacts.push(`Tax ${formatCurrency(clientFile.delinquentAmount)}`);
+  if (compactTaxDisplay != null && compactTaxDisplay > 0) {
+    compactPropertyFacts.push(`Tax ${formatCurrency(compactTaxDisplay)}`);
   }
   compactPropertyFacts.splice(4);
 
