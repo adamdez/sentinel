@@ -263,7 +263,7 @@ Respond with a single JSON object:
         systemPrompt: BUILDER_SYSTEM_PROMPT,
         apiKey,
         maxTokens: 6000,
-        model: "claude-opus-4-6",
+        model: "claude-sonnet-4-6",
       });
 
       const jsonStr = extractJsonObject(rawResponse);
@@ -321,7 +321,7 @@ ${rawDataContext}`;
         systemPrompt,
         apiKey,
         maxTokens: 6000,
-        model: "claude-opus-4-6",
+        model: "claude-sonnet-4-6",
       });
 
       const jsonStr = extractJsonObject(rawResponse);

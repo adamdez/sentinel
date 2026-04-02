@@ -8,7 +8,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { logGeneration } from "@/lib/langfuse";
 
-const CLAUDE_MODEL = "claude-opus-4-6";
+const CLAUDE_MODEL = "claude-sonnet-4-6";
 
 export interface ClaudeMessage {
   role: "user" | "assistant";

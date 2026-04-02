@@ -161,7 +161,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     prompt_version: EXTRACT_PROMPT_VERSION,
     session_id:     sessionId,
     lead_id:        sessionResult.data.lead_id ?? null,
-    model:          "claude-opus-4-6",
+    model:          "claude-sonnet-4-6",
     provider:       "anthropic",
     input_text:     notes,
     output_text:    JSON.stringify({ motivation_level, seller_timeline, rationale }),
@@ -178,7 +178,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     sequence_num:    0,
     is_ai_generated: true,
     trace_metadata: {
-      model:          "claude-opus-4-6",
+      model:          "claude-sonnet-4-6",
       provider:       "anthropic",
       prompt_version: EXTRACT_PROMPT_VERSION,
       run_id:         runId,

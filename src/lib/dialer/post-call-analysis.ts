@@ -200,7 +200,7 @@ export async function runPostCallAnalysis(
     prompt_version: POST_CALL_ANALYSIS_PROMPT_VERSION,
     session_id: sessionId,
     lead_id: leadId ?? null,
-    model: "claude-opus-4-6",
+    model: "claude-haiku-4-5-20251001",
     provider: "anthropic",
     input_text: transcript,
     output_text: JSON.stringify({ summary_line, promises_made, objection, deal_temperature, callback_timing_hint, next_task_suggestion }),
