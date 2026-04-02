@@ -58,6 +58,65 @@ function nextBusinessMorningPacific(): Date {
   return target;
 }
 
+async function getLeadOwnerContext(
+  sb: ReturnType<typeof createServerClient>,
+  leadId: string,
+): Promise<{ assignedTo: string | null; ownerName: string | null }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: lead } = await (sb.from("leads") as any)
+    .select("assigned_to, property_id")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  let ownerName: string | null = null;
+  if (lead?.property_id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: property } = await (sb.from("properties") as any)
+      .select("owner_name")
+      .eq("id", lead.property_id)
+      .maybeSingle();
+    ownerName = property?.owner_name ?? null;
+  }
+
+  return {
+    assignedTo: lead?.assigned_to ?? null,
+    ownerName,
+  };
+}
+
+async function resolveMissedCallContext(
+  sb: ReturnType<typeof createServerClient>,
+  phone: string,
+  leadIdHint?: string | null,
+): Promise<{ leadId: string | null; leadName: string; assignedTo: string | null }> {
+  const defaultLeadName = "Unknown caller";
+  const { resolveSmsLead } = await import("@/lib/sms/lead-resolution");
+
+  const phoneContext = phone
+    ? await resolveSmsLead(sb, phone)
+    : {
+        leadId: null,
+        ownerName: null,
+        assignedTo: null,
+      };
+
+  let leadId = leadIdHint ?? phoneContext.leadId ?? null;
+  let leadName = phoneContext.ownerName ?? defaultLeadName;
+  let assignedTo = phoneContext.assignedTo ?? null;
+
+  if (leadId) {
+    const leadOwnerContext = await getLeadOwnerContext(sb, leadId);
+    assignedTo = leadOwnerContext.assignedTo ?? assignedTo;
+    leadName = leadOwnerContext.ownerName ?? leadName;
+  }
+
+  return {
+    leadId,
+    leadName,
+    assignedTo,
+  };
+}
+
 // ── Inbound TwiML response ────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -489,15 +548,7 @@ async function handleMissedInbound({
   const now = new Date();
 
   // ── 1. Match lead by phone via unified lookup (all phone tables) ──────────
-  let leadId: string | null = null;
-  let leadName = "Unknown caller";
-
-  if (fromNumber) {
-    const { unifiedPhoneLookup } = await import("@/lib/dialer/phone-lookup");
-    const match = await unifiedPhoneLookup(fromNumber, sb);
-    leadId = match.leadId;
-    if (match.ownerName) leadName = match.ownerName;
-  }
+  const { leadId, leadName, assignedTo } = await resolveMissedCallContext(sb, fromNumber);
 
   // ── 2. Create urgent callback task ────────────────────────────────────────
   const dueAt = nextBusinessMorningPacific();
@@ -508,12 +559,13 @@ async function handleMissedInbound({
 
   let taskId: string | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const loganUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
+  const fallbackUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
+  const taskAssignee = assignedTo ?? fallbackUserId;
   const { data: taskRow, error: taskErr } = await (sb.from("tasks") as any)
     .insert({
       title: taskTitle,
       lead_id: leadId,
-      assigned_to: loganUserId,
+      assigned_to: taskAssignee,
       due_at: dueAt.toISOString(),
       status: "pending",
       priority: 3,
@@ -566,6 +618,7 @@ async function handleMissedInbound({
 
   console.log("[inbound] Missed inbound handled:", {
     fromNumber: fromNumber ? `***${fromNumber.slice(-4)}` : "none",
+    taskAssignee: taskAssignee ? `${taskAssignee.slice(0, 8)}...` : "none",
     leadId: leadId ? `${leadId.slice(0, 8)}…` : "no match",
     taskId: taskId ? `${taskId.slice(0, 8)}…` : "failed",
   });
@@ -644,6 +697,7 @@ async function handleMissedTransfer({
   // ── 1. Look up the voice session for transfer context ─────────────────
   let leadId: string | null = null;
   let leadName = "Unknown caller";
+  let assignedTo: string | null = null;
   let transferReason = "Warm transfer from Jeff";
 
   if (voiceSessionId) {
@@ -658,6 +712,11 @@ async function handleMissedTransfer({
       transferReason = session.transfer_reason ?? transferReason;
       const brief = session.transfer_brief as Record<string, unknown> | null;
       if (brief?.caller_name) leadName = String(brief.caller_name);
+      if (leadId) {
+        const leadOwnerContext = await getLeadOwnerContext(sb, leadId);
+        assignedTo = leadOwnerContext.assignedTo ?? assignedTo;
+        leadName = leadOwnerContext.ownerName ?? leadName;
+      }
     }
 
     // Update voice_session status to transfer_missed
@@ -669,11 +728,11 @@ async function handleMissedTransfer({
 
   // If we don't have a lead from the session, try unified phone lookup
   if (!leadId && originalFrom) {
-    const { unifiedPhoneLookup } = await import("@/lib/dialer/phone-lookup");
-    const match = await unifiedPhoneLookup(originalFrom, sb);
-    leadId = match.leadId;
-    if (leadName === "Unknown caller" && match.ownerName) {
-      leadName = match.ownerName;
+    const context = await resolveMissedCallContext(sb, originalFrom);
+    leadId = context.leadId;
+    assignedTo = context.assignedTo ?? assignedTo;
+    if (leadName === "Unknown caller" && context.leadName) {
+      leadName = context.leadName;
     }
   }
 
@@ -681,13 +740,14 @@ async function handleMissedTransfer({
   const dueAt = new Date(now.getTime() + 15 * 60 * 1000); // 15 minutes — urgent transfer callback
   const taskTitle = `⚡ Missed transfer — call back ${leadName} (${originalFrom}) ASAP`;
 
-  const loganUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
+  const fallbackUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
+  const taskAssignee = assignedTo ?? fallbackUserId;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: taskRow, error: taskErr } = await (sb.from("tasks") as any)
     .insert({
       title: taskTitle,
       lead_id: leadId,
-      assigned_to: loganUserId,
+      assigned_to: taskAssignee,
       due_at: dueAt.toISOString(),
       status: "pending",
       priority: 4, // Higher than regular missed calls
@@ -734,6 +794,7 @@ async function handleMissedTransfer({
 
   console.log("[inbound] Missed transfer handled:", {
     originalFrom: originalFrom ? `***${originalFrom.slice(-4)}` : "none",
+    taskAssignee: taskAssignee ? `${taskAssignee.slice(0, 8)}...` : "none",
     leadId: leadId ? `${leadId.slice(0, 8)}…` : "no match",
     taskId: taskRow?.id ? `${taskRow.id.slice(0, 8)}…` : "failed",
     voiceSessionId: voiceSessionId ? voiceSessionId.slice(0, 8) : "none",

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useModal } from "@/providers/modal-provider";
-import { cn } from "@/lib/utils";
+import { cn, formatPhone } from "@/lib/utils";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -36,6 +36,14 @@ interface SearchRecord {
   score?: number;
   scoreLabel?: "platinum" | "gold" | "silver" | "bronze";
   status?: string;
+}
+
+interface PhoneSearchApiResult {
+  phone: string;
+  leadId: string | null;
+  ownerName: string | null;
+  propertyAddress: string | null;
+  status: string | null;
 }
 
 const SCORE_COLORS: Record<string, string> = {
@@ -133,6 +141,16 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
   const digits = q.replace(/\D/g, "");
   const isPhoneLike = digits.length >= 4;
   const phonePattern = isPhoneLike ? `%${digits}%` : null;
+  const phoneSearchPromise: Promise<PhoneSearchApiResult[]> =
+    digits.length >= 7
+      ? fetch(`/api/search/phone?q=${encodeURIComponent(q)}`)
+          .then(async (res) => {
+            if (!res.ok) return [];
+            const data = await res.json();
+            return (data.results ?? []) as PhoneSearchApiResult[];
+          })
+          .catch(() => [])
+      : Promise.resolve([]);
 
   // Search properties by address, owner_name, apn, AND phone
   const orFilters = [`address.ilike.${pattern}`, `owner_name.ilike.${pattern}`, `apn.ilike.${pattern}`];
@@ -145,12 +163,12 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
     .limit(20);
 
   // Also search contacts by phone, name, email
-  const contactOrFilters = [`name.ilike.${pattern}`, `email.ilike.${pattern}`];
+  const contactOrFilters = [`first_name.ilike.${pattern}`, `last_name.ilike.${pattern}`, `email.ilike.${pattern}`];
   if (phonePattern) contactOrFilters.push(`phone.ilike.${phonePattern}`);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: contacts } = await (supabase.from("contacts") as any)
-    .select("id, lead_id, name, phone, email")
+    .select("id, first_name, last_name, phone, email")
     .or(contactOrFilters.join(","))
     .limit(10);
 
@@ -158,45 +176,62 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const propIds = (props as any[] ?? []).map((p) => p.id);
 
-  // Collect lead IDs from contacts search
+  // Collect contact IDs from contacts search
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const contactLeadIds = (contacts as any[] ?? []).filter((c) => c.lead_id).map((c) => c.lead_id);
+  const contactIds = (contacts as any[] ?? []).map((c) => c.id);
 
-  // Fetch leads for both property IDs and contact lead IDs
+  // Fetch leads for both property IDs and matched contacts
   const allPropIds = [...new Set(propIds)];
-  const allLeadIds = [...new Set(contactLeadIds)];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let allLeads: any[] = [];
   if (allPropIds.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: propLeads } = await (supabase.from("leads") as any)
-      .select("id, property_id, status, priority, source")
+      .select("id, property_id, status, priority, source, contact_id")
       .in("property_id", allPropIds);
     if (propLeads) allLeads = [...allLeads, ...propLeads];
   }
-  if (allLeadIds.length > 0) {
+  if (contactIds.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: directLeads } = await (supabase.from("leads") as any)
-      .select("id, property_id, status, priority, source")
-      .in("id", allLeadIds);
+      .select("id, property_id, status, priority, source, contact_id")
+      .in("contact_id", [...new Set(contactIds)]);
     if (directLeads) allLeads = [...allLeads, ...directLeads];
   }
+
+  const phoneSearchResults = await phoneSearchPromise;
 
   // Build maps
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leadByProp: Record<string, any> = {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const leadById: Record<string, any> = {};
+  const leadByContact: Record<string, any> = {};
   for (const l of allLeads) {
     if (l.property_id && (!leadByProp[l.property_id] || (l.priority ?? 0) > (leadByProp[l.property_id].priority ?? 0))) {
       leadByProp[l.property_id] = l;
     }
-    leadById[l.id] = l;
+    if (l.contact_id && (!leadByContact[l.contact_id] || (l.priority ?? 0) > (leadByContact[l.contact_id].priority ?? 0))) {
+      leadByContact[l.contact_id] = l;
+    }
   }
 
   const records: SearchRecord[] = [];
   const seenIds = new Set<string>();
+
+  for (const result of phoneSearchResults) {
+    if (!result.leadId || seenIds.has(result.leadId)) continue;
+    seenIds.add(result.leadId);
+
+    records.push({
+      id: result.leadId,
+      kind: result.status === "prospect" ? "prospect" : "lead",
+      primary: result.ownerName ?? formatPhone(result.phone),
+      secondary: [result.propertyAddress, formatPhone(result.phone)].filter(Boolean).join(" - "),
+      href: `/leads?open=${result.leadId}`,
+      status: result.status ?? "lead",
+    });
+  }
 
   // Property-based results
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -209,7 +244,7 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
     const isProspect = !lead || lead.status === "prospect";
     const score = lead?.priority ?? 0;
     const secondaryParts = [p.address, p.city, p.state, p.zip].filter(Boolean);
-    if (p.owner_phone) secondaryParts.push(p.owner_phone);
+    if (p.owner_phone) secondaryParts.push(formatPhone(p.owner_phone));
 
     records.push({
       id: resultId,
@@ -226,16 +261,16 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
   // Contact-based results (leads found via phone/email on contacts table)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const c of (contacts as any[] ?? [])) {
-    if (!c.lead_id) continue;
-    const lead = leadById[c.lead_id];
+    const lead = leadByContact[c.id];
     if (!lead || seenIds.has(lead.id)) continue;
     seenIds.add(lead.id);
 
     const score = lead?.priority ?? 0;
+    const contactName = [c.first_name, c.last_name].filter(Boolean).join(" ") || "Unknown";
     records.push({
       id: lead.id,
       kind: lead.status === "prospect" ? "prospect" : "lead",
-      primary: c.name ?? "Unknown",
+      primary: contactName,
       secondary: [c.phone, c.email].filter(Boolean).join(" · "),
       href: `/leads?open=${lead.id}`,
       score: score > 0 ? score : undefined,

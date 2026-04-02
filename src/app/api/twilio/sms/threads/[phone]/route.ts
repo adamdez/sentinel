@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
+import { backfillSmsLeadForPhone, resolveSmsLead } from "@/lib/sms/lead-resolution";
 
 export const dynamic = "force-dynamic";
 
@@ -49,36 +50,18 @@ export async function GET(
       .in("id", unreadIds);
   }
 
-  // Try to find matching lead
-  const digits = decoded.replace(/\D/g, "").slice(-10);
   let leadInfo: { id: string; name: string; score: number | null; tags: string[]; status: string } | null = null;
+  const resolution = await resolveSmsLead(sb, decoded);
 
-  if (digits.length >= 7) {
-    const { data: prop } = await sb
-      .from("properties")
-      .select("id, owner_name, owner_phone")
-      .ilike("owner_phone", `%${digits}`)
-      .limit(1)
-      .maybeSingle();
-
-    if (prop) {
-      const { data: lead } = await sb
-        .from("leads")
-        .select("id, priority, tags, status")
-        .eq("property_id", prop.id as string)
-        .limit(1)
-        .maybeSingle();
-
-      if (lead) {
-        leadInfo = {
-          id: lead.id as string,
-          name: prop.owner_name as string,
-          score: lead.priority as number | null,
-          tags: (lead.tags as string[]) ?? [],
-          status: lead.status as string,
-        };
-      }
-    }
+  if (resolution.leadId) {
+    leadInfo = {
+      id: resolution.leadId,
+      name: resolution.ownerName ?? decoded,
+      score: resolution.priority,
+      tags: resolution.tags,
+      status: resolution.status ?? "unknown",
+    };
+    await backfillSmsLeadForPhone(sb, decoded, resolution.leadId, resolution.assignedTo);
   }
 
   return NextResponse.json({

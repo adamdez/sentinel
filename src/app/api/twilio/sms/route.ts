@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { scrubLead } from "@/lib/compliance";
+import { resolveSmsLead } from "@/lib/sms/lead-resolution";
+import { normalizePhone } from "@/lib/upsert-contact";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,33 +27,10 @@ export async function POST(req: NextRequest) {
 
   const sb = createServerClient();
   const phone = from.replace(/\D/g, "");
-  const phone10 = phone.slice(-10);
-
-  // 1. Auto-match sender to lead by phone number
-  let matchedLeadId: string | null = null;
-  let matchedAssignedTo: string | null = null;
-
-  if (phone10.length === 10) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: props } = await (sb.from("properties") as any)
-      .select("id, owner_phone")
-      .ilike("owner_phone", `%${phone10}`)
-      .limit(5);
-
-    if (props?.length) {
-      const propIds = props.map((p: { id: string }) => p.id);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: leads } = await (sb.from("leads") as any)
-        .select("id, assigned_to, property_id")
-        .in("property_id", propIds)
-        .limit(1);
-
-      if (leads?.[0]) {
-        matchedLeadId = leads[0].id;
-        matchedAssignedTo = leads[0].assigned_to ?? null;
-      }
-    }
-  }
+  const normalizedFrom = normalizePhone(from) ?? `+${phone}`;
+  const resolution = await resolveSmsLead(sb, from);
+  const matchedLeadId = resolution.leadId;
+  const matchedAssignedTo = resolution.assignedTo;
 
   // 2. Compliance scrub
   const scrub = await scrubLead(phone, SYSTEM_USER_ID, false);
@@ -59,7 +38,7 @@ export async function POST(req: NextRequest) {
   // 3. Log to sms_messages
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await (sb.from("sms_messages") as any).insert({
-    phone: from.startsWith("+") ? from : `+${from.replace(/\D/g, "")}`,
+    phone: normalizedFrom,
     direction: "inbound",
     body: body.slice(0, 2000),
     twilio_sid: messageSid,
@@ -81,6 +60,7 @@ export async function POST(req: NextRequest) {
       compliant: scrub.allowed,
       blocked_reasons: scrub.blockedReasons,
       matched_lead_id: matchedLeadId,
+      match_source: resolution.matchSource,
       timestamp: new Date().toISOString(),
     },
   });
