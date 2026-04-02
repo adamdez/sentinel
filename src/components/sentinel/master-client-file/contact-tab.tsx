@@ -346,20 +346,24 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <Contact2 className="h-4 w-4 text-primary/60" />
           Contact Information
-          {skipStatus === "skipped" && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          {(skipStatus === "skipped" || skipStatus === "skip_empty") && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <CheckCircle2 className="h-3 w-3" />Skipped
             </span>
           )}
-          {skipStatus === "skip_empty" && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <AlertCircle className="h-3 w-3" />Skipped — 0 contacts
-            </span>
-          )}
           {skipStatus === "skip_failed" && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
               <AlertCircle className="h-3 w-3" />Skip Failed
             </span>
+          )}
+          {skipStatus === "not_run" && (
+            <button
+              onClick={onSkipTrace}
+              disabled={skipTracing}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+            >
+              {skipTracing ? "Skipping..." : "Skip Trace"}
+            </button>
           )}
         </h3>
         <div className="flex items-center gap-2">
@@ -459,14 +463,14 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
           </p>
           <div className="flex items-center gap-1.5">
             {phonesLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/40" />}
-            {!hasPhones && !useLeadPhones && (
+            {!hasPhones && !useLeadPhones && skipStatus === "not_run" && (
               <button
                 onClick={onSkipTrace}
                 disabled={skipTracing}
-                className="h-6 px-2.5 rounded-md text-xs font-semibold border border-border/30 bg-muted/[0.06] text-foreground hover:bg-muted/[0.12] transition-colors flex items-center gap-1"
+                className="h-6 px-2.5 rounded-md text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-1 disabled:opacity-50"
               >
                 {skipTracing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Crosshair className="h-3 w-3" />}
-                {skipTracing ? "Deep Skipping..." : "~90s Deep Skip"}
+                {skipTracing ? "Skipping..." : "Skip Trace"}
               </button>
             )}
           </div>

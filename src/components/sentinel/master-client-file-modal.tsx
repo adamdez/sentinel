@@ -874,13 +874,13 @@ const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
 
 
 
-function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, onSkipTrace, skipTracing }: {
+function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, onSkipTrace, skipTracing, skipTraceResult }: {
 
   cf: ClientFile; computedArv: number; activityRefreshToken: number;
 
   onDial: (phone: string) => void; calling: boolean;
 
-  onSkipTrace?: () => void; skipTracing?: boolean;
+  onSkipTrace?: () => void; skipTracing?: boolean; skipTraceResult?: string | null;
 
 }) {
 
@@ -1118,21 +1118,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
             ) : (
 
-              <div className="flex items-center gap-2">
-                <p className="text-sm text-muted-foreground/60 italic">No phone</p>
-                {onSkipTrace && !alreadySkipTraced && (
-                  <button
-                    onClick={onSkipTrace}
-                    disabled={skipTracing}
-                    className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
-                  >
-                    {skipTracing ? "Skipping..." : "Run Skip Trace"}
-                  </button>
-                )}
-                {alreadySkipTraced && (
-                  <span className="text-xs text-muted-foreground/40">skip traced — no results</span>
-                )}
-              </div>
+              <p className="text-sm text-muted-foreground/60 italic">No phone</p>
 
             )}
 
@@ -1147,6 +1133,22 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
             )}
 
           </div>
+
+          {onSkipTrace && (
+            alreadySkipTraced || skipTraceResult ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                Skipped
+              </span>
+            ) : (
+              <button
+                onClick={onSkipTrace}
+                disabled={skipTracing}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50 shrink-0"
+              >
+                {skipTracing ? "Skipping..." : "Skip Trace"}
+              </button>
+            )
+          )}
 
 
 
@@ -8871,6 +8873,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                           calling={calling}
                           onSkipTrace={handleSkipTrace}
                           skipTracing={skipTracing}
+                          skipTraceResult={skipTraceResult}
                         />
                       </div>
                     )}
