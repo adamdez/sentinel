@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeFounderHoursFromWorkLogs } from "@/lib/founder-worklog";
+import { computeFounderHoursFromWorkLogs, findFounderWorkLogGaps } from "@/lib/founder-worklog";
 
 describe("computeFounderHoursFromWorkLogs", () => {
   const windowStart = "2026-04-01T00:00:00.000Z";
@@ -62,5 +62,30 @@ describe("computeFounderHoursFromWorkLogs", () => {
 
     expect(summary.totalMinutes).toBe(240);
     expect(summary.founderHours).toBe(4);
+  });
+});
+
+describe("findFounderWorkLogGaps", () => {
+  it("flags founders with meaningful call activity but low logged hours", () => {
+    const gaps = findFounderWorkLogGaps([
+      { userId: "u1", callCount: 6, founderHours: 0.2 },
+      { userId: "u2", callCount: 4, founderHours: 0.7 },
+      { userId: "u3", callCount: 2, founderHours: 0 },
+    ]);
+
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]?.userId).toBe("u1");
+    expect(gaps[0]?.minCallsForReminder).toBe(3);
+    expect(gaps[0]?.minHoursForReminder).toBe(0.5);
+  });
+
+  it("sorts reminder candidates by highest call load then lowest logged hours", () => {
+    const gaps = findFounderWorkLogGaps([
+      { userId: "u3", callCount: 5, founderHours: 0.4 },
+      { userId: "u2", callCount: 8, founderHours: 0.4 },
+      { userId: "u1", callCount: 8, founderHours: 0.1 },
+    ]);
+
+    expect(gaps.map((row) => row.userId)).toEqual(["u1", "u2", "u3"]);
   });
 });

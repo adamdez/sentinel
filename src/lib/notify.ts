@@ -168,6 +168,10 @@ export function notifyMorningDigest(data: {
   topCallbacks: Array<{ title: string; dueAt: string; ownerName: string | null; address: string | null }>;
   pipelineSnapshot: Record<string, number>;
   activeOfferCount: number;
+  founderWorkLogReminder?: {
+    windowLabel: string;
+    missingFounders: Array<{ name: string; callCount: number; founderHours: number }>;
+  } | null;
 }): Promise<NotifyResult> {
   const lines: string[] = [
     `*Sentinel Morning Brief — ${data.date}*`,
@@ -201,6 +205,14 @@ export function notifyMorningDigest(data: {
 
   if (data.activeOfferCount > 0) {
     lines.push(`\nActive offers: ${data.activeOfferCount}`);
+  }
+
+  if (data.founderWorkLogReminder && data.founderWorkLogReminder.missingFounders.length > 0) {
+    lines.push(`\nFounder log reminder (${data.founderWorkLogReminder.windowLabel}):`);
+    for (const founder of data.founderWorkLogReminder.missingFounders.slice(0, 4)) {
+      lines.push(`  • ${founder.name}: ${founder.callCount} calls, ${founder.founderHours}h logged`);
+    }
+    lines.push("  • Action: log founder work blocks in Analytics > Founder Work Log.");
   }
 
   return sendSlack(lines.join("\n"));
@@ -369,11 +381,14 @@ export function notifyWeeklyHealth(data: {
     const revenuePerFounderHour = current.revenuePerFounderHour != null
       ? `$${current.revenuePerFounderHour.toLocaleString("en-US")}`
       : "n/a";
+    const founderHoursSourceLabel = current.founderHoursSource === "work_log" ? "logged" : "estimated";
     lines.push("");
     lines.push(
       `*True North (${score.windowDays}d vs prior):* ${current.contractsSigned} contracts (prev ${previous.contractsSigned}) | `
       + `${contractsPerFounderHour} contracts/founder-hr | ${revenuePerFounderHour} revenue/founder-hr | `
-      + `Jeff influence ${current.jeffInfluenceRatePct != null ? `${current.jeffInfluenceRatePct.toFixed(1)}%` : "n/a"}`,
+      + `hours source ${founderHoursSourceLabel} | `
+      + `Jeff path ${current.jeffInfluencedAppointmentLeads}->${current.jeffInfluencedOfferLeads}->${current.jeffInfluencedContractLeads}->${current.jeffInfluencedClosedDeals} `
+      + `(${current.jeffInfluenceRatePct != null ? `${current.jeffInfluenceRatePct.toFixed(1)}%` : "n/a"})`,
     );
 
     if (score.exceptions.length > 0) {

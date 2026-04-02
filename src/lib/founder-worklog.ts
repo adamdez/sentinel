@@ -11,6 +11,17 @@ export interface FounderWorkLogSummary {
   mergedIntervals: number;
 }
 
+export interface FounderWorkLogCoverageRow {
+  userId: string;
+  callCount: number;
+  founderHours: number;
+}
+
+export interface FounderWorkLogGapRow extends FounderWorkLogCoverageRow {
+  minCallsForReminder: number;
+  minHoursForReminder: number;
+}
+
 function safeMs(value: string | null | undefined): number | null {
   if (!value) return null;
   const ms = new Date(value).getTime();
@@ -104,4 +115,32 @@ export function computeFounderHoursFromWorkLogs(
   const totalMinutes = round1(totalMs / 60000);
   const founderHours = round1(totalMinutes / 60);
   return { founderHours, totalMinutes, rawIntervals, mergedIntervals };
+}
+
+/**
+ * Finds founders who had meaningful call activity but did not log enough founder hours.
+ * This powers adoption reminders so true-north efficiency stays anchored to explicit work logs.
+ */
+export function findFounderWorkLogGaps(
+  rows: FounderWorkLogCoverageRow[],
+  options?: {
+    minCallsForReminder?: number;
+    minHoursForReminder?: number;
+  },
+): FounderWorkLogGapRow[] {
+  const minCallsForReminder = Math.max(1, Math.floor(options?.minCallsForReminder ?? 3));
+  const minHoursForReminder = Math.max(0, options?.minHoursForReminder ?? 0.5);
+
+  return rows
+    .filter((row) => row.callCount >= minCallsForReminder && row.founderHours < minHoursForReminder)
+    .sort((a, b) => {
+      if (b.callCount !== a.callCount) return b.callCount - a.callCount;
+      if (a.founderHours !== b.founderHours) return a.founderHours - b.founderHours;
+      return a.userId.localeCompare(b.userId);
+    })
+    .map((row) => ({
+      ...row,
+      minCallsForReminder,
+      minHoursForReminder,
+    }));
 }

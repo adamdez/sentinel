@@ -5,6 +5,8 @@ import { notifyMorningDigest, notifyStaleFollowUp } from "@/lib/notify";
 import { getFeatureFlag } from "@/lib/control-plane";
 import { inngest } from "../../../../inngest/client";
 import { withCronTracking } from "@/lib/cron-run-tracker";
+import { parseFounderUserIds } from "@/lib/analytics-helpers";
+import { computeFounderHoursFromWorkLogs, findFounderWorkLogGaps } from "@/lib/founder-worklog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -30,6 +32,7 @@ export async function GET(req: NextRequest) {
   return withCronTracking("morning-brief", async (run) => {
     const sb = createServerClient();
     const now = new Date();
+    const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).toISOString();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
@@ -87,6 +90,79 @@ export async function GET(req: NextRequest) {
     };
 
     // ── Notify via Slack (fire-and-forget) ─────────────────────────────
+    const founderIds = parseFounderUserIds(process.env.FOUNDER_USER_IDS);
+    let founderWorkLogReminder: {
+      windowLabel: string;
+      missingFounders: Array<{ name: string; callCount: number; founderHours: number }>;
+    } | null = null;
+
+    if (founderIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: founderCallsRaw } = await (sb.from("calls_log") as any)
+        .select("user_id")
+        .in("user_id", founderIds)
+        .gte("started_at", yesterdayStart)
+        .lt("started_at", todayStart);
+
+      const callCountByFounder = new Map<string, number>();
+      for (const founderId of founderIds) callCountByFounder.set(founderId, 0);
+      for (const row of (founderCallsRaw ?? []) as Array<{ user_id?: string | null }>) {
+        const founderId = (row.user_id ?? "").trim();
+        if (!founderId) continue;
+        callCountByFounder.set(founderId, (callCountByFounder.get(founderId) ?? 0) + 1);
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: founderWorkLogsRaw } = await (sb.from("founder_work_logs") as any)
+        .select("user_id, started_at, ended_at")
+        .in("user_id", founderIds)
+        .lt("started_at", todayStart)
+        .or(`ended_at.is.null,ended_at.gte.${yesterdayStart}`);
+
+      const coverageRows = founderIds.map((founderId) => ({
+        userId: founderId,
+        callCount: callCountByFounder.get(founderId) ?? 0,
+        founderHours: computeFounderHoursFromWorkLogs(
+          (founderWorkLogsRaw ?? []) as Array<{ user_id?: string | null; started_at?: string | null; ended_at?: string | null }>,
+          yesterdayStart,
+          todayStart,
+          [founderId],
+        ).founderHours,
+      }));
+
+      const gaps = findFounderWorkLogGaps(coverageRows, {
+        minCallsForReminder: 3,
+        minHoursForReminder: 0.5,
+      });
+
+      if (gaps.length > 0) {
+        const missingFounderIds = gaps.map((gap) => gap.userId);
+        const profileNameById = new Map<string, string>();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: profilesRaw } = await (sb.from("user_profiles") as any)
+          .select("id, full_name, email")
+          .in("id", missingFounderIds);
+        for (const row of (profilesRaw ?? []) as Array<{ id: string; full_name?: string | null; email?: string | null }>) {
+          const name = row.full_name?.trim() || row.email?.trim() || row.id.slice(0, 8);
+          profileNameById.set(row.id, name);
+        }
+
+        founderWorkLogReminder = {
+          windowLabel: new Date(yesterdayStart).toLocaleDateString("en-US", { timeZone: "America/Los_Angeles" }),
+          missingFounders: gaps.map((gap) => ({
+            name: profileNameById.get(gap.userId) ?? gap.userId.slice(0, 8),
+            callCount: gap.callCount,
+            founderHours: gap.founderHours,
+          })),
+        };
+      }
+    }
+
+    const briefPayload = {
+      ...brief,
+      founder_worklog_reminder: founderWorkLogReminder,
+    };
+
     notifyMorningDigest({
       date: brief.date,
       exceptionSummary: brief.exception_summary,
@@ -110,6 +186,7 @@ export async function GET(req: NextRequest) {
       }),
       pipelineSnapshot: brief.pipeline_snapshot,
       activeOfferCount: brief.active_offers.length,
+      founderWorkLogReminder,
     }).catch(() => {});
 
     // ── Dispatch stale follow-up nudge if overdue items exist ─────────
@@ -157,7 +234,6 @@ export async function GET(req: NextRequest) {
     }
 
     run.increment();
-    return NextResponse.json({ ok: true, brief });
+    return NextResponse.json({ ok: true, brief: briefPayload });
   });
 }
-
