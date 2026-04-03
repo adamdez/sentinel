@@ -31,6 +31,7 @@ import { courtDocketCrawler } from "@/lib/crawlers/court-docket-crawler";
 import { utilityShutoffCrawler } from "@/lib/crawlers/utility-shutoff-crawler";
 import { craigslistFsboCrawler } from "@/lib/crawlers/craigslist-fsbo-crawler";
 import { runGrokReasoning, type GrokDirective } from "@/lib/agent/grok-reasoning-agent";
+import { buildLeadIngestPolicySkip, getLeadIngestPolicy, type LeadIngestPolicySkip } from "@/lib/lead-ingest-policy";
 import {
   pullDailyDelta,
   COUNTY_FIPS,
@@ -87,9 +88,18 @@ export interface AttomPhaseResult {
 export interface AgentCycleResult {
   success: boolean;
   grokDirective: GrokDirective | null;
+  policySkips: LeadIngestPolicySkip[];
   phases: {
     enrichment: { success: boolean; processed: number; enriched: number; remaining: number };
-    propertyRadar: { success: boolean; count: number; newInserts: number; updated: number; prCost: string };
+    propertyRadar: {
+      success: boolean;
+      count: number;
+      newInserts: number;
+      updated: number;
+      prCost: string;
+      skipped_by_policy?: boolean;
+      reason?: string;
+    };
     crawlers: CrawlRunResult[];
     attom: AttomPhaseResult;
   };
@@ -207,6 +217,7 @@ export async function runAgentCycle(
 
   const shouldRun = (crawler: string) =>
     !grokDirective || grokDirective.nextCrawlersToRun.includes(crawler);
+  const policySkips: LeadIngestPolicySkip[] = [];
 
   // ── Phase 0.5: Enrichment Queue ─────────────────────────────────
   // Process staging leads before anything else — turn raw imports into
@@ -223,8 +234,23 @@ export async function runAgentCycle(
   // ── Phase 1: PropertyRadar ───────────────────────────────────────
   let prResult: Record<string, unknown> = {};
   let prSuccess = false;
+  const eliteSeedPolicy = getLeadIngestPolicy("elite_seed_top10");
 
-  if (shouldRun("propertyradar")) {
+  if (eliteSeedPolicy.policy === "disabled") {
+    const policySkip = buildLeadIngestPolicySkip("elite_seed_top10");
+    policySkips.push(policySkip);
+    prResult = {
+      success: true,
+      count: 0,
+      newInserts: 0,
+      updated: 0,
+      prCost: "$0.00",
+      skipped_by_policy: true,
+      reason: policySkip.reason,
+    };
+    prSuccess = true;
+    console.log(`[Agent] Phase 1: PropertyRadar skipped by policy (${policySkip.reason})`);
+  } else if (shouldRun("propertyradar")) {
     try {
       console.log("[Agent] Phase 1: PropertyRadar Elite Seed...");
       const res = await fetch(`${baseUrl}/api/ingest/propertyradar/top10`, {
@@ -254,8 +280,13 @@ export async function runAgentCycle(
   const runObits = shouldRun("obituary");
   const runCourts = shouldRun("court_docket");
   const runUtility = shouldRun("utility_shutoff");
-  const runCraigslist = shouldRun("craigslist_fsbo");
+  const craigslistPolicy = getLeadIngestPolicy("craigslist_fsbo");
+  const runCraigslist = shouldRun("craigslist_fsbo") && craigslistPolicy.policy === "enabled";
   let crawlerPhase: { results: CrawlRunResult[]; success: boolean };
+
+  if (craigslistPolicy.policy === "disabled") {
+    policySkips.push(buildLeadIngestPolicySkip("craigslist_fsbo"));
+  }
 
   if (runObits || runCourts || runUtility || runCraigslist) {
     const crawlers = [
@@ -297,6 +328,7 @@ export async function runAgentCycle(
   return {
     success: prSuccess || crawlerPhase.success || attomPhase.success,
     grokDirective,
+    policySkips,
     phases: {
       enrichment: {
         success: !!enrichmentResult && (enrichmentResult.enriched > 0 || enrichmentResult.processed === 0),
@@ -310,6 +342,8 @@ export async function runAgentCycle(
         newInserts: (prResult.newInserts as number) ?? 0,
         updated: (prResult.updated as number) ?? 0,
         prCost: (prResult.prCost as string) ?? "?",
+        skipped_by_policy: prResult.skipped_by_policy as boolean | undefined,
+        reason: prResult.reason as string | undefined,
       },
       crawlers: crawlerPhase.results,
       attom: attomPhase,

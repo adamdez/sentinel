@@ -1,6 +1,6 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
-import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
+import { buildTinaStartPathAssessment } from "@/tina/lib/start-path";
 import type {
   TinaBootstrapFact,
   TinaBootstrapReview,
@@ -105,7 +105,8 @@ export function buildTinaBootstrapReview(draft: TinaWorkspaceDraft): TinaBootstr
     ? draft.documents.find((document) => document.id === draft.priorReturnDocumentId) ?? null
     : null;
   const completedReadings = draft.documentReadings.filter((reading) => reading.status === "complete");
-  const recommendation = recommendTinaFilingLane(draft.profile);
+  const startPath = buildTinaStartPathAssessment(draft);
+  const recommendation = startPath.recommendation;
   const checklist = buildTinaChecklist(draft, recommendation);
   const facts: TinaBootstrapFact[] = [];
   const items: TinaReviewItem[] = [];
@@ -214,6 +215,20 @@ export function buildTinaBootstrapReview(draft: TinaWorkspaceDraft): TinaBootstr
       title: "Tina needs this fixed first",
       summary: blocker,
       severity: "blocking",
+      status: "open",
+      category: "setup",
+      requestId: null,
+      documentId: null,
+      factId: null,
+    });
+  });
+
+  startPath.reviewReasons.forEach((reason, index) => {
+    items.push({
+      id: `start-path-review-${index + 1}`,
+      title: "Tina wants reviewer control on the starting path",
+      summary: reason,
+      severity: "needs_attention",
       status: "open",
       category: "setup",
       requestId: null,

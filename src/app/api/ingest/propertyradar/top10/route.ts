@@ -14,6 +14,7 @@ import {
 } from "@/lib/dedup";
 import { detectDistressSignals, type DetectedSignal } from "@/lib/distress-signals";
 import { COUNTY_FIPS } from "@/lib/attom";
+import { buildLeadIngestPolicySkip, getLeadIngestPolicy } from "@/lib/lead-ingest-policy";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PR_API = "https://api.propertyradar.com/v1/properties";
@@ -393,6 +394,36 @@ export async function POST(req: NextRequest) {
 
   if (!authorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const ingestPolicy = getLeadIngestPolicy("elite_seed_top10");
+  if (ingestPolicy.policy === "disabled") {
+    const policySkip = buildLeadIngestPolicySkip("elite_seed_top10");
+    return NextResponse.json({
+      success: true,
+      count: 0,
+      newInserts: 0,
+      updated: 0,
+      errored: 0,
+      eventsInserted: 0,
+      eventsDeduped: 0,
+      source: SOURCE_TAG,
+      counties: DEFAULT_COUNTIES,
+      totalFetched: 0,
+      totalScored: 0,
+      scoreBreakdown: { platinum: 0, gold: 0, silver: 0, bronze: 0 },
+      phaseBreakdown: { platinum: 0, gold: 0 },
+      aboveCutoff: 0,
+      topScore: 0,
+      topAddress: "—",
+      prCost: "0",
+      lensResults: [],
+      elapsed_ms: 0,
+      prospects: [],
+      skipped_by_policy: true,
+      reason: policySkip.reason,
+      policy: policySkip,
+    });
   }
 
   const apiKey = process.env.PROPERTYRADAR_API_KEY;

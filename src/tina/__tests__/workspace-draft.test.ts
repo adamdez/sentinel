@@ -416,4 +416,98 @@ describe("workspace draft helpers", () => {
       "field-review-line-1-gross-receipts",
     ]);
   });
+
+  it("normalizes reviewer workflow, appendix, and operational status fields", () => {
+    const result = parseTinaWorkspaceDraft(
+      JSON.stringify({
+        reviewerSignoff: {
+          lastEvaluatedAt: "2026-03-26T21:48:00.000Z",
+          packageState: "signed_off",
+          summary: "Signed off",
+          nextStep: "Keep stable",
+          activeSnapshotId: "snapshot-1",
+          activeDecisionId: "review-1",
+          currentPackageFingerprint: "abc123",
+          signedOffPackageFingerprint: "abc123",
+          hasDriftSinceSignoff: false,
+        },
+        reviewerDecisions: [
+          {
+            id: "review-1",
+            snapshotId: "snapshot-1",
+            decision: "approved",
+            reviewerName: "CPA Tina",
+            notes: "Looks good",
+            decidedAt: "2026-03-26T21:49:00.000Z",
+          },
+        ],
+        packageSnapshots: [
+          {
+            id: "snapshot-1",
+            createdAt: "2026-03-26T21:47:30.000Z",
+            packageFingerprint: "abc123",
+            packageState: "ready_for_cpa_review",
+            readinessLevel: "ready_for_cpa",
+            blockerCount: 0,
+            attentionCount: 0,
+            summary: "Ready",
+            exportFileName: "packet.md",
+            exportContents: "# Packet",
+          },
+        ],
+        appendix: {
+          lastRunAt: "2026-03-26T21:50:00.000Z",
+          status: "complete",
+          summary: "One appendix item",
+          nextStep: "Review it",
+          items: [
+            {
+              id: "appendix-1",
+              title: "Interesting issue",
+              summary: "Potentially useful",
+              whyItMatters: "Could save money",
+              taxPositionBucket: "appendix",
+              category: "deduction",
+              nextStep: "Research it",
+              authoritySummary: "Needs more support",
+              reviewerQuestion: "Would a reviewer use it?",
+              disclosureFlag: "unknown",
+              authorityTargets: ["IRS guidance"],
+              sourceLabels: [],
+              factIds: [],
+              documentIds: [],
+            },
+          ],
+        },
+        operationalStatus: {
+          lastRunAt: "2026-03-26T21:51:00.000Z",
+          maturity: "reviewer_grade_core",
+          packageState: "signed_off",
+          summary: "Reviewer grade",
+          nextStep: "Preserve snapshot",
+          truths: ["truth"],
+          blockers: [],
+        },
+        quickBooksConnection: {
+          status: "connected",
+          connectedAt: "2026-03-26T21:52:00.000Z",
+          lastSyncAt: "2026-03-26T21:53:00.000Z",
+          companyName: "Tina Books LLC",
+          realmId: "realm-1",
+          summary: "Connected",
+          nextStep: "Sync again tomorrow",
+          lastError: "",
+          importedDocumentIds: ["doc-quickbooks"],
+        },
+      })
+    );
+
+    expect(result.reviewerSignoff.packageState).toBe("signed_off");
+    expect(result.reviewerDecisions).toHaveLength(1);
+    expect(result.packageSnapshots).toHaveLength(1);
+    expect(result.appendix.items).toHaveLength(1);
+    expect(result.operationalStatus.maturity).toBe("reviewer_grade_core");
+    expect(result.quickBooksConnection.status).toBe("connected");
+    expect(result.quickBooksConnection.importedDocumentIds).toEqual(["doc-quickbooks"]);
+  });
 });

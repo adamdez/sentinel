@@ -123,7 +123,7 @@ const CITY_ZIP_MAP: Record<string, string> = {
   "saint regis": "59866", "st. regis": "59866", "superior": "59872",
 };
 
-function inferCounty(city: string, state: string): string {
+export function inferCounty(city: string, state: string): string | null {
   const key = city.toLowerCase().trim();
   const st = state.toUpperCase();
 
@@ -158,7 +158,7 @@ function inferCounty(city: string, state: string): string {
     if (["clarkston"].includes(key)) return "Asotin";
     if (["newport"].includes(key)) return "Pend Oreille";
   }
-  return "Spokane";
+  return null;
 }
 
 function lookupZip(city: string): string | null {
@@ -687,6 +687,11 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
     }
 
     const inferredCounty = inferCounty(city, state);
+    if (!inferredCounty) {
+      filteredArea++;
+      console.log(`[CL-FSBO] Rejected unmapped county for ${city}, ${state}: ${listing.title.slice(0, 80)}`);
+      continue;
+    }
     const bedrooms = detail.bedrooms ?? listing.bedrooms;
     const bathrooms = detail.bathrooms ?? listing.bathrooms;
     const price = listing.price ?? extractPrice(detail.description);
@@ -706,7 +711,7 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
       address,
       city,
       state,
-      county: market.county, // Keep market county for upsert key matching
+      county: inferredCounty,
       date: detail.postedDate || new Date().toISOString().slice(0, 10),
       link: listing.link,
       source: "craigslist",
@@ -726,6 +731,7 @@ async function crawlMarket(market: CraigslistMarket): Promise<CrawledRecord[]> {
         geo_long: listing.lng ?? null,
         motivation_keywords: motivationKeywords,
         market_id: market.id,
+        market_county: market.county,
         platform: "craigslist",
         city,
         state,

@@ -398,6 +398,28 @@ export const eventLog = pgTable("event_log", {
   index("idx_event_log_created").on(table.createdAt),
 ]);
 
+// ── Lead Cleanup Snapshots ───────────────────────────────────────────
+// Rollback store for audited bulk cleanup operations.
+
+export const leadCleanupSnapshots = pgTable("lead_cleanup_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  cleanupRunId: uuid("cleanup_run_id").notNull().unique(),
+  filter: jsonb("filter").notNull().default({}),
+  summary: jsonb("summary").notNull().default({}),
+  snapshot: jsonb("snapshot").notNull().default({}),
+  status: varchar("status", { length: 32 }).notNull().default("snapshotted"),
+  executionResult: jsonb("execution_result"),
+  executedBy: uuid("executed_by"),
+  restoredBy: uuid("restored_by"),
+  executedAt: timestamp("executed_at", { withTimezone: true }).notNull().defaultNow(),
+  restoredAt: timestamp("restored_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_lead_cleanup_snapshots_status").on(table.status),
+  index("idx_lead_cleanup_snapshots_executed").on(table.executedAt),
+]);
+
 // ── Google Ads: Enums ────────────────────────────────────────────────
 
 export const adReviewTypeEnum = pgEnum("ad_review_type", [

@@ -1,6 +1,9 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
-import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { buildTinaEntityJudgment } from "@/tina/lib/entity-judgment";
+import { buildTinaPackageState } from "@/tina/lib/package-state";
 import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
+import { buildTinaStartPathAssessment } from "@/tina/lib/start-path";
+import { buildTinaTreatmentJudgment } from "@/tina/lib/treatment-judgment";
 import type {
   TinaPackageReadinessItem,
   TinaPackageReadinessLevel,
@@ -140,19 +143,27 @@ export function buildTinaPackageReadiness(
   draft: TinaWorkspaceDraft
 ): TinaPackageReadinessSnapshot {
   const now = new Date().toISOString();
-  const lane = recommendTinaFilingLane(draft.profile);
-  const checklist = buildTinaChecklist(draft, lane);
+  const startPath = buildTinaStartPathAssessment(draft);
+  const entityJudgment = buildTinaEntityJudgment(draft);
+  const treatmentJudgment = buildTinaTreatmentJudgment(draft);
+  const packageState = buildTinaPackageState(draft);
+  const checklist = buildTinaChecklist(draft, startPath.recommendation);
   const items: TinaPackageReadinessItem[] = [];
   const evidence = latestEvidenceTimestamp(draft);
   const currentProfileFingerprint = buildTinaProfileFingerprint(draft.profile);
 
-  if (lane.support !== "supported" || lane.laneId !== "schedule_c_single_member_llc") {
+  if (
+    startPath.route !== "supported" ||
+    startPath.recommendation.laneId !== "schedule_c_single_member_llc"
+  ) {
     items.push(
       createItem({
         id: "lane-not-supported",
         title: "Tina is not on a supported filing lane yet",
         summary:
-          "This first filing package check only works for Tina's supported Schedule C path. Tina should stop here instead of pretending the package is ready.",
+          startPath.route === "blocked"
+            ? "The source-fact-aware start path is blocked, so Tina should stop here instead of pretending the package is ready."
+            : "This first filing package check only works for Tina's supported Schedule C path. Tina should stop here instead of pretending the package is ready.",
         severity: "blocking",
       })
     );
@@ -226,8 +237,67 @@ export function buildTinaPackageReadiness(
     );
   }
 
+  if (packageState === "signed_off_stale") {
+    items.push(
+      createItem({
+        id: "signed-off-snapshot-stale",
+        title: "Reviewer signoff is stale",
+        summary:
+          "Tina has a previously signed-off package snapshot, but the live package changed afterward. She should stop and refresh reviewer signoff instead of silently leaning on an older approval.",
+        severity: "blocking",
+      })
+    );
+  }
+
+  entityJudgment.questions.forEach((question) => {
+    items.push(
+      createItem({
+        id: `entity-judgment-${question.id}`,
+        title: question.title,
+        summary: question.summary,
+        severity: question.severity === "blocking" ? "blocking" : "needs_attention",
+        sourceDocumentIds: question.relatedDocumentIds,
+      })
+    );
+  });
+
+  treatmentJudgment.items.forEach((judgment) => {
+    if (judgment.taxPositionBucket === "use") return;
+    items.push(
+      createItem({
+        id: `treatment-${judgment.id}`,
+        title: judgment.title,
+        summary: `${judgment.summary} ${judgment.nextStep}`.trim(),
+        severity: judgment.taxPositionBucket === "reject" ? "blocking" : "needs_attention",
+        sourceDocumentIds: judgment.relatedDocumentIds,
+      })
+    );
+  });
+
+  const proofRequirementIds = new Set<string>(
+    startPath.proofRequirements.map((requirement) => requirement.id)
+  );
+  startPath.proofRequirements
+    .filter((requirement) => requirement.priority === "required" && requirement.status === "needed")
+    .forEach((requirement) => {
+      items.push(
+        createItem({
+          id: `proof-${requirement.id}`,
+          title: `${requirement.label} still needed`,
+          summary: `${requirement.reason} Tina should get this before treating the package as reviewer-ready.`,
+          severity: "blocking",
+          sourceDocumentIds: requirement.relatedDocumentIds,
+        })
+      );
+    });
+
   checklist
-    .filter((item) => item.priority === "required" && item.status === "needed")
+    .filter(
+      (item) =>
+        item.priority === "required" &&
+        item.status === "needed" &&
+        !proofRequirementIds.has(item.id)
+    )
     .forEach((item) => {
       items.push(
         createItem({
@@ -372,6 +442,9 @@ export function buildTinaPackageReadiness(
   } else if (level === "needs_review") {
     nextStep =
       "Clear the review items next so Tina can say the package is ready for CPA handoff with confidence.";
+  } else if (packageState === "signed_off") {
+    nextStep =
+      "A reviewer already signed off on the current package snapshot. Keep that snapshot stable unless the facts change.";
   }
 
   return {

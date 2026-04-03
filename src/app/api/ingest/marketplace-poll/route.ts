@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runCrawler } from "@/lib/crawlers/predictive-crawler";
 import { craigslistFsboCrawler } from "@/lib/crawlers/craigslist-fsbo-crawler";
+import { buildLeadIngestPolicySkip, getLeadIngestPolicy } from "@/lib/lead-ingest-policy";
 import { createServerClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -140,6 +141,26 @@ export async function GET(req: NextRequest) {
     } else {
       console.log("[MarketplacePoll] No CRAWL- properties found");
     }
+  }
+
+  const craigslistPolicy = getLeadIngestPolicy("craigslist_fsbo");
+  if (craigslistPolicy.policy === "disabled") {
+    const policySkip = buildLeadIngestPolicySkip("craigslist_fsbo");
+    return NextResponse.json({
+      success: true,
+      skipped_by_policy: true,
+      policy: policySkip,
+      crawlers: [],
+      summary: {
+        totalCrawled: 0,
+        totalPromoted: 0,
+        totalEnriched: 0,
+        totalDuplicates: 0,
+        elapsed_ms: 0,
+      },
+      ...(cleanup && cleanupStats ? { cleanup: cleanupStats } : {}),
+      timestamp: new Date().toISOString(),
+    });
   }
 
   console.log("[MarketplacePoll] === Starting FSBO crawl cycle ===");

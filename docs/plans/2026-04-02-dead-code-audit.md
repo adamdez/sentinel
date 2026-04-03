@@ -14,15 +14,8 @@
 
 These are never imported by any file in the codebase:
 
-### `src/components/sentinel/bricked/` (6 dead)
-- `bricked-comp-card` — dead
-- `bricked-comp-map` — dead
-- `bricked-deal-sidebar` — dead
-- `bricked-offer-config-modal` — dead
-- `bricked-photo-carousel` — dead
-- `bricked-property-tabs` — dead
-- `bricked-repairs-list` — dead
-- **Keep:** `bricked-analysis-panel` (imported once)
+### `src/components/sentinel/bricked/` — FALSE POSITIVE
+All bricked components are transitively imported via `bricked-analysis-panel.tsx` → `master-client-file-modal.tsx` (11 imports). **Do not delete.**
 
 ### `src/components/sentinel/client-file-v2/` (entire folder dead)
 - `client-file-overlay` — dead (v2 attempt, superseded)
@@ -31,20 +24,8 @@ These are never imported by any file in the codebase:
 - `tabs/comps-tab` — dead
 - `tabs/contact-tab` — dead
 
-### `src/components/sentinel/master-client-file/` (9 dead)
-- `absentee-dossier-brief` — dead
-- `buyer-radar-panel` — dead
-- `client-file-panels` — dead
-- `contact-tab` — dead
-- `dossier-block` — dead
-- `evidence-capture-panel` — dead
-- `fact-assertions-panel` — dead
-- `monetizability-editor` — dead
-- `next-action-card` — dead
-- `qualification-gaps` — dead
-- `run-history-strip` — dead
-- `seller-snapshot` — dead
-- **Keep:** `workflow-truth-cards` (imported once)
+### `src/components/sentinel/master-client-file/` — FALSE POSITIVE
+Components are transitively imported via `contact-tab.tsx` → `master-client-file-parts.tsx` → `master-client-file-modal.tsx` (11 imports). **Do not delete.**
 
 ### Other dead components
 - `dialer-widget` — dead

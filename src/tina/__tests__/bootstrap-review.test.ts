@@ -120,6 +120,33 @@ describe("buildTinaBootstrapReview", () => {
       review.items.some((item) => item.id === "business-name-mismatch" && item.severity === "needs_attention")
     ).toBe(true);
   });
+
+  it("asks for explicit proof when a complex llc needs reviewer-controlled routing", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Complex LLC",
+        entityType: "single_member_llc" as const,
+        ownerCount: 2,
+        spouseCommunityPropertyTreatment: "confirmed" as const,
+      },
+      sourceFacts: [
+        {
+          id: "community-property-fact",
+          sourceDocumentId: "doc-1",
+          label: "Community property clue",
+          value: "This paper may show spouse community-property treatment or a husband-and-wife ownership setup.",
+          confidence: "high" as const,
+          capturedAt: "2026-04-02T20:00:00.000Z",
+        },
+      ],
+    };
+
+    const review = buildTinaBootstrapReview(draft);
+    expect(review.items.some((item) => item.requestId === "community-property-proof")).toBe(true);
+    expect(review.items.some((item) => item.id.startsWith("start-path-review-"))).toBe(true);
+  });
 });
 
 describe("markTinaBootstrapReviewStale", () => {

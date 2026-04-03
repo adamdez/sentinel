@@ -82,6 +82,62 @@ describe("buildTinaIssueQueue", () => {
     );
   });
 
+  it("blocks the filing lane when intake already shows multiple owners", () => {
+    const draft = buildDraft({
+      profile: {
+        businessName: "Two Owner LLC",
+        entityType: "single_member_llc",
+        ownerCount: 2,
+      },
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "owner-count-multi-owner")).toBe(true);
+    expect(issueQueue.records.find((record) => record.id === "filing-lane")?.status).toBe(
+      "needs_attention"
+    );
+  });
+
+  it("blocks when papers suggest an ownership change during the year", () => {
+    const draft = buildDraft({
+      sourceFacts: [
+        {
+          id: "ownership-change-fact",
+          sourceDocumentId: "doc-1",
+          label: "Ownership change clue",
+          value: "This paper may show an ownership change.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:10:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find((candidate) => candidate.id === "ownership-change-review");
+    expect(item?.severity).toBe("blocking");
+  });
+
+  it("blocks when papers suggest payments to a former owner", () => {
+    const draft = buildDraft({
+      sourceFacts: [
+        {
+          id: "former-owner-payment-fact",
+          sourceDocumentId: "doc-1",
+          label: "Former owner payment clue",
+          value: "This paper may show payments to a former owner.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:10:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    const item = issueQueue.items.find(
+      (candidate) => candidate.id === "former-owner-payment-review"
+    );
+    expect(item?.severity).toBe("blocking");
+  });
+
   it("flags return-type conflict when paper hints Schedule C but organizer points to S-corp lane", () => {
     const draft = buildDraft({
       profile: {
@@ -1005,6 +1061,114 @@ describe("buildTinaIssueQueue", () => {
 
     const issueQueue = buildTinaIssueQueue(draft);
     expect(issueQueue.items.some((item) => item.id === "books-money-scale-mismatch")).toBe(false);
+  });
+
+  it("blocks when books hint at mixed personal and business spending", () => {
+    const draft = buildDraft({
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "mixed-use-fact",
+          sourceDocumentId: "books-a",
+          label: "Mixed personal/business clue",
+          value: "This paper may include mixed personal and business spending.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "books-mixed-use-clue")).toBe(true);
+  });
+
+  it("blocks when depreciation support clues appear in books", () => {
+    const draft = buildDraft({
+      profile: {
+        hasFixedAssets: true,
+      },
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "depreciation-fact",
+          sourceDocumentId: "books-a",
+          label: "Depreciation clue",
+          value: "This paper mentions depreciation.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "books-depreciation-support-clue")).toBe(
+      true
+    );
+  });
+
+  it("blocks when papers show both payroll and contractor signals", () => {
+    const draft = buildDraft({
+      documents: [
+        {
+          id: "books-a",
+          name: "books-a.csv",
+          size: 2048,
+          mimeType: "text/csv",
+          storagePath: "tax/books-a.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks or your profit-and-loss report",
+          uploadedAt: "2026-03-26T21:15:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "payroll-fact",
+          sourceDocumentId: "books-a",
+          label: "Payroll clue",
+          value: "This paper mentions payroll.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          id: "contractor-fact",
+          sourceDocumentId: "books-a",
+          label: "Contractor clue",
+          value: "This paper mentions contractors.",
+          confidence: "medium",
+          capturedAt: "2026-03-26T21:20:30.000Z",
+        },
+      ],
+    });
+
+    const issueQueue = buildTinaIssueQueue(draft);
+    expect(issueQueue.items.some((item) => item.id === "worker-classification-overlap")).toBe(
+      true
+    );
   });
 });
 

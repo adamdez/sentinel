@@ -1,9 +1,12 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
+import {
+  buildTinaStartPathAssessment,
+  formatTinaLaneList,
+} from "@/tina/lib/start-path";
 import type {
   TinaIssueQueue,
-  TinaFilingLaneId,
   TinaDocumentFactConfidence,
   TinaPrepRecord,
   TinaSourceFact,
@@ -18,53 +21,6 @@ function normalizeForComparison(value: string): string {
 
 function includesNeedle(haystack: string, needle: string): boolean {
   return normalizeForComparison(haystack).includes(normalizeForComparison(needle));
-}
-
-function inferReturnTypeHintLane(value: string): TinaFilingLaneId | null {
-  if (
-    includesNeedle(value, "1120") ||
-    includesNeedle(value, "s corp") ||
-    includesNeedle(value, "s-corp")
-  ) {
-    return "1120_s";
-  }
-
-  if (
-    includesNeedle(value, "1065") ||
-    includesNeedle(value, "partnership") ||
-    includesNeedle(value, "multi member")
-  ) {
-    return "1065";
-  }
-
-  if (
-    includesNeedle(value, "schedule c") ||
-    includesNeedle(value, "1040") ||
-    includesNeedle(value, "sole prop") ||
-    includesNeedle(value, "single member") ||
-    includesNeedle(value, "disregarded")
-  ) {
-    return "schedule_c_single_member_llc";
-  }
-
-  return null;
-}
-
-function describeLane(laneId: TinaFilingLaneId): string {
-  switch (laneId) {
-    case "schedule_c_single_member_llc":
-      return "Schedule C / single-member LLC";
-    case "1120_s":
-      return "1120-S / S-corp";
-    case "1065":
-      return "1065 / partnership";
-    default:
-      return "unknown lane";
-  }
-}
-
-function formatLaneList(lanes: TinaFilingLaneId[]): string {
-  return lanes.map((lane) => describeLane(lane)).join(", ");
 }
 
 export function createDefaultTinaIssueQueue(): TinaIssueQueue {
@@ -238,7 +194,8 @@ function maybeCreateMoneyScaleMismatchItem(
 export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
   const profileFingerprint = buildTinaProfileFingerprint(draft.profile);
   const items: TinaReviewItem[] = [];
-  const recommendation = recommendTinaFilingLane(draft.profile);
+  const startPath = buildTinaStartPathAssessment(draft);
+  const recommendation = startPath.recommendation;
   const checklist = buildTinaChecklist(draft, recommendation);
   const documentById = new Map(draft.documents.map((document) => [document.id, document]));
   const priorReturnDocument = draft.priorReturnDocumentId
@@ -269,6 +226,10 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     findFactsByLabel(bookFacts, "Intercompany transfer clue")
   );
   const relatedPartyFact = pickStrongestFact(findFactsByLabel(bookFacts, "Related-party clue"));
+  const mixedUseFact = pickStrongestFact(
+    findFactsByLabel(bookFacts, "Mixed personal/business clue")
+  );
+  const depreciationFact = pickStrongestFact(findFactsByLabel(bookFacts, "Depreciation clue"));
   const einFacts = findFactsByLabel(bookFacts, "EIN clue");
   const uniqueEinSet = new Set(einFacts.flatMap((fact) => extractEinTokens(fact.value)));
 
@@ -351,46 +312,22 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     });
   }
 
-  const returnTypeHintCandidates = findFactsByLabel(draft.sourceFacts, "Return type hint")
-    .map((fact) => ({
-      fact,
-      hintedLane: inferReturnTypeHintLane(fact.value),
-    }))
-    .filter((candidate): candidate is { fact: TinaSourceFact; hintedLane: TinaFilingLaneId } =>
-      candidate.hintedLane !== null
-    );
-
-  const hintedLaneSet = new Set(returnTypeHintCandidates.map((candidate) => candidate.hintedLane));
-  const hintedLanes = Array.from(hintedLaneSet);
-  const hasMixedHintedLanes = hintedLanes.length > 1;
-  const singleHintedLane = hintedLanes.length === 1 ? hintedLanes[0] : null;
-
-  const hasHintVsOrganizerConflict =
-    singleHintedLane !== null &&
-    recommendation.laneId !== "unknown" &&
-    singleHintedLane !== recommendation.laneId;
-
-  if (hasMixedHintedLanes || hasHintVsOrganizerConflict) {
+  if (startPath.hasMixedHintedLanes || startPath.hasHintVsOrganizerConflict) {
     const hasStrongReturnHint = hasAtLeastConfidence(
-      returnTypeHintCandidates.map((candidate) => candidate.fact),
+      startPath.returnTypeHintFacts,
       "medium"
     );
-    const culprit =
-      returnTypeHintCandidates.find((candidate) =>
-        hasMixedHintedLanes
-          ? true
-          : candidate.hintedLane === singleHintedLane
-      ) ?? null;
+    const culprit = startPath.returnTypeHintFacts[0] ?? null;
 
-    const summary = hasMixedHintedLanes
-      ? `Saved papers point to multiple return-type lanes (${formatLaneList(
-          hintedLanes
+    const summary = startPath.hasMixedHintedLanes
+      ? `Saved papers point to multiple return-type lanes (${formatTinaLaneList(
+          startPath.hintedLanes
         )}). Tina wants this resolved before she trusts the filing lane.`
-      : `One saved paper hints at ${describeLane(
-          singleHintedLane!
-        )}, but the organizer currently points to ${describeLane(
-          recommendation.laneId
-        )}. Tina wants this reviewed before she trusts the filing lane.`;
+      : `One saved paper hints at ${formatTinaLaneList([
+          startPath.singleHintedLane!,
+        ])}, but the organizer currently points to ${formatTinaLaneList([
+          recommendation.laneId,
+        ])}. Tina wants this reviewed before she trusts the filing lane.`;
 
     items.push({
       id: "return-type-hint-conflict",
@@ -400,8 +337,82 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
       status: "open",
       category: "fact_mismatch",
       requestId: null,
-      documentId: culprit?.fact.sourceDocumentId ?? null,
-      factId: culprit?.fact.id ?? null,
+      documentId: culprit?.sourceDocumentId ?? null,
+      factId: culprit?.id ?? null,
+    });
+  }
+
+  if (
+    recommendation.laneId === "schedule_c_single_member_llc" &&
+    startPath.ownershipMismatchWithSingleOwnerLane &&
+    !items.some((item) => item.id === "owner-count-multi-owner")
+  ) {
+    items.push({
+      id: "single-owner-lane-mismatch",
+      title: "Single-owner lane no longer looks safe",
+      summary:
+        "Tina's supported Schedule C lane no longer matches the ownership signals she sees. She should route this to reviewer handling instead of continuing as if it were a clean single-owner file.",
+      severity: "blocking",
+      status: "open",
+      category: "setup",
+      requestId: null,
+      documentId: startPath.ownershipChangeClue?.sourceDocumentId ?? startPath.formerOwnerPaymentClue?.sourceDocumentId ?? null,
+      factId: startPath.ownershipChangeClue?.id ?? startPath.formerOwnerPaymentClue?.id ?? null,
+    });
+  }
+
+  if (draft.profile.ownerCount !== null && draft.profile.ownerCount > 1) {
+    items.push({
+      id: "owner-count-multi-owner",
+      title: "Organizer shows more than one owner",
+      summary:
+        "Tina sees more than one owner in intake. She should route this away from the single-owner Schedule C lane and into reviewer handling instead of guessing.",
+      severity: "blocking",
+      status: "open",
+      category: "setup",
+      requestId: null,
+      documentId: null,
+      factId: null,
+    });
+  }
+
+  if (draft.profile.ownershipChangedDuringYear || startPath.ownershipChangeClue) {
+    items.push({
+      id: "ownership-change-review",
+      title: "Ownership changed during the year",
+      summary:
+        "Tina sees an ownership-change signal. She should stop and route this to reviewer handling before trusting the return path.",
+      severity:
+        draft.profile.ownershipChangedDuringYear ||
+        confidenceRank(startPath.ownershipChangeClue?.confidence ?? "low") >=
+          confidenceRank("medium")
+          ? "blocking"
+          : "needs_attention",
+      status: "open",
+      category: "setup",
+      requestId: null,
+      documentId: startPath.ownershipChangeClue?.sourceDocumentId ?? null,
+      factId: startPath.ownershipChangeClue?.id ?? null,
+    });
+  }
+
+  if (draft.profile.hasFormerOwnerPayments || startPath.formerOwnerPaymentClue) {
+    items.push({
+      id: "former-owner-payment-review",
+      title: "Former-owner payments need classification review",
+      summary:
+        "Tina sees payments to a former owner or buyout-style activity. She should route this to reviewer handling before trusting the filing lane or return treatment.",
+      severity:
+        draft.profile.hasFormerOwnerPayments ||
+        confidenceRank(startPath.formerOwnerPaymentClue?.confidence ?? "low") >=
+          confidenceRank("medium")
+          ? "blocking"
+          : "needs_attention",
+      status: "open",
+      category: "setup",
+      requestId: null,
+      documentId: startPath.formerOwnerPaymentClue?.sourceDocumentId ?? null,
+      factId: startPath.formerOwnerPaymentClue?.id ?? null,
     });
   }
 
@@ -488,6 +499,60 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
       requestId: null,
       documentId: inventoryClue.sourceDocumentId,
       factId: inventoryClue.id,
+    });
+  }
+
+  if (mixedUseFact) {
+    items.push({
+      id: "books-mixed-use-clue",
+      title: "Books may mix personal and business spending",
+      summary:
+        "Tina found a mixed-use clue in the money papers. She should stop and separate personal activity before trusting return-facing expenses.",
+      severity:
+        confidenceRank(mixedUseFact.confidence) >= confidenceRank("medium")
+          ? "blocking"
+          : "needs_attention",
+      status: "open",
+      category: "books",
+      requestId: null,
+      documentId: mixedUseFact.sourceDocumentId,
+      factId: mixedUseFact.id,
+    });
+  }
+
+  if (depreciationFact) {
+    items.push({
+      id: "books-depreciation-support-clue",
+      title: "Depreciation or fixed-asset support needs review",
+      summary:
+        draft.profile.hasFixedAssets
+          ? "Tina found depreciation or fixed-asset clues and should confirm the asset schedule and support before trusting those deductions."
+          : "Tina found depreciation or fixed-asset clues even though fixed assets are not marked in intake yet. She should stop and confirm the asset story before trusting the return.",
+      severity:
+        draft.profile.hasFixedAssets ||
+        confidenceRank(depreciationFact.confidence) >= confidenceRank("medium")
+          ? "blocking"
+          : "needs_attention",
+      status: "open",
+      category: "books",
+      requestId: null,
+      documentId: depreciationFact.sourceDocumentId,
+      factId: depreciationFact.id,
+    });
+  }
+
+  if (payrollClue && contractorClue) {
+    items.push({
+      id: "worker-classification-overlap",
+      title: "Papers hint at both payroll and contractor flows",
+      summary:
+        "Tina sees signals for both payroll and contractor payments. She should confirm worker classification and supporting records before trusting those deductions.",
+      severity: "blocking",
+      status: "open",
+      category: "books",
+      requestId: null,
+      documentId: payrollClue.sourceDocumentId ?? contractorClue.sourceDocumentId,
+      factId: payrollClue.id,
     });
   }
 
@@ -646,7 +711,12 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     .filter((item) => item.category === "state_scope")
     .map((item) => item.id);
   const laneIssueIds = uniqueItems
-    .filter((item) => item.id === "return-type-hint-conflict")
+    .filter((item) =>
+      item.id === "return-type-hint-conflict" ||
+      item.id === "owner-count-multi-owner" ||
+      item.id === "ownership-change-review" ||
+      item.id === "former-owner-payment-review"
+    )
     .map((item) => item.id);
 
   const booksSignalSummaryParts: string[] = [];

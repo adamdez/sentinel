@@ -21,6 +21,7 @@ import {
   type CallLogRecord,
   type LeadCounters,
 } from "@/lib/integrity-checks";
+import { loadHiddenLeadBucketAudit } from "@/lib/hidden-lead-buckets";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const limit = Math.min(Number(url.searchParams.get("limit") ?? 500), 2000);
   const shouldRepair = url.searchParams.get("repair") === "true";
+  const hiddenBuckets = await loadHiddenLeadBucketAudit(sb);
 
   // 1. Fetch leads with call counter fields
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -68,6 +70,7 @@ export async function GET(req: NextRequest) {
       orphanedCounterLeads: [],
       missedCounterLeads: [],
       repaired: 0,
+      hiddenBuckets,
     });
   }
 
@@ -137,5 +140,6 @@ export async function GET(req: NextRequest) {
     ...report,
     repaired,
     repairable: shouldRepair,
+    hiddenBuckets,
   });
 }

@@ -1,12 +1,16 @@
 import type {
+  TinaAppendixItem,
+  TinaAppendixSnapshot,
   TinaAiCleanupSnapshot,
   TinaAuthorityCitation,
   TinaCpaHandoffArtifact,
   TinaCpaHandoffSnapshot,
   TinaCleanupPlan,
   TinaCleanupSuggestion,
+  TinaOperationalStatusSnapshot,
   TinaPackageReadinessItem,
   TinaPackageReadinessSnapshot,
+  TinaPackageSnapshotRecord,
   TinaAuthorityDisclosureDecision,
   TinaAuthorityReviewerDecision,
   TinaAuthorityWorkItem,
@@ -28,17 +32,25 @@ import type {
   TinaStoredDocumentCategory,
   TinaTaxAdjustment,
   TinaTaxAdjustmentSnapshot,
+  TinaReviewerDecisionRecord,
+  TinaReviewerSignoffSnapshot,
+  TinaQuickBooksConnectionSnapshot,
+  TinaSpouseCommunityPropertyTreatment,
+  TinaTaxElection,
   TinaWorkpaperLine,
   TinaWorkpaperSnapshot,
   TinaWorkspaceDraft,
 } from "@/tina/types";
 import { createDefaultTinaAiCleanupSnapshot } from "@/tina/lib/ai-cleanup";
+import { createDefaultTinaAppendix } from "@/tina/lib/appendix";
 import { createDefaultTinaAuthorityWorkItem } from "@/tina/lib/authority-work";
 import { createDefaultTinaBootstrapReview } from "@/tina/lib/bootstrap-review";
 import { createDefaultTinaCpaHandoff } from "@/tina/lib/cpa-handoff";
 import { createDefaultTinaCleanupPlan } from "@/tina/lib/cleanup-plan";
 import { createDefaultTinaIssueQueue } from "@/tina/lib/issue-queue";
+import { createDefaultTinaOperationalStatus } from "@/tina/lib/operational-status";
 import { createDefaultTinaPackageReadiness } from "@/tina/lib/package-readiness";
+import { createDefaultTinaReviewerSignoffSnapshot } from "@/tina/lib/package-state";
 import { createDefaultTinaReviewerFinalSnapshot } from "@/tina/lib/reviewer-final";
 import { createDefaultTinaScheduleCDraft } from "@/tina/lib/schedule-c-draft";
 import { createDefaultTinaTaxAdjustmentSnapshot } from "@/tina/lib/tax-adjustments";
@@ -50,7 +62,14 @@ export function createDefaultTinaProfile(): TinaBusinessTaxProfile {
   return {
     businessName: "",
     taxYear: String(new Date().getFullYear() - 1),
+    principalBusinessActivity: "",
     entityType: "unsure",
+    ownerCount: null,
+    ownershipChangedDuringYear: false,
+    taxElection: "unsure",
+    spouseCommunityPropertyTreatment: "unknown",
+    hasOwnerBuyoutOrRedemption: false,
+    hasFormerOwnerPayments: false,
     formationState: "WA",
     formationDate: "",
     accountingMethod: "cash",
@@ -62,6 +81,85 @@ export function createDefaultTinaProfile(): TinaBusinessTaxProfile {
     collectsSalesTax: false,
     hasIdahoActivity: false,
     notes: "",
+  };
+}
+
+export function createDefaultTinaQuickBooksConnection(): TinaQuickBooksConnectionSnapshot {
+  return {
+    status: "not_connected",
+    connectedAt: null,
+    lastSyncAt: null,
+    companyName: "",
+    realmId: "",
+    summary: "QuickBooks is not connected yet.",
+    nextStep: "Upload a QuickBooks export or connect QuickBooks when that live sync path is ready.",
+    lastError: "",
+    importedDocumentIds: [],
+  };
+}
+
+function normalizeTaxElection(value: unknown): TinaTaxElection {
+  return value === "default" || value === "s_corp" || value === "c_corp" ? value : "unsure";
+}
+
+function normalizeSpouseCommunityPropertyTreatment(
+  value: unknown
+): TinaSpouseCommunityPropertyTreatment {
+  return value === "no" || value === "possible" || value === "confirmed" ? value : "unknown";
+}
+
+function normalizeProfile(value: unknown): TinaBusinessTaxProfile {
+  const fallback = createDefaultTinaProfile();
+  if (typeof value !== "object" || value === null) return fallback;
+
+  const raw = value as Partial<TinaBusinessTaxProfile>;
+  const ownerCount =
+    typeof raw.ownerCount === "number" &&
+    Number.isInteger(raw.ownerCount) &&
+    raw.ownerCount > 0
+      ? raw.ownerCount
+      : null;
+
+  return {
+    businessName: typeof raw.businessName === "string" ? raw.businessName : fallback.businessName,
+    taxYear: typeof raw.taxYear === "string" ? raw.taxYear : fallback.taxYear,
+    principalBusinessActivity:
+      typeof raw.principalBusinessActivity === "string"
+        ? raw.principalBusinessActivity
+        : fallback.principalBusinessActivity,
+    entityType:
+      raw.entityType === "sole_prop" ||
+      raw.entityType === "single_member_llc" ||
+      raw.entityType === "s_corp" ||
+      raw.entityType === "c_corp" ||
+      raw.entityType === "partnership" ||
+      raw.entityType === "multi_member_llc"
+        ? raw.entityType
+        : fallback.entityType,
+    ownerCount,
+    ownershipChangedDuringYear: Boolean(raw.ownershipChangedDuringYear),
+    taxElection: normalizeTaxElection(raw.taxElection),
+    spouseCommunityPropertyTreatment: normalizeSpouseCommunityPropertyTreatment(
+      raw.spouseCommunityPropertyTreatment
+    ),
+    hasOwnerBuyoutOrRedemption: Boolean(raw.hasOwnerBuyoutOrRedemption),
+    hasFormerOwnerPayments: Boolean(raw.hasFormerOwnerPayments),
+    formationState:
+      typeof raw.formationState === "string" ? raw.formationState : fallback.formationState,
+    formationDate:
+      typeof raw.formationDate === "string" ? raw.formationDate : fallback.formationDate,
+    accountingMethod:
+      raw.accountingMethod === "cash" || raw.accountingMethod === "accrual"
+        ? raw.accountingMethod
+        : fallback.accountingMethod,
+    naicsCode: typeof raw.naicsCode === "string" ? raw.naicsCode : fallback.naicsCode,
+    hasPayroll: Boolean(raw.hasPayroll),
+    paysContractors: Boolean(raw.paysContractors),
+    hasInventory: Boolean(raw.hasInventory),
+    hasFixedAssets: Boolean(raw.hasFixedAssets),
+    collectsSalesTax: Boolean(raw.collectsSalesTax),
+    hasIdahoActivity: Boolean(raw.hasIdahoActivity),
+    notes: typeof raw.notes === "string" ? raw.notes : fallback.notes,
   };
 }
 
@@ -84,6 +182,12 @@ export function createDefaultTinaWorkspaceDraft(): TinaWorkspaceDraft {
     scheduleCDraft: createDefaultTinaScheduleCDraft(),
     packageReadiness: createDefaultTinaPackageReadiness(),
     cpaHandoff: createDefaultTinaCpaHandoff(),
+    reviewerSignoff: createDefaultTinaReviewerSignoffSnapshot(),
+    reviewerDecisions: [],
+    packageSnapshots: [],
+    appendix: createDefaultTinaAppendix(),
+    operationalStatus: createDefaultTinaOperationalStatus(),
+    quickBooksConnection: createDefaultTinaQuickBooksConnection(),
     authorityWork: [],
     profile: createDefaultTinaProfile(),
   };
@@ -811,6 +915,218 @@ function normalizeCpaHandoff(value: unknown): TinaCpaHandoffSnapshot {
   };
 }
 
+function normalizeReviewerDecisionRecord(value: unknown): TinaReviewerDecisionRecord | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Partial<TinaReviewerDecisionRecord>;
+  if (
+    typeof raw.id !== "string" ||
+    typeof raw.snapshotId !== "string" ||
+    typeof raw.reviewerName !== "string" ||
+    typeof raw.decidedAt !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: raw.id,
+    snapshotId: raw.snapshotId,
+    decision:
+      raw.decision === "approved" || raw.decision === "changes_requested" || raw.decision === "revoked"
+        ? raw.decision
+        : "changes_requested",
+    reviewerName: raw.reviewerName,
+    notes: typeof raw.notes === "string" ? raw.notes : "",
+    decidedAt: raw.decidedAt,
+  };
+}
+
+function normalizePackageSnapshotRecord(value: unknown): TinaPackageSnapshotRecord | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Partial<TinaPackageSnapshotRecord>;
+  if (
+    typeof raw.id !== "string" ||
+    typeof raw.createdAt !== "string" ||
+    typeof raw.packageFingerprint !== "string" ||
+    typeof raw.summary !== "string" ||
+    typeof raw.exportFileName !== "string" ||
+    typeof raw.exportContents !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: raw.id,
+    createdAt: raw.createdAt,
+    packageFingerprint: raw.packageFingerprint,
+    packageState:
+      raw.packageState === "ready_for_cpa_review" ||
+      raw.packageState === "blocked" ||
+      raw.packageState === "signed_off" ||
+      raw.packageState === "signed_off_stale"
+        ? raw.packageState
+        : "provisional",
+    readinessLevel:
+      raw.readinessLevel === "needs_review" || raw.readinessLevel === "ready_for_cpa"
+        ? raw.readinessLevel
+        : "blocked",
+    blockerCount: typeof raw.blockerCount === "number" ? raw.blockerCount : 0,
+    attentionCount: typeof raw.attentionCount === "number" ? raw.attentionCount : 0,
+    summary: raw.summary,
+    exportFileName: raw.exportFileName,
+    exportContents: raw.exportContents,
+  };
+}
+
+function normalizeReviewerSignoffSnapshot(value: unknown): TinaReviewerSignoffSnapshot {
+  const fallback = createDefaultTinaReviewerSignoffSnapshot();
+  if (typeof value !== "object" || value === null) return fallback;
+  const raw = value as Partial<TinaReviewerSignoffSnapshot>;
+
+  return {
+    lastEvaluatedAt: typeof raw.lastEvaluatedAt === "string" ? raw.lastEvaluatedAt : null,
+    packageState:
+      raw.packageState === "ready_for_cpa_review" ||
+      raw.packageState === "blocked" ||
+      raw.packageState === "signed_off" ||
+      raw.packageState === "signed_off_stale"
+        ? raw.packageState
+        : "provisional",
+    summary: typeof raw.summary === "string" ? raw.summary : fallback.summary,
+    nextStep: typeof raw.nextStep === "string" ? raw.nextStep : fallback.nextStep,
+    activeSnapshotId: typeof raw.activeSnapshotId === "string" ? raw.activeSnapshotId : null,
+    activeDecisionId: typeof raw.activeDecisionId === "string" ? raw.activeDecisionId : null,
+    currentPackageFingerprint:
+      typeof raw.currentPackageFingerprint === "string" ? raw.currentPackageFingerprint : null,
+    signedOffPackageFingerprint:
+      typeof raw.signedOffPackageFingerprint === "string"
+        ? raw.signedOffPackageFingerprint
+        : null,
+    hasDriftSinceSignoff: Boolean(raw.hasDriftSinceSignoff),
+  };
+}
+
+function normalizeAppendixItem(value: unknown): TinaAppendixItem | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Partial<TinaAppendixItem>;
+  if (
+    typeof raw.id !== "string" ||
+    typeof raw.title !== "string" ||
+    typeof raw.summary !== "string" ||
+    typeof raw.whyItMatters !== "string" ||
+    typeof raw.category !== "string" ||
+    typeof raw.nextStep !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: raw.id,
+    title: raw.title,
+    summary: raw.summary,
+    whyItMatters: raw.whyItMatters,
+    taxPositionBucket:
+      raw.taxPositionBucket === "use" ||
+      raw.taxPositionBucket === "review" ||
+      raw.taxPositionBucket === "reject"
+        ? raw.taxPositionBucket
+        : "appendix",
+    category: raw.category,
+    nextStep: raw.nextStep,
+    authoritySummary: typeof raw.authoritySummary === "string" ? raw.authoritySummary : "",
+    reviewerQuestion: typeof raw.reviewerQuestion === "string" ? raw.reviewerQuestion : "",
+    disclosureFlag: typeof raw.disclosureFlag === "string" ? raw.disclosureFlag : "unknown",
+    authorityTargets: Array.isArray(raw.authorityTargets)
+      ? raw.authorityTargets.filter((item): item is string => typeof item === "string")
+      : [],
+    sourceLabels: Array.isArray(raw.sourceLabels)
+      ? raw.sourceLabels.filter((item): item is string => typeof item === "string")
+      : [],
+    factIds: Array.isArray(raw.factIds)
+      ? raw.factIds.filter((item): item is string => typeof item === "string")
+      : [],
+    documentIds: Array.isArray(raw.documentIds)
+      ? raw.documentIds.filter((item): item is string => typeof item === "string")
+      : [],
+  };
+}
+
+function normalizeAppendix(value: unknown): TinaAppendixSnapshot {
+  const fallback = createDefaultTinaAppendix();
+  if (typeof value !== "object" || value === null) return fallback;
+  const raw = value as Partial<TinaAppendixSnapshot>;
+  const items = Array.isArray(raw.items)
+    ? raw.items
+        .map((item) => normalizeAppendixItem(item))
+        .filter((item): item is TinaAppendixItem => item !== null)
+    : [];
+
+  return {
+    lastRunAt: typeof raw.lastRunAt === "string" ? raw.lastRunAt : null,
+    status:
+      raw.status === "stale" || raw.status === "running" || raw.status === "complete"
+        ? raw.status
+        : "idle",
+    summary: typeof raw.summary === "string" ? raw.summary : fallback.summary,
+    nextStep: typeof raw.nextStep === "string" ? raw.nextStep : fallback.nextStep,
+    items,
+  };
+}
+
+function normalizeOperationalStatus(value: unknown): TinaOperationalStatusSnapshot {
+  const fallback = createDefaultTinaOperationalStatus();
+  if (typeof value !== "object" || value === null) return fallback;
+  const raw = value as Partial<TinaOperationalStatusSnapshot>;
+
+  return {
+    lastRunAt: typeof raw.lastRunAt === "string" ? raw.lastRunAt : null,
+    maturity:
+      raw.maturity === "schedule_c_core" || raw.maturity === "reviewer_grade_core"
+        ? raw.maturity
+        : "foundation",
+    packageState:
+      raw.packageState === "ready_for_cpa_review" ||
+      raw.packageState === "blocked" ||
+      raw.packageState === "signed_off" ||
+      raw.packageState === "signed_off_stale"
+        ? raw.packageState
+        : "provisional",
+    summary: typeof raw.summary === "string" ? raw.summary : fallback.summary,
+    nextStep: typeof raw.nextStep === "string" ? raw.nextStep : fallback.nextStep,
+    truths: Array.isArray(raw.truths)
+      ? raw.truths.filter((item): item is string => typeof item === "string")
+      : fallback.truths,
+    blockers: Array.isArray(raw.blockers)
+      ? raw.blockers.filter((item): item is string => typeof item === "string")
+      : [],
+  };
+}
+
+function normalizeQuickBooksConnection(value: unknown): TinaQuickBooksConnectionSnapshot {
+  const fallback = createDefaultTinaQuickBooksConnection();
+  if (typeof value !== "object" || value === null) return fallback;
+  const raw = value as Partial<TinaQuickBooksConnectionSnapshot>;
+
+  return {
+    status:
+      raw.status === "connecting" ||
+      raw.status === "connected" ||
+      raw.status === "syncing" ||
+      raw.status === "error"
+        ? raw.status
+        : "not_connected",
+    connectedAt: typeof raw.connectedAt === "string" ? raw.connectedAt : null,
+    lastSyncAt: typeof raw.lastSyncAt === "string" ? raw.lastSyncAt : null,
+    companyName: typeof raw.companyName === "string" ? raw.companyName : "",
+    realmId: typeof raw.realmId === "string" ? raw.realmId : "",
+    summary: typeof raw.summary === "string" ? raw.summary : fallback.summary,
+    nextStep: typeof raw.nextStep === "string" ? raw.nextStep : fallback.nextStep,
+    lastError: typeof raw.lastError === "string" ? raw.lastError : "",
+    importedDocumentIds: Array.isArray(raw.importedDocumentIds)
+      ? raw.importedDocumentIds.filter((item): item is string => typeof item === "string")
+      : [],
+  };
+}
+
 function normalizeCleanupSuggestion(value: unknown): TinaCleanupSuggestion | null {
   if (typeof value !== "object" || value === null) return null;
 
@@ -928,6 +1244,18 @@ export function parseTinaWorkspaceDraft(raw: string | null): TinaWorkspaceDraft 
           .map((item) => normalizeAuthorityWorkItem(item))
           .filter((item): item is TinaAuthorityWorkItem => item !== null)
       : [];
+    const reviewerDecisionsRaw = (parsed as Record<string, unknown>).reviewerDecisions;
+    const normalizedReviewerDecisions = Array.isArray(reviewerDecisionsRaw)
+      ? reviewerDecisionsRaw
+          .map((item) => normalizeReviewerDecisionRecord(item))
+          .filter((item): item is TinaReviewerDecisionRecord => item !== null)
+      : [];
+    const packageSnapshotsRaw = (parsed as Record<string, unknown>).packageSnapshots;
+    const normalizedPackageSnapshots = Array.isArray(packageSnapshotsRaw)
+      ? packageSnapshotsRaw
+          .map((item) => normalizePackageSnapshotRecord(item))
+          .filter((item): item is TinaPackageSnapshotRecord => item !== null)
+      : [];
 
     return {
       ...createDefaultTinaWorkspaceDraft(),
@@ -947,11 +1275,20 @@ export function parseTinaWorkspaceDraft(raw: string | null): TinaWorkspaceDraft 
       scheduleCDraft: normalizeScheduleCDraft(parsed.scheduleCDraft),
       packageReadiness: normalizePackageReadiness(parsed.packageReadiness),
       cpaHandoff: normalizeCpaHandoff(parsed.cpaHandoff),
+      reviewerSignoff: normalizeReviewerSignoffSnapshot(
+        (parsed as Record<string, unknown>).reviewerSignoff
+      ),
+      reviewerDecisions: normalizedReviewerDecisions,
+      packageSnapshots: normalizedPackageSnapshots,
+      appendix: normalizeAppendix((parsed as Record<string, unknown>).appendix),
+      operationalStatus: normalizeOperationalStatus(
+        (parsed as Record<string, unknown>).operationalStatus
+      ),
+      quickBooksConnection: normalizeQuickBooksConnection(
+        (parsed as Record<string, unknown>).quickBooksConnection
+      ),
       authorityWork: normalizedAuthorityWork,
-      profile: {
-        ...createDefaultTinaProfile(),
-        ...(parsed.profile ?? {}),
-      },
+      profile: normalizeProfile(parsed.profile),
     };
   } catch {
     return createDefaultTinaWorkspaceDraft();

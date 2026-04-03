@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { notifyIntegrityAudit } from "@/lib/notify";
 import { withCronTracking } from "@/lib/cron-run-tracker";
+import { loadHiddenLeadBucketAudit } from "@/lib/hidden-lead-buckets";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -243,6 +244,57 @@ export async function GET(req: NextRequest) {
     run.increment();
 
     // ── Assemble report ─────────────────────────────────────────────
+    const hiddenBuckets = await loadHiddenLeadBucketAudit(sb);
+
+    if (hiddenBuckets.totalHiddenLeads > 0) {
+      findings.push({
+        category: "hidden_bucket_inventory",
+        severity: "medium",
+        count: hiddenBuckets.totalHiddenLeads,
+        description: `${hiddenBuckets.totalHiddenLeads} hidden leads remain in staging/prospect buckets`,
+        detail: {
+          byStatus: hiddenBuckets.byStatus,
+          bySource: hiddenBuckets.bySource,
+          bySourceStatus: hiddenBuckets.bySourceStatus,
+        },
+      });
+    }
+
+    if (hiddenBuckets.blockedSourceRows > 0) {
+      findings.push({
+        category: "blocked_hidden_inflow",
+        severity: "high",
+        count: hiddenBuckets.blockedSourceRows,
+        description: `${hiddenBuckets.blockedSourceRows} hidden leads still exist from blocked ingest sources`,
+        sample_ids: hiddenBuckets.blockedSourceLeadIds.slice(0, 5),
+        detail: {
+          blockedSources: Object.keys(hiddenBuckets.bySource)
+            .filter((source) => hiddenBuckets.bySource[source] > 0),
+        },
+      });
+    }
+
+    if (hiddenBuckets.missingNextActionRows > 0) {
+      findings.push({
+        category: "hidden_bucket_next_action_violation",
+        severity: "high",
+        count: hiddenBuckets.missingNextActionRows,
+        description: `${hiddenBuckets.missingNextActionRows} hidden staging/prospect leads are missing next_action`,
+      });
+    }
+
+    if (hiddenBuckets.stateCountyDrift.length > 0) {
+      const hiddenBucketDriftCount = hiddenBuckets.stateCountyDrift.reduce((sum, entry) => sum + entry.count, 0);
+      findings.push({
+        category: "hidden_bucket_state_county_drift",
+        severity: "high",
+        count: hiddenBucketDriftCount,
+        description: `${hiddenBucketDriftCount} hidden leads have state/county drift`,
+        detail: hiddenBuckets.stateCountyDrift,
+      });
+    }
+    run.increment();
+
     const criticalCount = findings.filter(f => f.severity === "critical").length;
     const highCount = findings.filter(f => f.severity === "high").length;
     const mediumCount = findings.filter(f => f.severity === "medium").length;
@@ -309,6 +361,7 @@ export async function GET(req: NextRequest) {
       summary,
       totals: { critical: criticalCount, high: highCount, medium: mediumCount, totalIssues },
       findings,
+      hiddenBuckets,
       autoRepairs: {
         staleRunsFixed: staleRunCount ?? 0,
         expiredReviewsFixed: expiredReviewCount ?? 0,

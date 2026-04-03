@@ -1,0 +1,1211 @@
+{
+  "businessName": "Hydra Exit Partners LLC",
+  "startPath": {
+    "recommendation": {
+      "laneId": "1065",
+      "title": "1065 / Partnership",
+      "support": "future",
+      "summary": "Tina sees a multi-owner or partnership-style setup, so she should route this to the partnership path instead of the Schedule C pilot.",
+      "reasons": [
+        "More than one owner usually means a partnership-style starting path unless a different election is proved.",
+        "Partnership splits, capital accounts, and K-1 work are outside Tina's first supported lane.",
+        "You also marked payroll, so Tina will ask for payroll records too.",
+        "You marked inventory, so Tina will ask for a little more proof before the package is final."
+      ],
+      "blockers": [
+        "Idaho or multistate activity expands the package beyond Tina's first-class Washington-only Schedule C scope, so she should keep the likely federal lane but stop for state review.",
+        "Ownership changed during the year. Tina should keep the likely lane visible, but stop and route the file to review before prep starts.",
+        "You marked an owner buyout or redemption. Tina should stop and route that to review before trusting the starting path.",
+        "You marked payments to a former owner. Tina should stop and route that to review before trusting the starting path."
+      ]
+    },
+    "returnTypeHintFacts": [
+      {
+        "id": "fact-1065",
+        "sourceDocumentId": "doc-prior",
+        "label": "Return type hint",
+        "value": "2024 Form 1065 partnership return",
+        "confidence": "high",
+        "capturedAt": "2026-04-02T16:11:00.000Z"
+      },
+      {
+        "id": "fact-1120s",
+        "sourceDocumentId": "doc-qb",
+        "label": "Return type hint",
+        "value": "Payroll memo references 1120-S officer wages",
+        "confidence": "high",
+        "capturedAt": "2026-04-02T16:12:00.000Z"
+      }
+    ],
+    "hintedLanes": [
+      "1065",
+      "1120_s"
+    ],
+    "hasMixedHintedLanes": true,
+    "singleHintedLane": null,
+    "hasHintVsOrganizerConflict": false,
+    "ownershipChangeClue": {
+      "id": "fact-ownership-change",
+      "sourceDocumentId": "doc-bank",
+      "label": "Ownership change clue",
+      "value": "Buyout closing statement references a mid-year ownership transfer",
+      "confidence": "high",
+      "capturedAt": "2026-04-02T16:15:00.000Z"
+    },
+    "formerOwnerPaymentClue": {
+      "id": "fact-former-owner-pay",
+      "sourceDocumentId": "doc-bank",
+      "label": "Former owner payment clue",
+      "value": "Recurring company-funded payouts to former member continue after relinquishment",
+      "confidence": "high",
+      "capturedAt": "2026-04-02T16:16:00.000Z"
+    },
+    "ownershipMismatchWithSingleOwnerLane": false,
+    "route": "blocked",
+    "confidence": "blocked",
+    "blockingReasons": [
+      "Idaho or multistate activity expands the package beyond Tina's first-class Washington-only Schedule C scope, so she should keep the likely federal lane but stop for state review.",
+      "Ownership changed during the year. Tina should keep the likely lane visible, but stop and route the file to review before prep starts.",
+      "You marked an owner buyout or redemption. Tina should stop and route that to review before trusting the starting path.",
+      "You marked payments to a former owner. Tina should stop and route that to review before trusting the starting path.",
+      "Source papers point to multiple filing lanes: 1065 / partnership, 1120-S / S-corp."
+    ],
+    "reviewReasons": [
+      "Tina recognizes the likely filing lane, but that lane is not first-class supported yet.",
+      "Ownership changed during the year, so Tina should keep the starting path under reviewer control.",
+      "Owner buyout or former-owner payment signals need reviewer classification before downstream prep."
+    ],
+    "proofRequirements": [
+      {
+        "id": "ownership-agreement",
+        "label": "Operating agreement or ownership breakdown",
+        "reason": "Tina needs the real ownership split, members, and economic arrangement before she can safely route or review a multi-owner LLC file.",
+        "priority": "required",
+        "status": "needed",
+        "relatedLaneIds": [
+          "1065"
+        ],
+        "relatedFactIds": [
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-bank",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "ownership-transition",
+        "label": "Ownership change or buyout papers",
+        "reason": "Tina needs transfer, buyout, redemption, or payout papers before she can safely classify ownership changes and former-owner payments.",
+        "priority": "required",
+        "status": "needed",
+        "relatedLaneIds": [
+          "1065"
+        ],
+        "relatedFactIds": [
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-bank",
+          "doc-bank"
+        ]
+      }
+    ],
+    "relatedFactIds": [
+      "fact-1065",
+      "fact-1120s",
+      "fact-ownership-change",
+      "fact-former-owner-pay"
+    ],
+    "relatedDocumentIds": [
+      "doc-prior",
+      "doc-qb",
+      "doc-bank"
+    ]
+  },
+  "entityJudgment": {
+    "lastBuiltAt": "2026-04-03T02:27:08.817Z",
+    "status": "complete",
+    "judgmentStatus": "blocked",
+    "laneId": "1065",
+    "likelyFederalTreatment": "Likely partnership federal treatment requiring a 1065-style path.",
+    "summary": "Tina still sees 11 blocking entity-treatment questions and should not let prep continue as if the path were settled.",
+    "nextStep": "Clear the blocking entity-treatment questions first so Tina does not build downstream work on the wrong tax posture.",
+    "reasons": [
+      "More than one owner usually means a partnership-style starting path unless a different election is proved.",
+      "Partnership splits, capital accounts, and K-1 work are outside Tina's first supported lane.",
+      "You also marked payroll, so Tina will ask for payroll records too.",
+      "You marked inventory, so Tina will ask for a little more proof before the package is final.",
+      "Paper hints currently point to: 1065 / partnership, 1120-S / S-corp.",
+      "Tina sees 4 ownership timeline points that still need proof before she should trust the entity posture."
+    ],
+    "questions": [
+      {
+        "id": "ownership-opening-owners",
+        "title": "Opening ownership picture",
+        "summary": "Tina currently sees a likely 3-owner opening picture.",
+        "severity": "blocking",
+        "relatedFactIds": [
+          "fact-1065",
+          "fact-1120s",
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "ownership-mid-year-change",
+        "title": "Mid-year ownership change",
+        "summary": "Tina sees a mid-year ownership change or transfer signal that can affect return classification and treatment.",
+        "severity": "blocking",
+        "relatedFactIds": [
+          "fact-ownership-change"
+        ],
+        "relatedDocumentIds": [
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "ownership-buyout-or-redemption",
+        "title": "Owner buyout or redemption",
+        "summary": "Tina sees a buyout or redemption signal, so ownership and payment treatment should stay under reviewer control.",
+        "severity": "blocking",
+        "relatedFactIds": [
+          "fact-1065",
+          "fact-1120s",
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "ownership-former-owner-payments",
+        "title": "Former-owner payments continue after ownership change",
+        "summary": "Tina sees former-owner payment activity that may affect the return path and treatment choice.",
+        "severity": "blocking",
+        "relatedFactIds": [
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "proof-ownership-agreement",
+        "title": "Operating agreement or ownership breakdown still needs judgment",
+        "summary": "Tina needs the real ownership split, members, and economic arrangement before she can safely route or review a multi-owner LLC file.",
+        "severity": "blocking",
+        "relatedFactIds": [
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "proof-ownership-transition",
+        "title": "Ownership change or buyout papers still needs judgment",
+        "summary": "Tina needs transfer, buyout, redemption, or payout papers before she can safely classify ownership changes and former-owner payments.",
+        "severity": "blocking",
+        "relatedFactIds": [
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "blocking-1",
+        "title": "Entity treatment is still blocked",
+        "summary": "Idaho or multistate activity expands the package beyond Tina's first-class Washington-only Schedule C scope, so she should keep the likely federal lane but stop for state review.",
+        "severity": "blocking",
+        "relatedFactIds": [
+          "fact-1065",
+          "fact-1120s",
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "blocking-2",
+        "title": "Entity treatment is still blocked",
+        "summary": "Ownership changed during the year. Tina should keep the likely lane visible, but stop and route the file to review before prep starts.",
+        "severity": "blocking",
+        "relatedFactIds": [
+          "fact-1065",
+          "fact-1120s",
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "blocking-3",
+        "title": "Entity treatment is still blocked",
+        "summary": "You marked an owner buyout or redemption. Tina should stop and route that to review before trusting the starting path.",
+        "severity": "blocking",
+        "relatedFactIds": [
+          "fact-1065",
+          "fact-1120s",
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "blocking-4",
+        "title": "Entity treatment is still blocked",
+        "summary": "You marked payments to a former owner. Tina should stop and route that to review before trusting the starting path.",
+        "severity": "blocking",
+        "relatedFactIds": [
+          "fact-1065",
+          "fact-1120s",
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "blocking-5",
+        "title": "Entity treatment is still blocked",
+        "summary": "Source papers point to multiple filing lanes: 1065 / partnership, 1120-S / S-corp.",
+        "severity": "blocking",
+        "relatedFactIds": [
+          "fact-1065",
+          "fact-1120s",
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "review-1",
+        "title": "Entity treatment still needs reviewer judgment",
+        "summary": "Tina recognizes the likely filing lane, but that lane is not first-class supported yet.",
+        "severity": "needs_attention",
+        "relatedFactIds": [
+          "fact-1065",
+          "fact-1120s",
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "review-2",
+        "title": "Entity treatment still needs reviewer judgment",
+        "summary": "Ownership changed during the year, so Tina should keep the starting path under reviewer control.",
+        "severity": "needs_attention",
+        "relatedFactIds": [
+          "fact-1065",
+          "fact-1120s",
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "review-3",
+        "title": "Entity treatment still needs reviewer judgment",
+        "summary": "Owner buyout or former-owner payment signals need reviewer classification before downstream prep.",
+        "severity": "needs_attention",
+        "relatedFactIds": [
+          "fact-1065",
+          "fact-1120s",
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      }
+    ]
+  },
+  "federalReturnRequirements": {
+    "lastBuiltAt": "2026-04-03T02:27:08.818Z",
+    "status": "complete",
+    "laneId": "1065",
+    "returnFamily": "Partnership return",
+    "canTinaFinishLane": false,
+    "summary": "Tina sees 2 blocking federal return requirements and should not pretend the return family is fully settled yet.",
+    "nextStep": "Clear the blocking federal return requirements first so Tina does not build the wrong entity-return path.",
+    "items": [
+      {
+        "id": "partnership-core",
+        "title": "Partnership return core",
+        "status": "blocked",
+        "summary": "Tina sees a partnership-style file. She should preserve the likely 1065 path and gather the exact records needed for partnership prep instead of forcing Schedule C.",
+        "requiredForms": [
+          "Form 1065",
+          "Schedule K",
+          "Schedule K-1"
+        ],
+        "requiredRecords": [
+          "Operating agreement or ownership breakdown",
+          "Partner percentages and allocation terms",
+          "Trial balance or books by entity",
+          "Prior-year partnership return",
+          "Year-end balance sheet"
+        ],
+        "reviewerQuestions": [
+          "Idaho or multistate activity expands the package beyond Tina's first-class Washington-only Schedule C scope, so she should keep the likely federal lane but stop for state review.",
+          "Ownership changed during the year. Tina should keep the likely lane visible, but stop and route the file to review before prep starts.",
+          "You marked an owner buyout or redemption. Tina should stop and route that to review before trusting the starting path.",
+          "You marked payments to a former owner. Tina should stop and route that to review before trusting the starting path.",
+          "Source papers point to multiple filing lanes: 1065 / partnership, 1120-S / S-corp.",
+          "Tina recognizes the likely filing lane, but that lane is not first-class supported yet.",
+          "Ownership changed during the year, so Tina should keep the starting path under reviewer control.",
+          "Owner buyout or former-owner payment signals need reviewer classification before downstream prep.",
+          "Operating agreement or ownership breakdown",
+          "Ownership change or buyout papers",
+          "Opening ownership picture",
+          "Mid-year ownership change",
+          "Owner buyout or redemption",
+          "Former-owner payments continue after ownership change"
+        ]
+      },
+      {
+        "id": "partnership-capital",
+        "title": "Partner capital, transfers, and redemption analysis",
+        "status": "blocked",
+        "summary": "Multi-owner LLCs need capital-account and ownership-change analysis before partner economics can be trusted.",
+        "requiredForms": [
+          "Partner capital rollforward",
+          "K-1 allocation support"
+        ],
+        "requiredRecords": [
+          "Capital account history",
+          "Buyout or redemption papers",
+          "Former-owner payment support",
+          "Transfer effective dates"
+        ],
+        "reviewerQuestions": [
+          "Opening ownership picture",
+          "Mid-year ownership change",
+          "Owner buyout or redemption",
+          "Former-owner payments continue after ownership change",
+          "Entity treatment still needs reviewer judgment",
+          "Operating agreement or ownership breakdown still needs judgment",
+          "Ownership change or buyout papers still needs judgment",
+          "Entity treatment is still blocked"
+        ]
+      }
+    ]
+  },
+  "treatmentJudgment": {
+    "lastBuiltAt": "2026-04-03T02:27:08.819Z",
+    "status": "complete",
+    "summary": "Tina classified 1 treatment judgment item: 0 use, 1 review, 0 reject.",
+    "nextStep": "Clear the review and reject treatment calls before letting messy items affect final output.",
+    "items": [
+      {
+        "id": "inventory-treatment",
+        "title": "Review inventory and COGS treatment",
+        "summary": "Tina should keep inventory-related costs in review until she knows whether they belong in inventory, cost of goods sold, or current deductions.",
+        "taxPositionBucket": "review",
+        "confidence": "high",
+        "suggestedTreatment": "Do not let inventory-like costs flow straight into ordinary expenses without inventory treatment review.",
+        "nextStep": "Confirm inventory method, year-end inventory, and any small-business simplification path.",
+        "authorityWorkIdeaIds": [
+          "inventory-review"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      }
+    ]
+  },
+  "packageReadiness": {
+    "lastRunAt": "2026-04-03T02:27:08.819Z",
+    "status": "complete",
+    "level": "blocked",
+    "summary": "Tina found 21 blocking items before this package can be called filing-ready. 4 more items need review after that.",
+    "nextStep": "Work through the blocking items first. Tina should not call this package filing-ready until those are cleared.",
+    "items": [
+      {
+        "id": "lane-not-supported",
+        "title": "Tina is not on a supported filing lane yet",
+        "summary": "The source-fact-aware start path is blocked, so Tina should stop here instead of pretending the package is ready.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "bootstrap-review-not-current",
+        "title": "Bootstrap review is not current",
+        "summary": "Tina needs a current bootstrap review run before claiming package readiness. This keeps setup conflicts from slipping past the filing check.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "issue-queue-not-current",
+        "title": "Issue queue is not current",
+        "summary": "Tina needs a current issue-queue run before claiming package readiness. This keeps paper conflicts from slipping past the filing check.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "reviewer-final-missing",
+        "title": "Tina still needs the return-facing review layer",
+        "summary": "Tina cannot call the package filing-ready until the return-facing review layer is built from approved tax moves.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "schedule-c-missing",
+        "title": "Tina still needs the Schedule C draft",
+        "summary": "Tina cannot check the filing package until the first supported form draft is built.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "entity-judgment-ownership-opening-owners",
+        "title": "Opening ownership picture",
+        "summary": "Tina currently sees a likely 3-owner opening picture.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-ownership-mid-year-change",
+        "title": "Mid-year ownership change",
+        "summary": "Tina sees a mid-year ownership change or transfer signal that can affect return classification and treatment.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-ownership-buyout-or-redemption",
+        "title": "Owner buyout or redemption",
+        "summary": "Tina sees a buyout or redemption signal, so ownership and payment treatment should stay under reviewer control.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-ownership-former-owner-payments",
+        "title": "Former-owner payments continue after ownership change",
+        "summary": "Tina sees former-owner payment activity that may affect the return path and treatment choice.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-proof-ownership-agreement",
+        "title": "Operating agreement or ownership breakdown still needs judgment",
+        "summary": "Tina needs the real ownership split, members, and economic arrangement before she can safely route or review a multi-owner LLC file.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-proof-ownership-transition",
+        "title": "Ownership change or buyout papers still needs judgment",
+        "summary": "Tina needs transfer, buyout, redemption, or payout papers before she can safely classify ownership changes and former-owner payments.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-blocking-1",
+        "title": "Entity treatment is still blocked",
+        "summary": "Idaho or multistate activity expands the package beyond Tina's first-class Washington-only Schedule C scope, so she should keep the likely federal lane but stop for state review.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-blocking-2",
+        "title": "Entity treatment is still blocked",
+        "summary": "Ownership changed during the year. Tina should keep the likely lane visible, but stop and route the file to review before prep starts.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-blocking-3",
+        "title": "Entity treatment is still blocked",
+        "summary": "You marked an owner buyout or redemption. Tina should stop and route that to review before trusting the starting path.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-blocking-4",
+        "title": "Entity treatment is still blocked",
+        "summary": "You marked payments to a former owner. Tina should stop and route that to review before trusting the starting path.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-blocking-5",
+        "title": "Entity treatment is still blocked",
+        "summary": "Source papers point to multiple filing lanes: 1065 / partnership, 1120-S / S-corp.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-review-1",
+        "title": "Entity treatment still needs reviewer judgment",
+        "summary": "Tina recognizes the likely filing lane, but that lane is not first-class supported yet.",
+        "severity": "needs_attention",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-review-2",
+        "title": "Entity treatment still needs reviewer judgment",
+        "summary": "Ownership changed during the year, so Tina should keep the starting path under reviewer control.",
+        "severity": "needs_attention",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "entity-judgment-review-3",
+        "title": "Entity treatment still needs reviewer judgment",
+        "summary": "Owner buyout or former-owner payment signals need reviewer classification before downstream prep.",
+        "severity": "needs_attention",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "treatment-inventory-treatment",
+        "title": "Review inventory and COGS treatment",
+        "summary": "Tina should keep inventory-related costs in review until she knows whether they belong in inventory, cost of goods sold, or current deductions. Confirm inventory method, year-end inventory, and any small-business simplification path.",
+        "severity": "needs_attention",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "proof-ownership-agreement",
+        "title": "Operating agreement or ownership breakdown still needed",
+        "summary": "Tina needs the real ownership split, members, and economic arrangement before she can safely route or review a multi-owner LLC file. Tina should get this before treating the package as reviewer-ready.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-bank",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "proof-ownership-transition",
+        "title": "Ownership change or buyout papers still needed",
+        "summary": "Tina needs transfer, buyout, redemption, or payout papers before she can safely classify ownership changes and former-owner payments. Tina should get this before treating the package as reviewer-ready.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "doc-bank",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "required-prior-return",
+        "title": "Last year's tax return",
+        "summary": "This helps Tina copy over the basics so you do not have to type everything again. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "required-payroll",
+        "title": "Payroll reports and W-2 papers",
+        "summary": "Tina needs this to check wages, payroll costs, and related deductions. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "required-assets",
+        "title": "Big purchase list and depreciation papers",
+        "summary": "If you bought equipment, vehicles, or other big items, Tina needs the details before she can trust the write-off math. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      }
+    ]
+  },
+  "formReadiness": {
+    "lastBuiltAt": "2026-04-03T02:27:08.821Z",
+    "level": "not_ready",
+    "summary": "Tina still sees 18 blockers before she can call this form output ready.",
+    "nextStep": "Clear the blockers before treating the form output as reviewer-ready or final.",
+    "reasons": [
+      {
+        "id": "start-path-blocked",
+        "title": "Start path is blocked",
+        "summary": "Tina should not call official-form output ready while the starting filing path is still blocked.",
+        "severity": "blocking"
+      },
+      {
+        "id": "proof-ownership-agreement",
+        "title": "Operating agreement or ownership breakdown still needed",
+        "summary": "Tina needs the real ownership split, members, and economic arrangement before she can safely route or review a multi-owner LLC file.",
+        "severity": "blocking"
+      },
+      {
+        "id": "proof-ownership-transition",
+        "title": "Ownership change or buyout papers still needed",
+        "summary": "Tina needs transfer, buyout, redemption, or payout papers before she can safely classify ownership changes and former-owner payments.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-ownership-opening-owners",
+        "title": "Opening ownership picture",
+        "summary": "Tina currently sees a likely 3-owner opening picture.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-ownership-mid-year-change",
+        "title": "Mid-year ownership change",
+        "summary": "Tina sees a mid-year ownership change or transfer signal that can affect return classification and treatment.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-ownership-buyout-or-redemption",
+        "title": "Owner buyout or redemption",
+        "summary": "Tina sees a buyout or redemption signal, so ownership and payment treatment should stay under reviewer control.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-ownership-former-owner-payments",
+        "title": "Former-owner payments continue after ownership change",
+        "summary": "Tina sees former-owner payment activity that may affect the return path and treatment choice.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-proof-ownership-agreement",
+        "title": "Operating agreement or ownership breakdown still needs judgment",
+        "summary": "Tina needs the real ownership split, members, and economic arrangement before she can safely route or review a multi-owner LLC file.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-proof-ownership-transition",
+        "title": "Ownership change or buyout papers still needs judgment",
+        "summary": "Tina needs transfer, buyout, redemption, or payout papers before she can safely classify ownership changes and former-owner payments.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-blocking-1",
+        "title": "Entity treatment is still blocked",
+        "summary": "Idaho or multistate activity expands the package beyond Tina's first-class Washington-only Schedule C scope, so she should keep the likely federal lane but stop for state review.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-blocking-2",
+        "title": "Entity treatment is still blocked",
+        "summary": "Ownership changed during the year. Tina should keep the likely lane visible, but stop and route the file to review before prep starts.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-blocking-3",
+        "title": "Entity treatment is still blocked",
+        "summary": "You marked an owner buyout or redemption. Tina should stop and route that to review before trusting the starting path.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-blocking-4",
+        "title": "Entity treatment is still blocked",
+        "summary": "You marked payments to a former owner. Tina should stop and route that to review before trusting the starting path.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-blocking-5",
+        "title": "Entity treatment is still blocked",
+        "summary": "Source papers point to multiple filing lanes: 1065 / partnership, 1120-S / S-corp.",
+        "severity": "blocking"
+      },
+      {
+        "id": "entity-review-1",
+        "title": "Entity treatment still needs reviewer judgment",
+        "summary": "Tina recognizes the likely filing lane, but that lane is not first-class supported yet.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "entity-review-2",
+        "title": "Entity treatment still needs reviewer judgment",
+        "summary": "Ownership changed during the year, so Tina should keep the starting path under reviewer control.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "entity-review-3",
+        "title": "Entity treatment still needs reviewer judgment",
+        "summary": "Owner buyout or former-owner payment signals need reviewer classification before downstream prep.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "treatment-inventory-treatment",
+        "title": "Review inventory and COGS treatment",
+        "summary": "Tina should keep inventory-related costs in review until she knows whether they belong in inventory, cost of goods sold, or current deductions. Confirm inventory method, year-end inventory, and any small-business simplification path.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "books-ownership-transition-normalization",
+        "title": "Ownership-transition books still need review",
+        "summary": "Tina found ownership-change or former-owner-payment signals and should normalize those flows before trusting ledger-based return classifications.",
+        "severity": "blocking"
+      },
+      {
+        "id": "coverage-inventory-cogs-support",
+        "title": "Inventory and Part III COGS support",
+        "summary": "Inventory or COGS signals exist, so Tina should not imply full Part III support yet.",
+        "severity": "blocking"
+      },
+      {
+        "id": "coverage-depreciation-and-4562",
+        "title": "Depreciation and Form 4562 support",
+        "summary": "Fixed-asset or depreciation facts exist, so Tina should not imply full depreciation attachment support yet.",
+        "severity": "blocking"
+      },
+      {
+        "id": "missing-form-trace",
+        "title": "Form trace is missing",
+        "summary": "Tina should not call official-form output reviewer-ready without a source-to-form trace.",
+        "severity": "blocking"
+      }
+    ]
+  },
+  "operationalStatus": {
+    "lastRunAt": "2026-04-03T02:27:08.836Z",
+    "maturity": "foundation",
+    "packageState": "provisional",
+    "summary": "Tina is still in foundation mode.",
+    "nextStep": "Clear the remaining blockers and continue reviewer-grade hardening.",
+    "truths": [
+      "Supported lane today: schedule_c_single_member_llc.",
+      "Start path is blocked right now because Tina does not have a clean, defensible lane decision yet.",
+      "Start-path proof still needed: Operating agreement or ownership breakdown, Ownership change or buyout papers.",
+      "Entity treatment judgment: blocked.",
+      "Federal return family: Partnership return.",
+      "Tina cannot finish the current federal return lane automatically yet.",
+      "Ownership timeline events: 4.",
+      "Immutable package snapshots are not captured yet.",
+      "QuickBooks live connection is not set up yet.",
+      "Schedule C form output has no current validation issues.",
+      "No supported Part II expense boxes currently carry non-zero amounts.",
+      "No uncategorized other expenses currently remain on line 27a.",
+      "Official-form coverage items: 8.",
+      "Official-form readiness: not ready.",
+      "Schedule C form traceability has not been built yet.",
+      "Books-normalization issues detected: 2.",
+      "Reviewer challenge forecast items: 6.",
+      "Treatment judgment items: 1.",
+      "No reviewer decisions recorded yet."
+    ],
+    "blockers": [
+      "Idaho or multistate activity expands the package beyond Tina's first-class Washington-only Schedule C scope, so she should keep the likely federal lane but stop for state review.",
+      "Ownership changed during the year. Tina should keep the likely lane visible, but stop and route the file to review before prep starts.",
+      "You marked an owner buyout or redemption. Tina should stop and route that to review before trusting the starting path.",
+      "You marked payments to a former owner. Tina should stop and route that to review before trusting the starting path.",
+      "Source papers point to multiple filing lanes: 1065 / partnership, 1120-S / S-corp.",
+      "Operating agreement or ownership breakdown",
+      "Ownership change or buyout papers",
+      "Opening ownership picture",
+      "Mid-year ownership change",
+      "Owner buyout or redemption",
+      "Former-owner payments continue after ownership change",
+      "Operating agreement or ownership breakdown still needs judgment",
+      "Ownership change or buyout papers still needs judgment",
+      "Entity treatment is still blocked",
+      "Partnership return core",
+      "Partner capital, transfers, and redemption analysis",
+      "Ownership-transition books still need review"
+    ]
+  },
+  "handoff": {
+    "lastRunAt": "2026-04-03T02:27:08.837Z",
+    "status": "idle",
+    "summary": "Tina needs the return-facing review layer before she can lay out a CPA handoff packet.",
+    "nextStep": "Build the return-facing review layer first.",
+    "artifacts": []
+  },
+  "scheduleCReturn": {
+    "lastBuiltAt": "2026-04-03T02:27:08.842Z",
+    "status": "idle",
+    "summary": "Tina will not build a supported Schedule C return snapshot while the source-fact-aware start path is still routed away from the supported lane.",
+    "nextStep": "Resolve the blocked start path first.",
+    "header": {
+      "businessName": "Hydra Exit Partners LLC",
+      "taxYear": "2025",
+      "principalBusinessActivity": "E-commerce liquidation and advisory",
+      "naicsCode": "454110",
+      "accountingMethod": "accrual",
+      "entityType": "multi_member_llc"
+    },
+    "businessName": "Hydra Exit Partners LLC",
+    "taxYear": "2025",
+    "laneId": "1065",
+    "fields": [],
+    "validationIssues": []
+  },
+  "formCoverage": {
+    "lastBuiltAt": "2026-04-03T02:27:08.843Z",
+    "summary": "Tina sees 2 unsupported Schedule C sections and 0 sections that still need reviewer attention.",
+    "nextStep": "Do not market this output as full official-form support until the unsupported sections are explicitly handled or ruled out.",
+    "items": [
+      {
+        "id": "header-identity",
+        "title": "Header and business identity",
+        "status": "covered",
+        "summary": "Tina has the core header identity fields needed for the current Schedule C output.",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "part-i-income",
+        "title": "Part I income lines",
+        "status": "covered",
+        "summary": "Tina covers the core supported income math for lines 1, 4, and 7 in the current Schedule C lane.",
+        "relatedLineNumbers": [
+          "Line 1",
+          "Line 4",
+          "Line 7"
+        ]
+      },
+      {
+        "id": "part-ii-expenses-core",
+        "title": "Part II core expense lines",
+        "status": "covered",
+        "summary": "Tina covers the currently relevant core expense lines for this zero-expense supported Schedule C output.",
+        "relatedLineNumbers": [
+          "Line 8",
+          "Line 11",
+          "Line 13",
+          "Line 18",
+          "Line 20",
+          "Line 22",
+          "Line 23",
+          "Line 24a",
+          "Line 24b",
+          "Line 26",
+          "Line 27a",
+          "Line 28",
+          "Line 31"
+        ]
+      },
+      {
+        "id": "other-expenses-statement",
+        "title": "Other expenses statement support",
+        "status": "covered",
+        "summary": "Tina does not currently need a separate other-expenses statement for this output.",
+        "relatedLineNumbers": [
+          "Line 27a"
+        ]
+      },
+      {
+        "id": "inventory-cogs-support",
+        "title": "Inventory and Part III COGS support",
+        "status": "unsupported",
+        "summary": "Inventory or COGS signals exist, so Tina should not imply full Part III support yet.",
+        "relatedLineNumbers": [
+          "Line 4"
+        ]
+      },
+      {
+        "id": "depreciation-and-4562",
+        "title": "Depreciation and Form 4562 support",
+        "status": "unsupported",
+        "summary": "Fixed-asset or depreciation facts exist, so Tina should not imply full depreciation attachment support yet.",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "vehicle-information",
+        "title": "Vehicle information support",
+        "status": "covered",
+        "summary": "Tina does not currently see vehicle-use facts that require Schedule C vehicle support.",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "home-office-support",
+        "title": "Home office support",
+        "status": "covered",
+        "summary": "Tina does not currently see home-office facts that require a home-office calculation path.",
+        "relatedLineNumbers": []
+      }
+    ]
+  },
+  "formTrace": {
+    "lastBuiltAt": "2026-04-03T02:27:08.844Z",
+    "status": "idle",
+    "summary": "Tina cannot trace form lines until the Schedule C return snapshot exists.",
+    "nextStep": "Resolve the blocked start path first.",
+    "lines": []
+  },
+  "booksNormalization": {
+    "lastBuiltAt": "2026-04-03T02:27:08.844Z",
+    "status": "complete",
+    "summary": "Tina found 2 books-normalization issues, including 1 blocker and 0 review items.",
+    "nextStep": "Normalize the blocking ledger and ownership issues before trusting downstream return output.",
+    "issues": [
+      {
+        "id": "fixed-asset-normalization",
+        "title": "Fixed-asset support still needs normalization",
+        "summary": "Tina should reconcile fixed-asset history, placed-in-service timing, and depreciation support before those deductions are trusted.",
+        "severity": "watch",
+        "sourceLabels": [
+          "Fixed-asset or depreciation activity needs asset-history support."
+        ],
+        "factIds": [],
+        "documentIds": []
+      },
+      {
+        "id": "ownership-transition-normalization",
+        "title": "Ownership-transition books still need review",
+        "summary": "Tina found ownership-change or former-owner-payment signals and should normalize those flows before trusting ledger-based return classifications.",
+        "severity": "blocking",
+        "sourceLabels": [
+          "Ownership changes or former-owner payouts appear in the books or papers."
+        ],
+        "factIds": [
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "documentIds": [
+          "doc-bank"
+        ]
+      }
+    ]
+  },
+  "reviewerChallenges": {
+    "lastBuiltAt": "2026-04-03T02:27:08.846Z",
+    "status": "complete",
+    "summary": "Tina sees 6 blocking reviewer challenges that could force a CPA to stop or reroute the file.",
+    "nextStep": "Clear the blocking challenge points first so Tina is not asking a reviewer to rescue the package.",
+    "items": [
+      {
+        "id": "route-judgment-challenge",
+        "title": "Reviewer is likely to challenge the starting filing path",
+        "summary": "Tina still has a blocked start path, so a skeptical CPA would push on entity classification before trusting any downstream numbers.",
+        "severity": "blocking",
+        "category": "start_path",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [
+          "fact-1065",
+          "fact-1120s",
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-prior",
+          "doc-qb",
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "proof-ownership-agreement",
+        "title": "Operating agreement or ownership breakdown could trigger reviewer pushback",
+        "summary": "Tina needs the real ownership split, members, and economic arrangement before she can safely route or review a multi-owner LLC file.",
+        "severity": "blocking",
+        "category": "start_path",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "proof-ownership-transition",
+        "title": "Ownership change or buyout papers could trigger reviewer pushback",
+        "summary": "Tina needs transfer, buyout, redemption, or payout papers before she can safely classify ownership changes and former-owner payments.",
+        "severity": "blocking",
+        "category": "start_path",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-bank"
+        ]
+      },
+      {
+        "id": "coverage-inventory-cogs-support",
+        "title": "Inventory and Part III COGS support still invites reviewer challenge",
+        "summary": "Inventory or COGS signals exist, so Tina should not imply full Part III support yet.",
+        "severity": "blocking",
+        "category": "coverage",
+        "relatedLineNumbers": [
+          "Line 4"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "coverage-depreciation-and-4562",
+        "title": "Depreciation and Form 4562 support still invites reviewer challenge",
+        "summary": "Fixed-asset or depreciation facts exist, so Tina should not imply full depreciation attachment support yet.",
+        "severity": "blocking",
+        "category": "coverage",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "books-ownership-transition-normalization",
+        "title": "Ownership-transition books still need review",
+        "summary": "Tina found ownership-change or former-owner-payment signals and should normalize those flows before trusting ledger-based return classifications.",
+        "severity": "blocking",
+        "category": "books",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [
+          "fact-ownership-change",
+          "fact-former-owner-pay"
+        ],
+        "relatedDocumentIds": [
+          "doc-bank"
+        ]
+      }
+    ]
+  },
+  "pdfFileName": "tina-start-path-blocked-hydra-exit-partners-llc-2025.pdf",
+  "pdfSummary": "Tina will not build a supported Schedule C return snapshot while the source-fact-aware start path is still routed away from the supported lane.",
+  "pdfFieldCount": 0,
+  "pdfValidationIssues": []
+}

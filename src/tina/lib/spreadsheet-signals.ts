@@ -343,9 +343,138 @@ function detectKeywordClues(rows: Record<string, string>[], textHeaders: string[
     });
   }
 
+  if (
+    /\b(depreciation|section 179|sec 179|bonus depreciation|fixed asset|asset schedule|placed in service)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Depreciation clue",
+      value: "This paper mentions depreciation, fixed assets, or placed-in-service activity.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(personal expense|personal use|owner personal|family expense|personal card|mixed use|mixed-use)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Mixed personal/business clue",
+      value:
+        "This paper may include mixed personal and business spending or personal-use activity.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(schedule c|1040|sole propriet(or|orship)|single member llc|disregarded entity)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Return type hint",
+      value: "This paper points toward a Schedule C or disregarded single-owner path.",
+      confidence: "medium",
+    });
+  }
+
+  if (/\b(1120-s|1120s|s corp|s-corp)\b/.test(haystack)) {
+    clues.push({
+      label: "Return type hint",
+      value: "This paper points toward an 1120-S or S-corp path.",
+      confidence: "medium",
+    });
+  }
+
+  if (/\b(1120(?!-?s)\b|c corp|c-corp|corporate return)\b/.test(haystack)) {
+    clues.push({
+      label: "Return type hint",
+      value: "This paper points toward an 1120 or C-corp path.",
+      confidence: "medium",
+    });
+  }
+
+  if (/\b(1065|partnership return|multi member llc|multi-member llc|partner distribution)\b/.test(haystack)) {
+    clues.push({
+      label: "Return type hint",
+      value: "This paper points toward a 1065 or partnership path.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(ownership change|member transfer|ownership transfer|buyout|redemption|member redemption|shareholder redemption)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Ownership change clue",
+      value: "This paper may show an ownership change, transfer, buyout, or redemption event.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(former owner|retiring partner|retired partner|buyout payment|redemption payment|payout to former owner)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Former owner payment clue",
+      value: "This paper may show payments to a former owner or retiring owner.",
+      confidence: "medium",
+    });
+  }
+
   const hasEntityNameToken = /\b(llc|inc|corp|corporation|company|co\.|lp|l\.p\.)\b/.test(
     haystack
   );
+  if (
+    /\b(k-1|schedule k-1|partner capital|capital account|member percentage|ownership percentage|50 ?\/ ?50|60 ?\/ ?40|partners|members)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Multi-owner clue",
+      value: "This paper may show more than one owner, partner, member, K-1, or ownership split.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(community property|spouse community property|husband and wife|wife and husband|married couple|spouses)\b/.test(
+      haystack
+    )
+  ) {
+    clues.push({
+      label: "Community property clue",
+      value: "This paper may show spouse community-property treatment or a husband-and-wife ownership setup.",
+      confidence: "medium",
+    });
+  }
+
+  if (
+    /\b(form 2553|2553 election|s corporation election|elected s corp)\b/.test(haystack)
+  ) {
+    clues.push({
+      label: "Return type hint",
+      value: "This paper points toward an 1120-S or S-corp path.",
+      confidence: "high",
+    });
+  }
+
+  if (
+    /\b(form 8832|entity classification election|taxed as a corporation)\b/.test(haystack)
+  ) {
+    clues.push({
+      label: "Return type hint",
+      value: "This paper points toward an 1120 or corporate election path.",
+      confidence: "medium",
+    });
+  }
+
   if (
     /\b(intercompany|due to|due from|inter-company)\b/.test(haystack) ||
     (hasEntityNameToken && /\b(transfer to|transfer from|loan to|loan from)\b/.test(haystack))

@@ -74,4 +74,72 @@ describe("buildTinaChecklist", () => {
     expect(checklist.find((item) => item.id === "payroll")?.status).toBe("needed");
     expect(checklist.find((item) => item.id === "inventory")?.status).toBe("needed");
   });
+
+  it("treats a live QuickBooks connection as coverage for the books requirement", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      quickBooksConnection: {
+        ...createDefaultTinaWorkspaceDraft().quickBooksConnection,
+        status: "connected" as const,
+        companyName: "Tina Books LLC",
+        connectedAt: "2026-03-27T05:00:00.000Z",
+      },
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Test LLC",
+        entityType: "single_member_llc" as const,
+      },
+    };
+
+    const checklist = buildTinaChecklist(draft, recommendTinaFilingLane(draft.profile));
+    expect(checklist.find((item) => item.id === "quickbooks")?.status).toBe("covered");
+  });
+
+  it("requests ownership proof for complex llc paths", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Complex LLC",
+        entityType: "multi_member_llc" as const,
+        ownerCount: 2,
+        hasFormerOwnerPayments: true,
+      },
+    };
+
+    const checklist = buildTinaChecklist(draft, {
+      laneId: "1065",
+      title: "1065 / Partnership",
+      support: "future",
+      summary: "Future lane",
+      reasons: [],
+      blockers: [],
+    });
+
+    expect(checklist.find((item) => item.id === "ownership-agreement")?.status).toBe("needed");
+    expect(checklist.find((item) => item.id === "ownership-transition")?.status).toBe("needed");
+  });
+
+  it("requests election proof for corporate-election lane signals", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Election LLC",
+        entityType: "single_member_llc" as const,
+        taxElection: "s_corp" as const,
+      },
+    };
+
+    const checklist = buildTinaChecklist(draft, {
+      laneId: "1120_s",
+      title: "1120-S / S-Corp",
+      support: "future",
+      summary: "Future lane",
+      reasons: [],
+      blockers: [],
+    });
+
+    expect(checklist.find((item) => item.id === "entity-election")?.status).toBe("needed");
+  });
 });

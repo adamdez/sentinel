@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { runAgentCycle } from "@/lib/agent/ai-agent-core";
+import { getAllLeadIngestPolicies } from "@/lib/lead-ingest-policy";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -67,6 +68,7 @@ export async function GET(req: Request) {
       : "http://localhost:3000");
 
   const result = await runAgentCycle(baseUrl, counties, process.env.CRON_SECRET);
+  const leadIngestPolicies = getAllLeadIngestPolicies();
 
   const crawlerPromoted = result.phases.crawlers.reduce((s, r) => s + r.promoted, 0);
 
@@ -78,9 +80,10 @@ export async function GET(req: Request) {
       `Pipeline: ${pipelineDepth} unworked`,
       result.grokDirective ? `Grok: [${result.grokDirective.nextCrawlersToRun.join(",")}]` : "Grok: off",
       `Enrichment: ${result.phases.enrichment.enriched}/${result.phases.enrichment.processed} (${result.phases.enrichment.remaining} queued)`,
-      `PR: ${result.phases.propertyRadar.count} prospects`,
+      `PR: ${result.phases.propertyRadar.skipped_by_policy ? `skipped (${result.phases.propertyRadar.reason})` : `${result.phases.propertyRadar.count} prospects`}`,
       `Crawlers: ${crawlerPromoted} promoted`,
       `ATTOM: ${result.phases.attom.skipped ? "skipped (no key)" : `${result.phases.attom.totalApiCalls} API calls (${result.phases.attom.estimatedCost})`}`,
+      ...(result.policySkips.length > 0 ? [`Policy skips: ${result.policySkips.map((entry) => entry.sourceId).join(", ")}`] : []),
     ].join(" | "),
     grok: result.grokDirective ? {
       reasoning: result.grokDirective.reasoning,
@@ -89,6 +92,8 @@ export async function GET(req: Request) {
       suggestions: result.grokDirective.newCrawlerSuggestions,
     } : null,
     counties,
+    leadIngestPolicies,
+    policySkips: result.policySkips,
     enrichment: result.phases.enrichment,
     propertyRadar: result.phases.propertyRadar,
     crawlers: result.phases.crawlers.map((r) => ({
@@ -99,6 +104,8 @@ export async function GET(req: Request) {
       duplicates: r.duplicates,
       errors: r.errors,
       elapsed_ms: r.elapsed_ms,
+      skipped_by_policy: r.skipped_by_policy ?? false,
+      policySkip: r.policySkip ?? null,
     })),
     attom: {
       success: result.phases.attom.success,

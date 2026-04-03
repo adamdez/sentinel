@@ -1,4 +1,4 @@
-import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { buildTinaStartPathAssessment } from "@/tina/lib/start-path";
 import type {
   TinaScheduleCDraftField,
   TinaScheduleCDraftNote,
@@ -98,6 +98,59 @@ function strongestStatus(statuses: TinaWorkpaperLineStatus[]): TinaWorkpaperLine
   return "ready";
 }
 
+function normalizeLabel(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function lineIncludes(line: TinaWorkpaperLine, needles: string[]): boolean {
+  const normalized = normalizeLabel(`${line.label} ${line.summary}`);
+  return needles.some((needle) => normalized.includes(normalizeLabel(needle)));
+}
+
+function partitionExpenseLines(lines: TinaWorkpaperLine[]) {
+  const advertisingLines = lines.filter((line) => lineIncludes(line, ["advertising"]));
+  const depreciationLines = lines.filter((line) =>
+    lineIncludes(line, ["depreciation", "section 179", "bonus depreciation"])
+  );
+  const officeExpenseLines = lines.filter((line) =>
+    lineIncludes(line, ["office expense", "postage"])
+  );
+  const rentLeaseLines = lines.filter((line) => lineIncludes(line, ["rent", "lease"]));
+  const suppliesLines = lines.filter((line) => lineIncludes(line, ["supplies"]));
+  const taxesAndLicensesLines = lines.filter((line) =>
+    lineIncludes(line, ["taxes and licenses", "licenses", "license fee", "business taxes"])
+  );
+  const travelLines = lines.filter(
+    (line) => lineIncludes(line, ["travel"]) && !lineIncludes(line, ["meal"])
+  );
+  const mealsLines = lines.filter((line) => lineIncludes(line, ["meal", "meals"]));
+
+  const consumedIds = new Set(
+    [
+      ...advertisingLines,
+      ...depreciationLines,
+      ...officeExpenseLines,
+      ...rentLeaseLines,
+      ...suppliesLines,
+      ...taxesAndLicensesLines,
+      ...travelLines,
+      ...mealsLines,
+    ].map((line) => line.id)
+  );
+
+  return {
+    advertisingLines,
+    depreciationLines,
+    officeExpenseLines,
+    rentLeaseLines,
+    suppliesLines,
+    taxesAndLicensesLines,
+    travelLines,
+    mealsLines,
+    uncategorizedOtherExpenseLines: lines.filter((line) => !consumedIds.has(line.id)),
+  };
+}
+
 function buildLineSummary(args: {
   hasLines: boolean;
   fallbackIfMissing: string;
@@ -115,14 +168,23 @@ export function buildTinaScheduleCDraft(
   draft: TinaWorkspaceDraft
 ): TinaScheduleCDraftSnapshot {
   const now = new Date().toISOString();
-  const lane = recommendTinaFilingLane(draft.profile);
+  const startPath = buildTinaStartPathAssessment(draft);
 
-  if (lane.laneId !== "schedule_c_single_member_llc" || lane.support !== "supported") {
+  if (
+    startPath.recommendation.laneId !== "schedule_c_single_member_llc" ||
+    startPath.route !== "supported"
+  ) {
     return {
       ...createDefaultTinaScheduleCDraft(),
       lastRunAt: now,
-      summary: "Tina only builds this first return draft for the supported Schedule C lane.",
-      nextStep: "Finish intake first or wait for Tina's future filing lanes.",
+      summary:
+        startPath.recommendation.laneId === "schedule_c_single_member_llc"
+          ? "Tina sees a possible Schedule C path, but she is not building the return draft until the start path is truly supported."
+          : "Tina only builds this first return draft for the supported Schedule C lane.",
+      nextStep:
+        startPath.route === "blocked"
+          ? "Resolve the blocked start path before Tina tries to build any supported Schedule C draft."
+          : "Finish intake first or wait for Tina's future filing lanes.",
     };
   }
 
@@ -154,7 +216,7 @@ export function buildTinaScheduleCDraft(
   const contractorLines = draft.reviewerFinal.lines.filter(
     (line) => line.label === "Contract labor candidate"
   );
-  const otherExpenseLines = draft.reviewerFinal.lines.filter(
+  const genericExpenseLines = draft.reviewerFinal.lines.filter(
     (line) => line.label === "Business expense candidate"
   );
   const inventoryLines = draft.reviewerFinal.lines.filter(
@@ -172,6 +234,17 @@ export function buildTinaScheduleCDraft(
   const netCrossCheckLines = draft.reviewerFinal.lines.filter(
     (line) => line.label === "Net business result candidate"
   );
+  const {
+    advertisingLines,
+    depreciationLines,
+    officeExpenseLines,
+    rentLeaseLines,
+    suppliesLines,
+    taxesAndLicensesLines,
+    travelLines,
+    mealsLines,
+    uncategorizedOtherExpenseLines,
+  } = partitionExpenseLines(genericExpenseLines);
 
   const grossReceiptsStatus: TinaWorkpaperLineStatus =
     salesTaxLines.length > 0
@@ -197,20 +270,71 @@ export function buildTinaScheduleCDraft(
         ? "waiting"
         : "ready";
 
+  const advertisingStatus: TinaWorkpaperLineStatus =
+    advertisingLines.length > 0 ? strongestStatus(advertisingLines.map((line) => line.status)) : "ready";
+  const depreciationStatus: TinaWorkpaperLineStatus =
+    depreciationLines.length > 0 ? strongestStatus(depreciationLines.map((line) => line.status)) : "ready";
+  const officeExpenseStatus: TinaWorkpaperLineStatus =
+    officeExpenseLines.length > 0 ? strongestStatus(officeExpenseLines.map((line) => line.status)) : "ready";
+  const rentLeaseStatus: TinaWorkpaperLineStatus =
+    rentLeaseLines.length > 0 ? strongestStatus(rentLeaseLines.map((line) => line.status)) : "ready";
+  const suppliesStatus: TinaWorkpaperLineStatus =
+    suppliesLines.length > 0 ? strongestStatus(suppliesLines.map((line) => line.status)) : "ready";
+  const taxesAndLicensesStatus: TinaWorkpaperLineStatus =
+    taxesAndLicensesLines.length > 0
+      ? strongestStatus(taxesAndLicensesLines.map((line) => line.status))
+      : "ready";
+  const travelStatus: TinaWorkpaperLineStatus =
+    travelLines.length > 0 ? strongestStatus(travelLines.map((line) => line.status)) : "ready";
+  const mealsStatus: TinaWorkpaperLineStatus =
+    mealsLines.length > 0 ? strongestStatus(mealsLines.map((line) => line.status)) : "ready";
   const otherExpensesStatus: TinaWorkpaperLineStatus =
-    otherExpenseLines.length > 0
-      ? strongestStatus(otherExpenseLines.map((line) => line.status))
-      : "waiting";
+    uncategorizedOtherExpenseLines.length > 0
+      ? strongestStatus(uncategorizedOtherExpenseLines.map((line) => line.status))
+      : "ready";
 
   const grossReceiptsAmount = sumAmounts(grossReceiptsLines);
   const cogsAmount = inventoryLines.length > 0 ? null : 0;
   const wagesAmount = payrollLines.length > 0 ? sumAmounts(payrollLines) : 0;
   const contractLaborAmount = contractorLines.length > 0 ? sumAmounts(contractorLines) : 0;
-  const otherExpensesAmount = otherExpenseLines.length > 0 ? sumAmounts(otherExpenseLines) : 0;
+  const advertisingAmount = advertisingLines.length > 0 ? sumAmounts(advertisingLines) : 0;
+  const depreciationAmount = depreciationLines.length > 0 ? sumAmounts(depreciationLines) : 0;
+  const officeExpenseAmount = officeExpenseLines.length > 0 ? sumAmounts(officeExpenseLines) : 0;
+  const rentLeaseAmount = rentLeaseLines.length > 0 ? sumAmounts(rentLeaseLines) : 0;
+  const suppliesAmount = suppliesLines.length > 0 ? sumAmounts(suppliesLines) : 0;
+  const taxesAndLicensesAmount =
+    taxesAndLicensesLines.length > 0 ? sumAmounts(taxesAndLicensesLines) : 0;
+  const travelAmount = travelLines.length > 0 ? sumAmounts(travelLines) : 0;
+  const mealsAmount = mealsLines.length > 0 ? sumAmounts(mealsLines) : 0;
+  const otherExpensesAmount =
+    uncategorizedOtherExpenseLines.length > 0 ? sumAmounts(uncategorizedOtherExpenseLines) : 0;
 
-  const totalExpensesStatuses = [wagesStatus, contractLaborStatus, otherExpensesStatus];
+  const totalExpensesStatuses = [
+    advertisingStatus,
+    contractLaborStatus,
+    depreciationStatus,
+    officeExpenseStatus,
+    rentLeaseStatus,
+    suppliesStatus,
+    taxesAndLicensesStatus,
+    travelStatus,
+    mealsStatus,
+    wagesStatus,
+    otherExpensesStatus,
+  ];
   const totalExpensesStatus = strongestStatus(totalExpensesStatuses);
-  const totalExpensesAmount = wagesAmount + contractLaborAmount + otherExpensesAmount;
+  const totalExpensesAmount =
+    advertisingAmount +
+    contractLaborAmount +
+    depreciationAmount +
+    officeExpenseAmount +
+    rentLeaseAmount +
+    suppliesAmount +
+    taxesAndLicensesAmount +
+    travelAmount +
+    mealsAmount +
+    wagesAmount +
+    otherExpensesAmount;
 
   const grossIncomeAmount =
     cogsAmount === null ? grossReceiptsAmount : grossReceiptsAmount - cogsAmount;
@@ -251,6 +375,18 @@ export function buildTinaScheduleCDraft(
       lines: inventoryLines,
     }),
     buildField({
+      id: "line-8-advertising",
+      lineNumber: "Line 8",
+      label: "Advertising",
+      amount: advertisingAmount,
+      status: advertisingStatus,
+      summary:
+        advertisingLines.length > 0
+          ? "Tina mapped approved advertising lines into the advertising box."
+          : "Tina is carrying 0 here because she does not currently see approved advertising lines.",
+      lines: advertisingLines,
+    }),
+    buildField({
       id: "line-11-contract-labor",
       lineNumber: "Line 11",
       label: "Contract labor",
@@ -263,6 +399,90 @@ export function buildTinaScheduleCDraft(
             ? "Contractors are turned on, but Tina does not have an approved contract labor line here yet."
             : "Tina is carrying 0 here because contractors are not turned on in the organizer.",
       lines: contractorLines,
+    }),
+    buildField({
+      id: "line-13-depreciation",
+      lineNumber: "Line 13",
+      label: "Depreciation and section 179",
+      amount: depreciationAmount,
+      status: depreciationStatus,
+      summary:
+        depreciationLines.length > 0
+          ? "Tina mapped approved depreciation lines into the depreciation box."
+          : "Tina is carrying 0 here because she does not currently see approved depreciation lines.",
+      lines: depreciationLines,
+    }),
+    buildField({
+      id: "line-18-office-expense",
+      lineNumber: "Line 18",
+      label: "Office expense",
+      amount: officeExpenseAmount,
+      status: officeExpenseStatus,
+      summary:
+        officeExpenseLines.length > 0
+          ? "Tina mapped approved office-expense lines into the office-expense box."
+          : "Tina is carrying 0 here because she does not currently see approved office-expense lines.",
+      lines: officeExpenseLines,
+    }),
+    buildField({
+      id: "line-20-rent-or-lease",
+      lineNumber: "Line 20",
+      label: "Rent or lease",
+      amount: rentLeaseAmount,
+      status: rentLeaseStatus,
+      summary:
+        rentLeaseLines.length > 0
+          ? "Tina mapped approved rent or lease lines into the rent-or-lease box."
+          : "Tina is carrying 0 here because she does not currently see approved rent or lease lines.",
+      lines: rentLeaseLines,
+    }),
+    buildField({
+      id: "line-22-supplies",
+      lineNumber: "Line 22",
+      label: "Supplies",
+      amount: suppliesAmount,
+      status: suppliesStatus,
+      summary:
+        suppliesLines.length > 0
+          ? "Tina mapped approved supplies lines into the supplies box."
+          : "Tina is carrying 0 here because she does not currently see approved supplies lines.",
+      lines: suppliesLines,
+    }),
+    buildField({
+      id: "line-23-taxes-and-licenses",
+      lineNumber: "Line 23",
+      label: "Taxes and licenses",
+      amount: taxesAndLicensesAmount,
+      status: taxesAndLicensesStatus,
+      summary:
+        taxesAndLicensesLines.length > 0
+          ? "Tina mapped approved taxes-and-licenses lines into that expense box."
+          : "Tina is carrying 0 here because she does not currently see approved taxes-and-licenses lines.",
+      lines: taxesAndLicensesLines,
+    }),
+    buildField({
+      id: "line-24a-travel",
+      lineNumber: "Line 24a",
+      label: "Travel",
+      amount: travelAmount,
+      status: travelStatus,
+      summary:
+        travelLines.length > 0
+          ? "Tina mapped approved travel lines into the travel box."
+          : "Tina is carrying 0 here because she does not currently see approved travel lines.",
+      lines: travelLines,
+    }),
+    buildField({
+      id: "line-24b-deductible-meals",
+      lineNumber: "Line 24b",
+      label: "Deductible meals",
+      amount: mealsAmount,
+      status: mealsStatus,
+      summary:
+        mealsLines.length > 0
+          ? "Tina mapped approved meals lines into the deductible-meals box."
+          : "Tina is carrying 0 here because she does not currently see approved meals lines.",
+      lines: mealsLines,
     }),
     buildField({
       id: "line-26-wages",
@@ -285,10 +505,10 @@ export function buildTinaScheduleCDraft(
       amount: otherExpensesAmount,
       status: otherExpensesStatus,
       summary:
-        otherExpenseLines.length > 0
+        uncategorizedOtherExpenseLines.length > 0
           ? "Tina mapped approved generic business expenses into the other-expenses box."
           : "Tina does not have approved other-expense lines here yet, so this is only the approved-so-far total.",
-      lines: otherExpenseLines,
+      lines: uncategorizedOtherExpenseLines,
     }),
     buildField({
       id: "line-28-total-expenses",
@@ -298,9 +518,21 @@ export function buildTinaScheduleCDraft(
       status: totalExpensesStatus,
       summary:
         totalExpensesStatus === "ready"
-          ? "Tina totaled the approved expense boxes she can support so far."
-          : "This total only reflects the approved expense boxes Tina can support so far.",
-      lines: [...payrollLines, ...contractorLines, ...otherExpenseLines],
+          ? "Tina totaled the approved supported expense boxes she can map so far."
+          : "This total only reflects the supported expense boxes Tina can map so far.",
+      lines: [
+        ...advertisingLines,
+        ...contractorLines,
+        ...depreciationLines,
+        ...officeExpenseLines,
+        ...rentLeaseLines,
+        ...suppliesLines,
+        ...taxesAndLicensesLines,
+        ...travelLines,
+        ...mealsLines,
+        ...payrollLines,
+        ...uncategorizedOtherExpenseLines,
+      ],
     }),
     buildField({
       id: "line-29-tentative-profit",
@@ -316,9 +548,17 @@ export function buildTinaScheduleCDraft(
         ...grossReceiptsLines,
         ...salesTaxLines,
         ...inventoryLines,
+        ...advertisingLines,
         ...payrollLines,
         ...contractorLines,
-        ...otherExpenseLines,
+        ...depreciationLines,
+        ...officeExpenseLines,
+        ...rentLeaseLines,
+        ...suppliesLines,
+        ...taxesAndLicensesLines,
+        ...travelLines,
+        ...mealsLines,
+        ...uncategorizedOtherExpenseLines,
       ],
     }),
     buildField({
@@ -333,9 +573,17 @@ export function buildTinaScheduleCDraft(
         ...grossReceiptsLines,
         ...salesTaxLines,
         ...inventoryLines,
+        ...advertisingLines,
         ...payrollLines,
         ...contractorLines,
-        ...otherExpenseLines,
+        ...depreciationLines,
+        ...officeExpenseLines,
+        ...rentLeaseLines,
+        ...suppliesLines,
+        ...taxesAndLicensesLines,
+        ...travelLines,
+        ...mealsLines,
+        ...uncategorizedOtherExpenseLines,
       ],
     }),
   ];

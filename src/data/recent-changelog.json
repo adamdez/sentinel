@@ -1,127 +1,127 @@
 [
   {
+    "hash": "22e734bb",
+    "date": "2026-04-02",
+    "message": "Add outbound SMS compose and fix dead-code false positives"
+  },
+  {
+    "hash": "72e6badf",
+    "date": "2026-04-02",
+    "message": "Delete 16 dead files and add cleanup discipline to CLAUDE.md"
+  },
+  {
+    "hash": "88ad0b43",
+    "date": "2026-04-02",
+    "message": "[codex] Restore lead queue on remote schema"
+  },
+  {
+    "hash": "0d5545e6",
+    "date": "2026-04-02",
+    "message": "Fix missed call notifications for early hangups (canceled status)"
+  },
+  {
+    "hash": "6b9c9401",
+    "date": "2026-04-02",
+    "message": "[codex] Speed up lead queue load and bulk deletes"
+  },
+  {
+    "hash": "dfa22d45",
+    "date": "2026-04-02",
+    "message": "[codex] Surface Scout and county intel in client file"
+  },
+  {
+    "hash": "9cd7ce3c",
+    "date": "2026-04-02",
+    "message": "[codex] Fix Spokane Scout artifact writes"
+  },
+  {
+    "hash": "e34aef86",
+    "date": "2026-04-02",
+    "message": "[codex] Add Spokane Scout backfill pipeline"
+  },
+  {
+    "hash": "c70c70e4",
+    "date": "2026-04-02",
+    "message": "[codex] Speed up imports and expand workbook mapping"
+  },
+  {
+    "hash": "e6ace628",
+    "date": "2026-04-02",
+    "message": "Fix intake claim: generate unique APN instead of shared TBD placeholder"
+  },
+  {
+    "hash": "294dac34",
+    "date": "2026-04-02",
+    "message": "Fix CSV import: set market from county via resolveMarket"
+  },
+  {
+    "hash": "d078f6c0",
+    "date": "2026-04-02",
+    "message": "Fix global search to show contacts without linked leads"
+  },
+  {
+    "hash": "e8036523",
+    "date": "2026-04-02",
+    "message": "Refactor offer formula to ARV-basis MAO and default repair to $20k"
+  },
+  {
+    "hash": "77d8e893",
+    "date": "2026-04-02",
+    "message": "Unify skip trace button across Overview and Contact tabs"
+  },
+  {
+    "hash": "6d3dc0ca",
+    "date": "2026-04-02",
+    "message": "Add property address to Property Basics section"
+  },
+  {
+    "hash": "fe6a0638",
+    "date": "2026-04-02",
+    "message": "Fix overview call card: restore mailing address, gate skip trace button"
+  },
+  {
+    "hash": "1f2a9f6b",
+    "date": "2026-04-02",
+    "message": "Fix overview panel: skip trace button, address placement, tax assessed value"
+  },
+  {
+    "hash": "0003dc85",
+    "date": "2026-04-02",
+    "message": "Update true-north status, changelog, and misc fixes"
+  },
+  {
+    "hash": "f74dfb1b",
+    "date": "2026-04-02",
+    "message": "Harden E2E smoke tests with stable selectors and env loading"
+  },
+  {
+    "hash": "d1e3733f",
+    "date": "2026-04-02",
+    "message": "Add founder work-log gap detection and morning brief reminders"
+  },
+  {
+    "hash": "2813ff19",
+    "date": "2026-04-02",
+    "message": "Unify Jeff attribution funnel across scorecard, analytics, and notifications"
+  },
+  {
+    "hash": "b053bdd8",
+    "date": "2026-04-02",
+    "message": "Add sidebar navigation regression coverage"
+  },
+  {
+    "hash": "c68a8395",
+    "date": "2026-04-02",
+    "message": "Move PPL inbox into primary navigation"
+  },
+  {
+    "hash": "9d13601b",
+    "date": "2026-04-02",
+    "message": "Improve PPL claim enrichment and payload parsing"
+  },
+  {
     "hash": "ddd9b368",
     "date": "2026-04-02",
     "message": "[codex] Tighten Jeff attribution with lead-linked funnel KPIs"
-  },
-  {
-    "hash": "cc5c6c9f",
-    "date": "2026-04-02",
-    "message": "[codex] Add Jeff quality tuning recommendations loop"
-  },
-  {
-    "hash": "7d7ee54e",
-    "date": "2026-04-02",
-    "message": "[codex] Add founder work-log hours and fix migration drift"
-  },
-  {
-    "hash": "8f0fe56f",
-    "date": "2026-04-02",
-    "message": "[codex] Add weekly true-north scorecard and ops alerts"
-  },
-  {
-    "hash": "127535aa",
-    "date": "2026-04-02",
-    "message": "[codex] Harden Vapi webhook assistant setup path"
-  },
-  {
-    "hash": "bc550eb1",
-    "date": "2026-04-02",
-    "message": "[codex] Tighten seller memory card layout and normalize copy"
-  },
-  {
-    "hash": "5b5b1239",
-    "date": "2026-04-02",
-    "message": "[codex] Add Jeff influence attribution and fix operator call metrics"
-  },
-  {
-    "hash": "6a8ad27f",
-    "date": "2026-04-02",
-    "message": "[codex] Add founder-hour leverage KPIs across analytics"
-  },
-  {
-    "hash": "ce6cfb00",
-    "date": "2026-04-02",
-    "message": "[codex] Add true north status anchor for  goal"
-  },
-  {
-    "hash": "09dfbb1a",
-    "date": "2026-04-02",
-    "message": "[codex] Align Jeff KPIs to founder-outcome metrics"
-  },
-  {
-    "hash": "856ba3de",
-    "date": "2026-04-02",
-    "message": "Harden Tina spreadsheet EIN extraction for undashed formats"
-  },
-  {
-    "hash": "45ab4f50",
-    "date": "2026-04-02",
-    "message": "Normalize Tina EIN clues and close undashed conflict gap"
-  },
-  {
-    "hash": "62552176",
-    "date": "2026-04-02",
-    "message": "Harden Tina clue severity against low-confidence overshadowing"
-  },
-  {
-    "hash": "4b99f2da",
-    "date": "2026-04-02",
-    "message": "Harden changelog generation outside git worktrees"
-  },
-  {
-    "hash": "830bcb0f",
-    "date": "2026-04-02",
-    "message": "Fix Next.js output tracing root for Sentinel workspace"
-  },
-  {
-    "hash": "2d59fbef",
-    "date": "2026-04-02",
-    "message": "Calibrate Tina conflict severity by evidence strength"
-  },
-  {
-    "hash": "b1d11745",
-    "date": "2026-04-02",
-    "message": "Fix Tina stale review drift after organizer profile changes"
-  },
-  {
-    "hash": "26cdc832",
-    "date": "2026-04-02",
-    "message": "Harden Tina against commingled entity bookkeeping risks"
-  },
-  {
-    "hash": "f7596c53",
-    "date": "2026-04-02",
-    "message": "Expand Tina freshness checks to read timestamps"
-  },
-  {
-    "hash": "92ea4829",
-    "date": "2026-04-02",
-    "message": "Gate Tina readiness on evidence freshness"
-  },
-  {
-    "hash": "3294fea0",
-    "date": "2026-04-02",
-    "message": "Harden Tina against mixed return hints and spoofed run dates"
-  },
-  {
-    "hash": "da103c98",
-    "date": "2026-04-02",
-    "message": "Block Tina readiness on stale review timestamps"
-  },
-  {
-    "hash": "f514f2fa",
-    "date": "2026-04-02",
-    "message": "Harden Tina return-type conflict detection"
-  },
-  {
-    "hash": "5d0fde3e",
-    "date": "2026-04-02",
-    "message": "Catch zero-value money anomalies in Tina issue queue"
-  },
-  {
-    "hash": "2462959c",
-    "date": "2026-04-02",
-    "message": "Harden Tina authority gating and adversarial coverage"
   }
 ]

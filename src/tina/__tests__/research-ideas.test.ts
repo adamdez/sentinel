@@ -143,6 +143,106 @@ describe("buildTinaResearchIdeas", () => {
     );
   });
 
+  it("adds entity-path research when paper hints conflict with intake lane", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Mixed Signal LLC",
+        entityType: "single_member_llc" as const,
+      },
+      sourceFacts: [
+        {
+          id: "return-type-fact",
+          sourceDocumentId: "prior-doc",
+          label: "Return type hint",
+          value: "1120-S",
+          confidence: "high" as const,
+          capturedAt: "2026-03-26T22:05:00.000Z",
+        },
+      ],
+    };
+
+    const ideas = buildTinaResearchIdeas(draft);
+    expect(ideas.some((idea) => idea.id === "entity-and-filing-path-review")).toBe(true);
+  });
+
+  it("adds ownership-transition research when ownership path signals appear", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Ownership Change LLC",
+        entityType: "single_member_llc" as const,
+        ownershipChangedDuringYear: true,
+      },
+      sourceFacts: [
+        {
+          id: "former-owner-fact",
+          sourceDocumentId: "books-doc",
+          label: "Former owner payment clue",
+          value: "This paper may show payments to a former owner.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:10:00.000Z",
+        },
+      ],
+    };
+
+    const ideas = buildTinaResearchIdeas(draft);
+    expect(ideas.map((idea) => idea.id)).toEqual(
+      expect.arrayContaining(["ownership-transition-review", "former-owner-payment-review"])
+    );
+  });
+
+  it("adds mixed-use, depreciation, and worker-classification research when books are messy", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      sourceFacts: [
+        {
+          id: "mixed-use-fact",
+          sourceDocumentId: "books-doc",
+          label: "Mixed personal/business clue",
+          value: "This paper may include mixed personal and business spending.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:10:00.000Z",
+        },
+        {
+          id: "depreciation-fact",
+          sourceDocumentId: "books-doc",
+          label: "Depreciation clue",
+          value: "This paper mentions depreciation.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:11:00.000Z",
+        },
+        {
+          id: "payroll-fact",
+          sourceDocumentId: "books-doc",
+          label: "Payroll clue",
+          value: "This paper mentions payroll.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:12:00.000Z",
+        },
+        {
+          id: "contractor-fact",
+          sourceDocumentId: "books-doc",
+          label: "Contractor clue",
+          value: "This paper mentions contractors.",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-26T22:13:00.000Z",
+        },
+      ],
+    };
+
+    const ideas = buildTinaResearchIdeas(draft);
+    expect(ideas.map((idea) => idea.id)).toEqual(
+      expect.arrayContaining([
+        "mixed-use-allocation-review",
+        "depreciation-support-review",
+        "worker-classification-review",
+      ])
+    );
+  });
+
   it("adds startup cost review when formation year matches tax year", () => {
     const draft = {
       ...createDefaultTinaWorkspaceDraft(),

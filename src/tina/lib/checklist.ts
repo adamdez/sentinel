@@ -1,3 +1,4 @@
+import { buildTinaStartPathAssessment } from "@/tina/lib/start-path";
 import type {
   TinaChecklistItem,
   TinaFilingLaneRecommendation,
@@ -8,10 +9,20 @@ function hasDocumentForRequest(draft: TinaWorkspaceDraft, requestId: string): bo
   return draft.documents.some((document) => document.requestId === requestId);
 }
 
+function hasQuickBooksCoverage(draft: TinaWorkspaceDraft): boolean {
+  return (
+    hasDocumentForRequest(draft, "quickbooks") ||
+    draft.quickBooksConnection.status === "connected" ||
+    draft.quickBooksConnection.status === "syncing" ||
+    draft.quickBooksConnection.importedDocumentIds.length > 0
+  );
+}
+
 export function buildTinaChecklist(
   draft: TinaWorkspaceDraft,
   recommendation: TinaFilingLaneRecommendation
 ): TinaChecklistItem[] {
+  const startPath = buildTinaStartPathAssessment(draft);
   const hasPriorReturn = Boolean(draft.priorReturnDocumentId || draft.priorReturn);
   const items: TinaChecklistItem[] = [
     {
@@ -26,7 +37,7 @@ export function buildTinaChecklist(
       label: "QuickBooks or your profit-and-loss report",
       reason: "Tina needs your main money records so she can start the tax work from the right numbers.",
       priority: "required",
-      status: hasDocumentForRequest(draft, "quickbooks") ? "covered" : "needed",
+      status: hasQuickBooksCoverage(draft) ? "covered" : "needed",
     },
     {
       id: "bank-support",
@@ -107,6 +118,16 @@ export function buildTinaChecklist(
       status: "needed",
     });
   }
+
+  startPath.proofRequirements.forEach((requirement) => {
+    items.push({
+      id: requirement.id,
+      label: requirement.label,
+      reason: requirement.reason,
+      priority: requirement.priority,
+      status: requirement.status,
+    });
+  });
 
   return items;
 }

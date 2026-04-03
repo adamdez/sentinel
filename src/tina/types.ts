@@ -17,11 +17,18 @@ export type TinaEntityType =
   | "sole_prop"
   | "single_member_llc"
   | "s_corp"
+  | "c_corp"
   | "partnership"
   | "multi_member_llc"
   | "unsure";
 
 export type TinaAccountingMethod = "cash" | "accrual" | "unsure";
+export type TinaTaxElection = "unsure" | "default" | "s_corp" | "c_corp";
+export type TinaSpouseCommunityPropertyTreatment =
+  | "unknown"
+  | "no"
+  | "possible"
+  | "confirmed";
 
 export interface TinaPriorReturnSnapshot {
   fileName: string;
@@ -82,7 +89,14 @@ export interface TinaDocumentReading {
 export interface TinaBusinessTaxProfile {
   businessName: string;
   taxYear: string;
+  principalBusinessActivity: string;
   entityType: TinaEntityType;
+  ownerCount: number | null;
+  ownershipChangedDuringYear: boolean;
+  taxElection: TinaTaxElection;
+  spouseCommunityPropertyTreatment: TinaSpouseCommunityPropertyTreatment;
+  hasOwnerBuyoutOrRedemption: boolean;
+  hasFormerOwnerPayments: boolean;
   formationState: string;
   formationDate: string;
   accountingMethod: TinaAccountingMethod;
@@ -324,6 +338,107 @@ export interface TinaCpaHandoffSnapshot {
   artifacts: TinaCpaHandoffArtifact[];
 }
 
+export type TinaPackageState =
+  | "provisional"
+  | "ready_for_cpa_review"
+  | "blocked"
+  | "signed_off"
+  | "signed_off_stale";
+
+export type TinaReviewerDecision = "approved" | "changes_requested" | "revoked";
+
+export interface TinaReviewerDecisionRecord {
+  id: string;
+  snapshotId: string;
+  decision: TinaReviewerDecision;
+  reviewerName: string;
+  notes: string;
+  decidedAt: string;
+}
+
+export interface TinaPackageSnapshotRecord {
+  id: string;
+  createdAt: string;
+  packageFingerprint: string;
+  packageState: TinaPackageState;
+  readinessLevel: TinaPackageReadinessLevel;
+  blockerCount: number;
+  attentionCount: number;
+  summary: string;
+  exportFileName: string;
+  exportContents: string;
+}
+
+export interface TinaReviewerSignoffSnapshot {
+  lastEvaluatedAt: string | null;
+  packageState: TinaPackageState;
+  summary: string;
+  nextStep: string;
+  activeSnapshotId: string | null;
+  activeDecisionId: string | null;
+  currentPackageFingerprint: string | null;
+  signedOffPackageFingerprint: string | null;
+  hasDriftSinceSignoff: boolean;
+}
+
+export type TinaTaxPositionBucket = "use" | "review" | "appendix" | "reject";
+
+export interface TinaAppendixItem {
+  id: string;
+  title: string;
+  summary: string;
+  whyItMatters: string;
+  taxPositionBucket: TinaTaxPositionBucket;
+  category: string;
+  nextStep: string;
+  authoritySummary: string;
+  reviewerQuestion: string;
+  disclosureFlag: string;
+  authorityTargets: string[];
+  sourceLabels: string[];
+  factIds: string[];
+  documentIds: string[];
+}
+
+export interface TinaAppendixSnapshot {
+  lastRunAt: string | null;
+  status: TinaWorkpaperStatus;
+  summary: string;
+  nextStep: string;
+  items: TinaAppendixItem[];
+}
+
+export type TinaOperationalMaturity = "foundation" | "schedule_c_core" | "reviewer_grade_core";
+
+export interface TinaOperationalStatusSnapshot {
+  lastRunAt: string | null;
+  maturity: TinaOperationalMaturity;
+  packageState: TinaPackageState;
+  summary: string;
+  nextStep: string;
+  truths: string[];
+  blockers: string[];
+}
+
+export type TinaQuickBooksConnectionStatus =
+  | "not_connected"
+  | "connecting"
+  | "connected"
+  | "syncing"
+  | "error";
+
+export interface TinaQuickBooksConnectionSnapshot {
+  status: TinaQuickBooksConnectionStatus;
+  connectedAt: string | null;
+  lastSyncAt: string | null;
+  companyName: string;
+  realmId: string;
+  summary: string;
+  nextStep: string;
+  lastError: string;
+  importedDocumentIds: string[];
+}
+
 export type TinaCleanupPlanStatus = "idle" | "stale" | "running" | "complete";
 export type TinaCleanupSuggestionType =
   | "reconcile_line"
@@ -429,6 +544,12 @@ export interface TinaWorkspaceDraft {
   scheduleCDraft: TinaScheduleCDraftSnapshot;
   packageReadiness: TinaPackageReadinessSnapshot;
   cpaHandoff: TinaCpaHandoffSnapshot;
+  reviewerSignoff: TinaReviewerSignoffSnapshot;
+  reviewerDecisions: TinaReviewerDecisionRecord[];
+  packageSnapshots: TinaPackageSnapshotRecord[];
+  appendix: TinaAppendixSnapshot;
+  operationalStatus: TinaOperationalStatusSnapshot;
+  quickBooksConnection: TinaQuickBooksConnectionSnapshot;
   authorityWork: TinaAuthorityWorkItem[];
   profile: TinaBusinessTaxProfile;
 }
@@ -443,6 +564,7 @@ export type TinaDraftSyncStatus =
 export type TinaFilingLaneId =
   | "schedule_c_single_member_llc"
   | "1120_s"
+  | "1120"
   | "1065"
   | "unknown";
 
@@ -466,3 +588,729 @@ export interface TinaChecklistItem {
   priority: TinaChecklistPriority;
   status: "needed" | "covered";
 }
+
+export type TinaStartPathProofRequirementId =
+  | "ownership-agreement"
+  | "entity-election"
+  | "ownership-transition"
+  | "community-property-proof";
+
+export interface TinaStartPathProofRequirement {
+  id: TinaStartPathProofRequirementId;
+  label: string;
+  reason: string;
+  priority: TinaChecklistPriority;
+  status: "needed" | "covered";
+  relatedLaneIds: TinaFilingLaneId[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaStartPathAssessment {
+  recommendation: TinaFilingLaneRecommendation;
+  returnTypeHintFacts: TinaSourceFact[];
+  hintedLanes: TinaFilingLaneId[];
+  hasMixedHintedLanes: boolean;
+  singleHintedLane: TinaFilingLaneId | null;
+  hasHintVsOrganizerConflict: boolean;
+  ownershipChangeClue: TinaSourceFact | null;
+  formerOwnerPaymentClue: TinaSourceFact | null;
+  ownershipMismatchWithSingleOwnerLane: boolean;
+  route: "supported" | "review_only" | "blocked";
+  confidence: "high" | "needs_review" | "blocked";
+  blockingReasons: string[];
+  reviewReasons: string[];
+  proofRequirements: TinaStartPathProofRequirement[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export type TinaFormBuildStatus = "idle" | "complete";
+export type TinaFormValidationSeverity = "blocking" | "needs_attention";
+
+export interface TinaFormValidationIssue {
+  id: string;
+  title: string;
+  summary: string;
+  severity: TinaFormValidationSeverity;
+  relatedLineNumbers: string[];
+}
+
+export interface TinaScheduleCFormField {
+  id: string;
+  lineNumber: string;
+  formKey: string;
+  label: string;
+  amount: number | null;
+  status: TinaWorkpaperLineStatus;
+  sourceFieldIds: string[];
+}
+
+export interface TinaScheduleCFormHeader {
+  businessName: string;
+  taxYear: string;
+  principalBusinessActivity: string;
+  naicsCode: string;
+  accountingMethod: TinaBusinessTaxProfile["accountingMethod"];
+  entityType: TinaBusinessTaxProfile["entityType"];
+}
+
+export type TinaScheduleCFormCoverageStatus =
+  | "covered"
+  | "partial"
+  | "needs_review"
+  | "unsupported";
+
+export interface TinaScheduleCFormCoverageItem {
+  id: string;
+  title: string;
+  status: TinaScheduleCFormCoverageStatus;
+  summary: string;
+  relatedLineNumbers: string[];
+}
+
+export interface TinaScheduleCFormCoverageSnapshot {
+  lastBuiltAt: string | null;
+  summary: string;
+  nextStep: string;
+  items: TinaScheduleCFormCoverageItem[];
+}
+
+export interface TinaScheduleCReturnSnapshot {
+  lastBuiltAt: string | null;
+  status: TinaFormBuildStatus;
+  summary: string;
+  nextStep: string;
+  header: TinaScheduleCFormHeader;
+  businessName: string;
+  taxYear: string;
+  laneId: TinaFilingLaneId;
+  fields: TinaScheduleCFormField[];
+  validationIssues: TinaFormValidationIssue[];
+}
+
+export interface TinaScheduleCFormTraceLine {
+  id: string;
+  lineNumber: string;
+  formKey: string;
+  label: string;
+  amount: number | null;
+  status: TinaWorkpaperLineStatus;
+  sourceFieldIds: string[];
+  reviewerFinalLineIds: string[];
+  taxAdjustmentIds: string[];
+  sourceDocumentIds: string[];
+  sourceFactIds: string[];
+  evidenceSupportLevel: "strong" | "moderate" | "weak" | "missing";
+  evidenceSupportSummary: string;
+}
+
+export interface TinaScheduleCFormTraceSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  summary: string;
+  nextStep: string;
+  lines: TinaScheduleCFormTraceLine[];
+}
+
+export interface TinaReviewerChallengeItem {
+  id: string;
+  title: string;
+  summary: string;
+  severity: "blocking" | "needs_attention";
+  category:
+    | "start_path"
+    | "evidence"
+    | "books"
+    | "validation"
+    | "coverage";
+  relatedLineNumbers: string[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaReviewerChallengeSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  summary: string;
+  nextStep: string;
+  items: TinaReviewerChallengeItem[];
+}
+
+export type TinaEntityJudgmentStatus =
+  | "clear_supported"
+  | "clear_but_unsupported"
+  | "review_required"
+  | "blocked";
+
+export interface TinaEntityJudgmentQuestion {
+  id: string;
+  title: string;
+  summary: string;
+  severity: "blocking" | "needs_attention";
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaEntityJudgmentSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  judgmentStatus: TinaEntityJudgmentStatus;
+  laneId: TinaFilingLaneId;
+  likelyFederalTreatment: string;
+  summary: string;
+  nextStep: string;
+  reasons: string[];
+  questions: TinaEntityJudgmentQuestion[];
+}
+
+export interface TinaTreatmentJudgmentItem {
+  id: string;
+  title: string;
+  summary: string;
+  taxPositionBucket: TinaTaxPositionBucket;
+  confidence: "high" | "medium" | "low";
+  suggestedTreatment: string;
+  nextStep: string;
+  authorityWorkIdeaIds: string[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaTreatmentJudgmentSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  summary: string;
+  nextStep: string;
+  items: TinaTreatmentJudgmentItem[];
+}
+
+export interface TinaOwnershipTimelineEvent {
+  id: string;
+  title: string;
+  summary: string;
+  status: "known" | "assumed" | "needs_proof";
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaOwnershipTimelineSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  summary: string;
+  nextStep: string;
+  likelyOwnerCount: number | null;
+  hasMidYearChange: boolean;
+  hasFormerOwnerPayments: boolean;
+  events: TinaOwnershipTimelineEvent[];
+}
+
+export interface TinaFederalReturnRequirementItem {
+  id: string;
+  title: string;
+  status: "ready" | "needs_attention" | "blocked";
+  summary: string;
+  requiredForms: string[];
+  requiredRecords: string[];
+  reviewerQuestions: string[];
+}
+
+export interface TinaFederalReturnRequirementsSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  laneId: TinaFilingLaneId;
+  returnFamily: string;
+  canTinaFinishLane: boolean;
+  summary: string;
+  nextStep: string;
+  items: TinaFederalReturnRequirementItem[];
+}
+
+export interface TinaFederalReturnClassificationSignal {
+  id: string;
+  title: string;
+  summary: string;
+  strength: "strong" | "moderate" | "weak";
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaFederalReturnClassificationIssue {
+  id: string;
+  title: string;
+  summary: string;
+  severity: "blocking" | "needs_attention";
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaFederalReturnClassificationSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  laneId: TinaFilingLaneId;
+  returnFamily: string;
+  route: TinaStartPathAssessment["route"];
+  confidence: "high" | "medium" | "low" | "blocked";
+  summary: string;
+  nextStep: string;
+  signals: TinaFederalReturnClassificationSignal[];
+  issues: TinaFederalReturnClassificationIssue[];
+}
+
+export type TinaOwnershipCapitalEventType =
+  | "opening_ownership"
+  | "closing_ownership"
+  | "ownership_change"
+  | "buyout_redemption"
+  | "former_owner_payment"
+  | "community_property_exception"
+  | "capital_economics_question";
+
+export interface TinaOwnershipCapitalEvent {
+  id: string;
+  title: string;
+  summary: string;
+  eventType: TinaOwnershipCapitalEventType;
+  status: "known" | "needs_review" | "blocked";
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaOwnershipCapitalEventsSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  overallStatus: "clear" | "review_required" | "blocked";
+  likelyOwnerCount: number | null;
+  eventCount: number;
+  blockedEventCount: number;
+  summary: string;
+  nextStep: string;
+  events: TinaOwnershipCapitalEvent[];
+}
+
+export interface TinaBooksNormalizationIssue {
+  id: string;
+  title: string;
+  summary: string;
+  severity: "blocking" | "needs_attention" | "watch";
+  sourceLabels: string[];
+  factIds: string[];
+  documentIds: string[];
+}
+
+export interface TinaBooksNormalizationSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  summary: string;
+  nextStep: string;
+  issues: TinaBooksNormalizationIssue[];
+}
+
+export type TinaBooksReconstructionSourceMode =
+  | "quickbooks_live"
+  | "uploaded_books"
+  | "thin_records";
+
+export type TinaBooksReconstructionAreaId =
+  | "income"
+  | "core_expenses"
+  | "owner_flows"
+  | "worker_payments"
+  | "fixed_assets"
+  | "inventory_cogs"
+  | "entity_boundary";
+
+export interface TinaBooksReconstructionArea {
+  id: TinaBooksReconstructionAreaId;
+  title: string;
+  status: "ready" | "needs_review" | "blocked";
+  summary: string;
+  relatedIssueIds: string[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaBooksReconstructionSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  overallStatus: "reconstructed" | "partial" | "blocked";
+  sourceMode: TinaBooksReconstructionSourceMode;
+  summary: string;
+  nextStep: string;
+  areas: TinaBooksReconstructionArea[];
+}
+
+export type TinaEvidenceSufficiencyLevel = "strong" | "moderate" | "weak" | "missing";
+
+export interface TinaEvidenceSufficiencyLine {
+  id: string;
+  lineNumber: string;
+  label: string;
+  amount: number | null;
+  level: TinaEvidenceSufficiencyLevel;
+  summary: string;
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaEvidenceSufficiencyIssue {
+  id: string;
+  title: string;
+  summary: string;
+  severity: "blocking" | "needs_attention";
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaEvidenceSufficiencySnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  overallStatus: "reviewer_grade" | "provisional" | "blocked";
+  summary: string;
+  nextStep: string;
+  counts: Record<TinaEvidenceSufficiencyLevel, number>;
+  lines: TinaEvidenceSufficiencyLine[];
+  issues: TinaEvidenceSufficiencyIssue[];
+}
+
+export type TinaMaterialityLevel = "high" | "medium" | "low";
+
+export interface TinaTaxTreatmentPolicyDecision {
+  id: string;
+  title: string;
+  policyArea: string;
+  status: "cleared" | "review_required" | "blocked";
+  materiality: TinaMaterialityLevel;
+  summary: string;
+  recommendedBucket: TinaTaxPositionBucket;
+  nextStep: string;
+  authorityWorkIdeaIds: string[];
+  relatedJudgmentIds: string[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaTaxTreatmentPolicySnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  overallStatus: "cleared" | "review_required" | "blocked";
+  summary: string;
+  nextStep: string;
+  decisions: TinaTaxTreatmentPolicyDecision[];
+}
+
+export interface TinaMaterialityPriorityItem {
+  id: string;
+  title: string;
+  source: "start_path" | "treatment_policy" | "evidence" | "books" | "package" | "form";
+  priority: "immediate" | "next" | "monitor";
+  materiality: TinaMaterialityLevel;
+  summary: string;
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaMaterialityPrioritySnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  overallStatus: "immediate_action" | "review_queue" | "monitor_only";
+  summary: string;
+  nextStep: string;
+  items: TinaMaterialityPriorityItem[];
+}
+
+export type TinaIndustryPlaybookId =
+  | "general_small_business"
+  | "professional_services"
+  | "skilled_trades"
+  | "e_commerce_retail"
+  | "real_estate"
+  | "food_service"
+  | "creator_media";
+
+export interface TinaIndustryPlaybookItem {
+  id: TinaIndustryPlaybookId;
+  title: string;
+  fit: "primary" | "secondary" | "possible";
+  summary: string;
+  characteristicSignals: string[];
+  keyRisks: string[];
+  likelyOpportunities: string[];
+  requiredRecords: string[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaIndustryPlaybookSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  primaryIndustryId: TinaIndustryPlaybookId | null;
+  summary: string;
+  nextStep: string;
+  items: TinaIndustryPlaybookItem[];
+}
+
+export type TinaTaxOpportunityStatus =
+  | "ready_to_pursue"
+  | "needs_authority"
+  | "needs_facts"
+  | "review_only"
+  | "reject";
+
+export type TinaTaxOpportunityImpact = "high" | "medium" | "low";
+
+export interface TinaTaxOpportunityItem {
+  id: string;
+  title: string;
+  status: TinaTaxOpportunityStatus;
+  impact: TinaTaxOpportunityImpact;
+  reviewerBurden: "light" | "moderate" | "heavy";
+  summary: string;
+  whyItMatters: string;
+  recommendedAction: string;
+  authorityState: string;
+  disclosureFlag: string;
+  relatedIndustryIds: TinaIndustryPlaybookId[];
+  sourceLabels: string[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaTaxOpportunitySnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  overallStatus: "strong_queue" | "mixed_queue" | "thin_queue";
+  summary: string;
+  nextStep: string;
+  items: TinaTaxOpportunityItem[];
+}
+
+export interface TinaCompanionFormPlanItem {
+  id: string;
+  formId: TinaOfficialFederalFormId | null;
+  title: string;
+  role: TinaOfficialFederalFormRole;
+  status: "required_ready" | "required_needs_review" | "required_blocked" | "optional_watch";
+  fillMode: "structured_supported" | "blank_form_only" | "future_lane" | "not_applicable";
+  summary: string;
+  relatedLineNumbers: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaCompanionFormPlanSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  laneId: TinaFilingLaneId;
+  returnFamily: string;
+  summary: string;
+  nextStep: string;
+  items: TinaCompanionFormPlanItem[];
+}
+
+export interface TinaCrossFormConsistencyIssue {
+  id: string;
+  title: string;
+  summary: string;
+  severity: "blocking" | "needs_attention";
+  category: "lane" | "attachment" | "evidence" | "form_plan" | "package_state";
+  relatedLineNumbers: string[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaCrossFormConsistencySnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  overallStatus: "aligned" | "review_required" | "blocked";
+  summary: string;
+  nextStep: string;
+  issues: TinaCrossFormConsistencyIssue[];
+}
+
+export interface TinaOfficialFormFillPlacement {
+  id: string;
+  formId: TinaOfficialFederalFormId;
+  pageNumber: number;
+  fieldKey: string;
+  label: string;
+  value: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  status: "ready" | "needs_review" | "blocked";
+  evidenceSupportLevel: TinaEvidenceSufficiencyLevel;
+  relatedLineNumbers: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaOfficialFormFillSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  formId: TinaOfficialFederalFormId | null;
+  templateTitle: string | null;
+  overallStatus: "ready" | "needs_review" | "blocked";
+  mode: "overlay_plan" | "blocked_route";
+  summary: string;
+  nextStep: string;
+  placements: TinaOfficialFormFillPlacement[];
+  blockedReasons: string[];
+}
+
+export type TinaAttachmentStatementStatus = "ready" | "needs_review" | "blocked";
+export type TinaAttachmentStatementCategory =
+  | "other_expense_detail"
+  | "depreciation_support"
+  | "home_office_support"
+  | "inventory_support"
+  | "owner_flow_explanation";
+
+export interface TinaAttachmentStatementItem {
+  id: string;
+  title: string;
+  category: TinaAttachmentStatementCategory;
+  formId: TinaOfficialFederalFormId | null;
+  status: TinaAttachmentStatementStatus;
+  summary: string;
+  statement: string;
+  relatedLineNumbers: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaAttachmentStatementSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  overallStatus: "ready" | "needs_review" | "blocked";
+  summary: string;
+  nextStep: string;
+  items: TinaAttachmentStatementItem[];
+}
+
+export interface TinaDecisionBriefing {
+  audience: "reviewer" | "owner";
+  headline: string;
+  summary: string;
+  keyPoints: string[];
+  openQuestions: string[];
+  recommendedActions: string[];
+}
+
+export interface TinaDecisionBriefingSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  reviewer: TinaDecisionBriefing;
+  owner: TinaDecisionBriefing;
+}
+
+export type TinaTaxPlanningMemoPriority = "now" | "soon" | "later";
+
+export interface TinaTaxPlanningMemoItem {
+  id: string;
+  title: string;
+  priority: TinaTaxPlanningMemoPriority;
+  status: TinaTaxOpportunityStatus;
+  impact: TinaTaxOpportunityImpact;
+  summary: string;
+  whyNow: string;
+  reviewerAction: string;
+  ownerAction: string;
+  documentationNeeds: string[];
+  relatedIndustryIds: TinaIndustryPlaybookId[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaTaxPlanningMemoSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  overallStatus: "actionable" | "mixed" | "thin";
+  summary: string;
+  nextStep: string;
+  items: TinaTaxPlanningMemoItem[];
+}
+
+export interface TinaReviewBundleFile {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  encoding: "utf8" | "base64";
+  contents: string;
+}
+
+export interface TinaReviewBundleExport {
+  builtAt: string;
+  businessName: string;
+  taxYear: string;
+  packageState: TinaPackageState;
+  sourceMode: "live_draft" | "immutable_snapshot";
+  snapshotId: string | null;
+  summary: string;
+  nextStep: string;
+  files: TinaReviewBundleFile[];
+}
+
+export type TinaFormReadinessLevel = "not_ready" | "provisional" | "reviewer_ready";
+
+export interface TinaFormReadinessReason {
+  id: string;
+  title: string;
+  summary: string;
+  severity: "blocking" | "needs_attention";
+}
+
+export interface TinaFormReadinessSnapshot {
+  lastBuiltAt: string | null;
+  level: TinaFormReadinessLevel;
+  summary: string;
+  nextStep: string;
+  reasons: TinaFormReadinessReason[];
+}
+
+export type TinaOfficialFederalFormId =
+  | "f1040"
+  | "f1040sc"
+  | "f1040sse"
+  | "f1065"
+  | "f1120s"
+  | "f1120"
+  | "f8829"
+  | "f4562";
+
+export type TinaOfficialFederalFormRole =
+  | "primary_return"
+  | "companion_schedule"
+  | "attachment";
+
+export type TinaOfficialFederalFormSupport =
+  | "blank_stored"
+  | "planned_fill"
+  | "not_supported";
+
+export interface TinaOfficialFederalFormTemplate {
+  id: TinaOfficialFederalFormId;
+  taxYear: string;
+  formNumber: string;
+  title: string;
+  role: TinaOfficialFederalFormRole;
+  support: TinaOfficialFederalFormSupport;
+  irsUrl: string;
+  fileName: string;
+  localAssetPath: string;
+  sha256: string;
+  byteLength: number;
+  laneIds: TinaFilingLaneId[];
+  summary: string;
+}
+
+export interface TinaOfficialFederalFormTemplateSnapshot {
+  lastBuiltAt: string | null;
+  taxYear: string;
+  laneId: TinaFilingLaneId;
+  summary: string;
+  nextStep: string;
+  primaryTemplateId: TinaOfficialFederalFormId | null;
+  templates: TinaOfficialFederalFormTemplate[];
+  storedBlankTemplateIds: TinaOfficialFederalFormId[];
+}
+
+export type TinaScheduleCPdfRenderMode =
+  | "tina_schedule_c_draft"
+  | "blocked_route_notice";

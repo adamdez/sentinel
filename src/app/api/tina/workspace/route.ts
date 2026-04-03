@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { createServerClient } from "@/lib/supabase";
 import { createDefaultTinaWorkspaceDraft, parseTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
+import { refreshTinaWorkflowState } from "@/tina/lib/workflow-state";
 
 const TINA_PREFERENCES_KEY = "tina_workspace_v1";
 
@@ -25,7 +26,9 @@ export async function GET(req: NextRequest) {
 
   const preferences = (data?.preferences as Record<string, unknown> | null) ?? {};
   const rawDraft = preferences[TINA_PREFERENCES_KEY];
-  const draft = parseTinaWorkspaceDraft(rawDraft ? JSON.stringify(rawDraft) : null);
+  const draft = refreshTinaWorkflowState(
+    parseTinaWorkspaceDraft(rawDraft ? JSON.stringify(rawDraft) : null)
+  );
 
   return NextResponse.json({ draft });
 }
@@ -49,12 +52,14 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Missing draft payload" }, { status: 400 });
   }
 
-  const draft = parseTinaWorkspaceDraft(JSON.stringify((body as { draft: unknown }).draft));
-  const safeDraft = {
+  const draft = refreshTinaWorkflowState(
+    parseTinaWorkspaceDraft(JSON.stringify((body as { draft: unknown }).draft))
+  );
+  const safeDraft = refreshTinaWorkflowState({
     ...createDefaultTinaWorkspaceDraft(),
     ...draft,
     savedAt: draft.savedAt ?? new Date().toISOString(),
-  };
+  });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: existing, error: readError } = await (sb.from("user_profiles") as any)

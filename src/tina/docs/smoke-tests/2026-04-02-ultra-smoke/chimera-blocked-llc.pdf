@@ -1,0 +1,89 @@
+%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj
+4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
+5 0 obj << /Length 1923 >> stream
+BT
+/F1 18 Tf
+50 760 Td
+(Tina Filing Path Blocked Notice \(2025\)) Tj
+0 -24 Td
+/F1 11 Tf
+(Business: Chimera Holdings LLC) Tj
+0 -18 Td
+0 -16 Td
+(Tina will not build a supported Schedule C return snapshot while the source-fact-aware start) Tj
+0 -16 Td
+(path is still routed away from the supported lane.) Tj
+0 -18 Td
+0 -16 Td
+(This is not a Schedule C form draft. Tina blocked the filing path before form production.) Tj
+0 -18 Td
+0 -16 Td
+(Why blocked: Tina sees a multi-owner or partnership-style setup, so she should route this to) Tj
+0 -16 Td
+(the partnership path instead of the Schedule C pilot.) Tj
+0 -16 Td
+0 -14 Td
+(- Idaho or multistate activity expands the package beyond Tina's first-class) Tj
+0 -14 Td
+(Washington-only Schedule C scope, so she should keep the likely federal lane but stop) Tj
+0 -14 Td
+(for state review.) Tj
+0 -16 Td
+0 -14 Td
+(- Ownership changed during the year. Tina should keep the likely lane visible, but stop) Tj
+0 -14 Td
+(and route the file to review before prep starts.) Tj
+0 -16 Td
+0 -14 Td
+(- You marked an owner buyout or redemption. Tina should stop and route that to review) Tj
+0 -14 Td
+(before trusting the starting path.) Tj
+0 -16 Td
+0 -14 Td
+(- You marked payments to a former owner. Tina should stop and route that to review) Tj
+0 -14 Td
+(before trusting the starting path.) Tj
+0 -16 Td
+0 -14 Td
+(- Source papers point to multiple filing lanes: 1065 / partnership, 1120-S / S-corp.) Tj
+0 -16 Td
+0 -14 Td
+(- Tina recognizes the likely filing lane, but that lane is not first-class supported) Tj
+0 -14 Td
+(yet.) Tj
+0 -18 Td
+0 -16 Td
+(Activity: Auction liquidation, warehousing, and consulting) Tj
+0 -18 Td
+0 -16 Td
+(Business code: 493110 | Method: accrual) Tj
+0 -24 Td
+/F1 12 Tf
+(Route status) Tj
+0 -14 Td
+(----------) Tj
+0 -14 Td
+(Route: blocked | Lane: 1065) Tj
+0 -24 Td
+/F1 12 Tf
+(Validation) Tj
+0 -14 Td
+0 -16 Td
+(Routing is blocked. This notice is not a validation pass.) Tj
+ET
+endstream endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000311 00000 n 
+trailer << /Size 6 /Root 1 0 R >>
+startxref
+2286
+%%EOF

@@ -104,6 +104,47 @@ describe("readTinaDocument", () => {
     );
   });
 
+  it("extracts multi-owner, community-property, and election clues from spreadsheet text", async () => {
+    const document: TinaStoredDocument = {
+      id: "doc-ownership-ledger",
+      name: "ownership-ledger.csv",
+      size: 96,
+      mimeType: "text/csv",
+      storagePath: "user/2025/doc-ownership-ledger.csv",
+      category: "supporting_document",
+      requestId: "quickbooks",
+      requestLabel: "QuickBooks or your profit-and-loss report",
+      uploadedAt: "2026-03-26T21:05:00.000Z",
+    };
+
+    const file = new File(
+      [
+        [
+          "Date,Description,Amount",
+          "2025-01-01,Schedule K-1 to 60/40 members,0",
+          "2025-01-02,Husband and wife community property review,0",
+          "2025-01-03,Form 2553 election accepted,0",
+        ].join("\n"),
+      ],
+      document.name,
+      { type: document.mimeType }
+    );
+
+    const reading = await readTinaDocument(document, file);
+
+    expect(reading.status).toBe("complete");
+    expect(reading.facts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Multi-owner clue" }),
+        expect.objectContaining({ label: "Community property clue" }),
+        expect.objectContaining({
+          label: "Return type hint",
+          value: "This paper points toward an 1120-S or S-corp path.",
+        }),
+      ])
+    );
+  });
+
   it("extracts undashed EIN references when EIN context is present", async () => {
     const document: TinaStoredDocument = {
       id: "doc-undashed-ein",

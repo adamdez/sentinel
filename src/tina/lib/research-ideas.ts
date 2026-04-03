@@ -1,9 +1,9 @@
-import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import {
   evaluateTinaTaxIdea,
   type TinaResearchDecisionBucket,
   type TinaResearchSourceClass,
 } from "@/tina/lib/research-policy";
+import { buildTinaStartPathAssessment } from "@/tina/lib/start-path";
 import type { TinaSourceFact, TinaWorkspaceDraft } from "@/tina/types";
 
 export type TinaTaxIdeaCategory = "deduction" | "state" | "compliance" | "continuity";
@@ -104,7 +104,8 @@ function collectLinkedIds(sourceFacts: TinaSourceFact[]): Pick<TinaTaxIdeaLead, 
 }
 
 export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLead[] {
-  const recommendation = recommendTinaFilingLane(draft.profile);
+  const startPath = buildTinaStartPathAssessment(draft);
+  const recommendation = startPath.recommendation;
   const ideas: TinaTaxIdeaLead[] = [];
   const formationYear = parseYear(draft.profile.formationDate);
   const currentTaxYear = draft.profile.taxYear.trim();
@@ -128,6 +129,86 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
         documentIds: draft.priorReturnDocumentId ? [draft.priorReturnDocumentId] : [],
         searchPrompt:
           "Review the prior-year return for carryovers, depreciation history, overpayments, elections, and continuity items that may affect the current-year business return.",
+      })
+    );
+  }
+
+  if (
+    startPath.hasMixedHintedLanes ||
+    startPath.hasHintVsOrganizerConflict ||
+    startPath.ownershipMismatchWithSingleOwnerLane
+  ) {
+    ideas.push(
+      buildLead({
+        id: "entity-and-filing-path-review",
+        title: "Check entity classification and filing path",
+        summary:
+          "Tina should resolve the entity and filing path before deeper prep continues when organizer facts and paper clues do not line up cleanly.",
+        whyItMatters:
+          "Starting in the wrong filing lane can invalidate downstream prep work, so Tina should lock the path before optimizing the return.",
+        category: "compliance",
+        sourceLabels:
+          startPath.returnTypeHintFacts.length > 0
+            ? ["Tina found return-type or ownership signals that do not line up cleanly."]
+            : ["The ownership setup does not fit the single-owner pilot lane cleanly."],
+        factIds: startPath.returnTypeHintFacts.map((fact) => fact.id),
+        documentIds: Array.from(
+          new Set(startPath.returnTypeHintFacts.map((fact) => fact.sourceDocumentId))
+        ),
+        searchPrompt:
+          "Research the correct federal return classification and starting filing lane for this business based on owner count, entity form, tax elections, ownership changes, and any return-type clues in the source papers.",
+      })
+    );
+  }
+
+  if (draft.profile.ownershipChangedDuringYear || startPath.ownershipChangeClue) {
+    ideas.push(
+      buildLead({
+        id: "ownership-transition-review",
+        title: "Check ownership-transition treatment",
+        summary:
+          "Tina should review ownership changes, transfers, or redemption events before trusting the return path or final tax treatment.",
+        whyItMatters:
+          "Ownership transitions can change the filing lane, basis story, and treatment of year-end payments, so Tina should not let them stay implicit.",
+        category: "compliance",
+        sourceLabels:
+          startPath.ownershipChangeClue
+            ? ["Tina found an ownership-change clue in the papers."]
+            : ["The organizer says ownership changed during the year."],
+        factIds: startPath.ownershipChangeClue ? [startPath.ownershipChangeClue.id] : [],
+        documentIds: startPath.ownershipChangeClue
+          ? [startPath.ownershipChangeClue.sourceDocumentId]
+          : [],
+        searchPrompt:
+          "Research the filing-lane and tax-treatment consequences of ownership changes, transfers, redemptions, or buyouts for this business during the current tax year.",
+      })
+    );
+  }
+
+  if (
+    draft.profile.hasFormerOwnerPayments ||
+    draft.profile.hasOwnerBuyoutOrRedemption ||
+    startPath.formerOwnerPaymentClue
+  ) {
+    ideas.push(
+      buildLead({
+        id: "former-owner-payment-review",
+        title: "Check former-owner payment treatment",
+        summary:
+          "Tina should classify payments to a former owner, retiring owner, or redeemed owner before they reach return-facing numbers.",
+        whyItMatters:
+          "Buyout and former-owner payments are easy to misclassify, and the wrong treatment can distort both deductions and entity-level reporting.",
+        category: "compliance",
+        sourceLabels:
+          startPath.formerOwnerPaymentClue
+            ? ["Tina found a former-owner payment clue in the papers."]
+            : ["The organizer says there were buyout or former-owner payments."],
+        factIds: startPath.formerOwnerPaymentClue ? [startPath.formerOwnerPaymentClue.id] : [],
+        documentIds: startPath.formerOwnerPaymentClue
+          ? [startPath.formerOwnerPaymentClue.sourceDocumentId]
+          : [],
+        searchPrompt:
+          "Research the classification and tax treatment of payments to former owners, retiring partners, or redeemed members/shareholders for this business and tax year.",
       })
     );
   }
@@ -280,6 +361,9 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
   }
 
   const contractorFacts = findFactsByLabel(draft.sourceFacts, "Contractor clue");
+  const payrollFacts = findFactsByLabel(draft.sourceFacts, "Payroll clue");
+  const mixedUseFacts = findFactsByLabel(draft.sourceFacts, "Mixed personal/business clue");
+  const depreciationFacts = findFactsByLabel(draft.sourceFacts, "Depreciation clue");
   if (draft.profile.paysContractors || contractorFacts.length > 0) {
     const linkedIds = collectLinkedIds(contractorFacts);
     ideas.push(
@@ -390,7 +474,6 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     );
   }
 
-  const payrollFacts = findFactsByLabel(draft.sourceFacts, "Payroll clue");
   if (draft.profile.hasPayroll || payrollFacts.length > 0) {
     const linkedIds = collectLinkedIds(payrollFacts);
     ideas.push(
@@ -410,6 +493,68 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
         documentIds: linkedIds.documentIds,
         searchPrompt:
           "Review payroll expense support, payroll record completeness, and any payroll-driven tax handling issues that affect the business return.",
+      })
+    );
+  }
+
+  if (payrollFacts.length > 0 && contractorFacts.length > 0) {
+    const linkedIds = collectLinkedIds([...payrollFacts, ...contractorFacts]);
+    ideas.push(
+      buildLead({
+        id: "worker-classification-review",
+        title: "Check worker classification across payroll and contractor flows",
+        summary:
+          "Tina should review whether workers are being handled consistently and correctly when both payroll and contractor signals show up in the same file set.",
+        whyItMatters:
+          "Worker classification mistakes can create both deduction and compliance risk, so Tina should not let mixed signals pass without a review.",
+        category: "compliance",
+        sourceLabels: [
+          "Tina found both payroll and contractor clues in the uploaded papers.",
+        ],
+        factIds: linkedIds.factIds,
+        documentIds: linkedIds.documentIds,
+        searchPrompt:
+          "Research worker-classification and documentation issues when a small business shows both payroll and contractor payments in the same tax-year file set.",
+      })
+    );
+  }
+
+  if (mixedUseFacts.length > 0) {
+    const linkedIds = collectLinkedIds(mixedUseFacts);
+    ideas.push(
+      buildLead({
+        id: "mixed-use-allocation-review",
+        title: "Check mixed personal and business allocation treatment",
+        summary:
+          "Tina should separate mixed personal and business activity before letting those costs affect the return.",
+        whyItMatters:
+          "Mixed-use spending is a common source of overstated deductions, and Tina should force clear allocation support before the package moves forward.",
+        category: "compliance",
+        sourceLabels: ["Tina found mixed personal/business clues in the uploaded papers."],
+        factIds: linkedIds.factIds,
+        documentIds: linkedIds.documentIds,
+        searchPrompt:
+          "Research documentation and allocation standards for mixed personal and business expenses in small-business return prep, including when deductions must be reduced or disallowed.",
+      })
+    );
+  }
+
+  if (depreciationFacts.length > 0) {
+    const linkedIds = collectLinkedIds(depreciationFacts);
+    ideas.push(
+      buildLead({
+        id: "depreciation-support-review",
+        title: "Check depreciation support and asset history",
+        summary:
+          "Tina should verify depreciation support, asset schedule continuity, and placed-in-service facts before those deductions reach the return.",
+        whyItMatters:
+          "Depreciation is easy to get wrong when records are incomplete, and unsupported asset deductions should fail closed instead of flowing through quietly.",
+        category: "deduction",
+        sourceLabels: ["Tina found depreciation or fixed-asset clues in the uploaded papers."],
+        factIds: linkedIds.factIds,
+        documentIds: linkedIds.documentIds,
+        searchPrompt:
+          "Research what documentation and continuity are needed to support depreciation, Section 179, bonus depreciation, and asset-basis history for this business and tax year.",
       })
     );
   }

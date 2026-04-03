@@ -1,0 +1,1894 @@
+{
+  "businessName": "Fracture Studio LLC",
+  "startPath": {
+    "recommendation": {
+      "laneId": "schedule_c_single_member_llc",
+      "title": "Schedule C / Single-Member LLC",
+      "support": "supported",
+      "summary": "Good news. Tina can move forward on this business type right now.",
+      "reasons": [
+        "You picked single-member LLC, and that usually means a Schedule C style return unless a different tax election was made.",
+        "Tina's first fully supported path is built for this kind of business for tax year 2025.",
+        "You also marked payroll, so Tina will ask for payroll records too.",
+        "You marked inventory, so Tina will ask for a little more proof before the package is final."
+      ],
+      "blockers": []
+    },
+    "returnTypeHintFacts": [],
+    "hintedLanes": [],
+    "hasMixedHintedLanes": false,
+    "singleHintedLane": null,
+    "hasHintVsOrganizerConflict": false,
+    "ownershipChangeClue": null,
+    "formerOwnerPaymentClue": null,
+    "ownershipMismatchWithSingleOwnerLane": false,
+    "route": "supported",
+    "confidence": "high",
+    "blockingReasons": [],
+    "reviewReasons": [],
+    "proofRequirements": [],
+    "relatedFactIds": [],
+    "relatedDocumentIds": []
+  },
+  "entityJudgment": {
+    "lastBuiltAt": "2026-04-03T02:32:26.181Z",
+    "status": "complete",
+    "judgmentStatus": "clear_supported",
+    "laneId": "schedule_c_single_member_llc",
+    "likelyFederalTreatment": "Likely disregarded federal treatment flowing to Schedule C.",
+    "summary": "Tina sees a clean supported entity treatment and does not currently need to reroute the file.",
+    "nextStep": "Keep building the supported lane, but preserve the evidence trail for reviewer confirmation.",
+    "reasons": [
+      "You picked single-member LLC, and that usually means a Schedule C style return unless a different tax election was made.",
+      "Tina's first fully supported path is built for this kind of business for tax year 2025.",
+      "You also marked payroll, so Tina will ask for payroll records too.",
+      "You marked inventory, so Tina will ask for a little more proof before the package is final.",
+      "Tina has a reasonably coherent ownership timeline from the current facts."
+    ],
+    "questions": []
+  },
+  "federalReturnRequirements": {
+    "lastBuiltAt": "2026-04-03T02:32:26.181Z",
+    "status": "complete",
+    "laneId": "schedule_c_single_member_llc",
+    "returnFamily": "Form 1040 Schedule C",
+    "canTinaFinishLane": true,
+    "summary": "Tina sees a clean supported federal return family and can keep building the Schedule C core toward reviewer-grade output.",
+    "nextStep": "Keep building the supported Schedule C lane, preserving traceability and reviewer-grade support.",
+    "items": [
+      {
+        "id": "schedule-c-core",
+        "title": "Schedule C core filing set",
+        "status": "ready",
+        "summary": "Tina can build the supported Schedule C core when the facts stay clean and reviewer judgment does not reopen the lane.",
+        "requiredForms": [
+          "Form 1040",
+          "Schedule C",
+          "Schedule SE"
+        ],
+        "requiredRecords": [
+          "Prior-year return",
+          "Primary books or profit-and-loss report",
+          "Bank and card support",
+          "Fixed asset and depreciation schedule",
+          "Payroll reports"
+        ],
+        "reviewerQuestions": []
+      }
+    ]
+  },
+  "treatmentJudgment": {
+    "lastBuiltAt": "2026-04-03T02:32:26.181Z",
+    "status": "complete",
+    "summary": "Tina classified 2 treatment judgment items: 0 use, 2 review, 0 reject.",
+    "nextStep": "Clear the review and reject treatment calls before letting messy items affect final output.",
+    "items": [
+      {
+        "id": "inventory-treatment",
+        "title": "Review inventory and COGS treatment",
+        "summary": "Tina should keep inventory-related costs in review until she knows whether they belong in inventory, cost of goods sold, or current deductions.",
+        "taxPositionBucket": "review",
+        "confidence": "high",
+        "suggestedTreatment": "Do not let inventory-like costs flow straight into ordinary expenses without inventory treatment review.",
+        "nextStep": "Confirm inventory method, year-end inventory, and any small-business simplification path.",
+        "authorityWorkIdeaIds": [
+          "inventory-review"
+        ],
+        "relatedFactIds": [
+          "finv"
+        ],
+        "relatedDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "entity-boundary-treatment",
+        "title": "Review intercompany and related-party treatment",
+        "summary": "Tina should review related-party and intercompany activity before using those balances or flows in ordinary return-facing totals.",
+        "taxPositionBucket": "review",
+        "confidence": "high",
+        "suggestedTreatment": "Keep entity-boundary-sensitive items out of ordinary deductions and income until they are characterized cleanly.",
+        "nextStep": "Confirm whether the amounts are loans, due-to/due-from balances, capital flows, or unrelated business activity.",
+        "authorityWorkIdeaIds": [
+          "intercompany-separation-review",
+          "related-party-transaction-review"
+        ],
+        "relatedFactIds": [
+          "frelated"
+        ],
+        "relatedDocumentIds": [
+          "bank"
+        ]
+      }
+    ]
+  },
+  "packageReadiness": {
+    "lastRunAt": "2026-04-03T02:32:26.181Z",
+    "status": "complete",
+    "level": "blocked",
+    "summary": "Tina found 7 blocking items before this package can be called filing-ready. 8 more items need review after that.",
+    "nextStep": "Work through the blocking items first. Tina should not call this package filing-ready until those are cleared.",
+    "items": [
+      {
+        "id": "treatment-inventory-treatment",
+        "title": "Review inventory and COGS treatment",
+        "summary": "Tina should keep inventory-related costs in review until she knows whether they belong in inventory, cost of goods sold, or current deductions. Confirm inventory method, year-end inventory, and any small-business simplification path.",
+        "severity": "needs_attention",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "treatment-entity-boundary-treatment",
+        "title": "Review intercompany and related-party treatment",
+        "summary": "Tina should review related-party and intercompany activity before using those balances or flows in ordinary return-facing totals. Confirm whether the amounts are loans, due-to/due-from balances, capital flows, or unrelated business activity.",
+        "severity": "needs_attention",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "bank"
+        ]
+      },
+      {
+        "id": "required-prior-return",
+        "title": "Last year's tax return",
+        "summary": "This helps Tina copy over the basics so you do not have to type everything again. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "required-quickbooks",
+        "title": "QuickBooks or your profit-and-loss report",
+        "summary": "Tina needs your main money records so she can start the tax work from the right numbers. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "required-bank-support",
+        "title": "Business bank and card statements",
+        "summary": "These help Tina check that the book numbers match the real money moving in and out. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "required-payroll",
+        "title": "Payroll reports and W-2 papers",
+        "summary": "Tina needs this to check wages, payroll costs, and related deductions. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": []
+      },
+      {
+        "id": "adjustment-authority-t13",
+        "title": "Depreciation and section 179",
+        "summary": "Tina still needs authority proof or reviewer approval before this tax move can safely reach the filing package.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "assets"
+        ]
+      },
+      {
+        "id": "adjustment-review-t4",
+        "title": "Inventory reserve treatment",
+        "summary": "This tax move is waiting for a human review call before Tina can treat the package as filing-ready.",
+        "severity": "blocking",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "field-waiting-line-27a-other-expenses",
+        "title": "Line 27a: Other expenses",
+        "summary": "Mixed-use and owner-flow contamination still unresolved",
+        "severity": "blocking",
+        "relatedFieldIds": [
+          "line-27a-other-expenses"
+        ],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "bank"
+        ]
+      },
+      {
+        "id": "field-review-line-4-cogs",
+        "title": "Line 4: Cost of goods sold",
+        "summary": "Reserve needs review",
+        "severity": "needs_attention",
+        "relatedFieldIds": [
+          "line-4-cogs"
+        ],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "field-review-line-13-depreciation",
+        "title": "Line 13: Depreciation and section 179",
+        "summary": "Needs reviewer support",
+        "severity": "needs_attention",
+        "relatedFieldIds": [
+          "line-13-depreciation"
+        ],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "assets"
+        ]
+      },
+      {
+        "id": "field-review-line-24a-travel",
+        "title": "Line 24a: Travel",
+        "summary": "Mixed travel support",
+        "severity": "needs_attention",
+        "relatedFieldIds": [
+          "line-24a-travel"
+        ],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "bank"
+        ]
+      },
+      {
+        "id": "field-review-line-28-total-expenses",
+        "title": "Line 28: Total expenses",
+        "summary": "Math intentionally broken for smoke test.",
+        "severity": "needs_attention",
+        "relatedFieldIds": [
+          "line-28-total-expenses"
+        ],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "field-review-line-31-tentative-net",
+        "title": "Line 31: Net profit or loss",
+        "summary": "Net result intentionally broken for smoke test.",
+        "severity": "needs_attention",
+        "relatedFieldIds": [
+          "line-31-tentative-net"
+        ],
+        "relatedNoteIds": [],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "note-note-mixed",
+        "title": "Mixed-use spending still unresolved",
+        "summary": "Personal and business charges remain commingled.",
+        "severity": "needs_attention",
+        "relatedFieldIds": [],
+        "relatedNoteIds": [
+          "note-mixed"
+        ],
+        "relatedReviewItemIds": [],
+        "sourceDocumentIds": [
+          "bank"
+        ]
+      }
+    ]
+  },
+  "formReadiness": {
+    "lastBuiltAt": "2026-04-03T02:32:26.182Z",
+    "level": "not_ready",
+    "summary": "Tina still sees 13 blockers before she can call this form output ready.",
+    "nextStep": "Clear the blockers before treating the form output as reviewer-ready or final.",
+    "reasons": [
+      {
+        "id": "treatment-inventory-treatment",
+        "title": "Review inventory and COGS treatment",
+        "summary": "Tina should keep inventory-related costs in review until she knows whether they belong in inventory, cost of goods sold, or current deductions. Confirm inventory method, year-end inventory, and any small-business simplification path.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "treatment-entity-boundary-treatment",
+        "title": "Review intercompany and related-party treatment",
+        "summary": "Tina should review related-party and intercompany activity before using those balances or flows in ordinary return-facing totals. Confirm whether the amounts are loans, due-to/due-from balances, capital flows, or unrelated business activity.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "validation-review-schedule-c-line-4",
+        "title": "Line 4 still needs attention",
+        "summary": "Tina has a value for Cost of goods sold, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "validation-review-schedule-c-line-7",
+        "title": "Line 7 still needs attention",
+        "summary": "Tina has a value for Gross income, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "validation-review-schedule-c-line-13",
+        "title": "Line 13 still needs attention",
+        "summary": "Tina has a value for Depreciation and section 179, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "validation-review-schedule-c-line-24a",
+        "title": "Line 24a still needs attention",
+        "summary": "Tina has a value for Travel, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "validation-waiting-schedule-c-line-27a",
+        "title": "Line 27a is still waiting",
+        "summary": "Tina does not have a stable value for Other expenses yet, so the form should not be treated as final.",
+        "severity": "blocking"
+      },
+      {
+        "id": "validation-review-schedule-c-line-28",
+        "title": "Line 28 still needs attention",
+        "summary": "Tina has a value for Total expenses, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "validation-review-schedule-c-line-29",
+        "title": "Line 29 still needs attention",
+        "summary": "Tina has a value for Tentative profit or loss, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "validation-review-schedule-c-line-31",
+        "title": "Line 31 still needs attention",
+        "summary": "Tina has a value for Net profit or loss, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "validation-readiness-required-prior-return",
+        "title": "Last year's tax return",
+        "summary": "This helps Tina copy over the basics so you do not have to type everything again. Tina should get this before calling the package ready.",
+        "severity": "blocking"
+      },
+      {
+        "id": "validation-readiness-required-quickbooks",
+        "title": "QuickBooks or your profit-and-loss report",
+        "summary": "Tina needs your main money records so she can start the tax work from the right numbers. Tina should get this before calling the package ready.",
+        "severity": "blocking"
+      },
+      {
+        "id": "validation-readiness-required-bank-support",
+        "title": "Business bank and card statements",
+        "summary": "These help Tina check that the book numbers match the real money moving in and out. Tina should get this before calling the package ready.",
+        "severity": "blocking"
+      },
+      {
+        "id": "validation-readiness-required-payroll",
+        "title": "Payroll reports and W-2 papers",
+        "summary": "Tina needs this to check wages, payroll costs, and related deductions. Tina should get this before calling the package ready.",
+        "severity": "blocking"
+      },
+      {
+        "id": "validation-readiness-adjustment-authority-t13",
+        "title": "Depreciation and section 179",
+        "summary": "Tina still needs authority proof or reviewer approval before this tax move can safely reach the filing package.",
+        "severity": "blocking"
+      },
+      {
+        "id": "validation-readiness-adjustment-review-t4",
+        "title": "Inventory reserve treatment",
+        "summary": "This tax move is waiting for a human review call before Tina can treat the package as filing-ready.",
+        "severity": "blocking"
+      },
+      {
+        "id": "validation-readiness-field-waiting-line-27a-other-expenses",
+        "title": "Line 27a: Other expenses",
+        "summary": "Mixed-use and owner-flow contamination still unresolved",
+        "severity": "blocking"
+      },
+      {
+        "id": "validation-total-expenses-cross-check",
+        "title": "Line 28 does not reconcile to component expense lines",
+        "summary": "Tina's total expenses line should equal the supported expense component lines she mapped into the form. She should stop and fix this before printing.",
+        "severity": "blocking"
+      },
+      {
+        "id": "validation-net-profit-cross-check",
+        "title": "Line 31 does not reconcile to line 29",
+        "summary": "Tina's current net profit line should match the tentative profit calculation for this supported lane. She should stop and fix this before printing.",
+        "severity": "blocking"
+      },
+      {
+        "id": "validation-draft-note-note-mixed",
+        "title": "Mixed-use spending still unresolved",
+        "summary": "Personal and business charges remain commingled.",
+        "severity": "blocking"
+      },
+      {
+        "id": "books-related-party-normalization",
+        "title": "Related-party activity still needs characterization",
+        "summary": "Tina found related-party transaction clues and should not trust book labels alone for characterization, deductibility, or disclosure.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "coverage-part-ii-expenses-core",
+        "title": "Part II core expense lines",
+        "summary": "Tina covers a larger supported expense subset now, but uncategorized other expenses still keep Part II only partially covered.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "coverage-other-expenses-statement",
+        "title": "Other expenses statement support",
+        "summary": "Tina is carrying other expenses on line 27a, but detailed statement support still belongs in reviewer attention.",
+        "severity": "needs_attention"
+      },
+      {
+        "id": "coverage-inventory-cogs-support",
+        "title": "Inventory and Part III COGS support",
+        "summary": "Inventory or COGS signals exist, so Tina should not imply full Part III support yet.",
+        "severity": "blocking"
+      },
+      {
+        "id": "coverage-depreciation-and-4562",
+        "title": "Depreciation and Form 4562 support",
+        "summary": "Fixed-asset or depreciation facts exist, so Tina should not imply full depreciation attachment support yet.",
+        "severity": "blocking"
+      }
+    ]
+  },
+  "operationalStatus": {
+    "lastRunAt": "2026-04-03T02:32:26.190Z",
+    "maturity": "foundation",
+    "packageState": "provisional",
+    "summary": "Tina is still in foundation mode.",
+    "nextStep": "Clear the remaining blockers and continue reviewer-grade hardening.",
+    "truths": [
+      "Supported lane today: schedule_c_single_member_llc.",
+      "Start path currently points to Schedule C / Single-Member LLC with high confidence.",
+      "Start-path proof requirements are currently covered.",
+      "Entity treatment judgment: clear supported.",
+      "Federal return family: Form 1040 Schedule C.",
+      "Tina can finish the current federal return lane.",
+      "Ownership timeline events: 1.",
+      "Immutable package snapshots are not captured yet.",
+      "QuickBooks live connection is not set up yet.",
+      "Schedule C form validation issues: 18.",
+      "Supported Part II expense boxes with amounts: 2.",
+      "Uncategorized other expenses still remain on line 27a: 18000.",
+      "Official-form coverage items: 8.",
+      "Official-form readiness: not ready.",
+      "Schedule C form trace lines available: 17.",
+      "Books-normalization issues detected: 2.",
+      "Reviewer challenge forecast items: 32.",
+      "Treatment judgment items: 2.",
+      "No reviewer decisions recorded yet."
+    ],
+    "blockers": []
+  },
+  "scheduleCReturn": {
+    "lastBuiltAt": "2026-04-03T02:32:26.190Z",
+    "status": "complete",
+    "summary": "Tina built a Schedule C return snapshot, but 11 blocking issues still prevent form-ready output.",
+    "nextStep": "Clear the blocking form issues before treating this Schedule C as printable or review-ready.",
+    "header": {
+      "businessName": "Fracture Studio LLC",
+      "taxYear": "2025",
+      "principalBusinessActivity": "Set design and prop resale",
+      "naicsCode": "711510",
+      "accountingMethod": "cash",
+      "entityType": "single_member_llc"
+    },
+    "businessName": "Fracture Studio LLC",
+    "taxYear": "2025",
+    "laneId": "schedule_c_single_member_llc",
+    "fields": [
+      {
+        "id": "schedule-c-line-1",
+        "lineNumber": "Line 1",
+        "formKey": "grossReceipts",
+        "label": "Gross receipts or sales",
+        "amount": 95000,
+        "status": "ready",
+        "sourceFieldIds": [
+          "line-1-gross-receipts"
+        ]
+      },
+      {
+        "id": "schedule-c-line-4",
+        "lineNumber": "Line 4",
+        "formKey": "costOfGoodsSold",
+        "label": "Cost of goods sold",
+        "amount": 30000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-4-cogs"
+        ]
+      },
+      {
+        "id": "schedule-c-line-7",
+        "lineNumber": "Line 7",
+        "formKey": "grossIncome",
+        "label": "Gross income",
+        "amount": 65000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-1-gross-receipts",
+          "line-4-cogs"
+        ]
+      },
+      {
+        "id": "schedule-c-line-8",
+        "lineNumber": "Line 8",
+        "formKey": "advertising",
+        "label": "Advertising",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": []
+      },
+      {
+        "id": "schedule-c-line-11",
+        "lineNumber": "Line 11",
+        "formKey": "contractLabor",
+        "label": "Contract labor",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": []
+      },
+      {
+        "id": "schedule-c-line-13",
+        "lineNumber": "Line 13",
+        "formKey": "depreciation",
+        "label": "Depreciation and section 179",
+        "amount": 14000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-13-depreciation"
+        ]
+      },
+      {
+        "id": "schedule-c-line-18",
+        "lineNumber": "Line 18",
+        "formKey": "officeExpense",
+        "label": "Office expense",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": []
+      },
+      {
+        "id": "schedule-c-line-20",
+        "lineNumber": "Line 20",
+        "formKey": "rentOrLease",
+        "label": "Rent or lease",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": []
+      },
+      {
+        "id": "schedule-c-line-22",
+        "lineNumber": "Line 22",
+        "formKey": "supplies",
+        "label": "Supplies",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": []
+      },
+      {
+        "id": "schedule-c-line-23",
+        "lineNumber": "Line 23",
+        "formKey": "taxesAndLicenses",
+        "label": "Taxes and licenses",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": []
+      },
+      {
+        "id": "schedule-c-line-24a",
+        "lineNumber": "Line 24a",
+        "formKey": "travel",
+        "label": "Travel",
+        "amount": 6700,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-24a-travel"
+        ]
+      },
+      {
+        "id": "schedule-c-line-24b",
+        "lineNumber": "Line 24b",
+        "formKey": "deductibleMeals",
+        "label": "Deductible meals",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": []
+      },
+      {
+        "id": "schedule-c-line-26",
+        "lineNumber": "Line 26",
+        "formKey": "wages",
+        "label": "Wages",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": []
+      },
+      {
+        "id": "schedule-c-line-27a",
+        "lineNumber": "Line 27a",
+        "formKey": "otherExpenses",
+        "label": "Other expenses",
+        "amount": 18000,
+        "status": "waiting",
+        "sourceFieldIds": [
+          "line-27a-other-expenses"
+        ]
+      },
+      {
+        "id": "schedule-c-line-28",
+        "lineNumber": "Line 28",
+        "formKey": "totalExpenses",
+        "label": "Total expenses",
+        "amount": 52000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-28-total-expenses"
+        ]
+      },
+      {
+        "id": "schedule-c-line-29",
+        "lineNumber": "Line 29",
+        "formKey": "tentativeProfit",
+        "label": "Tentative profit or loss",
+        "amount": 13000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-1-gross-receipts",
+          "line-4-cogs",
+          "line-28-total-expenses"
+        ]
+      },
+      {
+        "id": "schedule-c-line-31",
+        "lineNumber": "Line 31",
+        "formKey": "netProfitOrLoss",
+        "label": "Net profit or loss",
+        "amount": 61000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-31-tentative-net"
+        ]
+      }
+    ],
+    "validationIssues": [
+      {
+        "id": "review-schedule-c-line-4",
+        "title": "Line 4 still needs attention",
+        "summary": "Tina has a value for Cost of goods sold, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "relatedLineNumbers": [
+          "Line 4"
+        ]
+      },
+      {
+        "id": "review-schedule-c-line-7",
+        "title": "Line 7 still needs attention",
+        "summary": "Tina has a value for Gross income, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "relatedLineNumbers": [
+          "Line 7"
+        ]
+      },
+      {
+        "id": "review-schedule-c-line-13",
+        "title": "Line 13 still needs attention",
+        "summary": "Tina has a value for Depreciation and section 179, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "relatedLineNumbers": [
+          "Line 13"
+        ]
+      },
+      {
+        "id": "review-schedule-c-line-24a",
+        "title": "Line 24a still needs attention",
+        "summary": "Tina has a value for Travel, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "relatedLineNumbers": [
+          "Line 24a"
+        ]
+      },
+      {
+        "id": "waiting-schedule-c-line-27a",
+        "title": "Line 27a is still waiting",
+        "summary": "Tina does not have a stable value for Other expenses yet, so the form should not be treated as final.",
+        "severity": "blocking",
+        "relatedLineNumbers": [
+          "Line 27a"
+        ]
+      },
+      {
+        "id": "review-schedule-c-line-28",
+        "title": "Line 28 still needs attention",
+        "summary": "Tina has a value for Total expenses, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "relatedLineNumbers": [
+          "Line 28"
+        ]
+      },
+      {
+        "id": "review-schedule-c-line-29",
+        "title": "Line 29 still needs attention",
+        "summary": "Tina has a value for Tentative profit or loss, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "relatedLineNumbers": [
+          "Line 29"
+        ]
+      },
+      {
+        "id": "review-schedule-c-line-31",
+        "title": "Line 31 still needs attention",
+        "summary": "Tina has a value for Net profit or loss, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "relatedLineNumbers": [
+          "Line 31"
+        ]
+      },
+      {
+        "id": "readiness-required-prior-return",
+        "title": "Last year's tax return",
+        "summary": "This helps Tina copy over the basics so you do not have to type everything again. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "readiness-required-quickbooks",
+        "title": "QuickBooks or your profit-and-loss report",
+        "summary": "Tina needs your main money records so she can start the tax work from the right numbers. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "readiness-required-bank-support",
+        "title": "Business bank and card statements",
+        "summary": "These help Tina check that the book numbers match the real money moving in and out. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "readiness-required-payroll",
+        "title": "Payroll reports and W-2 papers",
+        "summary": "Tina needs this to check wages, payroll costs, and related deductions. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "readiness-adjustment-authority-t13",
+        "title": "Depreciation and section 179",
+        "summary": "Tina still needs authority proof or reviewer approval before this tax move can safely reach the filing package.",
+        "severity": "blocking",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "readiness-adjustment-review-t4",
+        "title": "Inventory reserve treatment",
+        "summary": "This tax move is waiting for a human review call before Tina can treat the package as filing-ready.",
+        "severity": "blocking",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "readiness-field-waiting-line-27a-other-expenses",
+        "title": "Line 27a: Other expenses",
+        "summary": "Mixed-use and owner-flow contamination still unresolved",
+        "severity": "blocking",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "total-expenses-cross-check",
+        "title": "Line 28 does not reconcile to component expense lines",
+        "summary": "Tina's total expenses line should equal the supported expense component lines she mapped into the form. She should stop and fix this before printing.",
+        "severity": "blocking",
+        "relatedLineNumbers": [
+          "Line 8",
+          "Line 11",
+          "Line 13",
+          "Line 18",
+          "Line 20",
+          "Line 22",
+          "Line 23",
+          "Line 24a",
+          "Line 24b",
+          "Line 26",
+          "Line 27a",
+          "Line 28"
+        ]
+      },
+      {
+        "id": "net-profit-cross-check",
+        "title": "Line 31 does not reconcile to line 29",
+        "summary": "Tina's current net profit line should match the tentative profit calculation for this supported lane. She should stop and fix this before printing.",
+        "severity": "blocking",
+        "relatedLineNumbers": [
+          "Line 29",
+          "Line 31"
+        ]
+      },
+      {
+        "id": "draft-note-note-mixed",
+        "title": "Mixed-use spending still unresolved",
+        "summary": "Personal and business charges remain commingled.",
+        "severity": "blocking",
+        "relatedLineNumbers": []
+      }
+    ]
+  },
+  "formCoverage": {
+    "lastBuiltAt": "2026-04-03T02:32:26.190Z",
+    "summary": "Tina sees 2 unsupported Schedule C sections and 2 sections that still need reviewer attention.",
+    "nextStep": "Do not market this output as full official-form support until the unsupported sections are explicitly handled or ruled out.",
+    "items": [
+      {
+        "id": "header-identity",
+        "title": "Header and business identity",
+        "status": "covered",
+        "summary": "Tina has the core header identity fields needed for the current Schedule C output.",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "part-i-income",
+        "title": "Part I income lines",
+        "status": "covered",
+        "summary": "Tina covers the core supported income math for lines 1, 4, and 7 in the current Schedule C lane.",
+        "relatedLineNumbers": [
+          "Line 1",
+          "Line 4",
+          "Line 7"
+        ]
+      },
+      {
+        "id": "part-ii-expenses-core",
+        "title": "Part II core expense lines",
+        "status": "partial",
+        "summary": "Tina covers a larger supported expense subset now, but uncategorized other expenses still keep Part II only partially covered.",
+        "relatedLineNumbers": [
+          "Line 8",
+          "Line 11",
+          "Line 13",
+          "Line 18",
+          "Line 20",
+          "Line 22",
+          "Line 23",
+          "Line 24a",
+          "Line 24b",
+          "Line 26",
+          "Line 27a",
+          "Line 28",
+          "Line 31"
+        ]
+      },
+      {
+        "id": "other-expenses-statement",
+        "title": "Other expenses statement support",
+        "status": "needs_review",
+        "summary": "Tina is carrying other expenses on line 27a, but detailed statement support still belongs in reviewer attention.",
+        "relatedLineNumbers": [
+          "Line 27a"
+        ]
+      },
+      {
+        "id": "inventory-cogs-support",
+        "title": "Inventory and Part III COGS support",
+        "status": "unsupported",
+        "summary": "Inventory or COGS signals exist, so Tina should not imply full Part III support yet.",
+        "relatedLineNumbers": [
+          "Line 4"
+        ]
+      },
+      {
+        "id": "depreciation-and-4562",
+        "title": "Depreciation and Form 4562 support",
+        "status": "unsupported",
+        "summary": "Fixed-asset or depreciation facts exist, so Tina should not imply full depreciation attachment support yet.",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "vehicle-information",
+        "title": "Vehicle information support",
+        "status": "covered",
+        "summary": "Tina does not currently see vehicle-use facts that require Schedule C vehicle support.",
+        "relatedLineNumbers": []
+      },
+      {
+        "id": "home-office-support",
+        "title": "Home office support",
+        "status": "covered",
+        "summary": "Tina does not currently see home-office facts that require a home-office calculation path.",
+        "relatedLineNumbers": []
+      }
+    ]
+  },
+  "formTrace": {
+    "lastBuiltAt": "2026-04-03T02:32:26.190Z",
+    "status": "complete",
+    "summary": "Tina traced 9 of 17 Schedule C form lines back to draft fields and evidence.",
+    "nextStep": "Fill the remaining source-to-form gaps before treating the package as reviewer-grade.",
+    "lines": [
+      {
+        "id": "trace-schedule-c-line-1",
+        "lineNumber": "Line 1",
+        "formKey": "grossReceipts",
+        "label": "Gross receipts or sales",
+        "amount": 95000,
+        "status": "ready",
+        "sourceFieldIds": [
+          "line-1-gross-receipts"
+        ],
+        "reviewerFinalLineIds": [
+          "rf1"
+        ],
+        "taxAdjustmentIds": [
+          "t1"
+        ],
+        "sourceDocumentIds": [
+          "qb"
+        ],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal."
+      },
+      {
+        "id": "trace-schedule-c-line-4",
+        "lineNumber": "Line 4",
+        "formKey": "costOfGoodsSold",
+        "label": "Cost of goods sold",
+        "amount": 30000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-4-cogs"
+        ],
+        "reviewerFinalLineIds": [
+          "rf4"
+        ],
+        "taxAdjustmentIds": [
+          "t4"
+        ],
+        "sourceDocumentIds": [
+          "qb"
+        ],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal."
+      },
+      {
+        "id": "trace-schedule-c-line-7",
+        "lineNumber": "Line 7",
+        "formKey": "grossIncome",
+        "label": "Gross income",
+        "amount": 65000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-1-gross-receipts",
+          "line-4-cogs"
+        ],
+        "reviewerFinalLineIds": [
+          "rf1",
+          "rf4"
+        ],
+        "taxAdjustmentIds": [
+          "t1",
+          "t4"
+        ],
+        "sourceDocumentIds": [
+          "qb"
+        ],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal."
+      },
+      {
+        "id": "trace-schedule-c-line-8",
+        "lineNumber": "Line 8",
+        "formKey": "advertising",
+        "label": "Advertising",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": [],
+        "reviewerFinalLineIds": [],
+        "taxAdjustmentIds": [],
+        "sourceDocumentIds": [],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "This line currently carries no amount, so Tina does not need deeper evidence support yet."
+      },
+      {
+        "id": "trace-schedule-c-line-11",
+        "lineNumber": "Line 11",
+        "formKey": "contractLabor",
+        "label": "Contract labor",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": [],
+        "reviewerFinalLineIds": [],
+        "taxAdjustmentIds": [],
+        "sourceDocumentIds": [],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "This line currently carries no amount, so Tina does not need deeper evidence support yet."
+      },
+      {
+        "id": "trace-schedule-c-line-13",
+        "lineNumber": "Line 13",
+        "formKey": "depreciation",
+        "label": "Depreciation and section 179",
+        "amount": 14000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-13-depreciation"
+        ],
+        "reviewerFinalLineIds": [
+          "rf13"
+        ],
+        "taxAdjustmentIds": [
+          "t13"
+        ],
+        "sourceDocumentIds": [
+          "assets"
+        ],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal."
+      },
+      {
+        "id": "trace-schedule-c-line-18",
+        "lineNumber": "Line 18",
+        "formKey": "officeExpense",
+        "label": "Office expense",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": [],
+        "reviewerFinalLineIds": [],
+        "taxAdjustmentIds": [],
+        "sourceDocumentIds": [],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "This line currently carries no amount, so Tina does not need deeper evidence support yet."
+      },
+      {
+        "id": "trace-schedule-c-line-20",
+        "lineNumber": "Line 20",
+        "formKey": "rentOrLease",
+        "label": "Rent or lease",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": [],
+        "reviewerFinalLineIds": [],
+        "taxAdjustmentIds": [],
+        "sourceDocumentIds": [],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "This line currently carries no amount, so Tina does not need deeper evidence support yet."
+      },
+      {
+        "id": "trace-schedule-c-line-22",
+        "lineNumber": "Line 22",
+        "formKey": "supplies",
+        "label": "Supplies",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": [],
+        "reviewerFinalLineIds": [],
+        "taxAdjustmentIds": [],
+        "sourceDocumentIds": [],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "This line currently carries no amount, so Tina does not need deeper evidence support yet."
+      },
+      {
+        "id": "trace-schedule-c-line-23",
+        "lineNumber": "Line 23",
+        "formKey": "taxesAndLicenses",
+        "label": "Taxes and licenses",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": [],
+        "reviewerFinalLineIds": [],
+        "taxAdjustmentIds": [],
+        "sourceDocumentIds": [],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "This line currently carries no amount, so Tina does not need deeper evidence support yet."
+      },
+      {
+        "id": "trace-schedule-c-line-24a",
+        "lineNumber": "Line 24a",
+        "formKey": "travel",
+        "label": "Travel",
+        "amount": 6700,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-24a-travel"
+        ],
+        "reviewerFinalLineIds": [
+          "rf24a"
+        ],
+        "taxAdjustmentIds": [
+          "t24a"
+        ],
+        "sourceDocumentIds": [
+          "bank"
+        ],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal."
+      },
+      {
+        "id": "trace-schedule-c-line-24b",
+        "lineNumber": "Line 24b",
+        "formKey": "deductibleMeals",
+        "label": "Deductible meals",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": [],
+        "reviewerFinalLineIds": [],
+        "taxAdjustmentIds": [],
+        "sourceDocumentIds": [],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "This line currently carries no amount, so Tina does not need deeper evidence support yet."
+      },
+      {
+        "id": "trace-schedule-c-line-26",
+        "lineNumber": "Line 26",
+        "formKey": "wages",
+        "label": "Wages",
+        "amount": 0,
+        "status": "ready",
+        "sourceFieldIds": [],
+        "reviewerFinalLineIds": [],
+        "taxAdjustmentIds": [],
+        "sourceDocumentIds": [],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "This line currently carries no amount, so Tina does not need deeper evidence support yet."
+      },
+      {
+        "id": "trace-schedule-c-line-27a",
+        "lineNumber": "Line 27a",
+        "formKey": "otherExpenses",
+        "label": "Other expenses",
+        "amount": 18000,
+        "status": "waiting",
+        "sourceFieldIds": [
+          "line-27a-other-expenses"
+        ],
+        "reviewerFinalLineIds": [
+          "rf27a"
+        ],
+        "taxAdjustmentIds": [
+          "t27a"
+        ],
+        "sourceDocumentIds": [
+          "bank"
+        ],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal."
+      },
+      {
+        "id": "trace-schedule-c-line-28",
+        "lineNumber": "Line 28",
+        "formKey": "totalExpenses",
+        "label": "Total expenses",
+        "amount": 52000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-28-total-expenses"
+        ],
+        "reviewerFinalLineIds": [],
+        "taxAdjustmentIds": [],
+        "sourceDocumentIds": [
+          "qb"
+        ],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal."
+      },
+      {
+        "id": "trace-schedule-c-line-29",
+        "lineNumber": "Line 29",
+        "formKey": "tentativeProfit",
+        "label": "Tentative profit or loss",
+        "amount": 13000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-1-gross-receipts",
+          "line-4-cogs",
+          "line-28-total-expenses"
+        ],
+        "reviewerFinalLineIds": [
+          "rf1",
+          "rf4"
+        ],
+        "taxAdjustmentIds": [
+          "t1",
+          "t4"
+        ],
+        "sourceDocumentIds": [
+          "qb"
+        ],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal."
+      },
+      {
+        "id": "trace-schedule-c-line-31",
+        "lineNumber": "Line 31",
+        "formKey": "netProfitOrLoss",
+        "label": "Net profit or loss",
+        "amount": 61000,
+        "status": "needs_attention",
+        "sourceFieldIds": [
+          "line-31-tentative-net"
+        ],
+        "reviewerFinalLineIds": [],
+        "taxAdjustmentIds": [],
+        "sourceDocumentIds": [
+          "qb"
+        ],
+        "sourceFactIds": [],
+        "evidenceSupportLevel": "moderate",
+        "evidenceSupportSummary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal."
+      }
+    ]
+  },
+  "booksNormalization": {
+    "lastBuiltAt": "2026-04-03T02:32:26.190Z",
+    "status": "complete",
+    "summary": "Tina found 2 books-normalization issues, including 0 blockers and 1 review item.",
+    "nextStep": "Review the remaining bookkeeping classification issues before signoff.",
+    "issues": [
+      {
+        "id": "related-party-normalization",
+        "title": "Related-party activity still needs characterization",
+        "summary": "Tina found related-party transaction clues and should not trust book labels alone for characterization, deductibility, or disclosure.",
+        "severity": "needs_attention",
+        "sourceLabels": [
+          "Related-party balances or transactions appear in the books or papers."
+        ],
+        "factIds": [
+          "frelated"
+        ],
+        "documentIds": [
+          "bank"
+        ]
+      },
+      {
+        "id": "fixed-asset-normalization",
+        "title": "Fixed-asset support still needs normalization",
+        "summary": "Tina should reconcile fixed-asset history, placed-in-service timing, and depreciation support before those deductions are trusted.",
+        "severity": "watch",
+        "sourceLabels": [
+          "Fixed-asset or depreciation activity needs asset-history support."
+        ],
+        "factIds": [],
+        "documentIds": []
+      }
+    ]
+  },
+  "reviewerChallenges": {
+    "lastBuiltAt": "2026-04-03T02:32:26.191Z",
+    "status": "complete",
+    "summary": "Tina sees 13 blocking reviewer challenges that could force a CPA to stop or reroute the file.",
+    "nextStep": "Clear the blocking challenge points first so Tina is not asking a reviewer to rescue the package.",
+    "items": [
+      {
+        "id": "evidence-trace-schedule-c-line-1",
+        "title": "Line 1 Gross receipts or sales may not survive skeptical review cleanly",
+        "summary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal.",
+        "severity": "needs_attention",
+        "category": "evidence",
+        "relatedLineNumbers": [
+          "Line 1"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "evidence-trace-schedule-c-line-4",
+        "title": "Line 4 Cost of goods sold may not survive skeptical review cleanly",
+        "summary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal.",
+        "severity": "needs_attention",
+        "category": "evidence",
+        "relatedLineNumbers": [
+          "Line 4"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "evidence-trace-schedule-c-line-7",
+        "title": "Line 7 Gross income may not survive skeptical review cleanly",
+        "summary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal.",
+        "severity": "needs_attention",
+        "category": "evidence",
+        "relatedLineNumbers": [
+          "Line 7"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "evidence-trace-schedule-c-line-13",
+        "title": "Line 13 Depreciation and section 179 may not survive skeptical review cleanly",
+        "summary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal.",
+        "severity": "needs_attention",
+        "category": "evidence",
+        "relatedLineNumbers": [
+          "Line 13"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": [
+          "assets"
+        ]
+      },
+      {
+        "id": "evidence-trace-schedule-c-line-24a",
+        "title": "Line 24a Travel may not survive skeptical review cleanly",
+        "summary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal.",
+        "severity": "needs_attention",
+        "category": "evidence",
+        "relatedLineNumbers": [
+          "Line 24a"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": [
+          "bank"
+        ]
+      },
+      {
+        "id": "evidence-trace-schedule-c-line-27a",
+        "title": "Line 27a Other expenses may not survive skeptical review cleanly",
+        "summary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal.",
+        "severity": "needs_attention",
+        "category": "evidence",
+        "relatedLineNumbers": [
+          "Line 27a"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": [
+          "bank"
+        ]
+      },
+      {
+        "id": "evidence-trace-schedule-c-line-28",
+        "title": "Line 28 Total expenses may not survive skeptical review cleanly",
+        "summary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal.",
+        "severity": "needs_attention",
+        "category": "evidence",
+        "relatedLineNumbers": [
+          "Line 28"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "evidence-trace-schedule-c-line-29",
+        "title": "Line 29 Tentative profit or loss may not survive skeptical review cleanly",
+        "summary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal.",
+        "severity": "needs_attention",
+        "category": "evidence",
+        "relatedLineNumbers": [
+          "Line 29"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "evidence-trace-schedule-c-line-31",
+        "title": "Line 31 Net profit or loss may not survive skeptical review cleanly",
+        "summary": "Tina can trace this line to mapped draft support and source documents, but the fact trail is still thinner than ideal.",
+        "severity": "needs_attention",
+        "category": "evidence",
+        "relatedLineNumbers": [
+          "Line 31"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": [
+          "qb"
+        ]
+      },
+      {
+        "id": "validation-review-schedule-c-line-4",
+        "title": "Line 4 still needs attention",
+        "summary": "Tina has a value for Cost of goods sold, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "category": "validation",
+        "relatedLineNumbers": [
+          "Line 4"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-review-schedule-c-line-7",
+        "title": "Line 7 still needs attention",
+        "summary": "Tina has a value for Gross income, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "category": "validation",
+        "relatedLineNumbers": [
+          "Line 7"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-review-schedule-c-line-13",
+        "title": "Line 13 still needs attention",
+        "summary": "Tina has a value for Depreciation and section 179, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "category": "validation",
+        "relatedLineNumbers": [
+          "Line 13"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-review-schedule-c-line-24a",
+        "title": "Line 24a still needs attention",
+        "summary": "Tina has a value for Travel, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "category": "validation",
+        "relatedLineNumbers": [
+          "Line 24a"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-waiting-schedule-c-line-27a",
+        "title": "Line 27a is still waiting",
+        "summary": "Tina does not have a stable value for Other expenses yet, so the form should not be treated as final.",
+        "severity": "blocking",
+        "category": "validation",
+        "relatedLineNumbers": [
+          "Line 27a"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-review-schedule-c-line-28",
+        "title": "Line 28 still needs attention",
+        "summary": "Tina has a value for Total expenses, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "category": "validation",
+        "relatedLineNumbers": [
+          "Line 28"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-review-schedule-c-line-29",
+        "title": "Line 29 still needs attention",
+        "summary": "Tina has a value for Tentative profit or loss, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "category": "validation",
+        "relatedLineNumbers": [
+          "Line 29"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-review-schedule-c-line-31",
+        "title": "Line 31 still needs attention",
+        "summary": "Tina has a value for Net profit or loss, but a reviewer should resolve the open note before trusting the form.",
+        "severity": "needs_attention",
+        "category": "validation",
+        "relatedLineNumbers": [
+          "Line 31"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-readiness-required-prior-return",
+        "title": "Last year's tax return",
+        "summary": "This helps Tina copy over the basics so you do not have to type everything again. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "category": "validation",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-readiness-required-quickbooks",
+        "title": "QuickBooks or your profit-and-loss report",
+        "summary": "Tina needs your main money records so she can start the tax work from the right numbers. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "category": "validation",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-readiness-required-bank-support",
+        "title": "Business bank and card statements",
+        "summary": "These help Tina check that the book numbers match the real money moving in and out. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "category": "validation",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-readiness-required-payroll",
+        "title": "Payroll reports and W-2 papers",
+        "summary": "Tina needs this to check wages, payroll costs, and related deductions. Tina should get this before calling the package ready.",
+        "severity": "blocking",
+        "category": "validation",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-readiness-adjustment-authority-t13",
+        "title": "Depreciation and section 179",
+        "summary": "Tina still needs authority proof or reviewer approval before this tax move can safely reach the filing package.",
+        "severity": "blocking",
+        "category": "validation",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-readiness-adjustment-review-t4",
+        "title": "Inventory reserve treatment",
+        "summary": "This tax move is waiting for a human review call before Tina can treat the package as filing-ready.",
+        "severity": "blocking",
+        "category": "validation",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-readiness-field-waiting-line-27a-other-expenses",
+        "title": "Line 27a: Other expenses",
+        "summary": "Mixed-use and owner-flow contamination still unresolved",
+        "severity": "blocking",
+        "category": "validation",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-total-expenses-cross-check",
+        "title": "Line 28 does not reconcile to component expense lines",
+        "summary": "Tina's total expenses line should equal the supported expense component lines she mapped into the form. She should stop and fix this before printing.",
+        "severity": "blocking",
+        "category": "validation",
+        "relatedLineNumbers": [
+          "Line 8",
+          "Line 11",
+          "Line 13",
+          "Line 18",
+          "Line 20",
+          "Line 22",
+          "Line 23",
+          "Line 24a",
+          "Line 24b",
+          "Line 26",
+          "Line 27a",
+          "Line 28"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-net-profit-cross-check",
+        "title": "Line 31 does not reconcile to line 29",
+        "summary": "Tina's current net profit line should match the tentative profit calculation for this supported lane. She should stop and fix this before printing.",
+        "severity": "blocking",
+        "category": "validation",
+        "relatedLineNumbers": [
+          "Line 29",
+          "Line 31"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "validation-draft-note-note-mixed",
+        "title": "Mixed-use spending still unresolved",
+        "summary": "Personal and business charges remain commingled.",
+        "severity": "blocking",
+        "category": "validation",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "coverage-part-ii-expenses-core",
+        "title": "Part II core expense lines still invites reviewer challenge",
+        "summary": "Tina covers a larger supported expense subset now, but uncategorized other expenses still keep Part II only partially covered.",
+        "severity": "needs_attention",
+        "category": "coverage",
+        "relatedLineNumbers": [
+          "Line 8",
+          "Line 11",
+          "Line 13",
+          "Line 18",
+          "Line 20",
+          "Line 22",
+          "Line 23",
+          "Line 24a",
+          "Line 24b",
+          "Line 26",
+          "Line 27a",
+          "Line 28",
+          "Line 31"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "coverage-other-expenses-statement",
+        "title": "Other expenses statement support still invites reviewer challenge",
+        "summary": "Tina is carrying other expenses on line 27a, but detailed statement support still belongs in reviewer attention.",
+        "severity": "needs_attention",
+        "category": "coverage",
+        "relatedLineNumbers": [
+          "Line 27a"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "coverage-inventory-cogs-support",
+        "title": "Inventory and Part III COGS support still invites reviewer challenge",
+        "summary": "Inventory or COGS signals exist, so Tina should not imply full Part III support yet.",
+        "severity": "blocking",
+        "category": "coverage",
+        "relatedLineNumbers": [
+          "Line 4"
+        ],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "coverage-depreciation-and-4562",
+        "title": "Depreciation and Form 4562 support still invites reviewer challenge",
+        "summary": "Fixed-asset or depreciation facts exist, so Tina should not imply full depreciation attachment support yet.",
+        "severity": "blocking",
+        "category": "coverage",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [],
+        "relatedDocumentIds": []
+      },
+      {
+        "id": "books-related-party-normalization",
+        "title": "Related-party activity still needs characterization",
+        "summary": "Tina found related-party transaction clues and should not trust book labels alone for characterization, deductibility, or disclosure.",
+        "severity": "needs_attention",
+        "category": "books",
+        "relatedLineNumbers": [],
+        "relatedFactIds": [
+          "frelated"
+        ],
+        "relatedDocumentIds": [
+          "bank"
+        ]
+      }
+    ]
+  },
+  "pdfFileName": "tina-schedule-c-fracture-studio-llc-2025.pdf",
+  "pdfSummary": "Tina built a Schedule C return snapshot, but 11 blocking issues still prevent form-ready output.",
+  "pdfFieldCount": 17,
+  "pdfValidationIssues": [
+    {
+      "id": "review-schedule-c-line-4",
+      "title": "Line 4 still needs attention",
+      "summary": "Tina has a value for Cost of goods sold, but a reviewer should resolve the open note before trusting the form.",
+      "severity": "needs_attention",
+      "relatedLineNumbers": [
+        "Line 4"
+      ]
+    },
+    {
+      "id": "review-schedule-c-line-7",
+      "title": "Line 7 still needs attention",
+      "summary": "Tina has a value for Gross income, but a reviewer should resolve the open note before trusting the form.",
+      "severity": "needs_attention",
+      "relatedLineNumbers": [
+        "Line 7"
+      ]
+    },
+    {
+      "id": "review-schedule-c-line-13",
+      "title": "Line 13 still needs attention",
+      "summary": "Tina has a value for Depreciation and section 179, but a reviewer should resolve the open note before trusting the form.",
+      "severity": "needs_attention",
+      "relatedLineNumbers": [
+        "Line 13"
+      ]
+    },
+    {
+      "id": "review-schedule-c-line-24a",
+      "title": "Line 24a still needs attention",
+      "summary": "Tina has a value for Travel, but a reviewer should resolve the open note before trusting the form.",
+      "severity": "needs_attention",
+      "relatedLineNumbers": [
+        "Line 24a"
+      ]
+    },
+    {
+      "id": "waiting-schedule-c-line-27a",
+      "title": "Line 27a is still waiting",
+      "summary": "Tina does not have a stable value for Other expenses yet, so the form should not be treated as final.",
+      "severity": "blocking",
+      "relatedLineNumbers": [
+        "Line 27a"
+      ]
+    },
+    {
+      "id": "review-schedule-c-line-28",
+      "title": "Line 28 still needs attention",
+      "summary": "Tina has a value for Total expenses, but a reviewer should resolve the open note before trusting the form.",
+      "severity": "needs_attention",
+      "relatedLineNumbers": [
+        "Line 28"
+      ]
+    },
+    {
+      "id": "review-schedule-c-line-29",
+      "title": "Line 29 still needs attention",
+      "summary": "Tina has a value for Tentative profit or loss, but a reviewer should resolve the open note before trusting the form.",
+      "severity": "needs_attention",
+      "relatedLineNumbers": [
+        "Line 29"
+      ]
+    },
+    {
+      "id": "review-schedule-c-line-31",
+      "title": "Line 31 still needs attention",
+      "summary": "Tina has a value for Net profit or loss, but a reviewer should resolve the open note before trusting the form.",
+      "severity": "needs_attention",
+      "relatedLineNumbers": [
+        "Line 31"
+      ]
+    },
+    {
+      "id": "readiness-required-prior-return",
+      "title": "Last year's tax return",
+      "summary": "This helps Tina copy over the basics so you do not have to type everything again. Tina should get this before calling the package ready.",
+      "severity": "blocking",
+      "relatedLineNumbers": []
+    },
+    {
+      "id": "readiness-required-quickbooks",
+      "title": "QuickBooks or your profit-and-loss report",
+      "summary": "Tina needs your main money records so she can start the tax work from the right numbers. Tina should get this before calling the package ready.",
+      "severity": "blocking",
+      "relatedLineNumbers": []
+    },
+    {
+      "id": "readiness-required-bank-support",
+      "title": "Business bank and card statements",
+      "summary": "These help Tina check that the book numbers match the real money moving in and out. Tina should get this before calling the package ready.",
+      "severity": "blocking",
+      "relatedLineNumbers": []
+    },
+    {
+      "id": "readiness-required-payroll",
+      "title": "Payroll reports and W-2 papers",
+      "summary": "Tina needs this to check wages, payroll costs, and related deductions. Tina should get this before calling the package ready.",
+      "severity": "blocking",
+      "relatedLineNumbers": []
+    },
+    {
+      "id": "readiness-adjustment-authority-t13",
+      "title": "Depreciation and section 179",
+      "summary": "Tina still needs authority proof or reviewer approval before this tax move can safely reach the filing package.",
+      "severity": "blocking",
+      "relatedLineNumbers": []
+    },
+    {
+      "id": "readiness-adjustment-review-t4",
+      "title": "Inventory reserve treatment",
+      "summary": "This tax move is waiting for a human review call before Tina can treat the package as filing-ready.",
+      "severity": "blocking",
+      "relatedLineNumbers": []
+    },
+    {
+      "id": "readiness-field-waiting-line-27a-other-expenses",
+      "title": "Line 27a: Other expenses",
+      "summary": "Mixed-use and owner-flow contamination still unresolved",
+      "severity": "blocking",
+      "relatedLineNumbers": []
+    },
+    {
+      "id": "total-expenses-cross-check",
+      "title": "Line 28 does not reconcile to component expense lines",
+      "summary": "Tina's total expenses line should equal the supported expense component lines she mapped into the form. She should stop and fix this before printing.",
+      "severity": "blocking",
+      "relatedLineNumbers": [
+        "Line 8",
+        "Line 11",
+        "Line 13",
+        "Line 18",
+        "Line 20",
+        "Line 22",
+        "Line 23",
+        "Line 24a",
+        "Line 24b",
+        "Line 26",
+        "Line 27a",
+        "Line 28"
+      ]
+    },
+    {
+      "id": "net-profit-cross-check",
+      "title": "Line 31 does not reconcile to line 29",
+      "summary": "Tina's current net profit line should match the tentative profit calculation for this supported lane. She should stop and fix this before printing.",
+      "severity": "blocking",
+      "relatedLineNumbers": [
+        "Line 29",
+        "Line 31"
+      ]
+    },
+    {
+      "id": "draft-note-note-mixed",
+      "title": "Mixed-use spending still unresolved",
+      "summary": "Personal and business charges remain commingled.",
+      "severity": "blocking",
+      "relatedLineNumbers": []
+    }
+  ]
+}

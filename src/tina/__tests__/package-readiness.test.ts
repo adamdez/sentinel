@@ -3,6 +3,10 @@ import {
   buildTinaPackageReadiness,
   markTinaPackageReadinessStale,
 } from "@/tina/lib/package-readiness";
+import {
+  createTinaPackageSnapshotRecord,
+  recordTinaReviewerDecision,
+} from "@/tina/lib/package-state";
 import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 import type { TinaWorkspaceDraft } from "@/tina/types";
@@ -45,6 +49,57 @@ describe("buildTinaPackageReadiness", () => {
 
     expect(snapshot.level).toBe("blocked");
     expect(snapshot.items.some((item) => item.id === "lane-not-supported")).toBe(true);
+  });
+
+  it("fails closed when source-fact start-path routing blocks the supported lane", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Conflicted LLC",
+        entityType: "single_member_llc",
+      },
+      sourceFacts: [
+        {
+          id: "ownership-change-fact",
+          sourceDocumentId: "doc-1",
+          label: "Ownership change clue",
+          value: "This paper may show an ownership change.",
+          confidence: "high",
+          capturedAt: "2026-04-02T19:10:00.000Z",
+        },
+      ],
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+
+    expect(snapshot.level).toBe("blocked");
+    expect(snapshot.items.some((item) => item.id === "lane-not-supported")).toBe(true);
+  });
+
+  it("calls out exact missing start-path proof in package readiness", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Complex LLC",
+        entityType: "multi_member_llc",
+        ownerCount: 2,
+      },
+      sourceFacts: [
+        {
+          id: "multi-owner-fact",
+          sourceDocumentId: "doc-owners",
+          label: "Multi-owner clue",
+          value: "This paper may show more than one owner, partner, member, K-1, or ownership split.",
+          confidence: "high",
+          capturedAt: "2026-04-02T19:12:00.000Z",
+        },
+      ],
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+
+    expect(snapshot.level).toBe("blocked");
+    expect(snapshot.items.some((item) => item.id === "proof-ownership-agreement")).toBe(true);
   });
 
   it("shows blocking items for unapproved tax moves and waiting draft fields", () => {
@@ -1411,6 +1466,393 @@ describe("buildTinaPackageReadiness", () => {
     const snapshot = buildTinaPackageReadiness(draft);
     expect(snapshot.level).toBe("ready_for_cpa");
     expect(snapshot.items.some((item) => item.id === "issue-watch-only")).toBe(false);
+  });
+
+  it("blocks readiness when treatment judgment rejects mixed-use deductions", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Mixed Use LLC",
+        entityType: "sole_prop",
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-mixed",
+          name: "transactions.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/transactions.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "fact-mixed",
+          sourceDocumentId: "doc-mixed",
+          label: "Mixed personal/business clue",
+          value: "Meals and personal household charges appear in the same ledger stream.",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [
+          {
+            id: "line-1-gross-receipts",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 20000,
+            status: "ready",
+            summary: "Looks good.",
+            reviewerFinalLineIds: ["rf-1"],
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-mixed"],
+          },
+        ],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-mixed"],
+            sourceFactIds: ["fact-mixed"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+      bootstrapReview: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+
+    expect(snapshot.level).toBe("blocked");
+    expect(snapshot.items.some((item) => item.id === "treatment-mixed-use-treatment")).toBe(true);
+  });
+
+  it("keeps readiness in review when treatment judgment still needs reviewer handling", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Asset Review LLC",
+        entityType: "sole_prop",
+        hasFixedAssets: true,
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "doc-bank",
+          name: "bank.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/bank.pdf",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Bank support",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "doc-assets",
+          name: "asset-list.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/asset-list.csv",
+          category: "supporting_document",
+          requestId: "assets",
+          requestLabel: "Fixed asset schedule",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "fact-depreciation",
+          sourceDocumentId: "doc-assets",
+          label: "Depreciation clue",
+          value: "A fixed asset schedule and Section 179 notes appear in the records.",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [
+          {
+            id: "line-1-gross-receipts",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 20000,
+            status: "ready",
+            summary: "Looks good.",
+            reviewerFinalLineIds: ["rf-1"],
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-assets"],
+          },
+        ],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-assets"],
+            sourceFactIds: ["fact-depreciation"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+      bootstrapReview: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+
+    expect(snapshot.level).toBe("needs_review");
+    expect(snapshot.items.some((item) => item.id === "treatment-depreciation-treatment")).toBe(
+      true
+    );
+  });
+
+  it("blocks when a previously signed-off snapshot has drifted", () => {
+    const readyDraft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Sole Prop",
+        entityType: "sole_prop",
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "doc-bank",
+          name: "bank.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/bank.pdf",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Bank support",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [
+          {
+            id: "line-1-gross-receipts",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 20000,
+            status: "ready",
+            summary: "Looks good.",
+            reviewerFinalLineIds: ["rf-1"],
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-1"],
+          },
+        ],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+      bootstrapReview: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+    });
+
+    const snapshot = createTinaPackageSnapshotRecord(readyDraft, "2026-03-27T04:10:00.000Z");
+    const decision = recordTinaReviewerDecision({
+      snapshotId: snapshot.id,
+      reviewerName: "CPA Tina",
+      decision: "approved",
+      decidedAt: "2026-03-27T04:11:00.000Z",
+    });
+
+    const staleDraft = {
+      ...readyDraft,
+      packageSnapshots: [snapshot],
+      reviewerDecisions: [decision],
+      scheduleCDraft: {
+        ...readyDraft.scheduleCDraft,
+        fields: [
+          {
+            ...readyDraft.scheduleCDraft.fields[0],
+            amount: 21000,
+          },
+        ],
+      },
+    };
+
+    const readiness = buildTinaPackageReadiness(staleDraft);
+    expect(readiness.level).toBe("blocked");
+    expect(readiness.items.some((item) => item.id === "signed-off-snapshot-stale")).toBe(true);
   });
 });
 

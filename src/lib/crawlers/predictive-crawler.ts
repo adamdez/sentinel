@@ -19,6 +19,7 @@ import { createHash } from "crypto";
 import { createServerClient } from "@/lib/supabase";
 import { computeScore, getScoreLabel, SCORING_MODEL_VERSION } from "@/lib/scoring";
 import { enrichProperty } from "@/lib/enrichment-engine";
+import { buildLeadIngestPolicySkip, getLeadIngestPolicy, type LeadIngestPolicySkip } from "@/lib/lead-ingest-policy";
 import type { DistressType } from "@/lib/types";
 
 const PROMOTION_THRESHOLD = 60;
@@ -59,6 +60,8 @@ export interface CrawlRunResult {
   enriched: number;
   enrichErrors: number;
   elapsed_ms: number;
+  skipped_by_policy?: boolean;
+  policySkip?: LeadIngestPolicySkip;
 }
 
 interface IngestResult {
@@ -247,6 +250,43 @@ async function ingestRecord(
 export async function runCrawler(module: CrawlerModule): Promise<CrawlRunResult> {
   const t0 = Date.now();
   const sb = createServerClient();
+  const sourceId = module.id === "craigslist_fsbo" ? "craigslist_fsbo" : null;
+  if (sourceId) {
+    const policy = getLeadIngestPolicy(sourceId);
+    if (policy.policy === "disabled") {
+      const elapsed_ms = Date.now() - t0;
+      const policySkip = buildLeadIngestPolicySkip(sourceId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("event_log") as any).insert({
+        user_id: "00000000-0000-0000-0000-000000000000",
+        action: "crawler.run",
+        entity_type: "crawler",
+        entity_id: module.id,
+        details: {
+          crawler_name: module.name,
+          skipped_by_policy: true,
+          policy: policySkip,
+          elapsed_ms,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      return {
+        crawlerId: module.id,
+        crawled: 0,
+        scored: 0,
+        promoted: 0,
+        duplicates: 0,
+        errors: 0,
+        enriched: 0,
+        enrichErrors: 0,
+        elapsed_ms,
+        skipped_by_policy: true,
+        policySkip,
+      };
+    }
+  }
+
   let crawled = 0;
   let scored = 0;
   let promoted = 0;
