@@ -18,13 +18,6 @@ export interface CallHistoryEntry {
   direction: "outbound" | "inbound";
 }
 
-const INBOUND_DISPOSITIONS = new Set([
-  "inbound",
-  "inbound_missed",
-  "inbound_answered",
-  "callback_inbound",
-]);
-
 export function useCallHistory(userId: string, limit = 30) {
   const [history, setHistory] = useState<CallHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +39,7 @@ export function useCallHistory(userId: string, limit = 30) {
         notes,
         ai_summary,
         lead_id,
+        direction,
         leads!calls_log_lead_id_fkey (
           properties!leads_property_id_fkey (
             owner_name,
@@ -64,7 +58,7 @@ export function useCallHistory(userId: string, limit = 30) {
       // Fallback: fetch without join
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: fallback } = await (supabase.from("calls_log") as any)
-        .select("id, phone_dialed, disposition, duration_sec, started_at, ended_at, notes, ai_summary, lead_id")
+        .select("id, phone_dialed, disposition, duration_sec, started_at, ended_at, notes, ai_summary, lead_id, direction")
         .eq("user_id", userId)
         .order("started_at", { ascending: false })
         .limit(limit);
@@ -76,7 +70,7 @@ export function useCallHistory(userId: string, limit = 30) {
           ...r,
           owner_name: null,
           address: null,
-          direction: INBOUND_DISPOSITIONS.has(r.disposition as string) ? "inbound" : "outbound",
+          direction: r.direction === "inbound" ? "inbound" as const : "outbound" as const,
         })) as CallHistoryEntry[],
       );
       setLoading(false);
@@ -98,7 +92,7 @@ export function useCallHistory(userId: string, limit = 30) {
         lead_id: r.lead_id,
         owner_name: prop?.owner_name ?? null,
         address: prop?.address ?? null,
-        direction: INBOUND_DISPOSITIONS.has(r.disposition) ? "inbound" as const : "outbound" as const,
+        direction: r.direction === "inbound" ? "inbound" as const : "outbound" as const,
       };
     });
 

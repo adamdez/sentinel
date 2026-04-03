@@ -634,6 +634,21 @@ async function handleMissedInbound({
     console.error("[inbound] dialer_events write failed:", eventErr.message);
   }
 
+  // ── Update calls_log disposition from in_progress → missed ─────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: logErr } = await (sb.from("calls_log") as any)
+    .update({
+      disposition: "missed",
+      lead_id: leadId,
+    })
+    .eq("twilio_sid", callSid)
+    .eq("direction", "inbound")
+    .in("disposition", ["in_progress", "initiating", "ringing_prospect"]);
+
+  if (logErr) {
+    console.error("[inbound] calls_log missed update failed:", logErr.message);
+  }
+
   // ── 4. SMS both operators — missed inbound call ───────────────────────────
   try {
     const { sendDirectSMS } = await import("@/providers/voice/vapi-sms");
@@ -700,6 +715,23 @@ async function handleAnsweredInbound({
 
   if (eventErr) {
     console.error("[inbound] inbound.answered event write failed:", eventErr.message);
+  }
+
+  // ── Update calls_log disposition from in_progress → completed ──────────
+  const durationSec = dialDuration ? parseInt(dialDuration) : 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: logErr } = await (sb.from("calls_log") as any)
+    .update({
+      disposition: "completed",
+      duration_sec: durationSec,
+      lead_id: leadId,
+    })
+    .eq("twilio_sid", callSid)
+    .eq("direction", "inbound")
+    .in("disposition", ["in_progress", "initiating", "ringing_prospect"]);
+
+  if (logErr) {
+    console.error("[inbound] calls_log answered update failed:", logErr.message);
   }
 
   console.log("[inbound] Answered inbound recorded:", {

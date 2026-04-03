@@ -44,7 +44,7 @@ const HUMAN_PICKUP_DISPOSITIONS = new Set([
   "contract",
 ]);
 
-const MISSED_INBOUND_DISPOSITIONS = new Set(["no_answer", "missed", "busy"]);
+const MISSED_INBOUND_DISPOSITIONS = new Set(["no_answer", "missed", "busy", "canceled"]);
 const SMS_ONLY_DISPOSITIONS = new Set(["sms_outbound"]);
 
 function getPacificFormatter() {
@@ -264,13 +264,15 @@ export function aggregateDialerKpis(input: {
     }
 
     if (isInboundCall(call)) {
-      if (isUser) metrics.inbound.user += 1;
-      if (isTeam) metrics.inbound.team += 1;
+      // Inbound calls ring everyone — count for current user regardless of who was assigned
+      metrics.inbound.user += 1;
+      metrics.inbound.team += 1;
     }
 
     if (isMissedInboundCall(call)) {
-      if (isUser) metrics.missedCalls.user += 1;
-      if (isTeam) metrics.missedCalls.team += 1;
+      // Missed calls are everyone's problem — show on all scoreboards
+      metrics.missedCalls.user += 1;
+      metrics.missedCalls.team += 1;
     }
 
     if (duration > 0) {

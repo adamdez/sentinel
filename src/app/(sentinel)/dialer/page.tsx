@@ -52,6 +52,7 @@ import { LiveCoachWindow } from "@/components/sentinel/live-coach-window";
 import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder";
 import { JeffMessagesBanner } from "@/components/sentinel/jeff-messages-banner";
 import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
+import { MissedInboundQueue } from "@/components/sentinel/dashboard/widgets/missed-inbound-queue";
 import type { LeadPhone } from "@/lib/dialer/types";
 import type { JeffCallStatus } from "@/lib/dialer/jeff-batch-types";
 import { resolveDialerPhoneSelection } from "@/lib/dialer/operator-auto-cycle";
@@ -830,7 +831,7 @@ function DialerPageInner() {
   });
   const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
-  const [idleRailTab, setIdleRailTab] = useState<"history" | "jeff" | "sms">("history");
+  const [idleRailTab, setIdleRailTab] = useState<"missed" | "history" | "jeff" | "sms">("history");
   const [briefDetailOpen, setBriefDetailOpen] = useState(false);
   const filteredBrief = useMemo(() => {
     if (!preCallBrief) return null;
@@ -4138,6 +4139,7 @@ function DialerPageInner() {
                   {/* ── Tab selector: History / Jeff / SMS ── */}
                   <div className="flex items-center gap-0.5 mb-2 rounded-[8px] border border-overlay-6 bg-overlay-2 p-0.5">
                     {([
+                      { key: "missed" as const, label: "Missed" },
                       { key: "history" as const, label: "History" },
                       { key: "jeff" as const, label: "Jeff" },
                       { key: "sms" as const, label: "SMS" },
@@ -4157,6 +4159,9 @@ function DialerPageInner() {
                       </button>
                     ))}
                   </div>
+
+                  {/* Missed tab */}
+                  {idleRailTab === "missed" && <MissedInboundQueue />}
 
                   {/* History tab */}
                   {idleRailTab === "history" && (

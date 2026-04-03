@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { buildCallCoPilotPrompt, styleVersionTag, type LeadContext } from "@/lib/agent/dialer-ai-prompts";
 import { getStyleBlock } from "@/lib/conversation-style";
@@ -236,28 +236,64 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "OpenAI API key not configured" }, { status: 503 });
   }
 
-  let body: { leadId: string };
+  let body: { leadId?: string; phoneNumber?: string };
   try {
     body = await req.json();
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (!body.leadId) {
-    return Response.json({ error: "leadId required" }, { status: 400 });
+  const { phoneNumber } = body;
+
+  if (!body.leadId && !phoneNumber) {
+    return Response.json({ error: "leadId or phoneNumber required" }, { status: 400 });
   }
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tbl = (name: string) => sb.from(name) as any;
 
-    const { data: lead } = await tbl("leads")
-      .select("*, properties(owner_name, address, estimated_value, equity_percent, ownership_years, property_type, county, owner_flags)")
-      .eq("id", body.leadId)
-      .single();
+    let lead = body.leadId
+      ? (await tbl("leads")
+          .select("*, properties(owner_name, address, estimated_value, equity_percent, ownership_years, property_type, county, owner_flags)")
+          .eq("id", body.leadId)
+          .single()).data
+      : null;
+
+    // Phone-based lead lookup fallback
+    if (!lead && phoneNumber) {
+      try {
+        const { unifiedPhoneLookup } = await import("@/lib/dialer/phone-lookup");
+        const match = await unifiedPhoneLookup(phoneNumber, sb);
+        if (match.leadId) {
+          const { data: phoneLead } = await tbl("leads")
+            .select("*, properties(owner_name, address, estimated_value, equity_percent, ownership_years, property_type, county, owner_flags)")
+            .eq("id", match.leadId)
+            .single();
+          if (phoneLead) lead = phoneLead;
+        }
+      } catch (lookupErr) {
+        console.error("[pre-call-brief] Phone lookup fallback failed:", lookupErr);
+      }
+    }
 
     if (!lead) {
-      return Response.json({ error: "Lead not found" }, { status: 404 });
+      return NextResponse.json({
+        bullets: [`Unknown caller: ${phoneNumber || "no number"}`],
+        suggestedOpener: "Hi, this is Logan with Dominion Home Deals. I see you called us — how can I help?",
+        currentStage: "unknown",
+        stageReason: "No lead record found for this caller",
+        primaryGoal: "Identify caller and their property situation",
+        talkingPoints: ["Ask about their property", "Ask what prompted their call"],
+        nextQuestions: ["What property are you calling about?", "Are you the owner?"],
+        empathyMoves: [],
+        objectionHandling: [],
+        watchOuts: ["Unknown caller — may be spam, vendor, or new seller"],
+        riskFlags: ["No lead record — create one if legitimate"],
+        _promptVersion: "fallback-no-lead",
+        _provider: "system",
+        _model: "none",
+      });
     }
 
     const { data: distressEvents } = await tbl("distress_events")
@@ -267,13 +303,13 @@ export async function POST(req: NextRequest) {
 
     const { data: callLogs } = await tbl("calls_log")
       .select("started_at, disposition, ai_summary, notes")
-      .eq("lead_id", body.leadId)
+      .eq("lead_id", lead.id)
       .order("started_at", { ascending: false })
       .limit(5);
 
     const { data: latestStructured } = await tbl("post_call_structures")
       .select("summary_line, promises_made, objection, next_task_suggestion, deal_temperature")
-      .eq("lead_id", body.leadId)
+      .eq("lead_id", lead.id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -281,14 +317,14 @@ export async function POST(req: NextRequest) {
     // Inbound voice session extracted facts (Vapi calls)
     const { data: voiceSessions } = await tbl("voice_sessions")
       .select("extracted_facts, created_at, call_type")
-      .eq("lead_id", body.leadId)
+      .eq("lead_id", lead.id)
       .order("created_at", { ascending: false })
       .limit(3);
 
     // Structured facts from session_extracted_facts table
     const { data: sessionFacts } = await tbl("session_extracted_facts")
       .select("fact_type, raw_text, structured_value, is_confirmed")
-      .eq("lead_id", body.leadId)
+      .eq("lead_id", lead.id)
       .order("created_at", { ascending: false })
       .limit(10);
 

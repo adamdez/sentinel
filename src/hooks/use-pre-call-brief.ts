@@ -19,7 +19,7 @@ export interface PreCallBrief {
   riskFlags: string[];
 }
 
-export function usePreCallBrief(leadId: string | null) {
+export function usePreCallBrief(leadId: string | null, phoneNumber?: string | null) {
   const [brief, setBrief] = useState<PreCallBrief | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export function usePreCallBrief(leadId: string | null) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ leadId: id }),
+        body: JSON.stringify({ leadId: leadId || undefined, phoneNumber: phoneNumber ?? undefined }),
         signal: controller.signal,
       });
 
@@ -97,27 +97,29 @@ export function usePreCallBrief(leadId: string | null) {
         setLoading(false);
       }
     }
-  }, []);
+  }, [leadId, phoneNumber]);
 
   const regenerate = useCallback(() => {
-    if (!leadId) return;
-    cacheRef.current.delete(leadId);
-    fetchBrief(leadId, true);
-  }, [leadId, fetchBrief]);
+    const key = leadId || phoneNumber;
+    if (!key) return;
+    cacheRef.current.delete(key);
+    fetchBrief(key, true);
+  }, [leadId, phoneNumber, fetchBrief]);
 
   useEffect(() => {
-    if (!leadId) {
+    const key = leadId || phoneNumber;
+    if (!key) {
       setBrief(null);
       setError(null);
       return;
     }
 
     const timer = setTimeout(() => {
-      fetchBrief(leadId);
+      fetchBrief(key);
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [leadId, fetchBrief]);
+  }, [leadId, phoneNumber, fetchBrief]);
 
   return { brief, loading, error, regenerate };
 }
