@@ -52,7 +52,7 @@ import { LiveCoachWindow } from "@/components/sentinel/live-coach-window";
 import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder";
 import { JeffMessagesBanner } from "@/components/sentinel/jeff-messages-banner";
 import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
-import { MissedInboundQueue } from "@/components/sentinel/dashboard/widgets/missed-inbound-queue";
+import { MissedInboundQueueAutoLoad } from "@/components/sentinel/dashboard/widgets/missed-inbound-queue";
 import type { LeadPhone } from "@/lib/dialer/types";
 import type { JeffCallStatus } from "@/lib/dialer/jeff-batch-types";
 import { resolveDialerPhoneSelection } from "@/lib/dialer/operator-auto-cycle";
@@ -4161,7 +4161,7 @@ function DialerPageInner() {
                   </div>
 
                   {/* Missed tab */}
-                  {idleRailTab === "missed" && <MissedInboundQueue />}
+                  {idleRailTab === "missed" && <MissedInboundQueueAutoLoad />}
 
                   {/* History tab */}
                   {idleRailTab === "history" && (
