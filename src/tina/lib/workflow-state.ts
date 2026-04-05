@@ -5,7 +5,14 @@ import {
   createTinaPackageSnapshotRecord,
   recordTinaReviewerDecision,
 } from "@/tina/lib/package-state";
-import type { TinaReviewerDecision, TinaWorkspaceDraft } from "@/tina/types";
+import { recordTinaReviewerObservedDelta } from "@/tina/lib/reviewer-observed-deltas";
+import type {
+  TinaReviewerDecision,
+  TinaReviewerObservedDeltaDomain,
+  TinaReviewerObservedDeltaKind,
+  TinaReviewerObservedDeltaSeverity,
+  TinaWorkspaceDraft,
+} from "@/tina/types";
 
 export function refreshTinaWorkflowState(draft: TinaWorkspaceDraft): TinaWorkspaceDraft {
   const appendix = buildTinaAppendix(draft);
@@ -39,5 +46,30 @@ export function applyTinaReviewerDecision(
   return refreshTinaWorkflowState({
     ...draft,
     reviewerDecisions: [reviewerDecision, ...draft.reviewerDecisions],
+  });
+}
+
+export function applyTinaReviewerObservedDelta(
+  draft: TinaWorkspaceDraft,
+  input: {
+    title: string;
+    domain: TinaReviewerObservedDeltaDomain;
+    kind: TinaReviewerObservedDeltaKind;
+    severity?: TinaReviewerObservedDeltaSeverity;
+    reviewerName?: string | null;
+    summary?: string;
+    trustEffect?: string;
+    ownerEngines?: string[];
+    benchmarkScenarioIds?: string[];
+    relatedDecisionId?: string | null;
+    relatedSnapshotId?: string | null;
+    relatedAuthorityWorkIdeaId?: string | null;
+    occurredAt?: string;
+  }
+): TinaWorkspaceDraft {
+  const reviewerObservedDelta = recordTinaReviewerObservedDelta(input);
+  return refreshTinaWorkflowState({
+    ...draft,
+    reviewerObservedDeltas: [reviewerObservedDelta, ...draft.reviewerObservedDeltas],
   });
 }

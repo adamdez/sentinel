@@ -129,4 +129,111 @@ describe("companion-form-calculations", () => {
       "blocked"
     );
   });
+
+  it("extracts structured home-office inputs when square-footage and expense facts exist", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Home Support LLC",
+        taxYear: "2025",
+        principalBusinessActivity: "Consulting home office",
+        naicsCode: "541611",
+        entityType: "sole_prop" as const,
+        notes: "Home office deduction likely applies.",
+      },
+      documents: [
+        {
+          id: "doc-home-office",
+          name: "home-office-support.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/home-office.pdf",
+          category: "supporting_document" as const,
+          requestId: "home-office",
+          requestLabel: "Home office support",
+          uploadedAt: "2026-04-03T12:05:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "fact-home-office",
+          sourceDocumentId: "doc-home-office",
+          label: "Home office facts",
+          value:
+            "Office square footage 180, home square footage 1800, rent 18000, utilities 2400, exclusive use confirmed.",
+          confidence: "high" as const,
+          capturedAt: "2026-04-03T12:06:00.000Z",
+        },
+      ],
+      reviewerFinal: {
+        ...createDefaultTinaWorkspaceDraft().reviewerFinal,
+        status: "complete" as const,
+        lines: [
+          {
+            id: "rf-income",
+            kind: "income" as const,
+            layer: "reviewer_final" as const,
+            label: "Income",
+            amount: 10000,
+            status: "ready" as const,
+            summary: "Ready",
+            sourceDocumentIds: ["doc-home-office"],
+            sourceFactIds: ["fact-home-office"],
+            issueIds: [],
+            derivedFromLineIds: [],
+            cleanupSuggestionIds: [],
+            taxAdjustmentIds: [],
+          },
+        ],
+      },
+      scheduleCDraft: {
+        ...createDefaultTinaWorkspaceDraft().scheduleCDraft,
+        status: "complete" as const,
+        fields: [
+          {
+            id: "line-1-gross-receipts",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 10000,
+            status: "ready" as const,
+            summary: "Ready",
+            reviewerFinalLineIds: ["rf-income"],
+            taxAdjustmentIds: [],
+            sourceDocumentIds: ["doc-home-office"],
+          },
+        ],
+        notes: [],
+      },
+    };
+
+    const calculations = buildTinaCompanionFormCalculations(draft);
+    const item = calculations.items.find((entry) => entry.id === "form-8829-home-office");
+
+    expect(item?.status).toBe("ready");
+    expect(item?.estimatedValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: "Area used regularly and exclusively for business",
+          amount: 180,
+        }),
+        expect.objectContaining({
+          label: "Total area of home",
+          amount: 1800,
+        }),
+        expect.objectContaining({
+          label: "Business-use percentage",
+          amount: 10,
+        }),
+        expect.objectContaining({
+          label: "Rent indirect expense",
+          amount: 18000,
+        }),
+        expect.objectContaining({
+          label: "Utilities indirect expense",
+          amount: 2400,
+        }),
+      ])
+    );
+  });
 });

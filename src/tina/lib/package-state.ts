@@ -121,7 +121,10 @@ export function tinaHasReviewerDrift(draft: TinaWorkspaceDraft): boolean {
 export function buildTinaPackageState(draft: TinaWorkspaceDraft): TinaPackageState {
   const approvedSnapshot = findTinaApprovedSnapshot(draft);
   if (approvedSnapshot) {
-    return tinaHasReviewerDrift(draft) ? "signed_off_stale" : "signed_off";
+    const currentPackageFingerprint = buildTinaPackageFingerprint(draft);
+    return approvedSnapshot.packageFingerprint !== currentPackageFingerprint
+      ? "signed_off_stale"
+      : "signed_off";
   }
 
   if (draft.packageReadiness.status !== "complete") {
@@ -141,7 +144,8 @@ export function buildTinaReviewerSignoffSnapshot(
   const approvedSnapshot = findTinaApprovedSnapshot(draft);
   const currentPackageFingerprint = buildTinaPackageFingerprint(draft);
   const signedOffPackageFingerprint = approvedSnapshot?.packageFingerprint ?? null;
-  const hasDriftSinceSignoff = tinaHasReviewerDrift(draft);
+  const hasDriftSinceSignoff =
+    approvedSnapshot !== null && approvedSnapshot.packageFingerprint !== currentPackageFingerprint;
 
   let summary = "Tina has not reached reviewer signoff yet.";
   let nextStep = "Build the package and capture a stable snapshot before reviewer signoff.";

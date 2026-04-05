@@ -35,6 +35,7 @@ import type {
   TinaReviewerDecisionRecord,
   TinaReviewerSignoffSnapshot,
   TinaQuickBooksConnectionSnapshot,
+  TinaReviewerObservedDeltaRecord,
   TinaSpouseCommunityPropertyTreatment,
   TinaTaxElection,
   TinaWorkpaperLine,
@@ -184,6 +185,7 @@ export function createDefaultTinaWorkspaceDraft(): TinaWorkspaceDraft {
     cpaHandoff: createDefaultTinaCpaHandoff(),
     reviewerSignoff: createDefaultTinaReviewerSignoffSnapshot(),
     reviewerDecisions: [],
+    reviewerObservedDeltas: [],
     packageSnapshots: [],
     appendix: createDefaultTinaAppendix(),
     operationalStatus: createDefaultTinaOperationalStatus(),
@@ -940,6 +942,60 @@ function normalizeReviewerDecisionRecord(value: unknown): TinaReviewerDecisionRe
   };
 }
 
+function normalizeReviewerObservedDeltaRecord(value: unknown): TinaReviewerObservedDeltaRecord | null {
+  if (typeof value !== "object" || value === null) return null;
+  const raw = value as Partial<TinaReviewerObservedDeltaRecord>;
+  if (
+    typeof raw.id !== "string" ||
+    typeof raw.title !== "string" ||
+    typeof raw.occurredAt !== "string" ||
+    typeof raw.summary !== "string" ||
+    typeof raw.trustEffect !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    id: raw.id,
+    title: raw.title,
+    domain:
+      raw.domain === "entity_route" ||
+      raw.domain === "evidence_books" ||
+      raw.domain === "treatment_authority" ||
+      raw.domain === "form_execution" ||
+      raw.domain === "workflow_governance" ||
+      raw.domain === "planning"
+        ? raw.domain
+        : "general",
+    kind:
+      raw.kind === "accepted_first_pass" ||
+      raw.kind === "accepted_after_adjustment" ||
+      raw.kind === "change_requested" ||
+      raw.kind === "rejected" ||
+      raw.kind === "stale_after_acceptance"
+        ? raw.kind
+        : "change_requested",
+    severity:
+      raw.severity === "info" || raw.severity === "blocking"
+        ? raw.severity
+        : "needs_attention",
+    occurredAt: raw.occurredAt,
+    reviewerName: typeof raw.reviewerName === "string" ? raw.reviewerName : null,
+    summary: raw.summary,
+    trustEffect: raw.trustEffect,
+    ownerEngines: Array.isArray(raw.ownerEngines)
+      ? raw.ownerEngines.filter((item): item is string => typeof item === "string")
+      : [],
+    benchmarkScenarioIds: Array.isArray(raw.benchmarkScenarioIds)
+      ? raw.benchmarkScenarioIds.filter((item): item is string => typeof item === "string")
+      : [],
+    relatedDecisionId: typeof raw.relatedDecisionId === "string" ? raw.relatedDecisionId : null,
+    relatedSnapshotId: typeof raw.relatedSnapshotId === "string" ? raw.relatedSnapshotId : null,
+    relatedAuthorityWorkIdeaId:
+      typeof raw.relatedAuthorityWorkIdeaId === "string" ? raw.relatedAuthorityWorkIdeaId : null,
+  };
+}
+
 function normalizePackageSnapshotRecord(value: unknown): TinaPackageSnapshotRecord | null {
   if (typeof value !== "object" || value === null) return null;
   const raw = value as Partial<TinaPackageSnapshotRecord>;
@@ -1250,6 +1306,12 @@ export function parseTinaWorkspaceDraft(raw: string | null): TinaWorkspaceDraft 
           .map((item) => normalizeReviewerDecisionRecord(item))
           .filter((item): item is TinaReviewerDecisionRecord => item !== null)
       : [];
+    const reviewerObservedDeltasRaw = (parsed as Record<string, unknown>).reviewerObservedDeltas;
+    const normalizedReviewerObservedDeltas = Array.isArray(reviewerObservedDeltasRaw)
+      ? reviewerObservedDeltasRaw
+          .map((item) => normalizeReviewerObservedDeltaRecord(item))
+          .filter((item): item is TinaReviewerObservedDeltaRecord => item !== null)
+      : [];
     const packageSnapshotsRaw = (parsed as Record<string, unknown>).packageSnapshots;
     const normalizedPackageSnapshots = Array.isArray(packageSnapshotsRaw)
       ? packageSnapshotsRaw
@@ -1279,6 +1341,7 @@ export function parseTinaWorkspaceDraft(raw: string | null): TinaWorkspaceDraft 
         (parsed as Record<string, unknown>).reviewerSignoff
       ),
       reviewerDecisions: normalizedReviewerDecisions,
+      reviewerObservedDeltas: normalizedReviewerObservedDeltas,
       packageSnapshots: normalizedPackageSnapshots,
       appendix: normalizeAppendix((parsed as Record<string, unknown>).appendix),
       operationalStatus: normalizeOperationalStatus(

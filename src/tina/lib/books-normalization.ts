@@ -1,3 +1,7 @@
+import {
+  buildTinaDocumentIntelligence,
+  listTinaDocumentIntelligenceFactsByKind,
+} from "@/tina/lib/document-intelligence";
 import type {
   TinaBooksNormalizationIssue,
   TinaBooksNormalizationSnapshot,
@@ -51,6 +55,7 @@ function buildIssue(args: {
 export function buildTinaBooksNormalization(
   draft: TinaWorkspaceDraft
 ): TinaBooksNormalizationSnapshot {
+  const documentIntelligence = buildTinaDocumentIntelligence(draft);
   const ownerFlowFacts = findFactsByLabel(draft.sourceFacts, "Owner draw clue");
   const mixedUseFacts = findFactsByLabel(draft.sourceFacts, "Mixed personal/business clue");
   const contractorFacts = findFactsByLabel(draft.sourceFacts, "Contractor clue");
@@ -61,6 +66,17 @@ export function buildTinaBooksNormalization(
   const ownershipChangeFacts = findFactsByLabel(draft.sourceFacts, "Ownership change clue");
   const formerOwnerPaymentFacts = findFactsByLabel(draft.sourceFacts, "Former owner payment clue");
   const einFacts = findFactsByLabel(draft.sourceFacts, "EIN clue");
+  const assetFacts = listTinaDocumentIntelligenceFactsByKind({
+    snapshot: documentIntelligence,
+    kind: "asset_signal",
+  });
+  const hasPlacedInServiceSupport = assetFacts.some(
+    (fact) => fact.label === "Placed-in-service support"
+  );
+  const hasPriorDepreciationSupport = assetFacts.some(
+    (fact) => fact.label === "Prior depreciation support"
+  );
+  const hasStructuredAssetTrail = assetFacts.length > 0;
   const uniqueEinMatches = new Set(
     einFacts.flatMap((fact) => fact.value.match(/\b\d{2}-\d{7}\b/g) ?? [])
   );
@@ -138,13 +154,25 @@ export function buildTinaBooksNormalization(
   }
 
   if (depreciationFacts.length > 0 || draft.profile.hasFixedAssets) {
+    const severity: TinaBooksNormalizationIssue["severity"] =
+      hasPlacedInServiceSupport && hasPriorDepreciationSupport
+        ? "needs_attention"
+        : hasStructuredAssetTrail
+          ? "needs_attention"
+          : depreciationFacts.length > 0
+            ? "blocking"
+            : "watch";
     issues.push(
       buildIssue({
         id: "fixed-asset-normalization",
         title: "Fixed-asset support still needs normalization",
         summary:
-          "Tina should reconcile fixed-asset history, placed-in-service timing, and depreciation support before those deductions are trusted.",
-        severity: depreciationFacts.length > 0 ? "blocking" : "watch",
+          hasPlacedInServiceSupport && hasPriorDepreciationSupport
+            ? "Tina can see a structured asset trail, but depreciation still needs reviewer confirmation before those deductions are treated as fully settled."
+            : hasStructuredAssetTrail
+              ? "Tina has some structured asset-history support, but the fixed-asset trail is still incomplete enough to keep depreciation under review."
+              : "Tina should reconcile fixed-asset history, placed-in-service timing, and depreciation support before those deductions are trusted.",
+        severity,
         sourceLabels: ["Fixed-asset or depreciation activity needs asset-history support."],
         facts: depreciationFacts,
       })

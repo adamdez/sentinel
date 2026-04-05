@@ -72,3 +72,39 @@ export interface TinaSkillReportCard {
   panelCount: number;
   skills: TinaSkillReportCardEntry[];
 }
+
+export type TinaTraitGateStatus = "pass" | "fail";
+export type TinaTraitGateFailureSeverity = "blocking" | "major" | "minor";
+
+export interface TinaTraitGateFailure {
+  id: string;
+  fixtureId: string;
+  title: string;
+  summary: string;
+  severity: TinaTraitGateFailureSeverity;
+  ownerEngine: string;
+  currentValue: string;
+  expectedValue: string;
+}
+
+export interface TinaTraitGateResult {
+  skillId: TinaSkillId;
+  title: string;
+  status: TinaTraitGateStatus;
+  score: number;
+  targetScore: number;
+  summary: string;
+  ownerEngines: string[];
+  requiredFixtureIds: string[];
+  failures: TinaTraitGateFailure[];
+}
+
+export interface TinaEightFloorGateSnapshot {
+  generatedAt: string;
+  targetScore: number;
+  overallStatus: TinaTraitGateStatus;
+  summary: string;
+  passingTraitCount: number;
+  failingTraitCount: number;
+  results: TinaTraitGateResult[];
+}

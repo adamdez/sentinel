@@ -5,15 +5,26 @@ import { buildTinaAuthorityPositionMatrix } from "@/tina/lib/authority-position-
 import { buildTinaBooksNormalization } from "@/tina/lib/books-normalization";
 import { buildTinaBooksReconciliation } from "@/tina/lib/books-reconciliation";
 import { buildTinaBooksReconstruction } from "@/tina/lib/books-reconstruction";
+import { buildTinaCaseMemoryLedger } from "@/tina/lib/case-memory-ledger";
 import { buildTinaCompanionFormPlan } from "@/tina/lib/companion-form-plan";
 import { buildTinaCompanionFormCalculations } from "@/tina/lib/companion-form-calculations";
+import { buildTinaCompanionFormRenderPlan } from "@/tina/lib/companion-form-render-plan";
+import { buildTinaConfidenceCalibration } from "@/tina/lib/confidence-calibration";
 import { buildTinaCpaPacketExport } from "@/tina/lib/cpa-packet-export";
 import { buildTinaCrossFormConsistency } from "@/tina/lib/cross-form-consistency";
 import { buildTinaDecisionBriefings } from "@/tina/lib/decision-briefings";
+import { buildTinaDocumentIntelligence } from "@/tina/lib/document-intelligence";
 import { buildTinaDocumentRequestPlan } from "@/tina/lib/document-request-plan";
 import { buildTinaDisclosureReadiness } from "@/tina/lib/disclosure-readiness";
+import { buildTinaEvidenceCredibility } from "@/tina/lib/evidence-credibility";
 import { buildTinaEntityEconomicsReadiness } from "@/tina/lib/entity-economics-readiness";
+import { buildTinaEntityFilingRemediation } from "@/tina/lib/entity-filing-remediation";
 import { buildTinaEntityJudgment } from "@/tina/lib/entity-judgment";
+import { buildTinaEntityReturnCalculations } from "@/tina/lib/entity-return-calculations";
+import { buildTinaEntityReturnScheduleFamilyFinalizations } from "@/tina/lib/entity-return-schedule-family-finalizations";
+import { buildTinaEntityReturnScheduleFamilyPayloads } from "@/tina/lib/entity-return-schedule-family-payloads";
+import { buildTinaEntityReturnScheduleFamilyArtifacts } from "@/tina/lib/entity-return-schedule-family-artifacts";
+import { buildTinaEntityReturnSupportArtifacts } from "@/tina/lib/entity-return-support-artifacts";
 import { buildTinaEntityRecordMatrix } from "@/tina/lib/entity-record-matrix";
 import { buildTinaEntityReturnRunbook } from "@/tina/lib/entity-return-runbook";
 import { buildTinaEvidenceSufficiency } from "@/tina/lib/evidence-sufficiency";
@@ -26,12 +37,22 @@ import { buildTinaOfficialFederalFormTemplateSnapshot } from "@/tina/lib/officia
 import { readTinaOfficialFederalFormTemplateAsset } from "@/tina/lib/official-form-templates-server";
 import { buildTinaOfficialFormFill } from "@/tina/lib/official-form-fill";
 import { buildTinaOfficialFormExecution } from "@/tina/lib/official-form-execution";
+import { buildTinaOwnerFlowBasisAdjudication } from "@/tina/lib/owner-flow-basis-adjudication";
 import { buildTinaOperationalStatus } from "@/tina/lib/operational-status";
 import { buildTinaOwnershipCapitalEvents } from "@/tina/lib/ownership-capital-events";
 import { buildTinaOwnershipTimeline } from "@/tina/lib/ownership-timeline";
+import { buildTinaLedgerReconstruction } from "@/tina/lib/ledger-reconstruction";
 import { buildTinaMaterialityPriority } from "@/tina/lib/materiality-priority";
+import { buildTinaPayrollComplianceReconstruction } from "@/tina/lib/payroll-compliance-reconstruction";
+import { buildTinaSingleMemberEntityHistoryProof } from "@/tina/lib/single-member-entity-history-proof";
+import { buildTinaSingleOwnerCorporateRouteProof } from "@/tina/lib/single-owner-corporate-route-proof";
 import { buildTinaReviewerChallenges } from "@/tina/lib/reviewer-challenges";
 import { buildTinaReviewerAcceptanceForecast } from "@/tina/lib/reviewer-acceptance-forecast";
+import { buildTinaReviewerAcceptanceReality } from "@/tina/lib/reviewer-acceptance-reality";
+import { buildTinaReviewerLearningLoop } from "@/tina/lib/reviewer-learning-loop";
+import { buildTinaReviewerObservedDeltas } from "@/tina/lib/reviewer-observed-deltas";
+import { buildTinaReviewerOverrideGovernance } from "@/tina/lib/reviewer-override-governance";
+import { buildTinaReviewerPolicyVersioning } from "@/tina/lib/reviewer-policy-versioning";
 import { buildTinaScheduleCPdfExport } from "@/tina/lib/schedule-c-pdf";
 import { buildTinaScheduleCFormCoverage } from "@/tina/lib/schedule-c-form-coverage";
 import { buildTinaScheduleCFormTrace } from "@/tina/lib/schedule-c-form-trace";
@@ -42,7 +63,10 @@ import { buildTinaPlanningActionBoard } from "@/tina/lib/planning-action-board";
 import { buildTinaTaxPlanningMemo } from "@/tina/lib/tax-planning-memo";
 import { buildTinaTaxTreatmentPolicy } from "@/tina/lib/tax-treatment-policy";
 import { buildTinaTreatmentJudgment } from "@/tina/lib/treatment-judgment";
+import { buildTinaUnknownPatternEngine } from "@/tina/lib/unknown-pattern-engine";
 import type { TinaReviewBundleExport, TinaWorkspaceDraft } from "@/tina/types";
+
+const reviewBundleCache = new WeakMap<TinaWorkspaceDraft, Map<string, TinaReviewBundleExport>>();
 
 function slugify(value: string): string {
   return (
@@ -57,6 +81,18 @@ export function buildTinaReviewBundle(
   draft: TinaWorkspaceDraft,
   snapshotId?: string
 ): TinaReviewBundleExport {
+  const cacheKey = snapshotId ?? "__live__";
+  let draftCache = reviewBundleCache.get(draft);
+  if (!draftCache) {
+    draftCache = new Map<string, TinaReviewBundleExport>();
+    reviewBundleCache.set(draft, draftCache);
+  }
+
+  const cached = draftCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const builtAt = new Date().toISOString();
   const businessName = draft.profile.businessName || "Unnamed business";
   const taxYear = draft.profile.taxYear || "tax-year";
@@ -81,9 +117,27 @@ export function buildTinaReviewBundle(
   const officialFormFill = buildTinaOfficialFormFill(draft);
   const officialFormExecution = buildTinaOfficialFormExecution(draft);
   const federalReturnClassification = buildTinaFederalReturnClassification(draft);
+  const entityFilingRemediation = buildTinaEntityFilingRemediation(draft);
+  const singleMemberEntityHistory = buildTinaSingleMemberEntityHistoryProof(draft);
+  const singleOwnerCorporateRoute = buildTinaSingleOwnerCorporateRouteProof(draft);
+  const unknownPatternEngine = buildTinaUnknownPatternEngine(draft);
+  const confidenceCalibration = buildTinaConfidenceCalibration(draft);
+  const caseMemoryLedger = buildTinaCaseMemoryLedger(draft);
+  const reviewerLearningLoop = buildTinaReviewerLearningLoop(draft);
+  const reviewerObservedDeltas = buildTinaReviewerObservedDeltas(draft);
+  const reviewerOverrideGovernance = buildTinaReviewerOverrideGovernance(draft);
+  const reviewerPolicyVersioning = buildTinaReviewerPolicyVersioning(draft);
+  const reviewerAcceptanceReality = buildTinaReviewerAcceptanceReality(draft);
   const entityJudgment = buildTinaEntityJudgment(draft);
   const entityRecordMatrix = buildTinaEntityRecordMatrix(draft);
   const entityEconomicsReadiness = buildTinaEntityEconomicsReadiness(draft);
+  const entityReturnCalculations = buildTinaEntityReturnCalculations(draft);
+  const ownerFlowBasis = buildTinaOwnerFlowBasisAdjudication(draft);
+  const entityReturnScheduleFamilyFinalizations =
+    buildTinaEntityReturnScheduleFamilyFinalizations(draft);
+  const entityReturnScheduleFamilyPayloads = buildTinaEntityReturnScheduleFamilyPayloads(draft);
+  const entityReturnScheduleFamilies = buildTinaEntityReturnScheduleFamilyArtifacts(draft);
+  const entityReturnSupportArtifacts = buildTinaEntityReturnSupportArtifacts(draft);
   const entityReturnRunbook = buildTinaEntityReturnRunbook(draft);
   const federalReturnRequirements = buildTinaFederalReturnRequirements(draft);
   const ownershipCapitalEvents = buildTinaOwnershipCapitalEvents(draft);
@@ -92,13 +146,17 @@ export function buildTinaReviewBundle(
   const reviewerChallenges = buildTinaReviewerChallenges(draft);
   const startPath = buildTinaStartPathAssessment(draft);
   const evidenceSufficiency = buildTinaEvidenceSufficiency(draft);
+  const evidenceCredibility = buildTinaEvidenceCredibility(draft);
   const booksReconstruction = buildTinaBooksReconstruction(draft);
+  const ledgerReconstruction = buildTinaLedgerReconstruction(draft);
   const booksReconciliation = buildTinaBooksReconciliation(draft);
   const booksNormalization = buildTinaBooksNormalization(draft);
   const accountingArtifactCoverage = buildTinaAccountingArtifactCoverage(draft);
+  const payrollCompliance = buildTinaPayrollComplianceReconstruction(draft);
   const attachmentStatements = buildTinaAttachmentStatements(draft);
   const attachmentSchedules = buildTinaAttachmentSchedules(draft);
   const decisionBriefings = buildTinaDecisionBriefings(draft);
+  const documentIntelligence = buildTinaDocumentIntelligence(draft);
   const industryPlaybooks = buildTinaIndustryPlaybooks(draft);
   const industryEvidenceMatrix = buildTinaIndustryEvidenceMatrix(draft);
   const taxOpportunityEngine = buildTinaTaxOpportunityEngine(draft);
@@ -109,6 +167,7 @@ export function buildTinaReviewBundle(
   const reviewerAcceptanceForecast = buildTinaReviewerAcceptanceForecast(draft);
   const documentRequestPlan = buildTinaDocumentRequestPlan(draft);
   const companionFormCalculations = buildTinaCompanionFormCalculations(draft);
+  const companionFormRenderPlan = buildTinaCompanionFormRenderPlan(draft);
   const companionFormPlan = buildTinaCompanionFormPlan(draft);
   const crossFormConsistency = buildTinaCrossFormConsistency(draft);
   const taxTreatmentPolicy = buildTinaTaxTreatmentPolicy(draft);
@@ -179,6 +238,125 @@ export function buildTinaReviewBundle(
     federalReturnClassificationConfidence: federalReturnClassification.confidence,
     federalReturnClassificationSignalCount: federalReturnClassification.signals.length,
     federalReturnClassificationIssueCount: federalReturnClassification.issues.length,
+    entityFilingRemediationOverallStatus: entityFilingRemediation.overallStatus,
+    entityFilingRemediationPosture: entityFilingRemediation.posture,
+    entityFilingRemediationHistoryStatus: entityFilingRemediation.historyStatus,
+    entityFilingRemediationElectionStatus: entityFilingRemediation.electionStatus,
+    entityFilingRemediationAmendmentStatus: entityFilingRemediation.amendmentStatus,
+    entityFilingRemediationBlockedIssueCount: entityFilingRemediation.blockedIssueCount,
+    entityFilingRemediationReviewIssueCount: entityFilingRemediation.reviewIssueCount,
+    entityFilingRemediationActionCount: entityFilingRemediation.actions.length,
+    singleMemberEntityHistoryOverallStatus: singleMemberEntityHistory.overallStatus,
+    singleMemberEntityHistoryPosture: singleMemberEntityHistory.posture,
+    singleMemberEntityHistoryOwnerHistoryStatus: singleMemberEntityHistory.ownerHistoryStatus,
+    singleMemberEntityHistorySpouseExceptionStatus:
+      singleMemberEntityHistory.spouseExceptionStatus,
+    singleMemberEntityHistoryPriorFilingAlignmentStatus:
+      singleMemberEntityHistory.priorFilingAlignmentStatus,
+    singleMemberEntityHistoryTransitionYearStatus:
+      singleMemberEntityHistory.transitionYearStatus,
+    singleMemberEntityHistoryBooksPostureStatus: singleMemberEntityHistory.booksPostureStatus,
+    singleMemberEntityHistoryBlockedIssueCount: singleMemberEntityHistory.blockedIssueCount,
+    singleMemberEntityHistoryReviewIssueCount: singleMemberEntityHistory.reviewIssueCount,
+    singleOwnerCorporateRouteOverallStatus: singleOwnerCorporateRoute.overallStatus,
+    singleOwnerCorporateRoutePosture: singleOwnerCorporateRoute.posture,
+    singleOwnerCorporateRouteElectionProofStatus: singleOwnerCorporateRoute.electionProofStatus,
+    singleOwnerCorporateRoutePayrollRequirementStatus:
+      singleOwnerCorporateRoute.payrollRequirementStatus,
+    singleOwnerCorporateRouteOwnerServiceStatus: singleOwnerCorporateRoute.ownerServiceStatus,
+    singleOwnerCorporateRouteBlockedIssueCount: singleOwnerCorporateRoute.blockedIssueCount,
+    singleOwnerCorporateRouteReviewIssueCount: singleOwnerCorporateRoute.reviewIssueCount,
+    unknownPatternOverallStatus: unknownPatternEngine.overallStatus,
+    unknownPatternHandling: unknownPatternEngine.recommendedHandling,
+    unknownPatternSignalCount: unknownPatternEngine.signals.length,
+    unknownPatternBlockingSignalCount: unknownPatternEngine.signals.filter(
+      (signal) => signal.severity === "blocking"
+    ).length,
+    unknownPatternHypothesisCount: unknownPatternEngine.hypotheses.length,
+    unknownPatternCustomProofRequestCount: unknownPatternEngine.customProofRequests.length,
+    confidenceCalibrationStatus: confidenceCalibration.overallStatus,
+    confidenceCalibrationPosture: confidenceCalibration.recommendedPosture,
+    confidenceCalibrationCheckCount: confidenceCalibration.checks.length,
+    confidenceCalibrationDebtCount: confidenceCalibration.debts.length,
+    blockingConfidenceDebtCount: confidenceCalibration.debts.filter(
+      (debt) => debt.severity === "blocking"
+    ).length,
+    caseMemoryLedgerStatus: caseMemoryLedger.overallStatus,
+    caseMemoryActiveAnchorSnapshotId: caseMemoryLedger.activeAnchorSnapshotId,
+    caseMemoryOpenOverrideCount: caseMemoryLedger.openOverrideCount,
+    caseMemoryDriftReasonCount: caseMemoryLedger.driftReasons.length,
+    caseMemoryEntryCount: caseMemoryLedger.entries.length,
+    reviewerLearningLoopStatus: reviewerLearningLoop.overallStatus,
+    reviewerLearningActiveLessonCount: reviewerLearningLoop.activeLessonCount,
+    reviewerLearningAnchoredLessonCount: reviewerLearningLoop.anchoredLessonCount,
+    reviewerLearningPolicyCandidateCount: reviewerLearningLoop.policyCandidateCount,
+    reviewerLearningRegressionTargetCount: reviewerLearningLoop.regressionTargetCount,
+    reviewerObservedDeltasOverallStatus: reviewerObservedDeltas.overallStatus,
+    reviewerObservedDeltaCount: reviewerObservedDeltas.totalDeltaCount,
+    reviewerObservedAcceptedAfterAdjustmentCount:
+      reviewerObservedDeltas.acceptedAfterAdjustmentCount,
+    reviewerObservedTopPriorityCoverageCount:
+      reviewerObservedDeltas.topPriorityCoverageCount,
+    reviewerOverrideGovernanceStatus: reviewerOverrideGovernance.status,
+    reviewerOverrideGovernanceOverallStatus: reviewerOverrideGovernance.overallStatus,
+    reviewerOverrideGovernanceOpenOverrideCount: reviewerOverrideGovernance.openOverrideCount,
+    reviewerOverrideGovernanceAnchoredOverrideCount:
+      reviewerOverrideGovernance.anchoredOverrideCount,
+    reviewerOverrideGovernancePolicyUpdateRequiredCount:
+      reviewerOverrideGovernance.policyUpdateRequiredCount,
+    reviewerOverrideGovernanceBlockingAcceptanceDeltaCount:
+      reviewerOverrideGovernance.blockingAcceptanceDeltaCount,
+    reviewerOverrideGovernanceBenchmarkScenarioCount:
+      reviewerOverrideGovernance.recommendedBenchmarkScenarioIds.length,
+    reviewerPolicyVersioningOverallStatus: reviewerPolicyVersioning.overallStatus,
+    reviewerPolicyVersioningActivePolicyCount: reviewerPolicyVersioning.activePolicyCount,
+    reviewerPolicyVersioningReadyToPromoteCount:
+      reviewerPolicyVersioning.readyToPromoteCount,
+    reviewerPolicyVersioningCandidatePolicyCount:
+      reviewerPolicyVersioning.candidatePolicyCount,
+    reviewerPolicyVersioningBenchmarkingPolicyCount:
+      reviewerPolicyVersioning.benchmarkingPolicyCount,
+    reviewerPolicyVersioningBlockedPolicyCount: reviewerPolicyVersioning.blockedPolicyCount,
+    reviewerPolicyVersioningBenchmarkCoverageGapCount:
+      reviewerPolicyVersioning.benchmarkCoverageGapCount,
+    reviewerPolicyVersioningTopPriorityBenchmarkCoverageCount:
+      reviewerPolicyVersioning.topPriorityBenchmarkCoverageCount,
+    reviewerAcceptanceRealityOverallStatus: reviewerAcceptanceReality.overallStatus,
+    reviewerAcceptanceRealityObservedThemeCount:
+      reviewerAcceptanceReality.totalObservedThemeCount,
+    reviewerAcceptanceRealityObservedAcceptanceRate:
+      reviewerAcceptanceReality.observedAcceptanceRate,
+    reviewerAcceptanceRealityDurableAcceptanceRate:
+      reviewerAcceptanceReality.durableAcceptanceRate,
+    reviewerAcceptanceRealityRejectedThemeCount:
+      reviewerAcceptanceReality.rejectedThemeCount,
+    reviewerAcceptanceRealityStaleThemeCount:
+      reviewerAcceptanceReality.staleThemeCount,
+    reviewerAcceptanceRealityTopPriorityAcceptedCoverageCount:
+      reviewerAcceptanceReality.topPriorityAcceptedCoverageCount,
+    documentIntelligenceOverallStatus: documentIntelligence.overallStatus,
+    documentIntelligenceStructuredDocumentCount: documentIntelligence.structuredDocumentCount,
+    documentIntelligenceExtractedFactCount: documentIntelligence.extractedFactCount,
+    documentIntelligenceIdentityConflictCount: documentIntelligence.identityConflictCount,
+    documentIntelligenceContinuityConflictCount: documentIntelligence.continuityConflictCount,
+    documentIntelligenceMissingCriticalRoleCount: documentIntelligence.missingCriticalRoleCount,
+    documentIntelligenceContinuityQuestionCount: documentIntelligence.continuityQuestions.length,
+    ownerFlowBasisOverallStatus: ownerFlowBasis.overallStatus,
+    ownerFlowBasisOpeningFootingStatus: ownerFlowBasis.openingFootingStatus,
+    ownerFlowBasisRollforwardStatus: ownerFlowBasis.basisRollforwardStatus,
+    ownerFlowBasisCharacterizationStatus: ownerFlowBasis.ownerFlowCharacterizationStatus,
+    ownerFlowBasisLoanEquityStatus: ownerFlowBasis.loanEquityStatus,
+    ownerFlowBasisDistributionTaxabilityStatus:
+      ownerFlowBasis.distributionTaxabilityStatus,
+    ownerFlowBasisTransitionEconomicsStatus: ownerFlowBasis.transitionEconomicsStatus,
+    ownerFlowBasisBlockedCount: ownerFlowBasis.blockedItemCount,
+    ownerFlowBasisReviewCount: ownerFlowBasis.reviewItemCount,
+    payrollComplianceOverallStatus: payrollCompliance.overallStatus,
+    payrollCompliancePosture: payrollCompliance.posture,
+    payrollComplianceWorkerClassification: payrollCompliance.workerClassification,
+    payrollComplianceBlockedIssueCount: payrollCompliance.blockedIssueCount,
+    payrollComplianceReviewIssueCount: payrollCompliance.reviewIssueCount,
+    payrollComplianceLikelyMissingFilings: payrollCompliance.likelyMissingFilings,
     evidenceSupportCounts,
     evidenceSufficiencyStatus: evidenceSufficiency.overallStatus,
     evidenceSufficiencyCounts: evidenceSufficiency.counts,
@@ -199,6 +377,50 @@ export function buildTinaReviewBundle(
     blockedEntityEconomicsCount: entityEconomicsReadiness.checks.filter(
       (check) => check.status === "blocked"
     ).length,
+    entityReturnCalculationsStatus: entityReturnCalculations.overallStatus,
+    entityReturnCalculationItemCount: entityReturnCalculations.items.length,
+    readyEntityReturnCalculationCount: entityReturnCalculations.items.filter(
+      (item) => item.status === "ready"
+    ).length,
+    entityReturnCalculationFieldCount: entityReturnCalculations.items.reduce(
+      (sum, item) => sum + item.fields.length,
+      0
+    ),
+    entityReturnScheduleFamiliesStatus: entityReturnScheduleFamilies.overallStatus,
+    entityReturnScheduleFamilyCount: entityReturnScheduleFamilies.items.length,
+    blockedEntityReturnScheduleFamilyCount: entityReturnScheduleFamilies.items.filter(
+      (item) => item.status === "blocked"
+    ).length,
+    readyEntityReturnScheduleFamilyCount: entityReturnScheduleFamilies.items.filter(
+      (item) => item.status === "ready"
+    ).length,
+    entityReturnScheduleFamilyFinalizationsStatus:
+      entityReturnScheduleFamilyFinalizations.overallStatus,
+    entityReturnScheduleFamilyFinalizationArtifactCount:
+      entityReturnScheduleFamilyFinalizations.items.length,
+    blockedEntityReturnScheduleFamilyFinalizationArtifactCount:
+      entityReturnScheduleFamilyFinalizations.items.filter((item) => item.status === "blocked")
+        .length,
+    finalizationReadyEntityReturnScheduleFamilyArtifactCount:
+      entityReturnScheduleFamilyFinalizations.items.filter(
+        (item) => item.finalizationReadiness === "finalized_payload_ready"
+      ).length,
+    entityReturnScheduleFamilyPayloadsStatus: entityReturnScheduleFamilyPayloads.overallStatus,
+    entityReturnScheduleFamilyPayloadArtifactCount: entityReturnScheduleFamilyPayloads.items.length,
+    blockedEntityReturnScheduleFamilyPayloadArtifactCount:
+      entityReturnScheduleFamilyPayloads.items.filter((item) => item.status === "blocked").length,
+    payloadReadyEntityReturnScheduleFamilyPayloadArtifactCount:
+      entityReturnScheduleFamilyPayloads.items.filter(
+        (item) => item.payloadReadiness === "payload_ready"
+      ).length,
+    entityReturnSupportArtifactsStatus: entityReturnSupportArtifacts.overallStatus,
+    entityReturnSupportArtifactCount: entityReturnSupportArtifacts.items.length,
+    blockedEntityReturnSupportArtifactCount: entityReturnSupportArtifacts.items.filter(
+      (item) => item.status === "blocked"
+    ).length,
+    readyEntityReturnSupportArtifactCount: entityReturnSupportArtifacts.items.filter(
+      (item) => item.status === "ready"
+    ).length,
     entityReturnRunbookStatus: entityReturnRunbook.overallStatus,
     entityReturnRunbookExecutionMode: entityReturnRunbook.executionMode,
     entityReturnRunbookStepCount: entityReturnRunbook.steps.length,
@@ -214,10 +436,17 @@ export function buildTinaReviewBundle(
     booksReconstructionBlockedAreaCount: booksReconstruction.areas.filter(
       (area) => area.status === "blocked"
     ).length,
+    ledgerReconstructionStatus: ledgerReconstruction.overallStatus,
+    ledgerBlockedGroupCount: ledgerReconstruction.blockedGroupCount,
+    ledgerConcentratedGroupCount: ledgerReconstruction.concentratedGroupCount,
+    evidenceCredibilityStatus: evidenceCredibility.overallStatus,
+    evidenceCredibilityBlockingFactorCount: evidenceCredibility.blockingFactorCount,
     booksReconciliationStatus: booksReconciliation.overallStatus,
     blockedBooksReconciliationCount: booksReconciliation.checks.filter(
       (check) => check.status === "blocked"
     ).length,
+    materialBooksVarianceCount: booksReconciliation.materialVarianceCount,
+    unsupportedBooksBalanceCount: booksReconciliation.unsupportedBalanceCount,
     accountingArtifactCoverageStatus: accountingArtifactCoverage.overallStatus,
     missingCriticalAccountingArtifactCount: accountingArtifactCoverage.items.filter(
       (item) => item.criticality === "critical" && item.status === "missing"
@@ -274,6 +503,14 @@ export function buildTinaReviewBundle(
     readyCompanionCalculationCount: companionFormCalculations.items.filter(
       (item) => item.status === "ready"
     ).length,
+    companionFormRenderPlanStatus: companionFormRenderPlan.overallStatus,
+    readyCompanionRenderPlanCount: companionFormRenderPlan.items.filter(
+      (item) => item.status === "ready_to_fill"
+    ).length,
+    companionFormRenderPayloadCount: companionFormRenderPlan.items.reduce(
+      (sum, item) => sum + item.fieldValues.length,
+      0
+    ),
     reviewerBriefingOpenQuestionCount: decisionBriefings.reviewer.openQuestions.length,
     ownerBriefingOpenQuestionCount: decisionBriefings.owner.openQuestions.length,
     companionFormPlanCount: companionFormPlan.items.length,
@@ -323,7 +560,7 @@ export function buildTinaReviewBundle(
     ? readTinaOfficialFederalFormTemplateAsset(primaryOfficialTemplate.id, primaryOfficialTemplate.taxYear)
     : null;
 
-  return {
+  const reviewBundle: TinaReviewBundleExport = {
     builtAt,
     businessName,
     taxYear,
@@ -411,6 +648,83 @@ export function buildTinaReviewBundle(
         contents: JSON.stringify(federalReturnClassification, null, 2),
       },
       {
+        id: "entity-filing-remediation",
+        fileName: `tina-entity-filing-remediation-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(entityFilingRemediation, null, 2),
+      },
+      {
+        id: "single-member-entity-history-proof",
+        fileName: `tina-single-member-entity-history-proof-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(singleMemberEntityHistory, null, 2),
+      },
+      {
+        id: "single-owner-corporate-route-proof",
+        fileName: `tina-single-owner-corporate-route-proof-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(singleOwnerCorporateRoute, null, 2),
+      },
+      {
+        id: "unknown-pattern-engine",
+        fileName: `tina-unknown-pattern-engine-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(unknownPatternEngine, null, 2),
+      },
+      {
+        id: "confidence-calibration",
+        fileName: `tina-confidence-calibration-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(confidenceCalibration, null, 2),
+      },
+      {
+        id: "case-memory-ledger",
+        fileName: `tina-case-memory-ledger-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(caseMemoryLedger, null, 2),
+      },
+      {
+        id: "reviewer-learning-loop",
+        fileName: `tina-reviewer-learning-loop-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(reviewerLearningLoop, null, 2),
+      },
+      {
+        id: "reviewer-observed-deltas",
+        fileName: `tina-reviewer-observed-deltas-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(reviewerObservedDeltas, null, 2),
+      },
+      {
+        id: "reviewer-override-governance",
+        fileName: `tina-reviewer-override-governance-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(reviewerOverrideGovernance, null, 2),
+      },
+      {
+        id: "reviewer-policy-versioning",
+        fileName: `tina-reviewer-policy-versioning-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(reviewerPolicyVersioning, null, 2),
+      },
+      {
+        id: "reviewer-acceptance-reality",
+        fileName: `tina-reviewer-acceptance-reality-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(reviewerAcceptanceReality, null, 2),
+      },
+      {
         id: "entity-judgment",
         fileName: `tina-entity-judgment-${slug}-${taxYear}.json`,
         mimeType: "application/json; charset=utf-8",
@@ -430,6 +744,20 @@ export function buildTinaReviewBundle(
         mimeType: "application/json; charset=utf-8",
         encoding: "utf8",
         contents: JSON.stringify(entityEconomicsReadiness, null, 2),
+      },
+      {
+        id: "owner-flow-basis-adjudication",
+        fileName: `tina-owner-flow-basis-adjudication-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(ownerFlowBasis, null, 2),
+      },
+      {
+        id: "entity-return-calculations",
+        fileName: `tina-entity-return-calculations-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(entityReturnCalculations, null, 2),
       },
       {
         id: "entity-return-runbook",
@@ -509,11 +837,32 @@ export function buildTinaReviewBundle(
         contents: JSON.stringify(booksReconstruction, null, 2),
       },
       {
+        id: "ledger-reconstruction",
+        fileName: `tina-ledger-reconstruction-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(ledgerReconstruction, null, 2),
+      },
+      {
+        id: "evidence-credibility",
+        fileName: `tina-evidence-credibility-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(evidenceCredibility, null, 2),
+      },
+      {
         id: "accounting-artifact-coverage",
         fileName: `tina-accounting-artifact-coverage-${slug}-${taxYear}.json`,
         mimeType: "application/json; charset=utf-8",
         encoding: "utf8",
         contents: JSON.stringify(accountingArtifactCoverage, null, 2),
+      },
+      {
+        id: "payroll-compliance-reconstruction",
+        fileName: `tina-payroll-compliance-reconstruction-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(payrollCompliance, null, 2),
       },
       {
         id: "books-reconciliation",
@@ -607,6 +956,34 @@ export function buildTinaReviewBundle(
         contents: JSON.stringify(attachmentSchedules, null, 2),
       },
       {
+        id: "entity-return-schedule-families",
+        fileName: `tina-entity-return-schedule-families-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(entityReturnScheduleFamilies, null, 2),
+      },
+      {
+        id: "entity-return-schedule-family-finalizations",
+        fileName: `tina-entity-return-schedule-family-finalizations-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(entityReturnScheduleFamilyFinalizations, null, 2),
+      },
+      {
+        id: "entity-return-schedule-family-payloads",
+        fileName: `tina-entity-return-schedule-family-payloads-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(entityReturnScheduleFamilyPayloads, null, 2),
+      },
+      {
+        id: "entity-return-support-artifacts",
+        fileName: `tina-entity-return-support-artifacts-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(entityReturnSupportArtifacts, null, 2),
+      },
+      {
         id: "decision-briefings",
         fileName: `tina-decision-briefings-${slug}-${taxYear}.json`,
         mimeType: "application/json; charset=utf-8",
@@ -614,11 +991,25 @@ export function buildTinaReviewBundle(
         contents: JSON.stringify(decisionBriefings, null, 2),
       },
       {
+        id: "document-intelligence",
+        fileName: `tina-document-intelligence-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(documentIntelligence, null, 2),
+      },
+      {
         id: "companion-form-calculations",
         fileName: `tina-companion-form-calculations-${slug}-${taxYear}.json`,
         mimeType: "application/json; charset=utf-8",
         encoding: "utf8",
         contents: JSON.stringify(companionFormCalculations, null, 2),
+      },
+      {
+        id: "companion-form-render-plan",
+        fileName: `tina-companion-form-render-plan-${slug}-${taxYear}.json`,
+        mimeType: "application/json; charset=utf-8",
+        encoding: "utf8",
+        contents: JSON.stringify(companionFormRenderPlan, null, 2),
       },
       {
         id: "companion-form-plan",
@@ -654,4 +1045,7 @@ export function buildTinaReviewBundle(
         : []),
     ],
   };
+
+  draftCache.set(cacheKey, reviewBundle);
+  return reviewBundle;
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TINA_SKILL_REVIEW_DRAFTS } from "@/tina/data/skill-review-fixtures";
 import { buildTinaMaterialityPriority } from "@/tina/lib/materiality-priority";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 
@@ -75,7 +76,28 @@ describe("materiality-priority", () => {
       snapshot.items.some((item) => item.source === "start_path" && item.priority === "immediate")
     ).toBe(true);
     expect(
-      snapshot.items.some((item) => item.source === "evidence" && item.priority === "immediate")
+      snapshot.items.some((item) => item.source === "evidence" && item.priority === "next")
+    ).toBe(true);
+    expect(
+      snapshot.items.filter((item) => item.priority === "immediate").length
+    ).toBeLessThanOrEqual(4);
+    expect(
+      snapshot.items.some((item) => item.source === "package" && item.priority === "immediate")
+    ).toBe(true);
+  });
+
+  it("collapses dirty-books urgency into a narrow immediate queue", () => {
+    const snapshot = buildTinaMaterialityPriority(TINA_SKILL_REVIEW_DRAFTS["dirty-books"]);
+
+    expect(snapshot.items.filter((item) => item.priority === "immediate")).toHaveLength(4);
+    expect(
+      snapshot.items.some(
+        (item) =>
+          item.priority === "immediate" &&
+          /core expense reconstruction|entity-boundary reconstruction|fixed-asset reconstruction/i.test(
+            item.title
+          )
+      )
     ).toBe(true);
   });
 });

@@ -3,7 +3,12 @@ import type {
   TinaBooksReconciliationCheck,
   TinaBooksReconciliationSnapshot,
   TinaBooksReconciliationStatus,
+  TinaLedgerTransactionGroup,
+  TinaReconciliationVariance,
+  TinaReconciliationVarianceKind,
 } from "@/tina/lib/acceleration-contracts";
+import { buildTinaLedgerReconstruction } from "@/tina/lib/ledger-reconstruction";
+import { buildTinaPayrollComplianceReconstruction } from "@/tina/lib/payroll-compliance-reconstruction";
 import { buildTinaScheduleCReturn } from "@/tina/lib/schedule-c-return";
 import type { TinaWorkspaceDraft } from "@/tina/types";
 
@@ -69,6 +74,13 @@ function buildNumericCheck(args: {
         : status === "needs_review"
           ? `${args.leftLabel} and ${args.rightLabel} still need fuller support before Tina should call them reconciled.`
           : `${args.leftLabel} and ${args.rightLabel} do not reconcile cleanly yet.`,
+    supportSummary:
+      status === "reconciled"
+        ? "Numeric books-to-return support is aligned."
+        : status === "needs_review"
+          ? "One side of the numeric reconciliation is still incomplete."
+          : "The numeric books story and the return-facing story diverge materially.",
+    varianceKind: "amount_mismatch",
     leftLabel: args.leftLabel,
     leftAmount: args.leftAmount,
     rightLabel: args.rightLabel,
@@ -86,16 +98,25 @@ function buildAreaStatusCheck(args: {
   relatedLineNumbers: string[];
   relatedDocumentIds: string[];
 }): TinaBooksReconciliationCheck {
+  const status =
+    args.area.status === "ready"
+      ? "reconciled"
+      : args.area.status === "needs_review"
+        ? "needs_review"
+        : "blocked";
+
   return {
     id: args.id,
     title: args.title,
-    status:
-      args.area.status === "ready"
-        ? "reconciled"
-        : args.area.status === "needs_review"
-          ? "needs_review"
-          : "blocked",
+    status,
     summary: args.area.summary,
+    supportSummary:
+      status === "reconciled"
+        ? "This reconstruction area is clean enough to trust downstream."
+        : status === "needs_review"
+          ? "This reconstruction area still needs reviewer normalization."
+          : "This reconstruction area still blocks return-facing trust.",
+    varianceKind: "missing_support",
     leftLabel: "Books reconstruction area",
     leftAmount: null,
     rightLabel: "Return-facing expectation",
@@ -106,10 +127,109 @@ function buildAreaStatusCheck(args: {
   };
 }
 
+function varianceKindForGroup(group: TinaLedgerTransactionGroup): TinaReconciliationVarianceKind {
+  if (group.category === "mixed_use" || group.category === "payroll" || group.category === "contractors") {
+    return "classification_overlap";
+  }
+
+  if (group.category === "owner_flow" || group.category === "related_party") {
+    return "entity_contamination";
+  }
+
+  return "missing_support";
+}
+
+function statusForLedgerGroup(group: TinaLedgerTransactionGroup): TinaBooksReconciliationStatus {
+  if (group.status === "not_applicable") {
+    return "reconciled";
+  }
+
+  if (group.status === "blocked" || group.contaminationRisk === "high") {
+    return "blocked";
+  }
+
+  if (
+    group.status === "partial" ||
+    group.independenceStatus === "concentrated" ||
+    group.contaminationRisk === "watch"
+  ) {
+    return "needs_review";
+  }
+
+  return "reconciled";
+}
+
+function buildLedgerGroupCheck(group: TinaLedgerTransactionGroup): TinaBooksReconciliationCheck {
+  const status = statusForLedgerGroup(group);
+  const incompleteArtifacts = group.requiredArtifacts.filter((artifact) => artifact.status !== "covered");
+
+  return {
+    id: `ledger-group-${group.id}`,
+    title: `${group.title} trust check`,
+    status,
+    summary:
+      status === "reconciled"
+        ? `${group.title} has enough independent bookkeeping support to trust the return-facing use of this area.`
+        : status === "needs_review"
+          ? `${group.title} is visible in the books story, but Tina still sees concentration or thin support in this area.`
+          : `${group.title} is still blocked by contamination, contradiction, or missing ledger support.`,
+    supportSummary:
+      incompleteArtifacts.length > 0
+        ? `Still incomplete: ${incompleteArtifacts
+            .slice(0, 2)
+            .map((artifact) => artifact.title)
+            .join(", ")}.`
+        : `Support posture: ${group.supportLevel} / ${group.independenceStatus} / contamination ${group.contaminationRisk}.`,
+    varianceKind: varianceKindForGroup(group),
+    leftLabel: "Ledger group estimate",
+    leftAmount: group.estimatedAmount,
+    rightLabel: "Return-facing trust posture",
+    rightAmount: group.estimatedAmount,
+    delta: null,
+    relatedLineNumbers: group.relatedLineNumbers,
+    relatedDocumentIds: group.relatedDocumentIds,
+  };
+}
+
+function shouldCreateLedgerGroupCheck(group: TinaLedgerTransactionGroup): boolean {
+  if (group.status === "not_applicable") return false;
+
+  const isMaterial =
+    group.estimatedAmount !== null ||
+    group.documentCount > 0 ||
+    group.factCount > 0 ||
+    group.requiredArtifacts.some((artifact) => artifact.status !== "covered");
+  const isGenericScaffoldingOnly =
+    group.status === "partial" &&
+    group.factCount === 0 &&
+    group.contradictionCount === 0 &&
+    (group.estimatedAmount === null || group.estimatedAmount === 0);
+
+  if (!isMaterial || isGenericScaffoldingOnly) return false;
+
+  if (
+    group.status === "reconstructed" &&
+    group.contradictionCount === 0 &&
+    group.contaminationRisk !== "high"
+  ) {
+    return false;
+  }
+
+  return (
+    group.status === "blocked" ||
+    group.status === "partial" ||
+    group.contradictionCount > 0 ||
+    group.contaminationRisk === "high" ||
+    (group.independenceStatus === "concentrated" && group.factCount > 0)
+  );
+}
+
 export function buildTinaBooksReconciliation(
   draft: TinaWorkspaceDraft
 ): TinaBooksReconciliationSnapshot {
   const booksReconstruction = buildTinaBooksReconstruction(draft);
+  const ledgerReconstruction = buildTinaLedgerReconstruction(draft);
+  const payrollCompliance = buildTinaPayrollComplianceReconstruction(draft);
   const scheduleCReturn = buildTinaScheduleCReturn(draft);
   const reviewerFinalIncome = sumAmounts(
     draft.reviewerFinal.lines
@@ -189,6 +309,35 @@ export function buildTinaBooksReconciliation(
     );
   }
 
+  if (payrollCompliance.overallStatus !== "not_applicable") {
+    checks.push({
+      id: "payroll-compliance-reconciliation",
+      title: "Payroll compliance trail aligns with worker-payment treatment",
+      status:
+        payrollCompliance.overallStatus === "supported"
+          ? "reconciled"
+          : payrollCompliance.overallStatus === "needs_review"
+            ? "needs_review"
+            : "blocked",
+      summary: payrollCompliance.summary,
+      supportSummary:
+        payrollCompliance.likelyMissingFilings.length > 0
+          ? `Likely missing filings: ${payrollCompliance.likelyMissingFilings.join(", ")}.`
+          : payrollCompliance.questions[0] ?? payrollCompliance.nextStep,
+      varianceKind:
+        payrollCompliance.workerClassification === "mixed"
+          ? "classification_overlap"
+          : "missing_support",
+      leftLabel: "Payroll compliance spine",
+      leftAmount: null,
+      rightLabel: "Return-facing labor treatment",
+      rightAmount: null,
+      delta: null,
+      relatedLineNumbers: ["Line 11", "Line 26"],
+      relatedDocumentIds: payrollCompliance.relatedDocumentIds,
+    });
+  }
+
   if (fixedAssetArea) {
     checks.push(
       buildAreaStatusCheck({
@@ -243,10 +392,52 @@ export function buildTinaBooksReconciliation(
     );
   }
 
-  const blockedCount = checks.filter((check) => check.status === "blocked").length;
-  const reviewCount = checks.filter((check) => check.status === "needs_review").length;
+  ledgerReconstruction.groups
+    .filter(shouldCreateLedgerGroupCheck)
+    .forEach((group) => {
+      checks.push(buildLedgerGroupCheck(group));
+    });
+
+  const blockedCheckCount = checks.filter((check) => check.status === "blocked").length;
+  const reviewCheckCount = checks.filter((check) => check.status === "needs_review").length;
+  const variances: TinaReconciliationVariance[] = checks
+    .filter(
+      (check) =>
+        check.status !== "reconciled" &&
+        (typeof check.delta === "number" || check.varianceKind !== null)
+    )
+    .map((check) => ({
+      id: `variance-${check.id}`,
+      title: check.title,
+      kind: check.varianceKind ?? "missing_support",
+      severity:
+        typeof check.delta === "number" && Math.abs(check.delta) >= 1000
+          ? "material"
+          : check.status === "blocked" &&
+              ["entity_contamination", "classification_overlap"].includes(
+                check.varianceKind ?? ""
+              )
+            ? "material"
+            : check.status === "blocked"
+              ? "moderate"
+              : "immaterial",
+      amount: check.delta,
+      summary:
+        typeof check.delta === "number"
+          ? `${check.title} is out of balance by ${check.delta}.`
+          : check.supportSummary,
+      relatedCheckIds: [check.id],
+      relatedDocumentIds: check.relatedDocumentIds,
+      relatedLineNumbers: check.relatedLineNumbers,
+    }));
+  const materialVarianceCount = variances.filter((variance) => variance.severity === "material").length;
+  const unsupportedBalanceCount = variances.filter(
+    (variance) =>
+      variance.amount === null &&
+      ["missing_support", "classification_overlap", "entity_contamination"].includes(variance.kind)
+  ).length;
   const overallStatus: TinaBooksReconciliationSnapshot["overallStatus"] =
-    blockedCount > 0 ? "blocked" : reviewCount > 0 ? "needs_review" : "reconciled";
+    blockedCheckCount > 0 ? "blocked" : reviewCheckCount > 0 ? "needs_review" : "reconciled";
 
   return {
     lastBuiltAt: new Date().toISOString(),
@@ -255,13 +446,13 @@ export function buildTinaBooksReconciliation(
     sourceMode: booksReconstruction.sourceMode,
     summary:
       overallStatus === "reconciled"
-        ? "Tina reconciled the reviewer-final books picture to the current return-facing Schedule C output."
+        ? "Tina reconciled the reviewer-final books picture to the current return-facing output and the material ledger groups are trustworthy."
         : overallStatus === "needs_review"
-          ? `Tina reconciled the core books picture, but ${reviewCount} reconciliation check${
-              reviewCount === 1 ? "" : "s"
+          ? `Tina reconciled the core books picture, but ${reviewCheckCount} reconciliation check${
+              reviewCheckCount === 1 ? "" : "s"
             } still need reviewer attention.`
-          : `Tina still sees ${blockedCount} blocked reconciliation check${
-              blockedCount === 1 ? "" : "s"
+          : `Tina still sees ${blockedCheckCount} blocked reconciliation check${
+              blockedCheckCount === 1 ? "" : "s"
             } between the books picture and the return-facing output.`,
     nextStep:
       overallStatus === "reconciled"
@@ -270,5 +461,10 @@ export function buildTinaBooksReconciliation(
           ? "Clear the remaining reconciliation review items before treating the books picture as clean."
           : "Resolve the blocked reconciliation checks before Tina treats the books picture as return-safe.",
     checks,
+    variances,
+    blockedCheckCount,
+    reviewCheckCount,
+    materialVarianceCount,
+    unsupportedBalanceCount,
   };
 }

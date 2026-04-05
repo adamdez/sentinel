@@ -1,7 +1,10 @@
 import type {
+  TinaDocumentIntelligenceExtractKind,
+  TinaDocumentIntelligenceRole,
   TinaEntityRecordMatrixSnapshot,
   TinaEntityRecordRequirement,
 } from "@/tina/lib/acceleration-contracts";
+import { buildTinaDocumentIntelligence } from "@/tina/lib/document-intelligence";
 import { buildTinaFederalReturnRequirements } from "@/tina/lib/federal-return-requirements";
 import type { TinaFilingLaneId, TinaSourceFact, TinaStoredDocument, TinaWorkspaceDraft } from "@/tina/types";
 
@@ -11,6 +14,8 @@ interface TinaEntityRecordBlueprint {
   criticality: TinaEntityRecordRequirement["criticality"];
   requiredForms: string[];
   matchTerms: string[];
+  matchRoles?: TinaDocumentIntelligenceRole[];
+  matchExtractKinds?: TinaDocumentIntelligenceExtractKind[];
   enabled?: (draft: TinaWorkspaceDraft) => boolean;
 }
 
@@ -78,6 +83,8 @@ function buildBlueprints(
         criticality: "important",
         requiredForms: ["Form 1040", "Schedule C"],
         matchTerms: ["prior return", "schedule c", "form 1040", "return package"],
+        matchRoles: ["prior_return_package"],
+        matchExtractKinds: ["prior_filing_signal"],
       },
       {
         id: "schedule-c-books",
@@ -128,6 +135,8 @@ function buildBlueprints(
         criticality: "critical",
         requiredForms: ["Form 1065", "Schedule K-1"],
         matchTerms: ["operating agreement", "ownership breakdown", "partner percentages", "member split"],
+        matchRoles: ["operating_agreement", "cap_table", "ownership_schedule"],
+        matchExtractKinds: ["ownership_signal", "ownership_timeline_signal"],
       },
       {
         id: "partnership-prior-return",
@@ -135,6 +144,8 @@ function buildBlueprints(
         criticality: "important",
         requiredForms: ["Form 1065", "Schedule K-1"],
         matchTerms: ["form 1065", "schedule k 1", "partnership return", "k 1"],
+        matchRoles: ["prior_return_package"],
+        matchExtractKinds: ["prior_filing_signal"],
       },
       {
         id: "partnership-capital",
@@ -163,6 +174,8 @@ function buildBlueprints(
         criticality: "important",
         requiredForms: ["Form 1065", "Schedule K-1"],
         matchTerms: ["buyout", "redemption", "transfer agreement", "former owner payment"],
+        matchRoles: ["buyout_agreement", "ownership_schedule"],
+        matchExtractKinds: ["ownership_timeline_signal"],
         enabled: (currentDraft) =>
           currentDraft.profile.ownershipChangedDuringYear ||
           currentDraft.profile.hasOwnerBuyoutOrRedemption ||
@@ -179,6 +192,8 @@ function buildBlueprints(
         criticality: "critical",
         requiredForms: ["Form 1120-S"],
         matchTerms: ["2553", "s corp election", "1120 s", "s corporation election"],
+        matchRoles: ["entity_election", "formation_document"],
+        matchExtractKinds: ["election_signal", "election_timeline_signal"],
       },
       {
         id: "s-corp-shareholders",
@@ -186,6 +201,8 @@ function buildBlueprints(
         criticality: "critical",
         requiredForms: ["Form 1120-S", "Schedule K-1"],
         matchTerms: ["shareholder roster", "ownership breakdown", "stock ledger", "share split"],
+        matchRoles: ["ownership_schedule", "cap_table", "operating_agreement"],
+        matchExtractKinds: ["ownership_signal", "ownership_timeline_signal"],
       },
       {
         id: "s-corp-payroll",
@@ -214,6 +231,8 @@ function buildBlueprints(
         criticality: "important",
         requiredForms: ["Form 1120-S", "Schedule K-1"],
         matchTerms: ["form 1120 s", "schedule k 1", "1120-s return", "k 1"],
+        matchRoles: ["prior_return_package"],
+        matchExtractKinds: ["prior_filing_signal"],
       },
     ];
   }
@@ -226,6 +245,8 @@ function buildBlueprints(
         criticality: "critical",
         requiredForms: ["Form 1120"],
         matchTerms: ["articles of incorporation", "form 1120", "c corp", "corporate election"],
+        matchRoles: ["formation_document", "entity_election"],
+        matchExtractKinds: ["election_signal", "election_timeline_signal"],
       },
       {
         id: "c-corp-books",
@@ -261,6 +282,8 @@ function buildBlueprints(
         criticality: "important",
         requiredForms: ["Form 1120"],
         matchTerms: ["form 1120", "corporate return", "prior return"],
+        matchRoles: ["prior_return_package"],
+        matchExtractKinds: ["prior_filing_signal"],
       },
     ];
   }
@@ -272,6 +295,18 @@ function buildBlueprints(
       criticality: "critical",
       requiredForms: [],
       matchTerms: ["formation papers", "election", "prior return", "ownership breakdown"],
+      matchRoles: [
+        "formation_document",
+        "entity_election",
+        "prior_return_package",
+        "ownership_schedule",
+        "state_registration",
+      ],
+      matchExtractKinds: [
+        "prior_filing_signal",
+        "election_timeline_signal",
+        "state_registration_signal",
+      ],
     },
   ];
 }
@@ -281,11 +316,31 @@ function buildRequirement(args: {
   laneId: TinaFilingLaneId;
   returnFamily: string;
   blueprint: TinaEntityRecordBlueprint;
+  documentIntelligence: ReturnType<typeof buildTinaDocumentIntelligence>;
 }): TinaEntityRecordRequirement {
-  const docs = matchDocuments(args.blueprint.matchTerms, args.draft.documents);
-  const facts = matchFacts(args.blueprint.matchTerms, args.draft.sourceFacts);
+  const textMatchedDocs = matchDocuments(args.blueprint.matchTerms, args.draft.documents);
+  const textMatchedFacts = matchFacts(args.blueprint.matchTerms, args.draft.sourceFacts);
+  const structuredMatches = args.documentIntelligence.items.filter((item) => {
+    const roleMatch =
+      args.blueprint.matchRoles?.some((role) => item.roles.includes(role)) ?? false;
+    const extractKindMatch =
+      args.blueprint.matchExtractKinds?.some((kind) =>
+        item.extractedFacts.some((fact) => fact.kind === kind)
+      ) ?? false;
+
+    return roleMatch || extractKindMatch;
+  });
+  const docs = unique([
+    ...textMatchedDocs.map((document) => document.id),
+    ...structuredMatches.map((item) => item.documentId),
+  ]);
+  const facts = unique([
+    ...textMatchedFacts.map((fact) => fact.id),
+    ...structuredMatches.flatMap((item) => item.relatedFactIds),
+  ]);
+  const hasStructuredCoverage = structuredMatches.length > 0;
   const status =
-    docs.length > 0 && facts.length > 0
+    hasStructuredCoverage || (docs.length > 0 && facts.length > 0)
       ? "covered"
       : docs.length > 0 || facts.length > 0
         ? "partial"
@@ -298,15 +353,17 @@ function buildRequirement(args: {
     title: args.blueprint.title,
     summary:
       status === "covered"
-        ? "Tina found both document and fact support for this return-family record."
+        ? hasStructuredCoverage
+          ? "Tina found structured paper-truth support for this return-family record."
+          : "Tina found both document and fact support for this return-family record."
         : status === "partial"
           ? "Tina found some signal for this return-family record, but the file is still thin."
           : "Tina does not yet have visible support for this return-family record.",
     status,
     criticality: args.blueprint.criticality,
     requiredForms: unique(args.blueprint.requiredForms),
-    matchedDocumentIds: unique(docs.map((document) => document.id)),
-    matchedFactIds: unique(facts.map((fact) => fact.id)),
+    matchedDocumentIds: docs,
+    matchedFactIds: facts,
   };
 }
 
@@ -314,6 +371,7 @@ export function buildTinaEntityRecordMatrix(
   draft: TinaWorkspaceDraft
 ): TinaEntityRecordMatrixSnapshot {
   const federalReturnRequirements = buildTinaFederalReturnRequirements(draft);
+  const documentIntelligence = buildTinaDocumentIntelligence(draft);
   const laneId = federalReturnRequirements.laneId;
   const blueprints = buildBlueprints(draft, laneId).filter(
     (blueprint) => !blueprint.enabled || blueprint.enabled(draft)
@@ -324,6 +382,7 @@ export function buildTinaEntityRecordMatrix(
       laneId,
       returnFamily: federalReturnRequirements.returnFamily,
       blueprint,
+      documentIntelligence,
     })
   );
   const missingCriticalCount = items.filter(

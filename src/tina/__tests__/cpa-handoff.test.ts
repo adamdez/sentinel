@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TINA_SKILL_REVIEW_DRAFTS } from "@/tina/data/skill-review-fixtures";
 import {
   buildTinaCpaHandoff,
   markTinaCpaHandoffStale,
@@ -509,13 +510,13 @@ describe("buildTinaCpaHandoff", () => {
       snapshot.artifacts.find((artifact) => artifact.id === "federal-return-requirements")?.status
     ).toBe("ready");
     expect(snapshot.artifacts.find((artifact) => artifact.id === "entity-record-matrix")?.status).toBe(
-      "waiting"
+      "ready"
     );
     expect(
       snapshot.artifacts.find((artifact) => artifact.id === "entity-economics-readiness")?.status
-    ).toBe("waiting");
+    ).toBe("ready");
     expect(snapshot.artifacts.find((artifact) => artifact.id === "entity-return-runbook")?.status).toBe(
-      "waiting"
+      "ready"
     );
     expect(snapshot.artifacts.find((artifact) => artifact.id === "ownership-timeline")?.status).toBe(
       "ready"
@@ -531,15 +532,18 @@ describe("buildTinaCpaHandoff", () => {
     );
     expect(
       snapshot.artifacts.find((artifact) => artifact.id === "official-form-execution")?.status
-    ).toBe("waiting");
+    ).toBe("ready");
+    expect(
+      snapshot.artifacts.find((artifact) => artifact.id === "companion-form-render-plan")?.status
+    ).toBe("ready");
     expect(
       snapshot.artifacts.find((artifact) => artifact.id === "accounting-artifact-coverage")?.status
-    ).toBe("waiting");
+    ).toBe("ready");
     expect(snapshot.artifacts.find((artifact) => artifact.id === "attachment-schedules")?.status).toBe(
       "ready"
     );
     expect(snapshot.artifacts.find((artifact) => artifact.id === "planning-action-board")?.status).toBe(
-      "blocked"
+      "waiting"
     );
     expect(snapshot.artifacts.find((artifact) => artifact.id === "review-bundle-export")?.status).toBe(
       "blocked"
@@ -734,6 +738,17 @@ describe("buildTinaCpaHandoff", () => {
           uploadedAt: "2026-03-27T04:00:00.000Z",
         },
         {
+          id: "doc-qb",
+          name: "quickbooks.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/quickbooks.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:30.000Z",
+        },
+        {
           id: "doc-bank",
           name: "bank.pdf",
           size: 100,
@@ -743,6 +758,57 @@ describe("buildTinaCpaHandoff", () => {
           requestId: "bank-support",
           requestLabel: "Bank support",
           uploadedAt: "2026-03-27T04:01:00.000Z",
+        },
+      ],
+      documentReadings: [
+        {
+          documentId: "doc-1",
+          status: "complete",
+          kind: "pdf",
+          summary: "Read",
+          nextStep: "Keep going",
+          facts: [],
+          detailLines: [],
+          rowCount: null,
+          headers: [],
+          sheetNames: [],
+          lastReadAt: "2026-03-27T04:00:15.000Z",
+        },
+        {
+          documentId: "doc-qb",
+          status: "complete",
+          kind: "spreadsheet",
+          summary: "Read",
+          nextStep: "Keep going",
+          facts: [],
+          detailLines: [],
+          rowCount: 10,
+          headers: ["Date", "Amount"],
+          sheetNames: ["Sheet1"],
+          lastReadAt: "2026-03-27T04:00:45.000Z",
+        },
+        {
+          documentId: "doc-bank",
+          status: "complete",
+          kind: "pdf",
+          summary: "Read",
+          nextStep: "Keep going",
+          facts: [],
+          detailLines: [],
+          rowCount: null,
+          headers: [],
+          sheetNames: [],
+          lastReadAt: "2026-03-27T04:01:15.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "fact-income",
+          sourceDocumentId: "doc-qb",
+          label: "Gross receipts support",
+          value: "QuickBooks income summary supports the gross receipts figure.",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:01:30.000Z",
         },
       ],
       bootstrapReview: {
@@ -770,7 +836,7 @@ describe("buildTinaCpaHandoff", () => {
             amount: 18000,
             status: "ready",
             summary: "Ready",
-            sourceDocumentIds: ["doc-1", "doc-bank"],
+            sourceDocumentIds: ["doc-1", "doc-qb", "doc-bank"],
             sourceFactIds: ["fact-income"],
             issueIds: [],
             derivedFromLineIds: [],
@@ -793,7 +859,7 @@ describe("buildTinaCpaHandoff", () => {
             summary: "Ready",
             reviewerFinalLineIds: ["rf-income"],
             taxAdjustmentIds: ["tax-income"],
-            sourceDocumentIds: ["doc-1", "doc-bank"],
+            sourceDocumentIds: ["doc-1", "doc-qb", "doc-bank"],
           },
         ],
         notes: [],
@@ -895,7 +961,30 @@ describe("buildTinaCpaHandoff", () => {
     expect(
       snapshot.artifacts.some((artifact) => artifact.id === "reviewer-acceptance-forecast")
     ).toBe(true);
-  });
+    expect(snapshot.artifacts.some((artifact) => artifact.id === "confidence-calibration")).toBe(
+      true
+    );
+    expect(snapshot.artifacts.some((artifact) => artifact.id === "case-memory-ledger")).toBe(
+      true
+    );
+    expect(snapshot.artifacts.some((artifact) => artifact.id === "reviewer-learning-loop")).toBe(
+      true
+    );
+    expect(
+      snapshot.artifacts.find((artifact) => artifact.id === "reviewer-override-governance")
+        ?.status
+    ).toBe("ready");
+    expect(
+      snapshot.artifacts.find((artifact) => artifact.id === "reviewer-policy-versioning")
+        ?.status
+    ).toBe("ready");
+    expect(
+      snapshot.artifacts.find((artifact) => artifact.id === "reviewer-acceptance-reality")
+        ?.status
+    ).toBe("ready");
+    expect(snapshot.artifacts.find((artifact) => artifact.id === "unknown-pattern-resolution")?.status)
+      .toBe("ready");
+  }, 30000);
 
   it("blocks the form-output artifact when the form is still only thinly supported", () => {
     const draft = buildDraft({
@@ -1004,6 +1093,341 @@ describe("buildTinaCpaHandoff", () => {
 
     expect(snapshot.artifacts.find((artifact) => artifact.id === "schedule-c-form-output")?.status).toBe(
       "blocked"
+    );
+  });
+
+  it("includes the single-member entity-history artifact when that proof still blocks the route", () => {
+    const base = createDefaultTinaWorkspaceDraft();
+    const snapshot = buildTinaCpaHandoff({
+      ...base,
+      profile: {
+        ...base.profile,
+        businessName: "Transition Drift LLC",
+        taxYear: "2025",
+        principalBusinessActivity: "Consulting",
+        naicsCode: "541611",
+        entityType: "single_member_llc",
+        ownerCount: 1,
+        taxElection: "s_corp",
+        hasPayroll: true,
+        ownershipChangedDuringYear: true,
+        notes:
+          "A sole prop became an LLC and maybe later an S corp, but the books still look like the old business and no one is sure when payroll actually started.",
+      },
+      documents: [
+        {
+          id: "doc-transition",
+          name: "entity-transition-notes.pdf",
+          size: 120,
+          mimeType: "application/pdf",
+          storagePath: "tina/tests/entity-transition-notes.pdf",
+          category: "supporting_document",
+          requestId: "entity-election",
+          requestLabel: "Entity transition notes",
+          uploadedAt: "2026-04-05T12:00:00.000Z",
+        },
+      ],
+      reviewerFinal: {
+        ...base.reviewerFinal,
+        status: "complete",
+        lines: [
+          {
+            id: "rf-income",
+            kind: "income",
+            layer: "reviewer_final",
+            label: "Gross receipts",
+            amount: 12000,
+            status: "ready",
+            summary: "Ready",
+            sourceDocumentIds: ["doc-transition"],
+            sourceFactIds: [],
+            issueIds: [],
+            derivedFromLineIds: [],
+            cleanupSuggestionIds: [],
+            taxAdjustmentIds: [],
+          },
+        ],
+      },
+      scheduleCDraft: {
+        ...base.scheduleCDraft,
+        status: "complete",
+        fields: [
+          {
+            id: "line-1",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 12000,
+            status: "ready",
+            summary: "Ready",
+            reviewerFinalLineIds: ["rf-income"],
+            taxAdjustmentIds: [],
+            sourceDocumentIds: ["doc-transition"],
+          },
+        ],
+        notes: [],
+      },
+      packageReadiness: {
+        ...base.packageReadiness,
+        status: "complete",
+        level: "blocked",
+        summary: "Blocked",
+        nextStep: "Resolve route history",
+        items: [],
+      },
+      documentReadings: [
+        {
+          documentId: "doc-transition",
+          status: "complete",
+          kind: "pdf",
+          summary: "Books never caught up",
+          nextStep: "Resolve route history",
+          facts: [],
+          detailLines: [
+            "The business changed structure mid-year and the books never caught up.",
+            "The books still reflect the old business and owner-flow labels.",
+            "No clean IRS acceptance trail exists and payroll actually started later.",
+          ],
+          rowCount: null,
+          headers: [],
+          sheetNames: [],
+          lastReadAt: "2026-04-05T12:01:00.000Z",
+        },
+      ],
+    });
+    const artifact = snapshot.artifacts.find(
+      (item) => item.id === "single-member-entity-history-proof"
+    );
+
+    expect(artifact?.status).toBe("blocked");
+    expect(artifact?.summary).toMatch(/books posture|owner history|transition year/i);
+  });
+
+  it("keeps an explicit unknown-pattern artifact when prior-return drift creates competing explanations", () => {
+    const snapshot = buildTinaCpaHandoff(TINA_SKILL_REVIEW_DRAFTS["prior-return-drift"]);
+    const artifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "unknown-pattern-resolution"
+    );
+    const filingRemediationArtifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "entity-filing-remediation"
+    );
+    const confidenceArtifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "confidence-calibration"
+    );
+    const caseMemoryArtifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "case-memory-ledger"
+    );
+    const learningArtifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "reviewer-learning-loop"
+    );
+
+    expect(snapshot.status).toBe("complete");
+    expect(artifact?.status).not.toBe("ready");
+    expect(artifact?.includes.some((line) => /Handling:/i.test(line))).toBe(true);
+    expect(artifact?.includes.some((line) => /hypothesis/i.test(line))).toBe(true);
+    expect(filingRemediationArtifact?.status).not.toBe("ready");
+    expect(filingRemediationArtifact?.includes.some((line) => /Likely prior lanes:/i.test(line))).toBe(
+      true
+    );
+    expect(
+      filingRemediationArtifact?.includes.some((line) => /History status:/i.test(line))
+    ).toBe(true);
+    expect(
+      filingRemediationArtifact?.includes.some((line) => /Amendment status:/i.test(line))
+    ).toBe(true);
+    expect(confidenceArtifact?.status).not.toBe("ready");
+    expect(caseMemoryArtifact?.status).toBe("waiting");
+    expect(learningArtifact?.status).toBe("ready");
+  }, 30000);
+
+  it("shows entity-return calculations as a waiting artifact for reviewer-controlled partnership files", () => {
+    const baseDraft = TINA_SKILL_REVIEW_DRAFTS["uneven-multi-owner"];
+    const snapshot = buildTinaCpaHandoff({
+      ...baseDraft,
+      reviewerFinal: {
+        ...baseDraft.reviewerFinal,
+        status: "complete",
+      },
+      scheduleCDraft: {
+        ...baseDraft.scheduleCDraft,
+        status: "complete",
+      },
+    });
+    const artifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "entity-return-calculations"
+    );
+    const supportArtifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "entity-return-support-artifacts"
+    );
+    const scheduleFamilyArtifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "entity-return-schedule-families"
+    );
+    const scheduleFamilyFinalizationArtifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "entity-return-schedule-family-finalizations"
+    );
+    const scheduleFamilyPayloadArtifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "entity-return-schedule-family-payloads"
+    );
+
+    expect(snapshot.status).toBe("complete");
+    expect(artifact?.status).toBe("blocked");
+    expect(artifact?.includes.some((line) => /Form 1065 primary return/i.test(line))).toBe(true);
+    expect(
+      artifact?.includes.some((line) => /structured values/i.test(line))
+    ).toBe(true);
+    expect(scheduleFamilyArtifact?.status).toBe("blocked");
+    expect(
+      scheduleFamilyArtifact?.includes.some((line) => /Partnership Schedule K-1 family/i.test(line))
+    ).toBe(true);
+    expect(scheduleFamilyFinalizationArtifact?.status).toBe("blocked");
+    expect(
+      scheduleFamilyFinalizationArtifact?.includes.some((line) =>
+        /Partnership Schedule K-1 family/i.test(line)
+      )
+    ).toBe(true);
+    expect(["waiting", "blocked"]).toContain(scheduleFamilyPayloadArtifact?.status ?? "");
+    expect(
+      scheduleFamilyPayloadArtifact?.includes.some((line) => /Partnership Schedule K-1 family/i.test(line))
+    ).toBe(true);
+    expect(supportArtifact?.status).toBe("blocked");
+    expect(supportArtifact?.includes.some((line) => /Partner Schedule K-1 set/i.test(line))).toBe(
+      true
+    );
+  });
+
+  it("keeps owner-flow and basis adjudication visible on buyout-year handoffs", { timeout: 15000 }, () => {
+    const baseDraft = TINA_SKILL_REVIEW_DRAFTS["buyout-year"];
+    const snapshot = buildTinaCpaHandoff({
+      ...baseDraft,
+      reviewerFinal: {
+        ...baseDraft.reviewerFinal,
+        status: "complete",
+      },
+      scheduleCDraft: {
+        ...baseDraft.scheduleCDraft,
+        status: "complete",
+      },
+    });
+    const artifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "owner-flow-basis-adjudication"
+    );
+
+    expect(snapshot.status).toBe("complete");
+    expect(artifact?.status).toBe("blocked");
+    expect(
+      artifact?.includes.some((line) => /Opening basis and capital footing|Owner-flow characterization/i.test(line))
+    ).toBe(true);
+    expect(artifact?.includes).toContain("Transition economics: blocked");
+  });
+
+  it("keeps payroll compliance visible when wage treatment outruns the filing trail", { timeout: 15000 }, () => {
+    const defaultDraft = createDefaultTinaWorkspaceDraft();
+    const draft = buildDraft({
+      profile: {
+        ...defaultDraft.profile,
+        businessName: "Payroll Drift LLC",
+        entityType: "s_corp",
+        hasPayroll: true,
+        notes:
+          "Payroll provider was used, but deposits were late and quarterly payroll filings are incomplete.",
+      },
+      documents: [
+        {
+          id: "doc-payroll",
+          name: "payroll-register.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/payroll-register.pdf",
+          category: "supporting_document",
+          requestId: "payroll",
+          requestLabel: "Payroll register",
+          uploadedAt: "2026-04-04T09:00:00.000Z",
+        },
+      ],
+      documentReadings: [
+        {
+          documentId: "doc-payroll",
+          status: "complete",
+          kind: "pdf",
+          summary: "Payroll register with late deposits",
+          nextStep: "Review",
+          facts: [],
+          detailLines: [
+            "Payroll provider summary shows wages and officer pay.",
+            "Late deposit notices appear and quarterly filing support is incomplete.",
+          ],
+          rowCount: null,
+          headers: [],
+          sheetNames: [],
+          lastReadAt: "2026-04-04T09:02:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "fact-payroll-gap",
+          sourceDocumentId: "doc-payroll",
+          label: "Payroll clue",
+          value: "Payroll existed but the compliance trail is incomplete and deposits were late.",
+          confidence: "high",
+          capturedAt: "2026-04-04T09:03:00.000Z",
+        },
+      ],
+      reviewerFinal: {
+        ...defaultDraft.reviewerFinal,
+        status: "complete",
+        lastRunAt: "2026-04-04T09:04:00.000Z",
+        lines: [
+          {
+            id: "rf-wages",
+            kind: "expense",
+            layer: "reviewer_final",
+            label: "Wages",
+            amount: 18000,
+            status: "ready",
+            summary: "Wages visible in the books.",
+            sourceDocumentIds: ["doc-payroll"],
+            sourceFactIds: ["fact-payroll-gap"],
+            issueIds: [],
+            derivedFromLineIds: [],
+            cleanupSuggestionIds: [],
+            taxAdjustmentIds: [],
+          },
+        ],
+      },
+      scheduleCDraft: {
+        ...defaultDraft.scheduleCDraft,
+        status: "complete",
+        lastRunAt: "2026-04-04T09:05:00.000Z",
+        fields: [
+          {
+            id: "line-26-wages",
+            lineNumber: "Line 26",
+            label: "Wages",
+            amount: 18000,
+            status: "ready",
+            summary: "Mapped wages line.",
+            reviewerFinalLineIds: ["rf-wages"],
+            taxAdjustmentIds: [],
+            sourceDocumentIds: ["doc-payroll"],
+          },
+        ],
+        notes: [],
+      },
+    });
+
+    const snapshot = buildTinaCpaHandoff(draft);
+    const artifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "payroll-compliance-reconstruction"
+    );
+    const singleOwnerArtifact = snapshot.artifacts.find(
+      (candidate) => candidate.id === "single-owner-corporate-route-proof"
+    );
+
+    expect(snapshot.status).toBe("complete");
+    expect(artifact?.status).toBe("blocked");
+    expect(artifact?.includes.some((line) => /likely missing filings/i.test(line))).toBe(true);
+    expect(singleOwnerArtifact?.status).toBe("blocked");
+    expect(singleOwnerArtifact?.includes.some((line) => /Election proof: missing/i.test(line))).toBe(
+      true
     );
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyTinaReviewerObservedDelta,
   applyTinaReviewerDecision,
   captureTinaPackageSnapshot,
   refreshTinaWorkflowState,
@@ -72,5 +73,22 @@ describe("workflow-state", () => {
 
     expect(draft.reviewerDecisions).toHaveLength(1);
     expect(draft.reviewerSignoff.packageState).toBe("signed_off");
+  });
+
+  it("records raw reviewer-observed deltas against the live draft", () => {
+    const draft = applyTinaReviewerObservedDelta(buildReadyDraft(), {
+      title: "Reviewer requested stronger route proof",
+      domain: "entity_route",
+      kind: "change_requested",
+      reviewerName: "CPA Tina",
+      summary: "Election story still needs direct proof before route trust widens.",
+      relatedSnapshotId: "snapshot-1",
+    });
+
+    expect(draft.reviewerObservedDeltas).toHaveLength(1);
+    expect(draft.reviewerObservedDeltas[0]?.kind).toBe("change_requested");
+    expect(draft.operationalStatus.truths.some((truth) => /reviewer observed deltas/i.test(truth))).toBe(
+      true
+    );
   });
 });

@@ -11,6 +11,7 @@ import type {
 interface TinaPlacementSeed {
   fieldKey: string;
   label: string;
+  pdfFieldName: string | null;
   x: number;
   y: number;
   fontSize: number;
@@ -18,32 +19,166 @@ interface TinaPlacementSeed {
 }
 
 const SCHEDULE_C_PLACEMENT_MAP: Record<string, TinaPlacementSeed> = {
-  businessName: { fieldKey: "businessName", label: "Business name", x: 128, y: 708, fontSize: 9 },
+  businessName: {
+    fieldKey: "businessName",
+    label: "Business name",
+    pdfFieldName: "topmostSubform[0].Page1[0].f1_1[0]",
+    x: 38,
+    y: 686,
+    fontSize: 9,
+  },
   principalBusinessActivity: {
     fieldKey: "principalBusinessActivity",
     label: "Principal business activity",
-    x: 74,
-    y: 659,
+    pdfFieldName: "topmostSubform[0].Page1[0].f1_3[0]",
+    x: 38,
+    y: 662,
     fontSize: 8,
   },
-  naicsCode: { fieldKey: "naicsCode", label: "Business code", x: 466, y: 659, fontSize: 8 },
-  grossReceipts: { fieldKey: "grossReceipts", label: "Line 1", x: 468, y: 518, fontSize: 8 },
-  costOfGoodsSold: { fieldKey: "costOfGoodsSold", label: "Line 4", x: 468, y: 479, fontSize: 8 },
-  grossIncome: { fieldKey: "grossIncome", label: "Line 7", x: 468, y: 442, fontSize: 8 },
-  advertising: { fieldKey: "advertising", label: "Line 8", x: 468, y: 425, fontSize: 8 },
-  contractLabor: { fieldKey: "contractLabor", label: "Line 11", x: 468, y: 385, fontSize: 8 },
-  depreciation: { fieldKey: "depreciation", label: "Line 13", x: 468, y: 361, fontSize: 8 },
-  officeExpense: { fieldKey: "officeExpense", label: "Line 18", x: 468, y: 299, fontSize: 8 },
-  rentOrLease: { fieldKey: "rentOrLease", label: "Line 20", x: 468, y: 274, fontSize: 8 },
-  supplies: { fieldKey: "supplies", label: "Line 22", x: 468, y: 249, fontSize: 8 },
-  taxesAndLicenses: { fieldKey: "taxesAndLicenses", label: "Line 23", x: 468, y: 236, fontSize: 8 },
-  travel: { fieldKey: "travel", label: "Line 24a", x: 468, y: 224, fontSize: 8 },
-  deductibleMeals: { fieldKey: "deductibleMeals", label: "Line 24b", x: 468, y: 212, fontSize: 8 },
-  wages: { fieldKey: "wages", label: "Line 26", x: 468, y: 188, fontSize: 8 },
-  otherExpenses: { fieldKey: "otherExpenses", label: "Line 27a", x: 468, y: 176, fontSize: 8 },
-  totalExpenses: { fieldKey: "totalExpenses", label: "Line 28", x: 468, y: 162, fontSize: 8 },
-  tentativeProfit: { fieldKey: "tentativeProfit", label: "Line 29", x: 468, y: 149, fontSize: 8 },
-  netProfitOrLoss: { fieldKey: "netProfitOrLoss", label: "Line 31", x: 468, y: 126, fontSize: 8 },
+  naicsCode: {
+    fieldKey: "naicsCode",
+    label: "Business code",
+    pdfFieldName: "topmostSubform[0].Page1[0].BComb[0].f1_4[0]",
+    x: 462,
+    y: 663,
+    fontSize: 8,
+  },
+  grossReceipts: {
+    fieldKey: "grossReceipts",
+    label: "Line 1",
+    pdfFieldName: "topmostSubform[0].Page1[0].f1_10[0]",
+    x: 477,
+    y: 518,
+    fontSize: 8,
+  },
+  costOfGoodsSold: {
+    fieldKey: "costOfGoodsSold",
+    label: "Line 4",
+    pdfFieldName: "topmostSubform[0].Page1[0].f1_13[0]",
+    x: 477,
+    y: 482,
+    fontSize: 8,
+  },
+  grossIncome: {
+    fieldKey: "grossIncome",
+    label: "Line 7",
+    pdfFieldName: "topmostSubform[0].Page1[0].f1_16[0]",
+    x: 477,
+    y: 446,
+    fontSize: 8,
+  },
+  advertising: {
+    fieldKey: "advertising",
+    label: "Line 8",
+    pdfFieldName: "topmostSubform[0].Page1[0].Lines8-17[0].f1_17[0]",
+    x: 196,
+    y: 422,
+    fontSize: 8,
+  },
+  contractLabor: {
+    fieldKey: "contractLabor",
+    label: "Line 11",
+    pdfFieldName: "topmostSubform[0].Page1[0].Lines8-17[0].f1_20[0]",
+    x: 196,
+    y: 374,
+    fontSize: 8,
+  },
+  depreciation: {
+    fieldKey: "depreciation",
+    label: "Line 13",
+    pdfFieldName: "topmostSubform[0].Page1[0].Lines8-17[0].f1_22[0]",
+    x: 196,
+    y: 326,
+    fontSize: 8,
+  },
+  officeExpense: {
+    fieldKey: "officeExpense",
+    label: "Line 18",
+    pdfFieldName: "topmostSubform[0].Page1[0].Lines18-27[0].f1_28[0]",
+    x: 477,
+    y: 422,
+    fontSize: 8,
+  },
+  rentOrLease: {
+    fieldKey: "rentOrLease",
+    label: "Line 20",
+    pdfFieldName: "topmostSubform[0].Page1[0].Lines18-27[0].f1_31[0]",
+    x: 477,
+    y: 374,
+    fontSize: 8,
+  },
+  supplies: {
+    fieldKey: "supplies",
+    label: "Line 22",
+    pdfFieldName: "topmostSubform[0].Page1[0].Lines18-27[0].f1_33[0]",
+    x: 477,
+    y: 350,
+    fontSize: 8,
+  },
+  taxesAndLicenses: {
+    fieldKey: "taxesAndLicenses",
+    label: "Line 23",
+    pdfFieldName: "topmostSubform[0].Page1[0].Lines18-27[0].f1_34[0]",
+    x: 477,
+    y: 338,
+    fontSize: 8,
+  },
+  travel: {
+    fieldKey: "travel",
+    label: "Line 24a",
+    pdfFieldName: "topmostSubform[0].Page1[0].Lines18-27[0].f1_35[0]",
+    x: 477,
+    y: 314,
+    fontSize: 8,
+  },
+  deductibleMeals: {
+    fieldKey: "deductibleMeals",
+    label: "Line 24b",
+    pdfFieldName: "topmostSubform[0].Page1[0].Lines18-27[0].f1_36[0]",
+    x: 477,
+    y: 302,
+    fontSize: 8,
+  },
+  wages: {
+    fieldKey: "wages",
+    label: "Line 26",
+    pdfFieldName: "topmostSubform[0].Page1[0].Lines18-27[0].f1_38[0]",
+    x: 477,
+    y: 278,
+    fontSize: 8,
+  },
+  otherExpenses: {
+    fieldKey: "otherExpenses",
+    label: "Line 27a",
+    pdfFieldName: "topmostSubform[0].Page1[0].Lines18-27[0].f1_40[0]",
+    x: 477,
+    y: 254,
+    fontSize: 8,
+  },
+  totalExpenses: {
+    fieldKey: "totalExpenses",
+    label: "Line 28",
+    pdfFieldName: "topmostSubform[0].Page1[0].f1_41[0]",
+    x: 477,
+    y: 230,
+    fontSize: 8,
+  },
+  tentativeProfit: {
+    fieldKey: "tentativeProfit",
+    label: "Line 29",
+    pdfFieldName: "topmostSubform[0].Page1[0].f1_42[0]",
+    x: 477,
+    y: 218,
+    fontSize: 8,
+  },
+  netProfitOrLoss: {
+    fieldKey: "netProfitOrLoss",
+    label: "Line 31",
+    pdfFieldName: "topmostSubform[0].Page1[0].f1_45[0]",
+    x: 477,
+    y: 158,
+    fontSize: 8,
+  },
 };
 
 function formatMoney(value: number | null): string {
@@ -77,6 +212,7 @@ function buildPlacement(args: {
     fieldKey: args.seed.fieldKey,
     label: args.seed.label,
     value: args.value,
+    pdfFieldName: args.seed.pdfFieldName,
     x: args.seed.x,
     y: args.seed.y,
     fontSize: args.seed.fontSize,
@@ -213,16 +349,16 @@ export function buildTinaOfficialFormFill(
     formId: "f1040sc",
     templateTitle: template.title,
     overallStatus,
-    mode: "overlay_plan",
+    mode: "direct_field_plan",
     summary:
       overallStatus === "ready"
-        ? `Tina mapped ${placements.length} Schedule C placements onto the stored official blank with no current fill blockers.`
+        ? `Tina mapped ${placements.length} Schedule C placements onto exact stored IRS field targets with no current fill blockers.`
         : overallStatus === "needs_review"
-          ? `Tina mapped ${placements.length} Schedule C placements, but ${reviewCount} placement${reviewCount === 1 ? "" : "s"} still need reviewer attention.`
-          : `Tina mapped ${placements.length} Schedule C placements, but ${blockedCount} placement${blockedCount === 1 ? "" : "s"} still block an official-form fill pass.`,
+          ? `Tina mapped ${placements.length} Schedule C placements onto exact stored IRS field targets, but ${reviewCount} placement${reviewCount === 1 ? "" : "s"} still need reviewer attention.`
+          : `Tina mapped ${placements.length} Schedule C placements onto exact stored IRS field targets, but ${blockedCount} placement${blockedCount === 1 ? "" : "s"} still block an official-form fill pass.`,
     nextStep:
       overallStatus === "ready"
-        ? "Use the placement plan to render onto the stored Schedule C blank and keep the trace attached."
+        ? "Use the direct field plan to render onto the stored Schedule C blank and keep the trace attached."
         : "Clear the blocked or review-only placements before calling this official-form-ready.",
     placements,
     blockedReasons,

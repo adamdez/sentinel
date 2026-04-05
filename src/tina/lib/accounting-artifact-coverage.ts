@@ -2,7 +2,6 @@ import type {
   TinaAccountingArtifactCoverageItem,
   TinaAccountingArtifactCoverageSnapshot,
 } from "@/tina/lib/acceleration-contracts";
-import { buildTinaBooksReconstruction } from "@/tina/lib/books-reconstruction";
 import { buildTinaIndustryEvidenceMatrix } from "@/tina/lib/industry-evidence-matrix";
 import { buildTinaOwnershipTimeline } from "@/tina/lib/ownership-timeline";
 import type { TinaStoredDocument, TinaWorkspaceDraft } from "@/tina/types";
@@ -11,12 +10,36 @@ function unique(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function documentText(document: TinaStoredDocument): string {
+function buildSourceMode(
+  draft: TinaWorkspaceDraft
+): TinaAccountingArtifactCoverageSnapshot["sourceMode"] {
+  const hasQuickBooksLive =
+    draft.quickBooksConnection.status === "connected" ||
+    draft.quickBooksConnection.status === "syncing";
+  const hasUploadedBooks = draft.documents.some(
+    (document) =>
+      document.requestId === "quickbooks" ||
+      document.mimeType.includes("csv") ||
+      document.mimeType.includes("sheet") ||
+      document.name.toLowerCase().includes("quickbooks") ||
+      document.name.toLowerCase().includes("profit-and-loss")
+  );
+
+  return hasQuickBooksLive ? "quickbooks_live" : hasUploadedBooks ? "uploaded_books" : "thin_records";
+}
+
+function documentText(draft: TinaWorkspaceDraft, document: TinaStoredDocument): string {
+  const reading = draft.documentReadings.find((item) => item.documentId === document.id);
+  const facts = draft.sourceFacts.filter((fact) => fact.sourceDocumentId === document.id);
+
   return [
     document.name,
     document.requestId ?? "",
     document.requestLabel ?? "",
     document.mimeType,
+    reading?.summary ?? "",
+    reading?.detailLines.join(" ") ?? "",
+    facts.map((fact) => `${fact.label} ${fact.value}`).join(" "),
   ]
     .join(" ")
     .toLowerCase();
@@ -37,7 +60,7 @@ function matchedDocumentIds(
 ): string[] {
   return unique([
     ...draft.documents
-      .filter((document) => matchesAny(documentText(document), patterns))
+      .filter((document) => matchesAny(documentText(draft, document), patterns))
       .map((document) => document.id),
     ...importedDocumentIds,
   ]);
@@ -62,16 +85,41 @@ function statusFromMatches(args: {
   documentIds: string[];
   factIds: string[];
   liveSupport?: boolean;
+  linkedUsageCount?: number;
 }): "covered" | "partial" | "missing" {
   const documentCount = unique(args.documentIds).length;
   const factCount = unique(args.factIds).length;
+  const linkedUsageCount = args.linkedUsageCount ?? 0;
 
-  if ((documentCount >= 1 && factCount >= 1) || (documentCount >= 2 && args.liveSupport)) {
+  if (
+    (documentCount >= 1 && (factCount >= 1 || linkedUsageCount > 0)) ||
+    (documentCount >= 2 && (args.liveSupport || linkedUsageCount > 0))
+  ) {
     return "covered";
   }
 
-  if (documentCount >= 1 || factCount >= 1 || args.liveSupport) return "partial";
+  if (documentCount >= 1 || factCount >= 1 || linkedUsageCount > 0 || args.liveSupport) {
+    return "partial";
+  }
   return "missing";
+}
+
+function linkedUsageCount(draft: TinaWorkspaceDraft, documentIds: string[]): number {
+  const idSet = new Set(unique(documentIds));
+  if (idSet.size === 0) return 0;
+
+  const reviewerLineCount = draft.reviewerFinal.lines.filter((line) =>
+    line.sourceDocumentIds.some((documentId) => idSet.has(documentId))
+  ).length;
+  const scheduleFieldCount = draft.scheduleCDraft.fields.filter((field) =>
+    field.sourceDocumentIds.some((documentId) => idSet.has(documentId))
+  ).length;
+
+  return reviewerLineCount + scheduleFieldCount;
+}
+
+function hasAnyDocumentMatch(draft: TinaWorkspaceDraft, patterns: RegExp[]): boolean {
+  return draft.documents.some((document) => matchesAny(documentText(draft, document), patterns));
 }
 
 function summaryForStatus(args: {
@@ -95,9 +143,9 @@ function summaryForStatus(args: {
 export function buildTinaAccountingArtifactCoverage(
   draft: TinaWorkspaceDraft
 ): TinaAccountingArtifactCoverageSnapshot {
-  const booksReconstruction = buildTinaBooksReconstruction(draft);
   const industryEvidenceMatrix = buildTinaIndustryEvidenceMatrix(draft);
   const ownershipTimeline = buildTinaOwnershipTimeline(draft);
+  const sourceMode = buildSourceMode(draft);
   const liveSupport =
     draft.quickBooksConnection.status === "connected" ||
     draft.quickBooksConnection.status === "syncing";
@@ -137,7 +185,9 @@ export function buildTinaAccountingArtifactCoverage(
       criticality: "important",
       relatedAreaIds: ["core_expenses"],
       patterns: [/credit/i, /card/i, /amex/i, /\bvisa\b/i, /mastercard/i],
-      includeWhen: true,
+      includeWhen:
+        hasAnyDocumentMatch(draft, [/credit/i, /card/i, /amex/i, /\bvisa\b/i, /mastercard/i]) ||
+        /credit|card|amex|visa|mastercard/i.test(draft.profile.notes),
       request:
         "Upload the business card statements or export that supports the expense-side books picture.",
     },
@@ -158,7 +208,14 @@ export function buildTinaAccountingArtifactCoverage(
       criticality: "important",
       relatedAreaIds: ["income", "core_expenses", "worker_payments"],
       patterns: [/general ledger/i, /\bledger\b/i, /\bgl\b/i, /journal/i],
-      includeWhen: true,
+      includeWhen:
+        liveSupport ||
+        ownershipHeavy ||
+        draft.profile.hasPayroll ||
+        draft.profile.paysContractors ||
+        draft.profile.hasInventory ||
+        draft.profile.hasFixedAssets ||
+        hasAnyDocumentMatch(draft, [/\bgeneral ledger\b/i, /\bledger\b/i, /\btrial balance\b/i, /\bjournal\b/i]),
       liveSupport: liveSupport,
       request:
         "Upload or sync a general ledger export so Tina can reason through transaction-level categorization instead of only totals.",
@@ -242,6 +299,7 @@ export function buildTinaAccountingArtifactCoverage(
         documentIds,
         factIds,
         liveSupport: Boolean(definition.liveSupport),
+        linkedUsageCount: linkedUsageCount(draft, documentIds),
       });
 
       items.push(
@@ -282,17 +340,18 @@ export function buildTinaAccountingArtifactCoverage(
       );
     });
 
-  const criticalMissingCount = items.filter(
+  const coreItems = items.filter((item) => !item.id.startsWith("industry-"));
+  const criticalMissingCount = coreItems.filter(
     (item) => item.criticality === "critical" && item.status === "missing"
   ).length;
-  const partialOrMissingCount = items.filter((item) => item.status !== "covered").length;
+  const partialOrMissingCount = coreItems.filter((item) => item.status !== "covered").length;
   const overallStatus =
     criticalMissingCount > 0 ? "missing" : partialOrMissingCount > 0 ? "partial" : "covered";
 
   return {
     lastBuiltAt: new Date().toISOString(),
     status: "complete",
-    sourceMode: booksReconstruction.sourceMode,
+    sourceMode,
     overallStatus,
     summary:
       overallStatus === "covered"

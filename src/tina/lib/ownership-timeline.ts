@@ -1,3 +1,7 @@
+import {
+  buildTinaDocumentIntelligence,
+  listTinaDocumentIntelligenceFactsByKind,
+} from "@/tina/lib/document-intelligence";
 import { buildTinaStartPathAssessment } from "@/tina/lib/start-path";
 import type {
   TinaOwnershipTimelineEvent,
@@ -21,10 +25,41 @@ export function buildTinaOwnershipTimeline(
   draft: TinaWorkspaceDraft
 ): TinaOwnershipTimelineSnapshot {
   const startPath = buildTinaStartPathAssessment(draft);
+  const documentIntelligence = buildTinaDocumentIntelligence(draft);
+  const ownershipTimelineSignals = listTinaDocumentIntelligenceFactsByKind({
+    snapshot: documentIntelligence,
+    kind: "ownership_timeline_signal",
+  });
+  const structuredOwnershipArtifacts = documentIntelligence.items.filter(
+    (item) =>
+      item.status !== "signal_only" &&
+      item.roles.some((role) =>
+        ["operating_agreement", "cap_table", "ownership_schedule", "buyout_agreement"].includes(
+          role
+        )
+      )
+  );
+  const ownershipSplitSignals = ownershipTimelineSignals.filter(
+    (signal) => signal.label === "Ownership split timing signal"
+  );
+  const ownershipAgreementNeeded = startPath.proofRequirements.some(
+    (requirement) =>
+      requirement.id === "ownership-agreement" && requirement.status === "needed"
+  );
+  const ownershipTransitionNeeded = startPath.proofRequirements.some(
+    (requirement) =>
+      requirement.id === "ownership-transition" && requirement.status === "needed"
+  );
+  const communityPropertyProofNeeded = startPath.proofRequirements.some(
+    (requirement) =>
+      requirement.id === "community-property-proof" && requirement.status === "needed"
+  );
   const events: TinaOwnershipTimelineEvent[] = [];
   const likelyOwnerCount =
     draft.profile.ownerCount !== null
       ? draft.profile.ownerCount
+      : ownershipSplitSignals.length > 0
+        ? 2
       : startPath.recommendation.laneId === "1065"
         ? 2
         : startPath.recommendation.laneId === "schedule_c_single_member_llc"
@@ -40,68 +75,96 @@ export function buildTinaOwnershipTimeline(
           ? "Tina does not yet have a clean opening ownership count for the tax year."
           : likelyOwnerCount === 1
             ? "Tina currently sees a likely single-owner opening picture."
-            : `Tina currently sees a likely ${likelyOwnerCount}-owner opening picture.`,
+            : ownershipSplitSignals[0]?.valueText
+              ? `Tina currently sees a likely ${likelyOwnerCount}-owner opening picture with a structured split signal (${ownershipSplitSignals[0].valueText}).`
+              : `Tina currently sees a likely ${likelyOwnerCount}-owner opening picture.`,
       status:
         likelyOwnerCount === null
           ? "needs_proof"
-          : startPath.proofRequirements.some((requirement) => requirement.id === "ownership-agreement")
+          : ownershipAgreementNeeded ||
+              (likelyOwnerCount > 1 &&
+                structuredOwnershipArtifacts.length === 0)
             ? "needs_proof"
             : "known",
       relatedFactIds: startPath.relatedFactIds,
-      relatedDocumentIds: startPath.relatedDocumentIds,
+      relatedDocumentIds: unique([
+        ...startPath.relatedDocumentIds,
+        ...structuredOwnershipArtifacts.map((item) => item.documentId),
+      ]),
     })
   );
 
-  if (draft.profile.ownershipChangedDuringYear || startPath.ownershipChangeClue) {
+  if (
+    draft.profile.ownershipChangedDuringYear ||
+    startPath.ownershipChangeClue ||
+    ownershipTimelineSignals.some((signal) => signal.valueText === "ownership_change")
+  ) {
     events.push(
       buildEvent({
         id: "mid-year-change",
         title: "Mid-year ownership change",
         summary:
           "Tina sees a mid-year ownership change or transfer signal that can affect return classification and treatment.",
-        status: startPath.proofRequirements.some((requirement) => requirement.id === "ownership-transition")
+        status: ownershipTransitionNeeded ||
+            structuredOwnershipArtifacts.length === 0
           ? "needs_proof"
           : "known",
         relatedFactIds: [
           ...(startPath.ownershipChangeClue ? [startPath.ownershipChangeClue.id] : []),
         ],
-        relatedDocumentIds: [
+        relatedDocumentIds: unique([
           ...(startPath.ownershipChangeClue ? [startPath.ownershipChangeClue.sourceDocumentId] : []),
-        ],
+          ...structuredOwnershipArtifacts.map((item) => item.documentId),
+        ]),
       })
     );
   }
 
-  if (draft.profile.hasOwnerBuyoutOrRedemption) {
+  if (
+    draft.profile.hasOwnerBuyoutOrRedemption ||
+    ownershipTimelineSignals.some((signal) => signal.valueText === "buyout_or_redemption")
+  ) {
     events.push(
       buildEvent({
         id: "buyout-or-redemption",
         title: "Owner buyout or redemption",
         summary:
           "Tina sees a buyout or redemption signal, so ownership and payment treatment should stay under reviewer control.",
-        status: "needs_proof",
+        status: structuredOwnershipArtifacts.some((item) => item.roles.includes("buyout_agreement"))
+          ? "known"
+          : "needs_proof",
         relatedFactIds: startPath.relatedFactIds,
-        relatedDocumentIds: startPath.relatedDocumentIds,
+        relatedDocumentIds: unique([
+          ...startPath.relatedDocumentIds,
+          ...structuredOwnershipArtifacts.map((item) => item.documentId),
+        ]),
       })
     );
   }
 
-  if (draft.profile.hasFormerOwnerPayments || startPath.formerOwnerPaymentClue) {
+  if (
+    draft.profile.hasFormerOwnerPayments ||
+    startPath.formerOwnerPaymentClue ||
+    ownershipTimelineSignals.some((signal) => signal.valueText === "former_owner_payments")
+  ) {
     events.push(
       buildEvent({
         id: "former-owner-payments",
         title: "Former-owner payments continue after ownership change",
         summary:
           "Tina sees former-owner payment activity that may affect the return path and treatment choice.",
-        status: "needs_proof",
+        status: structuredOwnershipArtifacts.some((item) => item.roles.includes("buyout_agreement"))
+          ? "known"
+          : "needs_proof",
         relatedFactIds: [
           ...(startPath.formerOwnerPaymentClue ? [startPath.formerOwnerPaymentClue.id] : []),
         ],
-        relatedDocumentIds: [
+        relatedDocumentIds: unique([
           ...(startPath.formerOwnerPaymentClue
             ? [startPath.formerOwnerPaymentClue.sourceDocumentId]
             : []),
-        ],
+          ...structuredOwnershipArtifacts.map((item) => item.documentId),
+        ]),
       })
     );
   }
@@ -120,7 +183,7 @@ export function buildTinaOwnershipTimeline(
             : "Tina sees a possible spouse community-property exception, but it still needs proof before treatment can rely on it.",
         status:
           draft.profile.spouseCommunityPropertyTreatment === "confirmed" &&
-          !startPath.proofRequirements.some((requirement) => requirement.id === "community-property-proof")
+          !communityPropertyProofNeeded
             ? "known"
             : "needs_proof",
         relatedFactIds: startPath.relatedFactIds,

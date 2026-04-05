@@ -5,14 +5,27 @@ import { buildTinaAuthorityPositionMatrix } from "@/tina/lib/authority-position-
 import { buildTinaBooksNormalization } from "@/tina/lib/books-normalization";
 import { buildTinaBooksReconciliation } from "@/tina/lib/books-reconciliation";
 import { buildTinaBooksReconstruction } from "@/tina/lib/books-reconstruction";
+import { buildTinaCaseMemoryLedger } from "@/tina/lib/case-memory-ledger";
 import { buildTinaCompanionFormPlan } from "@/tina/lib/companion-form-plan";
+import { buildTinaCompanionFormRenderPlan } from "@/tina/lib/companion-form-render-plan";
+import { buildTinaConfidenceCalibration } from "@/tina/lib/confidence-calibration";
 import { buildTinaCpaHandoff } from "@/tina/lib/cpa-handoff";
 import { buildTinaCrossFormConsistency } from "@/tina/lib/cross-form-consistency";
 import { buildTinaDecisionBriefings } from "@/tina/lib/decision-briefings";
+import {
+  buildTinaDocumentIntelligence,
+  listTinaDocumentIntelligenceDistinctValues,
+} from "@/tina/lib/document-intelligence";
 import { buildTinaDocumentRequestPlan } from "@/tina/lib/document-request-plan";
 import { buildTinaDisclosureReadiness } from "@/tina/lib/disclosure-readiness";
 import { buildTinaEntityEconomicsReadiness } from "@/tina/lib/entity-economics-readiness";
+import { buildTinaEntityFilingRemediation } from "@/tina/lib/entity-filing-remediation";
 import { buildTinaEntityJudgment } from "@/tina/lib/entity-judgment";
+import { buildTinaEntityReturnCalculations } from "@/tina/lib/entity-return-calculations";
+import { buildTinaEntityReturnScheduleFamilyFinalizations } from "@/tina/lib/entity-return-schedule-family-finalizations";
+import { buildTinaEntityReturnScheduleFamilyPayloads } from "@/tina/lib/entity-return-schedule-family-payloads";
+import { buildTinaEntityReturnScheduleFamilyArtifacts } from "@/tina/lib/entity-return-schedule-family-artifacts";
+import { buildTinaEntityReturnSupportArtifacts } from "@/tina/lib/entity-return-support-artifacts";
 import { buildTinaEntityRecordMatrix } from "@/tina/lib/entity-record-matrix";
 import { buildTinaEntityReturnRunbook } from "@/tina/lib/entity-return-runbook";
 import { buildTinaEvidenceSufficiency } from "@/tina/lib/evidence-sufficiency";
@@ -24,15 +37,24 @@ import { buildTinaIndustryEvidenceMatrix } from "@/tina/lib/industry-evidence-ma
 import { buildTinaOfficialFederalFormTemplateSnapshot } from "@/tina/lib/official-form-templates";
 import { buildTinaOfficialFormFill } from "@/tina/lib/official-form-fill";
 import { buildTinaOfficialFormExecution } from "@/tina/lib/official-form-execution";
+import { buildTinaOwnerFlowBasisAdjudication } from "@/tina/lib/owner-flow-basis-adjudication";
 import { buildTinaOwnershipCapitalEvents } from "@/tina/lib/ownership-capital-events";
 import { buildTinaOwnershipTimeline } from "@/tina/lib/ownership-timeline";
 import { buildTinaPackageReadiness } from "@/tina/lib/package-readiness";
+import { buildTinaPayrollComplianceReconstruction } from "@/tina/lib/payroll-compliance-reconstruction";
 import { buildTinaMaterialityPriority } from "@/tina/lib/materiality-priority";
 import { buildTinaReviewerChallenges } from "@/tina/lib/reviewer-challenges";
 import { buildTinaReviewerAcceptanceForecast } from "@/tina/lib/reviewer-acceptance-forecast";
+import { buildTinaReviewerAcceptanceReality } from "@/tina/lib/reviewer-acceptance-reality";
+import { buildTinaReviewerLearningLoop } from "@/tina/lib/reviewer-learning-loop";
+import { buildTinaReviewerObservedDeltas } from "@/tina/lib/reviewer-observed-deltas";
+import { buildTinaReviewerOverrideGovernance } from "@/tina/lib/reviewer-override-governance";
+import { buildTinaReviewerPolicyVersioning } from "@/tina/lib/reviewer-policy-versioning";
 import { buildTinaScheduleCFormCoverage } from "@/tina/lib/schedule-c-form-coverage";
 import { buildTinaScheduleCFormTrace } from "@/tina/lib/schedule-c-form-trace";
 import { buildTinaScheduleCReturn } from "@/tina/lib/schedule-c-return";
+import { buildTinaSingleMemberEntityHistoryProof } from "@/tina/lib/single-member-entity-history-proof";
+import { buildTinaSingleOwnerCorporateRouteProof } from "@/tina/lib/single-owner-corporate-route-proof";
 import { buildTinaStartPathAssessment, formatTinaLaneList } from "@/tina/lib/start-path";
 import { buildTinaCompanionFormCalculations } from "@/tina/lib/companion-form-calculations";
 import { buildTinaTaxOpportunityEngine } from "@/tina/lib/tax-opportunity-engine";
@@ -40,7 +62,10 @@ import { buildTinaPlanningActionBoard } from "@/tina/lib/planning-action-board";
 import { buildTinaTaxPlanningMemo } from "@/tina/lib/tax-planning-memo";
 import { buildTinaTaxTreatmentPolicy } from "@/tina/lib/tax-treatment-policy";
 import { buildTinaTreatmentJudgment } from "@/tina/lib/treatment-judgment";
+import { buildTinaUnknownPatternEngine } from "@/tina/lib/unknown-pattern-engine";
 import type { TinaWorkspaceDraft } from "@/tina/types";
+
+const cpaPacketExportCache = new WeakMap<TinaWorkspaceDraft, TinaCpaPacketExport>();
 
 function formatMoney(value: number | null): string {
   if (value === null) return "No dollar amount yet";
@@ -67,6 +92,11 @@ export interface TinaCpaPacketExport {
 }
 
 export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPacketExport {
+  const cached = cpaPacketExportCache.get(draft);
+  if (cached) {
+    return cached;
+  }
+
   const packageReadiness = buildTinaPackageReadiness(draft);
   const effectiveDraft = {
     ...draft,
@@ -74,9 +104,28 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
   };
   const handoff = buildTinaCpaHandoff(effectiveDraft);
   const federalReturnClassification = buildTinaFederalReturnClassification(draft);
+  const entityFilingRemediation = buildTinaEntityFilingRemediation(draft);
+  const singleMemberEntityHistory = buildTinaSingleMemberEntityHistoryProof(draft);
+  const singleOwnerCorporateRoute = buildTinaSingleOwnerCorporateRouteProof(draft);
+  const unknownPatternEngine = buildTinaUnknownPatternEngine(draft);
+  const confidenceCalibration = buildTinaConfidenceCalibration(draft);
+  const documentIntelligence = buildTinaDocumentIntelligence(draft);
+  const caseMemoryLedger = buildTinaCaseMemoryLedger(draft);
+  const reviewerLearningLoop = buildTinaReviewerLearningLoop(draft);
+  const reviewerObservedDeltas = buildTinaReviewerObservedDeltas(draft);
+  const reviewerOverrideGovernance = buildTinaReviewerOverrideGovernance(draft);
+  const reviewerPolicyVersioning = buildTinaReviewerPolicyVersioning(draft);
+  const reviewerAcceptanceReality = buildTinaReviewerAcceptanceReality(draft);
   const entityJudgment = buildTinaEntityJudgment(draft);
   const entityRecordMatrix = buildTinaEntityRecordMatrix(draft);
   const entityEconomicsReadiness = buildTinaEntityEconomicsReadiness(draft);
+  const entityReturnCalculations = buildTinaEntityReturnCalculations(draft);
+  const ownerFlowBasis = buildTinaOwnerFlowBasisAdjudication(draft);
+  const entityReturnScheduleFamilyFinalizations =
+    buildTinaEntityReturnScheduleFamilyFinalizations(draft);
+  const entityReturnScheduleFamilyPayloads = buildTinaEntityReturnScheduleFamilyPayloads(draft);
+  const entityReturnScheduleFamilies = buildTinaEntityReturnScheduleFamilyArtifacts(draft);
+  const entityReturnSupportArtifacts = buildTinaEntityReturnSupportArtifacts(draft);
   const entityReturnRunbook = buildTinaEntityReturnRunbook(draft);
   const federalReturnRequirements = buildTinaFederalReturnRequirements(draft);
   const ownershipCapitalEvents = buildTinaOwnershipCapitalEvents(draft);
@@ -94,6 +143,7 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
   const booksReconciliation = buildTinaBooksReconciliation(draft);
   const booksNormalization = buildTinaBooksNormalization(draft);
   const accountingArtifactCoverage = buildTinaAccountingArtifactCoverage(draft);
+  const payrollCompliance = buildTinaPayrollComplianceReconstruction(draft);
   const attachmentStatements = buildTinaAttachmentStatements(draft);
   const attachmentSchedules = buildTinaAttachmentSchedules(draft);
   const decisionBriefings = buildTinaDecisionBriefings(draft);
@@ -107,12 +157,23 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
   const reviewerAcceptanceForecast = buildTinaReviewerAcceptanceForecast(draft);
   const documentRequestPlan = buildTinaDocumentRequestPlan(draft);
   const companionFormCalculations = buildTinaCompanionFormCalculations(draft);
+  const companionFormRenderPlan = buildTinaCompanionFormRenderPlan(draft);
   const companionFormPlan = buildTinaCompanionFormPlan(draft);
   const crossFormConsistency = buildTinaCrossFormConsistency(draft);
   const taxTreatmentPolicy = buildTinaTaxTreatmentPolicy(draft);
   const materialityPriority = buildTinaMaterialityPriority(draft);
   const reviewerChallenges = buildTinaReviewerChallenges(draft);
   const startPath = buildTinaStartPathAssessment(draft);
+  const documentIdentityValues = listTinaDocumentIntelligenceDistinctValues({
+    snapshot: documentIntelligence,
+    kind: "identity_signal",
+    label: "Employer identification number",
+  });
+  const documentEntityNameValues = listTinaDocumentIntelligenceDistinctValues({
+    snapshot: documentIntelligence,
+    kind: "entity_name_signal",
+    label: "Entity name signal",
+  });
   const evidenceCounts = formTrace.lines.reduce(
     (counts, line) => {
       if (typeof line.amount !== "number" || line.amount === 0) return counts;
@@ -203,6 +264,281 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     lines.push(`  - ${issue.summary}`);
   });
 
+  lines.push("", "## Entity filing continuity and remediation");
+  lines.push(`- Status: ${entityFilingRemediation.overallStatus}`);
+  lines.push(`- Posture: ${entityFilingRemediation.posture.replace(/_/g, " ")}`);
+  lines.push(`- History status: ${entityFilingRemediation.historyStatus.replace(/_/g, " ")}`);
+  lines.push(`- Election status: ${entityFilingRemediation.electionStatus.replace(/_/g, " ")}`);
+  lines.push(`- Amendment status: ${entityFilingRemediation.amendmentStatus.replace(/_/g, " ")}`);
+  lines.push(`- Current lane: ${entityFilingRemediation.currentLaneId}`);
+  if (entityFilingRemediation.likelyPriorLaneIds.length > 0) {
+    lines.push(`- Likely prior lanes: ${entityFilingRemediation.likelyPriorLaneIds.join(", ")}`);
+  }
+  if (entityFilingRemediation.alternateLaneIds.length > 0) {
+    lines.push(`- Alternate lanes: ${entityFilingRemediation.alternateLaneIds.join(", ")}`);
+  }
+  lines.push(`- ${entityFilingRemediation.summary}`);
+  lines.push(`- Next step: ${entityFilingRemediation.nextStep}`);
+  entityFilingRemediation.signals.forEach((signal) => {
+    lines.push(`- ${signal.title} [${signal.category} | ${signal.severity}]`);
+    lines.push(`  - ${signal.summary}`);
+  });
+  entityFilingRemediation.priorityQuestions.forEach((question) => {
+    lines.push(`- Priority question: ${question}`);
+  });
+  entityFilingRemediation.actions.forEach((action) => {
+    lines.push(`- Action: ${action.title} [${action.kind} | ${action.status}]`);
+    lines.push(`  - ${action.summary}`);
+  });
+
+  lines.push("", "## Single-member entity-history proof");
+  lines.push(`- Status: ${singleMemberEntityHistory.overallStatus}`);
+  lines.push(`- Posture: ${singleMemberEntityHistory.posture.replace(/_/g, " ")}`);
+  lines.push(
+    `- Owner history: ${singleMemberEntityHistory.ownerHistoryStatus.replace(/_/g, " ")}`
+  );
+  lines.push(
+    `- Spouse exception: ${singleMemberEntityHistory.spouseExceptionStatus.replace(/_/g, " ")}`
+  );
+  lines.push(
+    `- Prior filing alignment: ${singleMemberEntityHistory.priorFilingAlignmentStatus.replace(/_/g, " ")}`
+  );
+  lines.push(
+    `- Transition year: ${singleMemberEntityHistory.transitionYearStatus.replace(/_/g, " ")}`
+  );
+  lines.push(
+    `- Books posture: ${singleMemberEntityHistory.booksPostureStatus.replace(/_/g, " ")}`
+  );
+  lines.push(`- ${singleMemberEntityHistory.summary}`);
+  lines.push(`- Next step: ${singleMemberEntityHistory.nextStep}`);
+  singleMemberEntityHistory.issues.forEach((issue) => {
+    lines.push(`- ${issue.severity === "blocking" ? "Blocking" : "Review"}: ${issue.summary}`);
+  });
+  singleMemberEntityHistory.questions.forEach((question) => {
+    lines.push(`- Question: ${question}`);
+  });
+
+  lines.push("", "## Single-owner corporate route proof");
+  lines.push(`- Status: ${singleOwnerCorporateRoute.overallStatus}`);
+  lines.push(`- Posture: ${singleOwnerCorporateRoute.posture.replace(/_/g, " ")}`);
+  lines.push(
+    `- Election proof: ${singleOwnerCorporateRoute.electionProofStatus.replace(/_/g, " ")}`
+  );
+  lines.push(
+    `- Payroll requirement: ${singleOwnerCorporateRoute.payrollRequirementStatus.replace(/_/g, " ")}`
+  );
+  lines.push(
+    `- Owner services: ${singleOwnerCorporateRoute.ownerServiceStatus.replace(/_/g, " ")}`
+  );
+  lines.push(`- ${singleOwnerCorporateRoute.summary}`);
+  lines.push(`- Next step: ${singleOwnerCorporateRoute.nextStep}`);
+  singleOwnerCorporateRoute.issues.forEach((issue) => {
+    lines.push(`- ${issue.title} [${issue.severity}]`);
+    lines.push(`  - ${issue.summary}`);
+  });
+  singleOwnerCorporateRoute.questions.forEach((question) => {
+    lines.push(`- Question: ${question}`);
+  });
+
+  lines.push("", "## Unknown-pattern resolution");
+  lines.push(`- Status: ${unknownPatternEngine.overallStatus}`);
+  lines.push(`- Handling: ${unknownPatternEngine.recommendedHandling.replace(/_/g, " ")}`);
+  lines.push(`- ${unknownPatternEngine.summary}`);
+  lines.push(`- Next step: ${unknownPatternEngine.nextStep}`);
+  unknownPatternEngine.signals.forEach((signal) => {
+    lines.push(`- ${signal.title} [${signal.category} | ${signal.severity}]`);
+    lines.push(`  - ${signal.summary}`);
+  });
+  unknownPatternEngine.hypotheses.forEach((hypothesis) => {
+    lines.push(`- ${hypothesis.title} [${hypothesis.status} | ${hypothesis.confidence}]`);
+    lines.push(`  - ${hypothesis.summary}`);
+    hypothesis.requiredProof.slice(0, 3).forEach((proof) => {
+      lines.push(`  - Required proof: ${proof}`);
+    });
+  });
+  unknownPatternEngine.customProofRequests.forEach((request) => {
+    lines.push(`- Custom proof request: ${request}`);
+  });
+
+  lines.push("", "## Confidence calibration");
+  lines.push(`- Status: ${confidenceCalibration.overallStatus}`);
+  lines.push(
+    `- Recommended posture: ${confidenceCalibration.recommendedPosture.replace(/_/g, " ")}`
+  );
+  lines.push(`- ${confidenceCalibration.summary}`);
+  lines.push(`- Next step: ${confidenceCalibration.nextStep}`);
+  confidenceCalibration.checks.forEach((check) => {
+    lines.push(
+      `- ${check.title} [${check.domain} | ${check.status}] claimed ${check.claimedConfidence}, earned ${check.supportedConfidence}`
+    );
+    lines.push(`  - ${check.summary}`);
+  });
+  confidenceCalibration.debts.forEach((debt) => {
+    lines.push(`- Confidence debt: ${debt.title} [${debt.severity}]`);
+    lines.push(`  - ${debt.summary}`);
+    lines.push(`  - Safe posture: ${debt.safePosture}`);
+  });
+
+  lines.push("", "## Deep document intelligence and entity continuity");
+  lines.push(`- Status: ${documentIntelligence.overallStatus}`);
+  lines.push(`- ${documentIntelligence.summary}`);
+  lines.push(`- Next step: ${documentIntelligence.nextStep}`);
+  lines.push(`- Structured document artifacts: ${documentIntelligence.structuredDocumentCount}`);
+  lines.push(`- Extracted facts: ${documentIntelligence.extractedFactCount}`);
+  lines.push(`- Entity names detected: ${documentIntelligence.entityNameCount}`);
+  lines.push(`- Distinct EINs detected: ${documentIntelligence.distinctEinCount}`);
+  lines.push(`- Prior filing signals: ${documentIntelligence.priorFilingSignalCount}`);
+  lines.push(`- Election timing signals: ${documentIntelligence.electionTimelineSignalCount}`);
+  lines.push(`- Ownership timeline signals: ${documentIntelligence.ownershipTimelineSignalCount}`);
+  lines.push(`- State registration signals: ${documentIntelligence.stateRegistrationSignalCount}`);
+  if (documentEntityNameValues.length > 1) {
+    lines.push(`- Conflicting entity names: ${documentEntityNameValues.join(", ")}`);
+  }
+  if (documentIdentityValues.length > 1) {
+    lines.push(`- Conflicting EINs: ${documentIdentityValues.join(", ")}`);
+  }
+  documentIntelligence.missingCriticalRoles.forEach((role) => {
+    lines.push(`- Missing structured paper: ${role}`);
+  });
+  documentIntelligence.continuityQuestions.forEach((question) => {
+    lines.push(`- Continuity question: ${question}`);
+  });
+
+  lines.push("", "## Durable case memory and decision ledger");
+  lines.push(`- Status: ${caseMemoryLedger.overallStatus}`);
+  lines.push(`- ${caseMemoryLedger.summary}`);
+  lines.push(`- Next step: ${caseMemoryLedger.nextStep}`);
+  lines.push(`- Active anchor snapshot: ${caseMemoryLedger.activeAnchorSnapshotId ?? "None"}`);
+  lines.push(`- Open overrides: ${caseMemoryLedger.openOverrideCount}`);
+  caseMemoryLedger.driftReasons.forEach((reason) => {
+    lines.push(`- Drift reason: ${reason}`);
+  });
+  caseMemoryLedger.overrides.slice(0, 5).forEach((override) => {
+    lines.push(`- Override: ${override.summary} [${override.status}]`);
+    if (override.notes) {
+      lines.push(`  - Notes: ${override.notes}`);
+    }
+  });
+  caseMemoryLedger.entries.slice(0, 6).forEach((entry) => {
+    lines.push(`- Ledger entry: ${entry.title} [${entry.severity}]`);
+    lines.push(`  - ${entry.summary}`);
+    lines.push(`  - Trust effect: ${entry.effectOnTrust}`);
+  });
+
+  lines.push("", "## Reviewer learning loop");
+  lines.push(`- Status: ${reviewerLearningLoop.overallStatus}`);
+  lines.push(`- ${reviewerLearningLoop.summary}`);
+  lines.push(`- Next step: ${reviewerLearningLoop.nextStep}`);
+  lines.push(`- Active lessons: ${reviewerLearningLoop.activeLessonCount}`);
+  lines.push(`- Policy candidates: ${reviewerLearningLoop.policyCandidateCount}`);
+  reviewerLearningLoop.policyCandidates.forEach((candidate) => {
+    lines.push(`- Policy candidate: ${candidate.title} [${candidate.priority}]`);
+    lines.push(`  - ${candidate.summary}`);
+    lines.push(`  - Recommended change: ${candidate.recommendedChange}`);
+  });
+  reviewerLearningLoop.regressionTargets.slice(0, 5).forEach((target) => {
+    lines.push(
+      `- Regression target: ${target.title} [${target.status}${target.fixtureId ? ` | ${target.fixtureId}` : ""}]`
+    );
+    lines.push(`  - ${target.targetBehavior}`);
+  });
+  reviewerLearningLoop.lessons.slice(0, 6).forEach((lesson) => {
+    lines.push(
+      `- Lesson: ${lesson.title} [${lesson.source} | ${lesson.status} | ${lesson.severity}]`
+    );
+    lines.push(`  - ${lesson.confidenceImpact}`);
+  });
+
+  lines.push("", "## Reviewer observed deltas");
+  lines.push(`- Status: ${reviewerObservedDeltas.overallStatus}`);
+  lines.push(`- ${reviewerObservedDeltas.summary}`);
+  lines.push(`- Next step: ${reviewerObservedDeltas.nextStep}`);
+  lines.push(`- Recorded deltas: ${reviewerObservedDeltas.totalDeltaCount}`);
+  lines.push(
+    `- Accepted after adjustment: ${reviewerObservedDeltas.acceptedAfterAdjustmentCount}`
+  );
+  lines.push(`- Top-priority coverage: ${reviewerObservedDeltas.topPriorityCoverageCount}`);
+  reviewerObservedDeltas.items.slice(0, 6).forEach((item) => {
+    lines.push(
+      `- ${item.title} [${item.kind} | ${item.domain} | ${item.severity}]`
+    );
+    lines.push(`  - ${item.summary}`);
+    lines.push(`  - Trust effect: ${item.trustEffect}`);
+  });
+
+  lines.push("", "## Reviewer override governance");
+  lines.push(`- Status: ${reviewerOverrideGovernance.overallStatus}`);
+  lines.push(`- ${reviewerOverrideGovernance.summary}`);
+  lines.push(`- Next step: ${reviewerOverrideGovernance.nextStep}`);
+  lines.push(`- Open overrides: ${reviewerOverrideGovernance.openOverrideCount}`);
+  lines.push(`- Anchored overrides: ${reviewerOverrideGovernance.anchoredOverrideCount}`);
+  lines.push(
+    `- Policy updates still needed: ${reviewerOverrideGovernance.policyUpdateRequiredCount}`
+  );
+  lines.push(
+    `- Blocking acceptance deltas: ${reviewerOverrideGovernance.blockingAcceptanceDeltaCount}`
+  );
+  reviewerOverrideGovernance.recommendedBenchmarkScenarioIds.forEach((scenarioId) => {
+    lines.push(`- Benchmark scenario: ${scenarioId}`);
+  });
+  reviewerOverrideGovernance.items.slice(0, 6).forEach((item) => {
+    lines.push(
+      `- ${item.title} [${item.status} | ${item.policyState} | ${item.trustBoundary}]`
+    );
+    lines.push(`  - ${item.summary}`);
+    lines.push(`  - Required action: ${item.requiredAction}`);
+  });
+  reviewerOverrideGovernance.acceptanceDeltas.slice(0, 6).forEach((delta) => {
+    lines.push(`- Acceptance delta: ${delta.title} [${delta.status} | ${delta.severity}]`);
+    lines.push(`  - ${delta.summary}`);
+    lines.push(`  - Consequence: ${delta.consequence}`);
+  });
+
+  lines.push("", "## Reviewer policy versioning");
+  lines.push(`- Status: ${reviewerPolicyVersioning.overallStatus}`);
+  lines.push(`- ${reviewerPolicyVersioning.summary}`);
+  lines.push(`- Next step: ${reviewerPolicyVersioning.nextStep}`);
+  lines.push(`- Active policy tracks: ${reviewerPolicyVersioning.activePolicyCount}`);
+  lines.push(`- Ready to promote: ${reviewerPolicyVersioning.readyToPromoteCount}`);
+  lines.push(`- Candidate tracks: ${reviewerPolicyVersioning.candidatePolicyCount}`);
+  lines.push(
+    `- Benchmark coverage gaps: ${reviewerPolicyVersioning.benchmarkCoverageGapCount}`
+  );
+  reviewerPolicyVersioning.items.slice(0, 6).forEach((item) => {
+    lines.push(
+      `- ${item.title} [${item.status} | ${item.benchmarkCoverageStatus}${item.currentVersionId ? ` | ${item.currentVersionId}` : ""}]`
+    );
+    lines.push(`  - ${item.summary}`);
+    lines.push(`  - Next step: ${item.nextStep}`);
+    item.blockers.slice(0, 2).forEach((blocker) => {
+      lines.push(`  - Blocker: ${blocker}`);
+    });
+    item.topPriorityBenchmarkScenarioIds.slice(0, 2).forEach((scenarioId) => {
+      lines.push(`  - Top-priority benchmark: ${scenarioId}`);
+    });
+  });
+
+  lines.push("", "## Reviewer acceptance reality");
+  lines.push(`- Status: ${reviewerAcceptanceReality.overallStatus}`);
+  lines.push(`- ${reviewerAcceptanceReality.summary}`);
+  lines.push(`- Next step: ${reviewerAcceptanceReality.nextStep}`);
+  lines.push(`- Observed themes: ${reviewerAcceptanceReality.totalObservedThemeCount}`);
+  lines.push(`- Observed acceptance rate: ${reviewerAcceptanceReality.observedAcceptanceRate}%`);
+  lines.push(`- Durable acceptance rate: ${reviewerAcceptanceReality.durableAcceptanceRate}%`);
+  lines.push(
+    `- Top-priority accepted coverage: ${reviewerAcceptanceReality.topPriorityAcceptedCoverageCount}`
+  );
+  reviewerAcceptanceReality.items.slice(0, 6).forEach((item) => {
+    lines.push(
+      `- ${item.title} [${item.outcome}${item.policyTrackStatus ? ` | ${item.policyTrackStatus}` : ""}]`
+    );
+    lines.push(`  - ${item.summary}`);
+    lines.push(`  - Next step: ${item.nextStep}`);
+    item.topPriorityBenchmarkScenarioIds.slice(0, 2).forEach((scenarioId) => {
+      lines.push(`  - Top-priority benchmark: ${scenarioId}`);
+    });
+  });
+
   lines.push("", "## Entity treatment judgment");
   lines.push(`- ${entityJudgment.likelyFederalTreatment}`);
   lines.push(`- Status: ${entityJudgment.judgmentStatus}`);
@@ -257,6 +593,112 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     lines.push(`- ${check.title} [${check.status}]`);
     lines.push(`  - ${check.summary}`);
     lines.push(`  - Why it matters: ${check.whyItMatters}`);
+  });
+
+  lines.push("", "## Owner-flow and basis adjudication");
+  lines.push(`- Status: ${ownerFlowBasis.overallStatus}`);
+  lines.push(
+    `- Opening footing: ${ownerFlowBasis.openingFootingStatus.replace(/_/g, " ")}`
+  );
+  lines.push(
+    `- Basis rollforward: ${ownerFlowBasis.basisRollforwardStatus.replace(/_/g, " ")}`
+  );
+  lines.push(
+    `- Owner-flow characterization: ${ownerFlowBasis.ownerFlowCharacterizationStatus.replace(/_/g, " ")}`
+  );
+  lines.push(`- Loan versus equity: ${ownerFlowBasis.loanEquityStatus.replace(/_/g, " ")}`);
+  lines.push(
+    `- Distribution taxability: ${ownerFlowBasis.distributionTaxabilityStatus.replace(/_/g, " ")}`
+  );
+  lines.push(
+    `- Transition economics: ${ownerFlowBasis.transitionEconomicsStatus.replace(/_/g, " ")}`
+  );
+  lines.push(`- ${ownerFlowBasis.summary}`);
+  lines.push(`- Next step: ${ownerFlowBasis.nextStep}`);
+  ownerFlowBasis.items.forEach((item) => {
+    lines.push(`- ${item.title} [${item.status} | ${item.sensitivity}]`);
+    lines.push(`  - ${item.summary}`);
+    item.requiredProof.slice(0, 2).forEach((proof) => {
+      lines.push(`  - Proof: ${proof}`);
+    });
+  });
+
+  lines.push("", "## Entity return calculations");
+  lines.push(`- Status: ${entityReturnCalculations.overallStatus}`);
+  lines.push(`- ${entityReturnCalculations.summary}`);
+  lines.push(`- Next step: ${entityReturnCalculations.nextStep}`);
+  entityReturnCalculations.items.forEach((item) => {
+    lines.push(`- ${item.title} [${item.status}]`);
+    lines.push(`  - ${item.summary}`);
+    item.fields.slice(0, 5).forEach((field) => {
+      lines.push(`  - ${field.label}: ${field.value}`);
+    });
+    item.reviewerQuestions.slice(0, 3).forEach((question) => {
+      lines.push(`  - Reviewer question: ${question}`);
+    });
+  });
+
+  lines.push("", "## Entity return support artifacts");
+  lines.push(`- Status: ${entityReturnSupportArtifacts.overallStatus}`);
+  lines.push(`- ${entityReturnSupportArtifacts.summary}`);
+  lines.push(`- Next step: ${entityReturnSupportArtifacts.nextStep}`);
+  entityReturnSupportArtifacts.items.forEach((item) => {
+    lines.push(`- ${item.title} [${item.status} | ${item.kind}]`);
+    lines.push(`  - ${item.summary}`);
+    lines.push(
+      `  - Supported/derived/missing fields: ${item.supportedFieldCount}/${item.derivedFieldCount}/${item.missingFieldCount}`
+    );
+    item.reviewerQuestions.slice(0, 3).forEach((question) => {
+      lines.push(`  - Reviewer question: ${question}`);
+    });
+  });
+
+  lines.push("", "## Entity return schedule families");
+  lines.push(`- Status: ${entityReturnScheduleFamilies.overallStatus}`);
+  lines.push(`- ${entityReturnScheduleFamilies.summary}`);
+  lines.push(`- Next step: ${entityReturnScheduleFamilies.nextStep}`);
+  entityReturnScheduleFamilies.items.forEach((item) => {
+    lines.push(`- ${item.title} [${item.status} | ${item.kind}]`);
+    lines.push(`  - ${item.summary}`);
+    lines.push(
+      `  - Supported/derived/missing fields: ${item.supportedFieldCount}/${item.derivedFieldCount}/${item.missingFieldCount}`
+    );
+    item.reviewerQuestions.slice(0, 3).forEach((question) => {
+      lines.push(`  - Reviewer question: ${question}`);
+    });
+  });
+
+  lines.push("", "## Entity return schedule-family payloads");
+  lines.push(`- Status: ${entityReturnScheduleFamilyPayloads.overallStatus}`);
+  lines.push(`- ${entityReturnScheduleFamilyPayloads.summary}`);
+  lines.push(`- Next step: ${entityReturnScheduleFamilyPayloads.nextStep}`);
+  entityReturnScheduleFamilyPayloads.items.forEach((item) => {
+    lines.push(
+      `- ${item.title} [${item.status} | ${item.payloadReadiness} | ${item.completionPercent}% complete]`
+    );
+    lines.push(`  - ${item.summary}`);
+    lines.push(`  - Official targets: ${item.officialScheduleTargets.join(", ")}`);
+    item.sections.slice(0, 3).forEach((section) => {
+      lines.push(`  - ${section.title} [${section.status}]`);
+      lines.push(
+        `    - Supported/derived/missing fields: ${section.supportedFieldCount}/${section.derivedFieldCount}/${section.missingFieldCount}`
+      );
+    });
+  });
+
+  lines.push("", "## Entity return schedule-family finalizations");
+  lines.push(`- Status: ${entityReturnScheduleFamilyFinalizations.overallStatus}`);
+  lines.push(`- ${entityReturnScheduleFamilyFinalizations.summary}`);
+  lines.push(`- Next step: ${entityReturnScheduleFamilyFinalizations.nextStep}`);
+  entityReturnScheduleFamilyFinalizations.items.forEach((item) => {
+    lines.push(
+      `- ${item.title} [${item.status} | ${item.finalizationReadiness} | ${item.completionPercent}% complete]`
+    );
+    lines.push(`  - ${item.summary}`);
+    lines.push(`  - Official targets: ${item.officialScheduleTargets.join(", ")}`);
+    item.lineItems.slice(0, 4).forEach((lineItem) => {
+      lines.push(`  - ${lineItem.target}: ${lineItem.value} [${lineItem.status}]`);
+    });
   });
 
   lines.push("", "## Entity return runbook");
@@ -469,6 +911,25 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     lines.push(`  - Request: ${item.request}`);
   });
 
+  lines.push("", "## Payroll compliance reconstruction");
+  lines.push(`- Status: ${payrollCompliance.overallStatus}`);
+  lines.push(`- Posture: ${payrollCompliance.posture.replace(/_/g, " ")}`);
+  lines.push(
+    `- Worker classification: ${payrollCompliance.workerClassification.replace(/_/g, " ")}`
+  );
+  lines.push(`- ${payrollCompliance.summary}`);
+  lines.push(`- Next step: ${payrollCompliance.nextStep}`);
+  if (payrollCompliance.likelyMissingFilings.length > 0) {
+    lines.push(`- Likely missing filings: ${payrollCompliance.likelyMissingFilings.join(", ")}`);
+  }
+  payrollCompliance.issues.forEach((issue) => {
+    lines.push(`- ${issue.title} [${issue.status}]`);
+    lines.push(`  - ${issue.summary}`);
+  });
+  payrollCompliance.questions.slice(0, 3).forEach((question) => {
+    lines.push(`- Payroll question: ${question}`);
+  });
+
   lines.push("", "## Industry playbooks");
   lines.push(`- ${industryPlaybooks.summary}`);
   lines.push(`- Next step: ${industryPlaybooks.nextStep}`);
@@ -665,6 +1126,22 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     });
   });
 
+  lines.push("", "## Companion form render plan");
+  lines.push(`- Status: ${companionFormRenderPlan.overallStatus}`);
+  lines.push(`- ${companionFormRenderPlan.summary}`);
+  lines.push(`- Next step: ${companionFormRenderPlan.nextStep}`);
+  companionFormRenderPlan.items.forEach((item) => {
+    lines.push(`- ${item.title} [${item.status}]`);
+    lines.push(`  - ${item.summary}`);
+    lines.push(`  - Template ready: ${item.templateReady ? "Yes" : "No"}`);
+    lines.push(`  - Field payloads: ${item.fieldValues.length}`);
+    item.fieldValues.slice(0, 4).forEach((fieldValue) => {
+      lines.push(
+        `  - ${fieldValue.label}: ${fieldValue.value} [${fieldValue.supportLevel}]`
+      );
+    });
+  });
+
   lines.push("", "## Companion form plan");
   lines.push(`- ${companionFormPlan.summary}`);
   lines.push(`- Next step: ${companionFormPlan.nextStep}`);
@@ -779,9 +1256,12 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     "This packet is a reviewer-ready brief from Tina. It is not a filed return, and it should travel with the source papers and human review notes."
   );
 
-  return {
+  const packetExport: TinaCpaPacketExport = {
     fileName: `tina-cpa-packet-${slug}-${taxYear}.md`,
     mimeType: "text/markdown; charset=utf-8",
     contents: lines.join("\n"),
   };
+
+  cpaPacketExportCache.set(draft, packetExport);
+  return packetExport;
 }

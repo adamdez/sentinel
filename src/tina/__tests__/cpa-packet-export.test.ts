@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TINA_SKILL_REVIEW_DRAFTS } from "@/tina/data/skill-review-fixtures";
 import { buildTinaCpaPacketExport } from "@/tina/lib/cpa-packet-export";
 import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
@@ -194,6 +195,21 @@ describe("buildTinaCpaPacketExport", () => {
     expect(exportFile.contents).toContain("## Official federal form templates");
     expect(exportFile.contents).toContain("## Official-form fill plan");
     expect(exportFile.contents).toContain("## Official-form execution");
+    expect(exportFile.contents).toContain("## Entity filing continuity and remediation");
+    expect(exportFile.contents).toContain("## Single-member entity-history proof");
+    expect(exportFile.contents).toContain("## Single-owner corporate route proof");
+    expect(exportFile.contents).toContain("- History status: aligned");
+    expect(exportFile.contents).toContain("- Election status: not applicable");
+    expect(exportFile.contents).toContain("- Amendment status: not applicable");
+    expect(exportFile.contents).toContain("## Unknown-pattern resolution");
+    expect(exportFile.contents).toContain("## Confidence calibration");
+    expect(exportFile.contents).toContain("## Deep document intelligence and entity continuity");
+    expect(exportFile.contents).toContain("## Durable case memory and decision ledger");
+    expect(exportFile.contents).toContain("## Reviewer learning loop");
+    expect(exportFile.contents).toContain("## Reviewer observed deltas");
+    expect(exportFile.contents).toContain("## Reviewer override governance");
+    expect(exportFile.contents).toContain("## Reviewer policy versioning");
+    expect(exportFile.contents).toContain("## Reviewer acceptance reality");
     expect(exportFile.contents).toContain("2025 Schedule C (Form 1040)");
     expect(exportFile.contents).toContain("## Official-form coverage");
     expect(exportFile.contents).toContain("## Entity treatment judgment");
@@ -217,10 +233,17 @@ describe("buildTinaCpaPacketExport", () => {
     expect(exportFile.contents).toContain("## Attachment statements");
     expect(exportFile.contents).toContain("## Structured attachment schedules");
     expect(exportFile.contents).toContain("## Companion form calculations");
+    expect(exportFile.contents).toContain("## Companion form render plan");
+    expect(exportFile.contents).toContain("Schedule C line 31 carryover amount");
     expect(exportFile.contents).toContain("## Companion form plan");
     expect(exportFile.contents).toContain("## Cross-form consistency");
     expect(exportFile.contents).toContain("## Entity record matrix");
     expect(exportFile.contents).toContain("## Entity economics readiness");
+    expect(exportFile.contents).toContain("## Owner-flow and basis adjudication");
+    expect(exportFile.contents).toContain("## Entity return calculations");
+    expect(exportFile.contents).toContain("## Entity return schedule families");
+    expect(exportFile.contents).toContain("## Entity return schedule-family payloads");
+    expect(exportFile.contents).toContain("## Entity return schedule-family finalizations");
     expect(exportFile.contents).toContain("## Entity return runbook");
     expect(exportFile.contents).toContain("## Decision briefings");
     expect(exportFile.contents).toContain("## Reviewer challenge forecast");
@@ -268,8 +291,25 @@ describe("buildTinaCpaPacketExport", () => {
     expect(exportFile.contents).toContain("## Materiality and priority engine");
     expect(exportFile.contents).toContain("## Entity record matrix");
     expect(exportFile.contents).toContain("## Entity economics readiness");
+    expect(exportFile.contents).toContain("## Entity return calculations");
     expect(exportFile.contents).toContain("## Entity return runbook");
-  });
+  }, 15000);
+
+  it(
+    "shows structured 1065 calculation values in reviewer-controlled partnership packets",
+    { timeout: 15000 },
+    () => {
+    const exportFile = buildTinaCpaPacketExport(TINA_SKILL_REVIEW_DRAFTS["uneven-multi-owner"]);
+
+    expect(exportFile.contents).toContain("## Entity return calculations");
+      expect(exportFile.contents).toContain("## Owner-flow and basis adjudication");
+      expect(exportFile.contents).toContain("Form 1065 primary return [blocked]");
+      expect(exportFile.contents).toContain("Likely partner count: 2");
+      expect(exportFile.contents).toContain("Ownership split signal: 70/30");
+      expect(exportFile.contents).toContain("Opening basis and capital footing");
+      expect(exportFile.contents).toContain("Basis rollforward:");
+    }
+  );
 
   it("recomputes package readiness so the open-items section stays truthful", () => {
     const profile = {

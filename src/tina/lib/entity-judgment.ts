@@ -1,3 +1,4 @@
+import { buildTinaEntityAmbiguityResolver } from "@/tina/lib/entity-ambiguity-resolver";
 import { buildTinaOwnershipTimeline } from "@/tina/lib/ownership-timeline";
 import { buildTinaStartPathAssessment, formatTinaLaneList } from "@/tina/lib/start-path";
 import type {
@@ -38,7 +39,11 @@ export function buildTinaEntityJudgment(
   draft: TinaWorkspaceDraft
 ): TinaEntityJudgmentSnapshot {
   const startPath = buildTinaStartPathAssessment(draft);
+  const entityAmbiguity = buildTinaEntityAmbiguityResolver(draft);
   const ownershipTimeline = buildTinaOwnershipTimeline(draft);
+  const leadingLaneId =
+    entityAmbiguity.hypotheses.find((hypothesis) => hypothesis.status === "leading")?.laneId ??
+    startPath.recommendation.laneId;
   const reasons = [...startPath.recommendation.reasons];
   const questions: TinaEntityJudgmentQuestion[] = [];
 
@@ -46,6 +51,7 @@ export function buildTinaEntityJudgment(
     reasons.push(`Paper hints currently point to: ${formatTinaLaneList(startPath.hintedLanes)}.`);
   }
   reasons.push(ownershipTimeline.summary);
+  reasons.push(entityAmbiguity.summary);
 
   ownershipTimeline.events
     .filter((event) => event.status !== "known")
@@ -103,12 +109,40 @@ export function buildTinaEntityJudgment(
     );
   });
 
+  entityAmbiguity.priorityQuestions.forEach((question, index) => {
+    questions.push(
+      buildQuestion({
+        id: `ambiguity-${index + 1}`,
+        title:
+          entityAmbiguity.overallStatus === "blocked"
+            ? "Entity route is still blocked by ambiguity"
+            : "Entity route still has a competing-path question",
+        summary: question,
+        severity:
+          entityAmbiguity.overallStatus === "blocked"
+            ? "blocking"
+            : "needs_attention",
+        relatedFactIds: entityAmbiguity.signals.flatMap((signal) => signal.relatedFactIds),
+        relatedDocumentIds: entityAmbiguity.signals.flatMap(
+          (signal) => signal.relatedDocumentIds
+        ),
+      })
+    );
+  });
+
   let judgmentStatus: TinaEntityJudgmentSnapshot["judgmentStatus"];
-  if (startPath.route === "supported" && startPath.recommendation.support === "supported") {
+  if (
+    startPath.route === "supported" &&
+    startPath.recommendation.support === "supported" &&
+    entityAmbiguity.overallStatus === "stable_route"
+  ) {
     judgmentStatus = "clear_supported";
-  } else if (startPath.route === "blocked") {
+  } else if (startPath.route === "blocked" || entityAmbiguity.overallStatus === "blocked") {
     judgmentStatus = "blocked";
-  } else if (startPath.recommendation.support === "future") {
+  } else if (
+    startPath.recommendation.support === "future" &&
+    entityAmbiguity.overallStatus === "stable_route"
+  ) {
     judgmentStatus = "clear_but_unsupported";
   } else {
     judgmentStatus = "review_required";
@@ -149,8 +183,8 @@ export function buildTinaEntityJudgment(
     lastBuiltAt: new Date().toISOString(),
     status: "complete",
     judgmentStatus,
-    laneId: startPath.recommendation.laneId,
-    likelyFederalTreatment: describeFederalTreatment(startPath.recommendation.laneId),
+    laneId: leadingLaneId,
+    likelyFederalTreatment: describeFederalTreatment(leadingLaneId),
     summary,
     nextStep,
     reasons,

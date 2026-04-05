@@ -4,45 +4,13 @@ import type {
 } from "@/tina/lib/acceleration-contracts";
 import { buildTinaAuthorityPositionMatrix } from "@/tina/lib/authority-position-matrix";
 import { buildTinaMaterialityPriority } from "@/tina/lib/materiality-priority";
+import { findBestPlanningTitleMatch } from "@/tina/lib/planning-practice-kernel";
 import { buildTinaReviewerAcceptanceForecast } from "@/tina/lib/reviewer-acceptance-forecast";
 import { buildTinaTaxPlanningMemo } from "@/tina/lib/tax-planning-memo";
 import type { TinaWorkspaceDraft } from "@/tina/types";
 
 function unique(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
-}
-
-function tokenize(value: string): string[] {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .split(" ")
-    .filter((token) => token.length >= 4);
-}
-
-function overlapScore(left: string, right: string): number {
-  const leftTokens = new Set(tokenize(left));
-  const rightTokens = new Set(tokenize(right));
-  let score = 0;
-  leftTokens.forEach((token) => {
-    if (rightTokens.has(token)) score += 1;
-  });
-  return score;
-}
-
-function findBestMatch<T extends { title: string }>(title: string, candidates: T[]): T | null {
-  let best: T | null = null;
-  let bestScore = 0;
-
-  candidates.forEach((candidate) => {
-    const score = overlapScore(title, candidate.title);
-    if (score > bestScore) {
-      best = candidate;
-      bestScore = score;
-    }
-  });
-
-  return bestScore > 0 ? best : null;
 }
 
 function buildItem(item: TinaPlanningActionBoardItem): TinaPlanningActionBoardItem {
@@ -53,6 +21,68 @@ function buildItem(item: TinaPlanningActionBoardItem): TinaPlanningActionBoardIt
   };
 }
 
+function shouldAdvancePosition(args: {
+  recommendation: ReturnType<typeof buildTinaAuthorityPositionMatrix>["items"][number]["recommendation"];
+  planningItem: ReturnType<typeof buildTinaTaxPlanningMemo>["items"][number] | null;
+  acceptanceStatus: ReturnType<typeof buildTinaReviewerAcceptanceForecast>["items"][number]["status"] | "unknown";
+  immediatePressureCount: number;
+  factStrength: ReturnType<typeof buildTinaAuthorityPositionMatrix>["items"][number]["factStrength"];
+  authorityStrength: ReturnType<typeof buildTinaAuthorityPositionMatrix>["items"][number]["authorityStrength"];
+  disclosureReadiness: ReturnType<typeof buildTinaAuthorityPositionMatrix>["items"][number]["disclosureReadiness"];
+}): boolean {
+  const {
+    recommendation,
+    planningItem,
+    acceptanceStatus,
+    immediatePressureCount,
+    factStrength,
+    authorityStrength,
+    disclosureReadiness,
+  } = args;
+
+  if (recommendation === "reject") return false;
+
+  if (
+    recommendation === "use_now" &&
+    disclosureReadiness !== "required" &&
+    acceptanceStatus !== "likely_reject"
+  ) {
+    return true;
+  }
+
+  if (!planningItem) return false;
+
+  if (
+    recommendation === "hold_for_authority" &&
+    immediatePressureCount === 0 &&
+    planningItem.priority !== "later" &&
+    factStrength !== "missing" &&
+    authorityStrength !== "missing"
+  ) {
+    return true;
+  }
+
+  if (
+    recommendation === "hold_for_facts" &&
+    planningItem.priority === "now" &&
+    immediatePressureCount <= 1 &&
+    (authorityStrength === "reviewer_backed" || authorityStrength === "trail_supported")
+  ) {
+    return true;
+  }
+
+  if (
+    recommendation === "review_first" &&
+    planningItem.priority === "now" &&
+    acceptanceStatus === "likely_accept" &&
+    disclosureReadiness !== "required"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 export function buildTinaPlanningActionBoard(
   draft: TinaWorkspaceDraft
 ): TinaPlanningActionBoardSnapshot {
@@ -60,26 +90,46 @@ export function buildTinaPlanningActionBoard(
   const planningMemo = buildTinaTaxPlanningMemo(draft);
   const acceptanceForecast = buildTinaReviewerAcceptanceForecast(draft);
   const materialityPriority = buildTinaMaterialityPriority(draft);
+  const immediatePressureCount = materialityPriority.items.filter(
+    (item) => item.priority === "immediate"
+  ).length;
 
   const items: TinaPlanningActionBoardItem[] = authorityMatrix.items.map((position) => {
-    const planningItem = findBestMatch(position.title, planningMemo.items);
-    const acceptanceItem = findBestMatch(position.title, acceptanceForecast.items);
-    const materialityItem = findBestMatch(position.title, materialityPriority.items);
+    const planningItem = findBestPlanningTitleMatch(position.title, planningMemo.items);
+    const acceptanceItem = findBestPlanningTitleMatch(position.title, acceptanceForecast.items);
+    const materialityItem = findBestPlanningTitleMatch(position.title, materialityPriority.items);
+
+    const shouldAdvance = shouldAdvancePosition({
+      recommendation: position.recommendation,
+      planningItem,
+      acceptanceStatus: acceptanceItem?.status ?? "unknown",
+      immediatePressureCount,
+      factStrength: position.factStrength,
+      authorityStrength: position.authorityStrength,
+      disclosureReadiness: position.disclosureReadiness,
+    });
 
     let status: TinaPlanningActionBoardItem["status"] = "review";
-    if (position.recommendation === "reject" || acceptanceItem?.status === "likely_reject") {
+    if (position.recommendation === "reject") {
       status = "reject";
+    } else if (shouldAdvance) {
+      status = "advance";
     } else if (
       position.recommendation === "hold_for_authority" ||
-      position.recommendation === "hold_for_facts"
+      position.recommendation === "hold_for_facts" ||
+      position.recommendation === "appendix_only"
+    ) {
+      status = "hold";
+    } else if (
+      position.recommendation === "review_first" &&
+      acceptanceItem?.status === "likely_reject"
     ) {
       status = "hold";
     } else if (
       position.recommendation === "use_now" &&
-      (acceptanceItem?.status === "likely_accept" || !acceptanceItem) &&
-      (position.disclosureReadiness === "clear" || position.disclosureReadiness === "not_applicable")
+      acceptanceItem?.status === "likely_reject"
     ) {
-      status = "advance";
+      status = "review";
     }
 
     const priority: TinaPlanningActionBoardItem["priority"] =
@@ -129,7 +179,7 @@ export function buildTinaPlanningActionBoard(
     (item) => item.status === "review" || item.status === "hold"
   ).length;
   const overallStatus =
-    actionableCount >= 2 ? "actionable" : actionableCount > 0 || mixedCount > 0 ? "mixed" : "thin";
+    actionableCount >= 1 ? "actionable" : actionableCount > 0 || mixedCount > 0 ? "mixed" : "thin";
 
   return {
     lastBuiltAt: new Date().toISOString(),

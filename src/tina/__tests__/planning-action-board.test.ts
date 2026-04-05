@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TINA_SKILL_REVIEW_DRAFTS } from "@/tina/data/skill-review-fixtures";
 import { buildTinaPlanningActionBoard } from "@/tina/lib/planning-action-board";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 
@@ -58,5 +59,19 @@ describe("planning-action-board", () => {
     expect(snapshot.overallStatus).toBe("mixed");
     expect(snapshot.items.length).toBeGreaterThan(0);
     expect(snapshot.items.some((item) => item.title.includes("Home office deduction"))).toBe(true);
+  });
+
+  it("promotes clean planning work without laundering dirty-file noise into advances", () => {
+    const supportedSnapshot = buildTinaPlanningActionBoard(TINA_SKILL_REVIEW_DRAFTS["supported-core"]);
+    const salesTaxSnapshot = buildTinaPlanningActionBoard(
+      TINA_SKILL_REVIEW_DRAFTS["sales-tax-authority"]
+    );
+
+    expect(supportedSnapshot.items.some((item) => item.status === "advance")).toBe(true);
+    expect(
+      salesTaxSnapshot.items.some(
+        (item) => item.status === "advance" && item.priority === "immediate"
+      )
+    ).toBe(true);
   });
 });

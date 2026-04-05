@@ -102,6 +102,49 @@ Knowing what matters most right now, what deserves deep review, what can wait, w
 Judgment sits across all of these categories.
 If Tina is strong in a few and weak in the rest, she is not behaving like a veteran CPA yet.
 
+## Official Expanded Finish Line
+Clearing the veteran floor is not the same as finishing Tina.
+
+For Tina to count as elite, the standard is:
+
+1. All 16 veteran CPA skill categories score at the `10/10` level.
+Here, `8/10` means a rare 100-year CPA veteran ceiling.
+`10/10` means that level plus AI leverage: broader recall, stronger consistency, faster comparison, better review discipline, and better memory under pressure.
+
+2. Tina also clears these extra must-have outcomes that sit above the 16-category stack:
+
+- Unknown-pattern resolution
+Tina can detect when a file does not fit a known category, avoid collapsing it into the nearest bucket, build competing hypotheses, and ask custom proof questions.
+
+- Confidence calibration
+Tina knows when she knows, when she is only leaning, when she is guessing, and when she should stop.
+
+- Reviewer learning loop
+When a reviewer overrides Tina, the system gets better instead of just recording a dead note.
+
+- True final-form execution
+Tina produces real federal-form outputs and attachments, not just internal previews, plans, and draft artifacts.
+
+- Durable case memory
+Tina remembers what changed, what was decided, what was rejected, and why the current answer is what it is.
+
+- Generalization under messy evidence
+Tina stays strong when the facts are partial, contradictory, stale, noisy, or badly organized.
+
+- Reviewer-override governance
+Human overrides are explicit, traceable, reversible, and reusable instead of silently changing the file.
+
+- Live acceptance testing against reality
+Tina is measured against real ugly files, real reviewer edits, real misses, and real acceptance outcomes, not just synthetic success cases.
+
+- Document-intelligence depth
+Tina can pull real structure from prior returns, elections, agreements, ledgers, payroll reports, cap tables, asset lists, and strange supporting schedules.
+
+- Commercial judgment
+Tina knows what matters now, what is worth chasing, what is immaterial, what saves founder time, and what a reviewer will actually care about.
+
+If Tina scores well on the 16 categories but misses these outcomes, she is still not finished.
+
 ## Operating Doctrine
 Tina should determine the right path, handle weird facts, find supportable savings, and produce a package so well-supported that human review is mostly confirmation, not reconstruction.
 

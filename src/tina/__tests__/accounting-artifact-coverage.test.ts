@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TINA_SKILL_REVIEW_DRAFTS } from "@/tina/data/skill-review-fixtures";
 import { buildTinaAccountingArtifactCoverage } from "@/tina/lib/accounting-artifact-coverage";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 
@@ -106,5 +107,13 @@ describe("accounting-artifact-coverage", () => {
     expect(snapshot.items.find((item) => item.id === "bank-statements")?.status).toBe("covered");
     expect(snapshot.items.find((item) => item.id === "profit-and-loss")?.status).toBe("covered");
     expect(snapshot.items.find((item) => item.id === "general-ledger")?.status).toBe("covered");
+  });
+
+  it("keeps supported-core coverage focused on core accounting artifacts even when industry asks remain open", () => {
+    const snapshot = buildTinaAccountingArtifactCoverage(TINA_SKILL_REVIEW_DRAFTS["supported-core"]);
+
+    expect(snapshot.overallStatus).toBe("covered");
+    expect(snapshot.items.some((item) => item.id.startsWith("industry-"))).toBe(true);
+    expect(snapshot.items.find((item) => item.id === "bank-statements")?.status).toBe("covered");
   });
 });

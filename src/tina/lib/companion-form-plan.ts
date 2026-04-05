@@ -1,3 +1,4 @@
+import { buildTinaEntityReturnPackagePlan } from "@/tina/lib/entity-return-package-plan";
 import { buildTinaFederalReturnRequirements } from "@/tina/lib/federal-return-requirements";
 import { buildTinaOfficialFederalFormTemplateSnapshot } from "@/tina/lib/official-form-templates";
 import { buildTinaScheduleCReturn } from "@/tina/lib/schedule-c-return";
@@ -38,6 +39,7 @@ export function buildTinaCompanionFormPlan(
   const startPath = buildTinaStartPathAssessment(draft);
   const officialTemplates = buildTinaOfficialFederalFormTemplateSnapshot(draft);
   const federalReturnRequirements = buildTinaFederalReturnRequirements(draft);
+  const entityReturnPackagePlan = buildTinaEntityReturnPackagePlan(draft);
   const scheduleCReturn = buildTinaScheduleCReturn(draft);
   const templatesById = templateMap(officialTemplates.templates);
   const line31Amount =
@@ -144,29 +146,63 @@ export function buildTinaCompanionFormPlan(
       );
     }
   } else {
-    const primaryTemplate =
-      officialTemplates.primaryTemplateId && templatesById.has(officialTemplates.primaryTemplateId)
-        ? templatesById.get(officialTemplates.primaryTemplateId) ?? null
-        : null;
-
-    items.push(
-      createItem({
-        id: "primary-return-family",
-        formId: primaryTemplate?.id ?? null,
-        title: primaryTemplate?.title ?? `${federalReturnRequirements.returnFamily} primary return`,
-        role: primaryTemplate?.role ?? "primary_return",
-        status: federalReturnRequirements.canTinaFinishLane
-          ? "required_needs_review"
-          : "required_blocked",
-        fillMode: primaryTemplate ? "blank_form_only" : "future_lane",
-        summary:
-          federalReturnRequirements.canTinaFinishLane
-            ? "Tina has the correct return family in view, but reviewer-controlled form completion is still needed."
-            : "Tina knows the correct federal return family, but this lane still exceeds her automated return-production depth.",
-        relatedLineNumbers: [],
-        relatedDocumentIds: draft.documents.map((document) => document.id),
-      })
+    const officialPackageItems = entityReturnPackagePlan.items.filter(
+      (item) => item.formId !== null
     );
+
+    if (officialPackageItems.length > 0) {
+      officialPackageItems.forEach((item) => {
+        const template = item.formId ? templatesById.get(item.formId) ?? null : null;
+
+        items.push(
+          createItem({
+            id: item.id,
+            formId: item.formId,
+            title: item.title,
+            role:
+              item.kind === "primary_return"
+                ? "primary_return"
+                : item.kind === "attachment"
+                  ? "attachment"
+                  : "companion_schedule",
+            status:
+              item.status === "ready"
+                ? "required_ready"
+                : item.status === "review_required"
+                  ? "required_needs_review"
+                  : "required_blocked",
+            fillMode: template ? "blank_form_only" : "future_lane",
+            summary: item.summary,
+            relatedLineNumbers: [],
+            relatedDocumentIds: item.relatedDocumentIds,
+          })
+        );
+      });
+    } else {
+      const primaryTemplate =
+        officialTemplates.primaryTemplateId && templatesById.has(officialTemplates.primaryTemplateId)
+          ? templatesById.get(officialTemplates.primaryTemplateId) ?? null
+          : null;
+
+      items.push(
+        createItem({
+          id: "primary-return-family",
+          formId: primaryTemplate?.id ?? null,
+          title: primaryTemplate?.title ?? `${federalReturnRequirements.returnFamily} primary return`,
+          role: primaryTemplate?.role ?? "primary_return",
+          status: federalReturnRequirements.canTinaFinishLane
+            ? "required_needs_review"
+            : "required_blocked",
+          fillMode: primaryTemplate ? "blank_form_only" : "future_lane",
+          summary:
+            federalReturnRequirements.canTinaFinishLane
+              ? "Tina has the correct return family in view, but reviewer-controlled form completion is still needed."
+              : "Tina knows the correct return family, but the official-form package is still not concrete enough here.",
+          relatedLineNumbers: [],
+          relatedDocumentIds: draft.documents.map((document) => document.id),
+        })
+      );
+    }
   }
 
   const blockingCount = items.filter((item) => item.status === "required_blocked").length;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TINA_SKILL_REVIEW_DRAFTS } from "@/tina/data/skill-review-fixtures";
 import { buildTinaTaxPlanningMemo } from "@/tina/lib/tax-planning-memo";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 
@@ -94,5 +95,17 @@ describe("tax-planning-memo", () => {
       true
     );
     expect(snapshot.items.some((item) => item.documentationNeeds.length > 0)).toBe(true);
+  });
+
+  it("pushes authority-backed retail planning into the now lane", () => {
+    const snapshot = buildTinaTaxPlanningMemo(TINA_SKILL_REVIEW_DRAFTS["sales-tax-authority"]);
+
+    expect(snapshot.items.some((item) => item.priority === "now")).toBe(true);
+    expect(
+      snapshot.items.some(
+        (item) =>
+          item.priority === "now" && /washington business-tax treatment/i.test(item.title)
+      )
+    ).toBe(true);
   });
 });

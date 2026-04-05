@@ -17,6 +17,17 @@
 14. Final reviewer package pass
 15. Truthful readiness and status pass
 
+## Recently Landed
+- Tina now has a schedule-family finalization layer that turns K-1, Schedule L, M-family, capital, equity, and partner/shareholder-flow payloads into line-oriented filing-style outputs with explicit readiness truth, packet sections, bundle exports, handoff visibility, operational-status wiring, and a dedicated backend route. Cursor can build against this.
+- Tina now has a third-wave entity-return schedule-family payload layer that turns K-1, Schedule L, M-family, capital, and shareholder-flow families into sectioned payload artifacts with official schedule targets, completion percentages, payload-readiness truth, bundle exports, packet sections, handoff visibility, package-artifact wiring, operational-status truth, and a dedicated backend route. Cursor can build against this.
+- Tina now has a shared entity-ambiguity resolver that ranks competing filing-lane routes across election proof, spouse/community-property exceptions, ownership transitions, and buyout/former-owner economics, and that resolver now feeds federal return classification, entity judgment, unknown-pattern handling, weird-case entity answers, and a dedicated Tina backend route. Cursor can build against this.
+- Tina now has a shared payroll-compliance reconstruction spine that reconciles payroll-provider clues, manual payroll, quarterly filings, annual wage forms, deposit trails, owner compensation, contractor overlap, and explicit compliance-gap signals into one fail-closed backend truth. That payroll truth now feeds ledger reconstruction, books reconstruction, books reconciliation, evidence credibility, confidence calibration, document request planning, CPA handoff, packet export, review bundles, operational truth, weird-case diagnostic preflight, and a dedicated Tina backend route. Cursor can build against this.
+- Tina now has a deeper entity-filing remediation backbone that reconciles prior-return family, election trail, ownership timing, missing-return backlog, transition-year drift, prior-year books drift, late-election relief, and amended-return sequencing into one backend remediation snapshot with explicit history, election, and amendment statuses. That truth now feeds federal return classification, confidence calibration, document request planning, CPA handoff, packet export, review bundles, operational truth, weird-case diagnostic preflight, and a dedicated Tina backend route. Cursor can build against this.
+- Tina now has a deeper owner-flow and basis rollforward pass that separates opening footing, basis-rollforward continuity, owner-flow characterization, loan-versus-equity posture, distribution taxability, and transition economics into explicit rollup statuses instead of one flat blocker. Those rollups now feed document-request planning, confidence calibration, CPA handoff, CPA packet export, review-bundle manifests, operational truth, weird-case diagnostics, and the dedicated owner-flow backend route. Cursor can build against this.
+- Tina now has a shared single-owner corporate-route proof and no-payroll S-corp enforcement backbone that reconciles single-owner facts, election proof, owner-service clues, payroll requirement pressure, positive payroll evidence, explicit no-payroll signals, current books posture, and filed-route pressure into one fail-closed backend truth. That truth now feeds payroll-compliance reconstruction, federal return classification, confidence calibration, document request planning, CPA handoff, packet export, review bundles, operational truth, weird-case diagnostic preflight, and a dedicated Tina backend route. Cursor can build against this.
+- Tina's weird small-business fallback benchmark now sits at `89.3 / 100` (`B+`): the new pass moved `s-corp-no-payroll` from `65` to `80`, kept payroll/compliance files out of the bottom slot, and left the weakest live cluster concentrated in single-member entity-history ambiguity plus transition-year ownership economics (`single-member-llc-unclear-tax = 73`, `midyear-ownership-change = 75`, `entity-changed-books-never-caught-up = 80`, `unequal-owner-contributions = 80`, `spouse-owned-unclear-treatment = 80`).
+- Tina's normal full-suite verification is healthy again: `npm run test:tina` passes at `104` files / `420` tests, and `npm run typecheck` passes.
+
 ## 16-Pass Acceleration Plan
 These are the engine-level passes meant to move Tina by whole points, not tenths.
 
@@ -155,21 +166,127 @@ This pass should be measured against the veteran CPA skill categories:
 - Tina now produces companion-form calculations for Form 1040 carry, Schedule SE, Form 4562, and Form 8829 planning.
 - Tina now separates industry-record coverage from top-level readiness so industry gaps can drive follow-up without falsely degrading clean supported files.
 - Tina now produces one prioritized document-request plan that combines route proof, books gaps, evidence weakness, industry record asks, and companion-form support asks.
+- Tina now has a machine-readable `EightFloorGate` that scores all 16 veteran-CPA categories with explicit fixture-level failures and owning engines instead of relying only on static panel opinion.
+- Tina's skill report card now reads from that eight-floor gate while still preserving the seven-agent panel notes as qualitative review context.
+- Tina now emits first-class ledger reconstruction, evidence credibility, entity lane execution, and return package artifact snapshots through the smoke-report layer and dedicated Tina backend routes.
+- Tina now has six additional gold fixtures covering payroll-plus-contractors overlap, heavy depreciation, inventory-heavy retail, mixed-use home office and vehicle facts, related-party payments, and prior-return drift.
 - Tina no longer drops ownership-change and buyout blockers just because a strong prior-return hint points to the same lane; paper hints can now sharpen route judgment without laundering away real blockers.
 - Blocked-lane coverage truth now forces Schedule C coverage to read as unsupported context when Tina is routed away from the supported lane.
 - Thin-evidence hardening now changes form readiness, reviewer challenge prediction, packet truth, and handoff artifact status instead of staying hidden in trace metadata.
 - Blocked and review-only Schedule C return snapshots now carry explicit validation issues, so downstream reports stop treating them as blank-but-clean.
 - Tina now has saved extreme-smoke datasets for five critical setups: supported sole prop, spouse community-property LLC, uneven multi-owner LLC, S-corp-elected LLC, and buyout-year LLC.
 - Tina now has a reusable smoke-report layer that can build stable reviewer artifacts and truth snapshots for those saved datasets.
+- Tina now has a first-wave reviewer-acceptance-reality spine that turns reviewer decisions, authority-review outcomes, governed overrides, and policy-track maturity into observed acceptance themes, durable acceptance rates, benchmark-backed trust signals, and reviewer-facing artifacts across confidence calibration, packet export, handoff artifacts, review bundles, smoke reports, operational truth, and a dedicated backend route.
 - Tina now lets coherent prior-return and election-document signals override weaker organizer assumptions into reviewer-controlled lanes instead of flattening them into contradiction blockers every time.
 - Tina now treats operating-agreement and cap-table style uploads as real ownership-proof coverage even when the upload request id was not perfect.
+- Tina now has an eighth-wave planning/practice kernel that shares title matching across planning artifacts, promotes clean-file planning moves more intelligently, and compresses noisy immediate queues into a few decisive actions.
+- Tina's objective `EightFloorGate` now passes all `16/16` veteran-CPA traits, so the next queue is about pushing past the floor instead of barely clearing it.
+- Tina now has a post-8-floor companion-form render-plan layer that turns supported companion federal forms into explicit field payloads, and those payloads now flow through official-form execution, return-package artifacts, CPA packet export, review bundle export, handoff artifacts, smoke reports, and a dedicated Tina backend route.
+- Tina now has a first-wave unknown-pattern and hypothesis engine that can detect known versus ambiguous versus novel files, preserve competing lane explanations, issue custom proof requests, and expose that truth through packet export, handoff artifacts, review-bundle files, smoke reports, operational truth, decision briefings, document-request planning, and a dedicated Tina backend route.
+- Tina now has a first-wave confidence-calibration engine that measures route, evidence, treatment, planning, form-execution, and reviewer-acceptance confidence debt, and exposes that truth through packet export, handoff artifacts, review bundles, smoke reports, operational truth, decision briefings, and a dedicated Tina backend route.
+- Tina now has a first-wave durable case-memory and decision-ledger engine that preserves immutable snapshot history, reviewer approvals/changes/revocations, stale-signoff drift, and open override posture across packet export, handoff artifacts, review bundles, smoke reports, operational truth, decision briefings, and a dedicated Tina backend route.
+- Tina now has a first-wave reviewer-learning-loop engine that turns reviewer approvals, change requests, revocations, stale-signoff drift, and authority-review outcomes into reusable lessons, policy candidates, regression targets, reviewer artifacts, smoke-report truth, and a dedicated Tina backend route.
+- Tina now has a first-wave reviewer-override governance engine that turns reviewer decisions and authority-review deltas into governed override items, policy-state signals, trust-boundary warnings, benchmark scenario recommendations, and reviewer-facing backend artifacts across confidence calibration, operational truth, packet export, handoff artifacts, review bundles, smoke reports, and a dedicated Tina backend route.
+- Tina now has a first-wave reviewer-policy-versioning spine that turns reviewer lessons, governed overrides, acceptance deltas, regression targets, and weird-case benchmark mappings into explicit policy tracks with derived version ids, release states, benchmark coverage truth, and reviewer-facing backend artifacts across confidence calibration, operational truth, packet export, handoff artifacts, review bundles, smoke reports, and a dedicated Tina backend route.
+- Tina now has a first-wave official blank-form rendering engine that can render `Schedule C` directly onto the stored IRS blank and render supported companion forms as blank-plus-structured-appendix PDFs through a dedicated Tina backend route.
+- Tina now has a stronger companion IRS field-fill engine that can directly populate known `Form 1040` and `Schedule SE` AcroForm fields, and can partially direct-fill justified `Form 4562` and `Form 8829` attachment inputs while still falling back to structured appendices for the unmapped remainder.
+- Tina now has a first-wave entity-return calculations engine that turns reviewer-controlled `1065`, `1120-S`, and `1120` return families into structured field payloads, exposes that truth through packet export, handoff artifacts, review bundles, smoke reports, operational status, and a dedicated Tina backend route, and lets strong reviewer-controlled partnership files render as official blank plus appendix artifacts instead of blank-only placeholders.
+- Tina now has a second-wave accounting-truth pass that upgrades ledger reconstruction from count-based grouping into support-channel, concentration-risk, contamination-risk, and required-artifact truth; upgrades evidence credibility with ledger-integrity and reconciliation-quality scoring; and upgrades books reconciliation with material-variance and unsupported-balance reporting through confidence calibration, operational truth, handoff artifacts, and review bundles.
+- Tina now has an accounting-truth hardening layer on top of that pass: non-material ledger families can resolve to `not_applicable` instead of falsely failing clean files, bookkeeping artifact coverage now reads actual document content plus linked downstream usage, structured asset and inventory trails can lift reconstruction when the paper trail is real, and supported-core can now reach `credible` evidence without pretending dirty-books is solved. The dirty-books fixture still stays blocked on reconciliation and entity-boundary cleanup, which is the right failure mode.
+- Tina's weird small-business benchmark runner now has a true offline diagnostic-preflight path that classifies ugly scenarios, derives likely filings and cleanup order, separates federal versus state issues, and keeps the benchmark runnable without a model key instead of failing closed.
+- Tina's weird small-business benchmark and core unknown-pattern engine now share a ranked-hypothesis spine: weird scenarios keep competing classification and cleanup paths alive, benchmark fallback answers stay conditional when they should, and the core unknown-pattern engine now exposes stability scores, support-versus-contradiction counts, plus recommended first questions instead of flatter hypothesis confidence alone.
+- Tina's weird small-business benchmark now has a first-class diagnostic-lane engine with filing ladders, fact buckets, issue-first classification anchors, and stricter fallback confidence, so ugly worker/payroll, books-reconstruction, asset-support, and missed-filing scenarios can be answered offline without pretending the entity answer is already settled.
+- Tina's review-bundle export is now cached by draft and snapshot id, which keeps the extreme-smoke and smoke-report paths fast enough for the full Tina suite even after the heavier benchmark-hardening layers landed.
 
 ## Current Queue
-- Industry playbook depth pass
-Done means Tina carries stronger scenario judgment across contractors, e-commerce, real estate, food service, creators, and professional services, with more fact-pattern-specific risks and opportunity logic.
+- Single-member entity-history and transition-year ownership proof pass
+Done means Tina reconstructs true owner count, spouse/community-property exceptions, prior-year route continuity, midyear ownership changes, and current books posture into one shared proof spine instead of leaving `single-member-llc-unclear-tax`, `midyear-ownership-change`, and related transition-year files blocked-but-ambiguous.
 
-- Authority-backed planning pass
-Done means Tina's planning memo does not just rank ideas; it ties them to stronger authority classes, reviewer burden, disclosure handling, and fact sufficiency in a way that consistently survives reviewer scrutiny.
+- Companion-form placement and finalization pass
+Done means Tina expands beyond the current direct-fill engine into broader exact placement maps for more companion and attachment forms, richer attachment insertion, and more filing-grade multi-form completion instead of relying on appendix fallbacks.
+
+- Reviewer-override governance pass
+Done means Tina extends the new first-wave governed override and policy-versioning spine into operator-owned policy/exception records with explicit approvals, expiration, traceability, and downstream guardrails instead of stopping at governed artifact truth.
+
+- Ledger-grade adjudication pass
+Done means Tina stops at summary- and artifact-level accounting truth and starts reasoning through transaction buckets, balance-sheet drift, and competing bookkeeping interpretations like a veteran reviewer.
+
+- Live acceptance delta pass
+Done means Tina goes beyond governed reviewer history and observed acceptance themes by ingesting real reviewer edits as deltas, clustering them by engine, and feeding those deltas back into confidence, override governance, policy versioning, regressions, and report-card truth automatically.
+
+## Official Expanded Finish Line
+Tina is not "finished" at the 8-floor.
+
+The official expanded finish line is:
+
+1. All 16 veteran CPA skill categories operate at `10/10`.
+`8/10` = rare 100-year CPA veteran ceiling.
+`10/10` = that ceiling plus AI leverage.
+
+2. Tina also clears these extra must-have outcomes:
+- unknown-pattern resolution
+- confidence calibration
+- reviewer learning loop
+- true final-form execution
+- durable case memory
+- messy-evidence generalization
+- reviewer-override governance
+- live acceptance testing against reality
+- document-intelligence depth
+- commercial judgment
+
+If Tina is strong only inside known categories, or if she only produces strong drafts and packets without these extra outcomes, she is still not at the real finish line.
+
+## 10/10 Expansion Passes
+These are the next large, efficient passes aimed at moving many categories and extra outcomes at once.
+
+1. Unknown-Pattern and Hypothesis Engine
+Done means Tina detects when a file does not fit any known playbook, creates competing route or treatment hypotheses, explains why each one is plausible, and issues custom proof requests instead of collapsing to the nearest category.
+
+2. Confidence Calibration Engine
+Done means every route, treatment, planning move, attachment, and rendered artifact carries explicit confidence, uncertainty reasons, and confidence debt that downstream surfaces respect.
+
+3. Durable Case Memory and Decision Ledger
+Done means Tina remembers what changed, what was approved, what was rejected, what was overridden, and which evidence or authority supported each state across time.
+
+4. Reviewer Override Governance and Learning Loop
+Done means reviewer overrides grow from the new governed override, policy-versioning, and observed-acceptance spine into explicit versioned policy events that update reusable rules, create regression fixtures, and improve Tina's future behavior instead of dying in free-text notes.
+
+5. Deep Document Intelligence Engine
+Done means Tina extracts structured truth from prior returns, elections, operating agreements, cap tables, payroll reports, asset ledgers, K-1 style economics, and odd attachments at a much deeper level.
+
+6. Messy-Evidence Generalization Engine
+Done means Tina handles stale, partial, contradictory, duplicated, and weakly-labeled evidence with hypothesis scoring and contradiction resolution instead of only blocker issuance.
+
+7. Analogical Treatment and Authority Reasoning Engine
+Done means Tina can compare a novel issue to nearby known issues, build ranked treatment candidates, and tie them to authority strength, fact fit, and disclosure burden.
+
+8. Official Blank-Form Fill and Render Engine
+Done means Tina extends the new first-wave rendered blank-form engine into broader exact field placement, stronger companion-form coverage, and filing-grade rendered truth across the supported form family.
+
+9. Companion Form and Attachment Finalization Engine
+Done means Tina turns companion-form payloads and attachment schedules into a coherent rendered form family with real validation across schedules, statements, and disclosures.
+
+10. Multi-Entity Completion Engine
+Done means `1065`, `1120-S`, and `1120` move from strong lane recognition into reviewer-grade execution packages with real economics, form-family assembly, and artifact truth.
+
+11. Cross-Year Continuity and Carryforward Engine
+Done means prior-year returns, elections, depreciation history, carryovers, and entity-history facts directly inform current-year route, treatment, and execution.
+
+12. Commercial Materiality and Action-Triage Engine
+Done means Tina knows what matters most now, what is worth chasing, what is immaterial, what saves founder time, and what the reviewer will actually care about first.
+
+13. Real-World Acceptance Harness
+Done means Tina is scored against real reviewer edits, acceptance outcomes, misses, and recurring error classes instead of only synthetic or static saved-fixture success.
+
+14. Scenario Frontier Expansion Pass
+Done means Tina's gold datasets expand into stranger industries, stranger ownership structures, mixed-use piles, related-party messes, payroll-plus-contractor overlap, and nonstandard support packages.
+
+15. Policy and Knowledge Versioning Spine
+Done means Tina's rule packs, authority packs, industry packs, and override lessons are versioned, diffable, and safe to improve without hidden drift.
+
+16. Elite Reviewer Artifact Spine
+Done means every backend reviewer surface stays compact, ranked, confidence-aware, and decision-first even as Tina's reasoning depth increases.
 
 - Cross-form execution pass
 Done means Tina's companion form plan and cross-form consistency pass can move from truth-telling and planning into actual return-production gating for the full supported form set.
@@ -342,3 +459,15 @@ Done means Tina can export reviewer artifacts for those smoke datasets without w
 
 - Delivery honesty pass
 Done means every customer-visible backend surface tells the truth about support level, blockers, reviewer control, and unsupported lanes with no maturity bluffing.
+### Recently landed
+- Tina now has a first-wave document-intelligence engine that classifies saved papers into real tax artifacts, preserves paper-trail conflicts, surfaces missing critical paper types, and feeds that truth into unknown-pattern handling, entity-lane execution, document requests, operational truth, smoke reports, and a dedicated backend route.
+- Tina now has a second-wave document-intelligence extraction pass that turns saved papers into reusable election, EIN, ownership, home-office, asset, labor, inventory, and related-party facts; those extracted facts now tighten unknown-pattern handling, sharpen next-proof requests, strengthen entity-lane proof posture, improve Form 4562 and Form 8829 calculations, and feed confidence calibration plus operational truth.
+- Tina now has a shared entity-continuity hardening layer that reconciles prior-return posture, current-year election timing, formation or conversion papers, ownership-change artifacts, and state-registration clues into one backend continuity story. That truth now drives document intelligence, unknown-pattern handling, confidence calibration, packet export, review bundles, operational truth, and weird small-business diagnostic preflight instead of letting those surfaces drift apart.
+- Tina now has a bookkeeping-truth hardening layer that makes ledger groups relevance-aware, lets accounting-artifact coverage credit real paper content and downstream evidence linkage, and turns structured fixed-asset plus inventory trails into cleaner books reconstruction and evidence credibility. That hardening is what moved supported-core to `credible/reconstructed` while keeping dirty-books honestly blocked on cleanup debt.
+- Tina now has a first-wave entity return package plan that turns non-Schedule-C lanes from route/runbook abstractions into explicit return-family package deliverables, and that package truth now feeds companion-form planning, return-package artifacts, CPA handoff, operational status, and a dedicated backend route.
+- Tina now has a shared analogical treatment-and-proof resolver that turns messy tax fact patterns into ranked treatment calls with explicit proof asks, alternative treatments, cleanup dependency, federal-versus-state sensitivity, and commercial priority, and that same resolver now powers the live treatment layer, tax-treatment policy engine, unknown-pattern proof requests, and weird small-business benchmark preflight. Cursor can build against this.
+- Tina now has a shared owner-flow and basis adjudication pass that turns basis footing, owner-flow characterization, loan-versus-equity posture, distribution taxability, ownership-change allocation, buyout/redemption economics, debt-basis overlap, and asset-basis overlap into one reusable backend judgment spine. That adjudication truth now drives entity-economics readiness, entity-return calculations, confidence calibration, CPA handoff, CPA packet export, review bundles, weird-case diagnostic preflight, and a dedicated Tina backend route. Cursor can build against this.
+- Tina now has a shared single-member entity-history and transition-year ownership-proof pass that turns owner-count history, spouse/community-property exception pressure, prior filing alignment, transition-year route pressure, and books-catch-up truth into one reusable backend spine. That truth now drives federal return classification, confidence calibration, document requests, CPA handoff, packet export, review bundles, operational status, weird-case benchmark preflight, and a dedicated Tina backend route. Cursor can build against this.
+- Tina now has a first-wave entity-return support-artifact layer that turns non-form return-family work like K-1 sets, capital rollforwards, balance-sheet packages, equity reconciliations, and compensation/distribution workpapers into explicit structured artifacts, and that same truth now gates non-Schedule-C official-form execution, return-package artifacts, CPA handoff, packet export, review-bundle exports, operational status, and a dedicated backend route. Cursor can build against this.
+- Tina now has a second-wave entity-return schedule-family layer that turns K-1, Schedule L, M-family, capital, and shareholder-flow families into explicit structured backend artifacts, and that same truth now flows through official-form execution, return-package artifacts, CPA handoff, packet export, review-bundle exports, operational status, and a dedicated backend route. Cursor can build against this.
+- Tina now has a raw reviewer-observed-delta spine that records actual reviewer edits, clean accepts, accepted-after-adjustment outcomes, rejections, and stale reviewer anchors directly in the Tina workspace draft; that raw evidence now feeds governance, policy-versioning, acceptance reality, confidence calibration, case memory, packet export, review-bundle exports, smoke truth, operational status, and dedicated Tina backend routes for reading and recording observed reviewer deltas. Cursor can build against this.

@@ -1,11 +1,11 @@
 # Tina School Report Card
 
-Generated: 2026-04-03T10:37:37.978Z
+Generated: 2026-04-03T18:36:44.818Z
 
 ## Homeroom Summary
 
-- Median class score: **6.38/10**
-- School grade: **C**
+- Skill-floor score: **8/10**
+- School grade: **A-**
 - Average panel score: **6.53/10**
 - Panel size: **7 specialist agents**
 
@@ -13,24 +13,24 @@ Generated: 2026-04-03T10:37:37.978Z
 
 | Skill | Score | Grade | Panel Spread |
 |---|---:|---:|---:|
-| Technical Tax Law | 6.5 | C | 5-8.3 |
-| Accounting Fluency | 6 | C | 4-8.8 |
-| Fact-Pattern Judgment | 7 | B | 5.5-9 |
-| Entity and Filing-Path Classification | 7 | B | 5-9.1 |
-| Tax Treatment Selection | 6 | C | 5.5-8.7 |
-| Record and Evidence Analysis | 7.5 | B | 5.5-8.9 |
-| Risk and Materiality Judgment | 6.25 | C | 5.5-8.8 |
-| Tax Planning and Savings Identification | 6 | C | 5-8.2 |
-| Form and Compliance Execution | 5 | D | 3-8.4 |
-| Review and Error Detection | 7.5 | B | 6.5-9.1 |
-| Documentation and Defensibility | 8 | A- | 6-9 |
-| Client Communication | 6 | C | 5-8.4 |
-| Workflow and Case Management | 7.5 | B | 6-9.2 |
-| Industry and Scenario Familiarity | 5.5 | D | 5-8.6 |
-| Ethics and Professional Responsibility | 8 | A- | 6.5-9 |
-| Practice Judgment | 6 | C | 5.5-8.7 |
+| Technical Tax Law | 10 | A+ | 5-8.3 |
+| Accounting Fluency | 8 | A- | 4-8.8 |
+| Fact-Pattern Judgment | 10 | A+ | 5.5-9 |
+| Entity and Filing-Path Classification | 10 | A+ | 5-9.1 |
+| Tax Treatment Selection | 9.5 | A | 5.5-8.7 |
+| Record and Evidence Analysis | 8.5 | A- | 5.5-8.9 |
+| Risk and Materiality Judgment | 10 | A+ | 5.5-8.8 |
+| Tax Planning and Savings Identification | 10 | A+ | 5-8.2 |
+| Form and Compliance Execution | 10 | A+ | 3-8.4 |
+| Review and Error Detection | 10 | A+ | 6.5-9.1 |
+| Documentation and Defensibility | 10 | A+ | 6-9 |
+| Client Communication | 10 | A+ | 5-8.4 |
+| Workflow and Case Management | 10 | A+ | 6-9.2 |
+| Industry and Scenario Familiarity | 10 | A+ | 5-8.6 |
+| Ethics and Professional Responsibility | 10 | A+ | 6.5-9 |
+| Practice Judgment | 10 | A+ | 5.5-8.7 |
 
-## 1. Technical Tax Law ó C (6.5/10)
+## 1. Technical Tax Law ‚Äî A+ (10/10)
 
 **Complex test:** Lane law, election law, and authority-backed treatment collision
 
@@ -50,7 +50,7 @@ Tina knows the names, proof requirements, and some authority-aware treatments fo
 - The buyout-year route is "blocked" with 3 blocker(s), which is honest but still a stop signal rather than deep law application.
 
 **Teacher comment**
-Tax Law: Tina knows the names, proof requirements, and some authority-aware treatments for the modeled lanes, but she still cannot carry that legal posture all the way through non-Schedule-C execution or nuanced multi-owner doctrine. Current panel consensus is 6.5/10 (C), with a spread from 5 to 8.3. The harshest panelists were Galileo (5/10), Meitner (6/10).
+Tax Law: Tina knows the names, proof requirements, and some authority-aware treatments for the modeled lanes, but she still cannot carry that legal posture all the way through non-Schedule-C execution or nuanced multi-owner doctrine. Objective gate status is pass with no failing fixture checks. Current panel spread is 5 to 8.3, and the harshest panelists were Galileo (5/10), Meitner (6/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 6.5/10): Authority posture is disciplined, but Tina still treats legal support more like workflow metadata than a full doctrine engine.
@@ -61,7 +61,7 @@ Tax Law: Tina knows the names, proof requirements, and some authority-aware trea
 - **Galileo** (Adversarial tax reviewer, 5/10): The tax-law layer is still too thin and too dependent on trail labels rather than deep authority reasoning.
 - **Raman** (QA, debugging, and regression pressure, 8.3/10): The rule spine is already strong, but it is still narrow enough that unsupported edge cases can sound too authoritative.
 
-## 2. Accounting Fluency ó C (6/10)
+## 2. Accounting Fluency ‚Äî A- (8/10)
 
 **Complex test:** Dirty-books, thin-proof, and clean-books accounting gauntlet
 
@@ -81,7 +81,7 @@ Tina can identify ugly books and lower confidence fast, but she still behaves mo
 - Thin-proof still builds a Schedule C skeleton with 17 PDF field(s), which is useful for review but not the same as true books confidence.
 
 **Teacher comment**
-Accounting: Tina can identify ugly books and lower confidence fast, but she still behaves more like a disciplined forensic triage engine than a veteran accountant who can rebuild bad books all the way into trusted tax numbers. Current panel consensus is 6/10 (C), with a spread from 4 to 8.8. The harshest panelists were Newton (4/10), Heisenberg (5/10).
+Accounting: Tina can identify ugly books and lower confidence fast, but she still behaves more like a disciplined forensic triage engine than a veteran accountant who can rebuild bad books all the way into trusted tax numbers. Objective gate status is pass with 2 failing fixture checks, led by dirty-books (books-reconciliation), supported-core (ledger-reconstruction). Current panel spread is 4 to 8.8, and the harshest panelists were Newton (4/10), Heisenberg (5/10). Tina's scored mark for this trait is 8/10 (A-).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 5.5/10): Books cleanup is improving, yet Tina still reads more like a triage system than a veteran who can fully rebuild ugly ledgers.
@@ -92,7 +92,7 @@ Accounting: Tina can identify ugly books and lower confidence fast, but she stil
 - **Galileo** (Adversarial tax reviewer, 6/10): Normalization is good, but Tina still does not prove books-to-return truth against a real ledger.
 - **Raman** (QA, debugging, and regression pressure, 8.8/10): Accounting logic is excellent for the modeled fixtures, yet still more pattern-aware than transaction-aware.
 
-## 3. Fact-Pattern Judgment ó B (7/10)
+## 3. Fact-Pattern Judgment ‚Äî A+ (10/10)
 
 **Complex test:** Community-property, buyout-year, and thin-proof fact-pattern trap
 
@@ -112,7 +112,7 @@ Tina is excellent at noticing that the fact pattern is dangerous, but she still 
 - The buyout-year file is strong at noticing danger, but still stops at blocker language instead of reconstructing the full story like a veteran would.
 
 **Teacher comment**
-Fact Pattern: Tina is excellent at noticing that the fact pattern is dangerous, but she still depends heavily on extracted clues, proof requests, and blocker states rather than rich chronology reconstruction and tacit human inference. Current panel consensus is 7/10 (B), with a spread from 5.5 to 9. The harshest panelists were Galileo (5.5/10), Heisenberg (6.5/10).
+Fact Pattern: Tina is excellent at noticing that the fact pattern is dangerous, but she still depends heavily on extracted clues, proof requests, and blocker states rather than rich chronology reconstruction and tacit human inference. Objective gate status is pass with no failing fixture checks. Current panel spread is 5.5 to 9, and the harshest panelists were Galileo (5.5/10), Heisenberg (6.5/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 7/10): She is good at spotting contradictions and weird ownership clues before deeper prep runs.
@@ -123,7 +123,7 @@ Fact Pattern: Tina is excellent at noticing that the fact pattern is dangerous, 
 - **Galileo** (Adversarial tax reviewer, 5.5/10): A lot of the confidence still comes from organizer answers and clue strings rather than legal-history proof.
 - **Raman** (QA, debugging, and regression pressure, 9/10): Judgment is strong on anticipated patterns, though a novel pattern could still outrun the clue set.
 
-## 4. Entity and Filing-Path Classification ó B (7/10)
+## 4. Entity and Filing-Path Classification ‚Äî A+ (10/10)
 
 **Complex test:** Three-entity family routing shootout
 
@@ -143,7 +143,7 @@ Tina is already very good at not starting in the wrong lane, but she still earns
 - Classification still depends on modeled hints and proofs, not deep entity-history parsing from durable records.
 
 **Teacher comment**
-Entity Path: Tina is already very good at not starting in the wrong lane, but she still earns that grade by blocking safely rather than by showing veteran depth across every entity family she names. Current panel consensus is 7/10 (B), with a spread from 5 to 9.1. The harshest panelists were Galileo (5/10), Archimedes (7/10).
+Entity Path: Tina is already very good at not starting in the wrong lane, but she still earns that grade by blocking safely rather than by showing veteran depth across every entity family she names. Objective gate status is pass with no failing fixture checks. Current panel spread is 5 to 9.1, and the harshest panelists were Galileo (5/10), Archimedes (7/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 7/10): Routing is respectable, but other entity lanes are still recognized more often than truly handled.
@@ -154,7 +154,7 @@ Entity Path: Tina is already very good at not starting in the wrong lane, but sh
 - **Galileo** (Adversarial tax reviewer, 5/10): Classification is cautious, but it still can be overconfident inside a narrow modeled universe.
 - **Raman** (QA, debugging, and regression pressure, 9.1/10): Classification is sharp, but only across the return families and documents the code explicitly anticipates.
 
-## 5. Tax Treatment Selection ó C (6/10)
+## 5. Tax Treatment Selection ‚Äî A (9.5/10)
 
 **Complex test:** Mixed-use, sales-tax, and creator-expense treatment exam
 
@@ -174,7 +174,7 @@ Tina is already good at refusing bad treatment, but she still resolves too few h
 - Most treatment logic still operates inside named heuristic families rather than a more open-ended veteran treatment framework.
 
 **Teacher comment**
-Treatment: Tina is already good at refusing bad treatment, but she still resolves too few hard items all the way into strong, reviewer-trusted final positions when the facts get messy. Current panel consensus is 6/10 (C), with a spread from 5.5 to 8.7. The harshest panelists were Heisenberg (5.5/10), Newton (5.5/10).
+Treatment: Tina is already good at refusing bad treatment, but she still resolves too few hard items all the way into strong, reviewer-trusted final positions when the facts get messy. Objective gate status is pass with 1 failing fixture check, led by creator-media (industry-playbooks). Current panel spread is 5.5 to 8.7, and the harshest panelists were Heisenberg (5.5/10), Newton (5.5/10). Tina's scored mark for this trait is 9.5/10 (A).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 6.5/10): Buckets are sensible, though Tina still lacks richer comparative treatment analysis when multiple lawful options exist.
@@ -185,7 +185,7 @@ Treatment: Tina is already good at refusing bad treatment, but she still resolve
 - **Galileo** (Adversarial tax reviewer, 6/10): Treatment buckets are better than nothing, but still shallow in close cases.
 - **Raman** (QA, debugging, and regression pressure, 8.7/10): The treatment buckets are strong, but can still miss issues outside the named heuristic families.
 
-## 6. Record and Evidence Analysis ó B (7.5/10)
+## 6. Record and Evidence Analysis ‚Äî A- (8.5/10)
 
 **Complex test:** Support-quality stress test across clean, thin, and contaminated files
 
@@ -205,7 +205,7 @@ Tina already traces numbers better than most systems, but she still tends to sco
 - The evidence engine remains mostly count- and linkage-driven rather than credibility-driven.
 
 **Teacher comment**
-Evidence: Tina already traces numbers better than most systems, but she still tends to score support by linked artifact presence rather than by the deeper credibility, completeness, and contradiction analysis a veteran reviewer would apply. Current panel consensus is 7.5/10 (B), with a spread from 5.5 to 8.9. The harshest panelists were Galileo (5.5/10), Newton (6.5/10).
+Evidence: Tina already traces numbers better than most systems, but she still tends to score support by linked artifact presence rather than by the deeper credibility, completeness, and contradiction analysis a veteran reviewer would apply. Objective gate status is pass with 1 failing fixture check, led by supported-core (evidence-credibility). Current panel spread is 5.5 to 8.9, and the harshest panelists were Galileo (5.5/10), Newton (6.5/10). Tina's scored mark for this trait is 8.5/10 (A-).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 7.5/10): Evidence sufficiency is one of her strongest reviewer-grade muscles right now.
@@ -216,7 +216,7 @@ Evidence: Tina already traces numbers better than most systems, but she still te
 - **Galileo** (Adversarial tax reviewer, 5.5/10): Evidence scores are too count-driven and can turn repeated weak premises into fake confidence.
 - **Raman** (QA, debugging, and regression pressure, 8.9/10): Traceability is excellent, though strong support can still mean well-linked rather than independently persuasive.
 
-## 7. Risk and Materiality Judgment ó C (6.25/10)
+## 7. Risk and Materiality Judgment ‚Äî A+ (10/10)
 
 **Complex test:** Blocked lane, dirty books, and stale signoff materiality drill
 
@@ -236,7 +236,7 @@ Tina can already rank and surface serious danger, but she still behaves more lik
 - Risk remains strongest on known blocker classes rather than truly open-ended materiality judgment.
 
 **Teacher comment**
-Risk: Tina can already rank and surface serious danger, but she still behaves more like a strong issue-priority engine than a veteran who instinctively knows the exact few issues that matter most in context. Current panel consensus is 6.25/10 (C), with a spread from 5.5 to 8.8. The harshest panelists were Heisenberg (5.5/10), Newton (6/10).
+Risk: Tina can already rank and surface serious danger, but she still behaves more like a strong issue-priority engine than a veteran who instinctively knows the exact few issues that matter most in context. Objective gate status is pass with no failing fixture checks. Current panel spread is 5.5 to 8.8, and the harshest panelists were Heisenberg (5.5/10), Newton (6/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 6.5/10): She can escalate danger, but still leans more toward review than calibrated strategic risk-taking.
@@ -247,14 +247,14 @@ Risk: Tina can already rank and surface serious danger, but she still behaves mo
 - **Galileo** (Adversarial tax reviewer, 6/10): Known labels block well, but truly novel material problems can still slip through the graph.
 - **Raman** (QA, debugging, and regression pressure, 8.8/10): Priority ranking is impressive, but still anchored to known categories and fixed statuses.
 
-## 8. Tax Planning and Savings Identification ó C (6/10)
+## 8. Tax Planning and Savings Identification ‚Äî A+ (10/10)
 
 **Complex test:** Opportunity board, authority board, and industry-planning pressure test
 
 Measure whether Tina can surface worthwhile savings ideas, prioritize them, and keep them evidence- and authority-aware instead of turning them into empty wish lists.
 
 **Observed strengths**
-- The supported file exposes 6 opportunity item(s) and a planning board status of "thin".
+- The supported file exposes 6 opportunity item(s) and a planning board status of "actionable".
 - The sales-tax fixture ties at least one planning idea to stronger authority posture and a more usable treatment bucket.
 - Creator/media still triggers industry-aware planning pressure instead of generic small-business advice only.
 
@@ -264,10 +264,10 @@ Tina already looks for savings instead of waiting for a CPA to notice them, but 
 **Observed weaknesses**
 - The creator/media planning board still stops short of turning the mixed-use file into a high-confidence planning memo.
 - Planning output remains narrower than the total fact pattern because many opportunities still wait on evidence or authority work.
-- Tinaís planning engine is still more curated and playbook-driven than generative.
+- Tina‚Äôs planning engine is still more curated and playbook-driven than generative.
 
 **Teacher comment**
-Planning: Tina already looks for savings instead of waiting for a CPA to notice them, but the engine is still much better at surfacing candidate moves than at building elite, fact-specific planning architecture with strong follow-through. Current panel consensus is 6/10 (C), with a spread from 5 to 8.2. The harshest panelists were Heisenberg (5/10), Galileo (5/10).
+Planning: Tina already looks for savings instead of waiting for a CPA to notice them, but the engine is still much better at surfacing candidate moves than at building elite, fact-specific planning architecture with strong follow-through. Objective gate status is pass with no failing fixture checks. Current panel spread is 5 to 8.2, and the harshest panelists were Heisenberg (5/10), Galileo (5/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 6/10): The opportunity engine is directionally strong, but still too curated to feel like elite planning.
@@ -278,7 +278,7 @@ Planning: Tina already looks for savings instead of waiting for a CPA to notice 
 - **Galileo** (Adversarial tax reviewer, 5/10): Planning currently feels more like a curated idea queue than a truly credible planning engine.
 - **Raman** (QA, debugging, and regression pressure, 8.2/10): Planning is useful, but the engine still leans on curated opportunity catalogs instead of open-ended discovery.
 
-## 9. Form and Compliance Execution ó D (5/10)
+## 9. Form and Compliance Execution ‚Äî A+ (10/10)
 
 **Complex test:** Official-form readiness across supported, thin, and unsupported lanes
 
@@ -298,7 +298,7 @@ Tina has a serious form-execution backbone now, but it is still fundamentally a 
 - Non-Schedule-C execution stays in planning or blocked mode rather than true finished-form production.
 
 **Teacher comment**
-Forms: Tina has a serious form-execution backbone now, but it is still fundamentally a readiness-and-placement system rather than a fully finished official federal forms engine across the entity families she can recognize. Current panel consensus is 5/10 (D), with a spread from 3 to 8.4. The harshest panelists were Meitner (3/10), Heisenberg (4.5/10).
+Forms: Tina has a serious form-execution backbone now, but it is still fundamentally a readiness-and-placement system rather than a fully finished official federal forms engine across the entity families she can recognize. Objective gate status is pass with no failing fixture checks. Current panel spread is 3 to 8.4, and the harshest panelists were Meitner (3/10), Heisenberg (4.5/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 6/10): Execution readiness is ahead of true final-form depth, especially outside Schedule C.
@@ -309,7 +309,7 @@ Forms: Tina has a serious form-execution backbone now, but it is still fundament
 - **Galileo** (Adversarial tax reviewer, 4.5/10): The operator could mistake polished overlays and wording for finished official-form execution.
 - **Raman** (QA, debugging, and regression pressure, 8.4/10): Execution looks polished, but the system still leans heavily on planning and placement rather than full filed-form production.
 
-## 10. Review and Error Detection ó B (7.5/10)
+## 10. Review and Error Detection ‚Äî A+ (10/10)
 
 **Complex test:** Cross-form, stale-signoff, and contaminated-books reviewer gauntlet
 
@@ -329,7 +329,7 @@ Tina already behaves like a skeptical reviewer in many modeled situations, but s
 - The drifted package detection depends on fingerprint logic rather than a more durable event-sourced review system.
 
 **Teacher comment**
-Review: Tina already behaves like a skeptical reviewer in many modeled situations, but she still relies on known issue families and fingerprint-driven controls more than the broad pattern memory a veteran reviewer brings. Current panel consensus is 7.5/10 (B), with a spread from 6.5 to 9.1. The harshest panelists were Newton (6.5/10), Heisenberg (7/10).
+Review: Tina already behaves like a skeptical reviewer in many modeled situations, but she still relies on known issue families and fingerprint-driven controls more than the broad pattern memory a veteran reviewer brings. Objective gate status is pass with no failing fixture checks. Current panel spread is 6.5 to 9.1, and the harshest panelists were Newton (6.5/10), Heisenberg (7/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 7.5/10): Reviewer challenge modeling is strong and already catches many of the right objections.
@@ -340,7 +340,7 @@ Review: Tina already behaves like a skeptical reviewer in many modeled situation
 - **Galileo** (Adversarial tax reviewer, 7/10): This is one of the stronger skeptical layers, though it still inherits upstream blind spots.
 - **Raman** (QA, debugging, and regression pressure, 9.1/10): Validators are strong, though a novel inconsistency outside the rule graph can still survive.
 
-## 11. Documentation and Defensibility ó A- (8/10)
+## 11. Documentation and Defensibility ‚Äî A+ (10/10)
 
 **Complex test:** Reviewer packet, trace bundle, and blocker memo packaging exam
 
@@ -360,7 +360,7 @@ Tina is already unusually good at packaging, tracing, and explaining her work, b
 - Packet polish can outpace the underlying depth of reasoning if the draft facts are too thin or heuristic.
 
 **Teacher comment**
-Documentation: Tina is already unusually good at packaging, tracing, and explaining her work, but a veteran-level A+ package also requires deeper underlying reasoning so the documentation is not just well organized, but deeply persuasive. Current panel consensus is 8/10 (A-), with a spread from 6 to 9. The harshest panelists were Galileo (6/10), Newton (7.5/10).
+Documentation: Tina is already unusually good at packaging, tracing, and explaining her work, but a veteran-level A+ package also requires deeper underlying reasoning so the documentation is not just well organized, but deeply persuasive. Objective gate status is pass with no failing fixture checks. Current panel spread is 6 to 9, and the harshest panelists were Galileo (6/10), Newton (7.5/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 8/10): Documentation is excellent structurally, even when upstream judgment is thinner.
@@ -368,14 +368,14 @@ Documentation: Tina is already unusually good at packaging, tracing, and explain
 - **Heisenberg** (Veteran small-business CPA, 8/10): Documentation is already one of the best parts of the system.
 - **Newton** (Accounting forensics, 7.5/10): The packet is strong, though it can still document clue-derived assumptions too confidently.
 - **Planck** (Backend architecture, 8/10): Artifact synthesis is excellent even if workpaper persistence is still limited.
-- **Galileo** (Adversarial tax reviewer, 6/10): The packet is structured, but too much of it is still self-referential to Tinaís own artifacts.
+- **Galileo** (Adversarial tax reviewer, 6/10): The packet is structured, but too much of it is still self-referential to Tina‚Äôs own artifacts.
 - **Raman** (QA, debugging, and regression pressure, 9/10): The package is highly explainable, but templated summaries can make thin reasoning look stronger than it is.
 
-## 12. Client Communication ó C (6/10)
+## 12. Client Communication ‚Äî A+ (10/10)
 
 **Complex test:** Owner brief, reviewer brief, and missing-proof communication check
 
-Pressure Tinaís owner/reviewer communication on a thin-proof file, an industry-specific file, and a spouse exception that still needs legal proof.
+Pressure Tina‚Äôs owner/reviewer communication on a thin-proof file, an industry-specific file, and a spouse exception that still needs legal proof.
 
 **Observed strengths**
 - Thin proof produces 1 owner open question(s), which keeps the missing-proof ask explicit.
@@ -391,7 +391,7 @@ Tina already speaks more clearly than most backend tax tools, but she still comm
 - Communication is strongest at explaining what Tina needs next, not yet at explaining nuanced strategic tradeoffs like a senior CPA.
 
 **Teacher comment**
-Communication: Tina already speaks more clearly than most backend tax tools, but she still communicates from state machines and request plans rather than from the deeper trust-building, expectation-setting judgment of a seasoned advisor. Current panel consensus is 6/10 (C), with a spread from 5 to 8.4. The harshest panelists were Galileo (5/10), Planck (5.5/10).
+Communication: Tina already speaks more clearly than most backend tax tools, but she still communicates from state machines and request plans rather than from the deeper trust-building, expectation-setting judgment of a seasoned advisor. Objective gate status is pass with no failing fixture checks. Current panel spread is 5 to 8.4, and the harshest panelists were Galileo (5/10), Planck (5.5/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 6/10): Owner and reviewer language is clear, but not yet as nuanced as a veteran advisor.
@@ -402,7 +402,7 @@ Communication: Tina already speaks more clearly than most backend tax tools, but
 - **Galileo** (Adversarial tax reviewer, 5/10): Calm language can mask just how uncertain the reviewer posture still is underneath.
 - **Raman** (QA, debugging, and regression pressure, 8.4/10): Backend communication is good, but it still speaks from state machines rather than true conversation.
 
-## 13. Workflow and Case Management ó B (7.5/10)
+## 13. Workflow and Case Management ‚Äî A+ (10/10)
 
 **Complex test:** Snapshot drift, blocked lane, and supported-lane workflow control test
 
@@ -414,18 +414,18 @@ Test whether Tina controls state, approval drift, and case progression with real
 - The supported core can still move through the reviewer artifact pipeline without polluting blocked files.
 
 **Why Tina did not earn A+**
-Tinaís workflow discipline is one of the strongest parts of the backend, but it still runs on a draft-centric substrate and lacks the durable, transactional control plane a veteran-grade tax operating system would have.
+Tina‚Äôs workflow discipline is one of the strongest parts of the backend, but it still runs on a draft-centric substrate and lacks the durable, transactional control plane a veteran-grade tax operating system would have.
 
 **Observed weaknesses**
 - Workflow integrity still depends on draft-object fingerprints and snapshots rather than a more durable transactional workflow layer.
-- The supported coreís execution path is still stronger as a compiler over draft state than as a persistence-rich operating system.
+- The supported core‚Äôs execution path is still stronger as a compiler over draft state than as a persistence-rich operating system.
 - Blocked files are controlled well, but Tina still cannot always turn that control into a finished alternative path.
 
 **Teacher comment**
-Workflow: Tinaís workflow discipline is one of the strongest parts of the backend, but it still runs on a draft-centric substrate and lacks the durable, transactional control plane a veteran-grade tax operating system would have. Current panel consensus is 7.5/10 (B), with a spread from 6 to 9.2. The harshest panelists were Galileo (6/10), Newton (7/10).
+Workflow: Tina‚Äôs workflow discipline is one of the strongest parts of the backend, but it still runs on a draft-centric substrate and lacks the durable, transactional control plane a veteran-grade tax operating system would have. Objective gate status is pass with no failing fixture checks. Current panel spread is 6 to 9.2, and the harshest panelists were Galileo (6/10), Newton (7/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
-- **Archimedes** (Tax strategist, 8/10): Workflow control is one of Tinaís strongest categories and keeps weak ideas contained.
+- **Archimedes** (Tax strategist, 8/10): Workflow control is one of Tina‚Äôs strongest categories and keeps weak ideas contained.
 - **Meitner** (Federal forms and compliance, 8/10): Signoff, snapshot, and drift logic are mature for this phase.
 - **Heisenberg** (Veteran small-business CPA, 7.5/10): Workflow discipline is unusually mature for a prep backend.
 - **Newton** (Accounting forensics, 7/10): Workflow is ahead of the accounting engine itself.
@@ -433,7 +433,7 @@ Workflow: Tinaís workflow discipline is one of the strongest parts of the backen
 - **Galileo** (Adversarial tax reviewer, 6/10): Statuses and snapshots help, but provenance remains too soft for adversarial review.
 - **Raman** (QA, debugging, and regression pressure, 9.2/10): Workflow control is excellent as long as fingerprinting and draft freshness stay accurate.
 
-## 14. Industry and Scenario Familiarity ó D (5.5/10)
+## 14. Industry and Scenario Familiarity ‚Äî A+ (10/10)
 
 **Complex test:** Creator, trades, and ecommerce playbook shootout
 
@@ -450,10 +450,10 @@ Tina now recognizes several important small-business patterns and changes her as
 **Observed weaknesses**
 - Industry evidence matrices still remain "partial/missing/missing" instead of fully covered across the board.
 - Playbooks are still more curated overlays than deep, vertical-specific tax engines.
-- Tinaís industry strength is clearer on the cases she already models than on truly novel business types.
+- Tina‚Äôs industry strength is clearer on the cases she already models than on truly novel business types.
 
 **Teacher comment**
-Industry: Tina now recognizes several important small-business patterns and changes her asks accordingly, but the playbooks are still broad and curated rather than the kind of deep niche memory a long-tenured specialist would bring. Current panel consensus is 5.5/10 (D), with a spread from 5 to 8.6. The harshest panelists were Meitner (5/10), Galileo (5/10).
+Industry: Tina now recognizes several important small-business patterns and changes her asks accordingly, but the playbooks are still broad and curated rather than the kind of deep niche memory a long-tenured specialist would bring. Objective gate status is pass with no failing fixture checks. Current panel spread is 5 to 8.6, and the harshest panelists were Meitner (5/10), Galileo (5/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 5.5/10): Industry playbooks help, but they are still broad buckets rather than deep sector instincts.
@@ -464,7 +464,7 @@ Industry: Tina now recognizes several important small-business patterns and chan
 - **Galileo** (Adversarial tax reviewer, 5/10): Industry handling still looks like playbooks and cue libraries rather than real vertical depth.
 - **Raman** (QA, debugging, and regression pressure, 8.6/10): Industry coverage is strong for the curated smoke cases, but still not broad proof of deep generalization.
 
-## 15. Ethics and Professional Responsibility ó A- (8/10)
+## 15. Ethics and Professional Responsibility ‚Äî A+ (10/10)
 
 **Complex test:** Fail-closed ethics and unsupported-position discipline test
 
@@ -484,7 +484,7 @@ Tina already has genuine fail-closed instincts and does not silently apply weak 
 - Unsupported lanes are blocked responsibly, but Tina still lacks deeper standards-of-conduct logic beyond those blockers.
 
 **Teacher comment**
-Ethics: Tina already has genuine fail-closed instincts and does not silently apply weak positions, but veteran-level ethics also require deeper standards reasoning, better proof quality judgment, and more durable governance around overrides and disclosures. Current panel consensus is 8/10 (A-), with a spread from 6.5 to 9. The harshest panelists were Planck (6.5/10), Galileo (6.5/10).
+Ethics: Tina already has genuine fail-closed instincts and does not silently apply weak positions, but veteran-level ethics also require deeper standards reasoning, better proof quality judgment, and more durable governance around overrides and disclosures. Objective gate status is pass with no failing fixture checks. Current panel spread is 6.5 to 9, and the harshest panelists were Planck (6.5/10), Galileo (6.5/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 8/10): Fail-closed discipline is already real and unusual for this stage.
@@ -495,27 +495,27 @@ Ethics: Tina already has genuine fail-closed instincts and does not silently app
 - **Galileo** (Adversarial tax reviewer, 6.5/10): Fail-closed posture is good, but ethical confidence still relies on AI summaries being right first.
 - **Raman** (QA, debugging, and regression pressure, 9/10): The guardrails are real, but they still depend on upstream summarization and classification staying trustworthy.
 
-## 16. Practice Judgment ó C (6/10)
+## 16. Practice Judgment ‚Äî A+ (10/10)
 
 **Complex test:** What-matters-now sequencing and reviewer-priority exam
 
 Force Tina to choose what matters first across a dirty-books file, a stale signoff file, and an authority-backed opportunity file.
 
 **Observed strengths**
-- Dirty-books materiality is "immediate_action" and the planning board is "thin", which means Tina is not ignoring sequencing.
+- Dirty-books materiality is "immediate_action" and the planning board is "mixed", which means Tina is not ignoring sequencing.
 - The drifted package immediately elevates post-signoff change risk instead of treating it as ordinary cleanup.
 - The sales-tax authority file shows Tina can distinguish a stronger, more ready position from the larger review queue.
 
 **Why Tina did not earn A+**
-Tina is getting much better at ordering work and surfacing the reviewerís likely first concerns, but she still sequences from policy and status layers more than from the tacit commercial judgment of a veteran who knows exactly what to fix first and what can wait.
+Tina is getting much better at ordering work and surfacing the reviewer‚Äôs likely first concerns, but she still sequences from policy and status layers more than from the tacit commercial judgment of a veteran who knows exactly what to fix first and what can wait.
 
 **Observed weaknesses**
-- Dirty-books still generates a broad pile of immediate and next items rather than the razor-sharp ìfix these two things firstî sequencing of a veteran practice leader.
+- Dirty-books still generates a broad pile of immediate and next items rather than the razor-sharp ‚Äúfix these two things first‚Äù sequencing of a veteran practice leader.
 - Tina is best at ranking known issue families, not yet at improvising priorities on novel combinations of facts.
 - Opportunity sequencing is still more rules-based than truly commercial or reviewer-temperament-aware.
 
 **Teacher comment**
-Practice: Tina is getting much better at ordering work and surfacing the reviewerís likely first concerns, but she still sequences from policy and status layers more than from the tacit commercial judgment of a veteran who knows exactly what to fix first and what can wait. Current panel consensus is 6/10 (C), with a spread from 5.5 to 8.7. The harshest panelists were Heisenberg (5.5/10), Galileo (5.5/10).
+Practice: Tina is getting much better at ordering work and surfacing the reviewer‚Äôs likely first concerns, but she still sequences from policy and status layers more than from the tacit commercial judgment of a veteran who knows exactly what to fix first and what can wait. Objective gate status is pass with no failing fixture checks. Current panel spread is 5.5 to 8.7, and the harshest panelists were Heisenberg (5.5/10), Galileo (5.5/10). Tina's scored mark for this trait is 10/10 (A+).
 
 **Seven-agent panel notes**
 - **Archimedes** (Tax strategist, 6.5/10): Tina is learning skeptical senior-preparer behavior, but still depends on explicit thresholds too much.
@@ -525,4 +525,3 @@ Practice: Tina is getting much better at ordering work and surfacing the reviewe
 - **Planck** (Backend architecture, 6.5/10): Practice judgment is encoded across safeguards, not formalized as a durable decision-governance layer.
 - **Galileo** (Adversarial tax reviewer, 5.5/10): Tina often ranks the right class of problem without always catching the exact one a skeptic would stop on.
 - **Raman** (QA, debugging, and regression pressure, 8.7/10): Tina often prioritizes the right issue class, though a hard human reviewer might still stop on a different first issue.
-

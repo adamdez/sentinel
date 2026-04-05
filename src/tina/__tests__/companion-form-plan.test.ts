@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TINA_SKILL_REVIEW_DRAFTS } from "@/tina/data/skill-review-fixtures";
 import { buildTinaCompanionFormPlan } from "@/tina/lib/companion-form-plan";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 
@@ -122,5 +123,11 @@ describe("companion-form-plan", () => {
     expect(snapshot.items.some((item) => item.formId === "f1040")).toBe(true);
     expect(snapshot.items.some((item) => item.formId === "f1040sse")).toBe(true);
     expect(snapshot.items.some((item) => item.formId === "f4562")).toBe(true);
+  });
+
+  it("maps the correct primary official form for reviewer-controlled partnership files", () => {
+    const snapshot = buildTinaCompanionFormPlan(TINA_SKILL_REVIEW_DRAFTS["uneven-multi-owner"]);
+
+    expect(snapshot.items.some((item) => item.formId === "f1065")).toBe(true);
   });
 });

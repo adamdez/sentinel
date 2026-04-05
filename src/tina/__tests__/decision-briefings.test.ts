@@ -99,6 +99,15 @@ describe("decision-briefings", () => {
     expect(
       snapshot.reviewer.keyPoints.some((point) => point.includes("Planning action board"))
     ).toBe(true);
+    expect(
+      snapshot.reviewer.keyPoints.some((point) => point.includes("Confidence calibration"))
+    ).toBe(true);
+    expect(snapshot.reviewer.keyPoints.some((point) => point.includes("Case memory ledger"))).toBe(
+      true
+    );
+    expect(
+      snapshot.reviewer.keyPoints.some((point) => point.includes("Reviewer learning loop"))
+    ).toBe(true);
     expect(snapshot.owner.keyPoints.some((point) => point.includes("Tina believes"))).toBe(true);
     expect(snapshot.reviewer.recommendedActions.length).toBeGreaterThan(0);
     expect(snapshot.owner.recommendedActions.length).toBeGreaterThan(0);

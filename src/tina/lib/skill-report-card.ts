@@ -1,5 +1,6 @@
 import { TINA_SKILL_REVIEW_PANEL } from "@/tina/data/skill-review-panel";
 import { TINA_SKILL_REVIEW_DRAFTS } from "@/tina/data/skill-review-fixtures";
+import { buildTinaEightFloorGate } from "@/tina/lib/eight-floor-gate";
 import { buildTinaSmokeCaseReport, type TinaSmokeCaseReport } from "@/tina/lib/smoke-report";
 import type {
   TinaPanelistReview,
@@ -8,7 +9,10 @@ import type {
   TinaSkillId,
   TinaSkillReportCard,
   TinaSkillReportCardEntry,
+  TinaTraitGateResult,
 } from "@/tina/lib/skill-report-card-contracts";
+
+let cachedSkillReportCard: TinaSkillReportCard | null = null;
 
 export const TINA_SKILL_DESCRIPTORS: TinaSkillDescriptor[] = [
   { id: "technical_tax_law", title: "Technical Tax Law", shortTitle: "Tax Law" },
@@ -98,13 +102,13 @@ function toSchoolGrade(score: number): string {
 }
 
 function getReport(id: string): TinaSmokeCaseReport {
-  if (!(globalThis as Record<string, unknown>).__tinaSkillReportCache) {
-    (globalThis as Record<string, unknown>).__tinaSkillReportCache = new Map<
+  if (!(globalThis as Record<string, unknown>).__tinaSkillSmokeReportCache) {
+    (globalThis as Record<string, unknown>).__tinaSkillSmokeReportCache = new Map<
       string,
       TinaSmokeCaseReport
     >();
   }
-  const cache = (globalThis as Record<string, unknown>).__tinaSkillReportCache as Map<
+  const cache = (globalThis as Record<string, unknown>).__tinaSkillSmokeReportCache as Map<
     string,
     TinaSmokeCaseReport
   >;
@@ -118,6 +122,16 @@ function getReport(id: string): TinaSmokeCaseReport {
   const report = buildTinaSmokeCaseReport(draft);
   cache.set(id, report);
   return report;
+}
+
+function getEightFloorGate() {
+  if (!(globalThis as Record<string, unknown>).__tinaEightFloorReportCardCache) {
+    (globalThis as Record<string, unknown>).__tinaEightFloorReportCardCache =
+      buildTinaEightFloorGate();
+  }
+
+  return (globalThis as Record<string, unknown>)
+    .__tinaEightFloorReportCardCache as ReturnType<typeof buildTinaEightFloorGate>;
 }
 
 function countByBucket(report: TinaSmokeCaseReport, bucket: "use" | "review" | "reject"): number {
@@ -156,6 +170,7 @@ function scorePanel(
 function buildTeacherComment(
   shortTitle: string,
   whyNotAPlus: string,
+  gateResult: TinaTraitGateResult,
   score: number,
   letterGrade: string,
   minimumScore: number,
@@ -169,7 +184,17 @@ function buildTeacherComment(
     .map((note) => `${note.panelistName} (${note.score}/10)`)
     .join(", ");
 
-  return `${shortTitle}: ${whyNotAPlus} Current panel consensus is ${score}/10 (${letterGrade}), with a spread from ${minimumScore} to ${maximumScore}. The harshest panelists were ${harshestPanel}.`;
+  const failureLead =
+    gateResult.failures.length > 0
+      ? `Objective gate status is ${gateResult.status} with ${gateResult.failures.length} failing fixture check${
+          gateResult.failures.length === 1 ? "" : "s"
+        }, led by ${gateResult.failures
+          .slice(0, 2)
+          .map((failure) => `${failure.fixtureId} (${failure.ownerEngine})`)
+          .join(", ")}.`
+      : "Objective gate status is pass with no failing fixture checks.";
+
+  return `${shortTitle}: ${whyNotAPlus} ${failureLead} Current panel spread is ${minimumScore} to ${maximumScore}, and the harshest panelists were ${harshestPanel}. Tina's scored mark for this trait is ${score}/10 (${letterGrade}).`;
 }
 
 function buildTechnicalTaxLawChallenge(): TinaSkillChallenge {
@@ -630,38 +655,53 @@ function buildSkillChallenge(skillId: TinaSkillId): TinaSkillChallenge {
 }
 
 export function buildTinaSkillReportCard(): TinaSkillReportCard {
-  const skills: TinaSkillReportCardEntry[] = TINA_SKILL_DESCRIPTORS.map((descriptor) => {
-    const challenge = buildSkillChallenge(descriptor.id);
-    const counts = scorePanel(descriptor.id, TINA_SKILL_REVIEW_PANEL);
+  if (!cachedSkillReportCard) {
+    const gate = getEightFloorGate();
+    const skills: TinaSkillReportCardEntry[] = TINA_SKILL_DESCRIPTORS.map((descriptor) => {
+      const challenge = buildSkillChallenge(descriptor.id);
+      const panelCounts = scorePanel(descriptor.id, TINA_SKILL_REVIEW_PANEL);
+      const gateResult = gate.results.find((result) => result.skillId === descriptor.id);
 
-    return {
-      ...challenge,
-      ...counts,
-      teacherComment: buildTeacherComment(
-        descriptor.shortTitle,
-        challenge.whyNotAPlus,
-        counts.score,
-        counts.letterGrade,
-        counts.minimumScore,
-        counts.maximumScore,
-        counts.panelNotes
-      ),
+      if (!gateResult) {
+        throw new Error(`Missing Tina eight-floor gate result for ${descriptor.id}`);
+      }
+
+      return {
+        ...challenge,
+        ...panelCounts,
+        score: gateResult.score,
+        letterGrade: toSchoolGrade(gateResult.score),
+        teacherComment: buildTeacherComment(
+          descriptor.shortTitle,
+          challenge.whyNotAPlus,
+          gateResult,
+          gateResult.score,
+          toSchoolGrade(gateResult.score),
+          panelCounts.minimumScore,
+          panelCounts.maximumScore,
+          panelCounts.panelNotes
+        ),
+      };
+    });
+
+    const overallScore = roundScore(Math.min(...skills.map((skill) => skill.score)));
+    const averagePanelScore = roundScore(
+      average(TINA_SKILL_REVIEW_PANEL.map((panelist) => panelist.overallScore))
+    );
+
+    cachedSkillReportCard = {
+      generatedAt: new Date().toISOString(),
+      overallScore,
+      averagePanelScore,
+      overallLetterGrade: toSchoolGrade(overallScore),
+      panelCount: TINA_SKILL_REVIEW_PANEL.length,
+      skills,
     };
-  });
+  }
 
-  const overallScore = roundScore(median(skills.map((skill) => skill.score)));
-  const averagePanelScore = roundScore(
-    average(TINA_SKILL_REVIEW_PANEL.map((panelist) => panelist.overallScore))
-  );
-
-  return {
-    generatedAt: new Date().toISOString(),
-    overallScore,
-    averagePanelScore,
-    overallLetterGrade: toSchoolGrade(overallScore),
-    panelCount: TINA_SKILL_REVIEW_PANEL.length,
-    skills,
-  };
+  const card = structuredClone(cachedSkillReportCard);
+  card.generatedAt = new Date().toISOString();
+  return card;
 }
 
 export function renderTinaSkillReportCardMarkdown(card: TinaSkillReportCard): string {
@@ -673,7 +713,7 @@ export function renderTinaSkillReportCardMarkdown(card: TinaSkillReportCard): st
   lines.push("");
   lines.push("## Homeroom Summary");
   lines.push("");
-  lines.push(`- Median class score: **${card.overallScore}/10**`);
+  lines.push(`- Skill-floor score: **${card.overallScore}/10**`);
   lines.push(`- School grade: **${card.overallLetterGrade}**`);
   lines.push(`- Average panel score: **${card.averagePanelScore}/10**`);
   lines.push(`- Panel size: **${card.panelCount} specialist agents**`);

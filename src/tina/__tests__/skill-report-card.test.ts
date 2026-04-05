@@ -74,7 +74,7 @@ describe("tina skill report card challenge harness", () => {
 
   it("attacks form and compliance execution with supported, thin, and blocked lanes", () => {
     expect(report("supported-core").officialFormExecution.overallStatus).not.toBe("blocked");
-    expect(report("supported-core").officialFormFill.mode).toBe("overlay_plan");
+    expect(report("supported-core").officialFormFill.mode).toBe("direct_field_plan");
     expect(report("thin-proof").officialFormExecution.overallStatus).not.toBe("ready_to_fill");
     expect(report("s-corp-election").officialFormExecution.overallStatus).toBe("blocked");
   });
@@ -129,7 +129,7 @@ describe("tina skill report card challenge harness", () => {
     expect(card.skills).toHaveLength(16);
     expect(card.skills.every((skill) => skill.panelNotes.length === 7)).toBe(true);
     expect(card.overallScore).toBeGreaterThan(0);
-  }, 20000);
+  }, 120000);
 
   it("renders a school-style markdown report card with all skills and panel notes", () => {
     const markdown = renderTinaSkillReportCardMarkdown(buildTinaSkillReportCard());

@@ -91,4 +91,32 @@ describe("treatment-judgment", () => {
       "use"
     );
   });
+
+  it("creates a cleanup-first reasonable-compensation review when an S-corp posture lacks payroll support", () => {
+    const base = createDefaultTinaWorkspaceDraft();
+    const snapshot = buildTinaTreatmentJudgment({
+      ...base,
+      profile: {
+        ...base.profile,
+        taxElection: "s_corp",
+        entityType: "s_corp",
+        hasPayroll: false,
+      },
+      sourceFacts: [
+        {
+          id: "owner-flow-fact",
+          sourceDocumentId: "doc-owner",
+          label: "Owner draw clue",
+          value: "Owner took distributions but no payroll was run during the year.",
+          confidence: "high",
+          capturedAt: "2026-04-04T01:00:00.000Z",
+        },
+      ],
+    });
+
+    const item = snapshot.items.find((candidate) => candidate.id === "reasonable-comp-treatment");
+    expect(item?.taxPositionBucket).toBe("review");
+    expect(item?.cleanupDependency).toBe("cleanup_first");
+    expect(item?.requiredProof.some((proof) => /election acceptance/i.test(proof))).toBe(true);
+  });
 });

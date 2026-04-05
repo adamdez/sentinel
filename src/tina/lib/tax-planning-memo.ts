@@ -1,5 +1,6 @@
 import { buildTinaIndustryPlaybooks } from "@/tina/lib/industry-playbooks";
 import { buildTinaMaterialityPriority } from "@/tina/lib/materiality-priority";
+import { findBestPlanningTitleMatch } from "@/tina/lib/planning-practice-kernel";
 import { buildTinaTaxOpportunityEngine } from "@/tina/lib/tax-opportunity-engine";
 import type {
   TinaIndustryPlaybookId,
@@ -13,9 +14,50 @@ function unique(values: string[]): string[] {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function priorityForItem(item: ReturnType<typeof buildTinaTaxOpportunityEngine>["items"][number]): TinaTaxPlanningMemoPriority {
-  if (item.status === "ready_to_pursue" && item.impact === "high") return "now";
-  if (item.status === "ready_to_pursue" || item.impact === "high") return "soon";
+function priorityForItem(args: {
+  item: ReturnType<typeof buildTinaTaxOpportunityEngine>["items"][number];
+  matchingMateriality: ReturnType<typeof buildTinaMaterialityPriority>["items"][number] | null;
+}): TinaTaxPlanningMemoPriority {
+  const { item, matchingMateriality } = args;
+  const supportCount = item.relatedDocumentIds.length + item.relatedFactIds.length;
+
+  if (item.status === "ready_to_pursue") {
+    if (matchingMateriality?.priority === "immediate") return "now";
+    if (item.impact === "high") return "now";
+    if (
+      item.impact === "medium" &&
+      item.reviewerBurden !== "heavy" &&
+      item.authorityState !== "not_ready"
+    ) {
+      return "now";
+    }
+    return "soon";
+  }
+
+  if (
+    item.status === "needs_authority" &&
+    supportCount >= 1 &&
+    item.reviewerBurden !== "heavy"
+  ) {
+    return "soon";
+  }
+
+  if (
+    item.status === "needs_facts" &&
+    item.impact === "high" &&
+    supportCount >= 2
+  ) {
+    return "soon";
+  }
+
+  if (
+    item.status === "review_only" &&
+    (matchingMateriality?.priority === "immediate" || item.impact === "high")
+  ) {
+    return "soon";
+  }
+
+  if (item.impact === "high") return "soon";
   return "later";
 }
 
@@ -58,10 +100,11 @@ export function buildTinaTaxPlanningMemo(
   const items: TinaTaxPlanningMemoItem[] = opportunityEngine.items
     .filter((item) => item.status !== "reject")
     .map((item) => {
-      const priority = priorityForItem(item);
-      const matchingMateriality = materialityPriority.items.find((priorityItem) =>
-        priorityItem.title.toLowerCase().includes(item.title.toLowerCase().split(" ")[0])
-      );
+      const matchingMateriality = findBestPlanningTitleMatch(item.title, materialityPriority.items);
+      const priority = priorityForItem({
+        item,
+        matchingMateriality,
+      });
 
       return {
         id: item.id,

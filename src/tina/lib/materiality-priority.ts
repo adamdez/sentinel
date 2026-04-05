@@ -2,6 +2,7 @@ import { buildTinaBooksReconstruction } from "@/tina/lib/books-reconstruction";
 import { buildTinaEvidenceSufficiency } from "@/tina/lib/evidence-sufficiency";
 import { buildTinaFormReadiness } from "@/tina/lib/form-readiness";
 import { buildTinaPackageReadiness } from "@/tina/lib/package-readiness";
+import { collapseMaterialityPriorityItems } from "@/tina/lib/planning-practice-kernel";
 import { buildTinaStartPathAssessment } from "@/tina/lib/start-path";
 import { buildTinaTaxTreatmentPolicy } from "@/tina/lib/tax-treatment-policy";
 import type {
@@ -150,8 +151,9 @@ export function buildTinaMaterialityPriority(
   const uniqueItems = items.filter(
     (item, index) => items.findIndex((candidate) => candidate.id === item.id) === index
   );
-  const immediateCount = uniqueItems.filter((item) => item.priority === "immediate").length;
-  const nextCount = uniqueItems.filter((item) => item.priority === "next").length;
+  const prioritizedItems = collapseMaterialityPriorityItems(uniqueItems, 4);
+  const immediateCount = prioritizedItems.filter((item) => item.priority === "immediate").length;
+  const nextCount = prioritizedItems.filter((item) => item.priority === "next").length;
   const overallStatus: TinaMaterialityPrioritySnapshot["overallStatus"] =
     immediateCount > 0 ? "immediate_action" : nextCount > 0 ? "review_queue" : "monitor_only";
 
@@ -171,6 +173,6 @@ export function buildTinaMaterialityPriority(
         : overallStatus === "review_queue"
           ? "Work through the next-priority reviewer items before chasing lower-signal cleanup."
           : "Keep monitoring for new blockers while Tina pushes the supported lane forward.",
-    items: uniqueItems,
+    items: prioritizedItems,
   };
 }

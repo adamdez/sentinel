@@ -4,6 +4,7 @@ import type {
 } from "@/tina/lib/acceleration-contracts";
 import { buildTinaEntityRecordMatrix } from "@/tina/lib/entity-record-matrix";
 import { buildTinaFederalReturnRequirements } from "@/tina/lib/federal-return-requirements";
+import { buildTinaOwnerFlowBasisAdjudication } from "@/tina/lib/owner-flow-basis-adjudication";
 import { buildTinaOwnershipCapitalEvents } from "@/tina/lib/ownership-capital-events";
 import { buildTinaStartPathAssessment } from "@/tina/lib/start-path";
 import type { TinaFilingLaneId, TinaWorkspaceDraft } from "@/tina/types";
@@ -13,6 +14,7 @@ interface TinaEconomicsBlueprint {
   title: string;
   whyItMatters: string;
   recordIds: string[];
+  ownerFlowBasisItemIds?: string[];
   enabled?: (draft: TinaWorkspaceDraft) => boolean;
 }
 
@@ -41,6 +43,7 @@ function blueprintsForLane(
         whyItMatters:
           "Schedule C only holds if Tina can keep owner boundary and single-owner posture clean.",
         recordIds: ["schedule-c-prior-return", "schedule-c-books", "schedule-c-bank-card"],
+        ownerFlowBasisItemIds: ["owner-flow-characterization"],
       },
     ];
   }
@@ -53,6 +56,7 @@ function blueprintsForLane(
         whyItMatters:
           "Partnership prep needs partner percentages and allocation economics before K-1 logic is trustworthy.",
         recordIds: ["partnership-ownership"],
+        ownerFlowBasisItemIds: ["opening-basis-footing"],
       },
       {
         id: "partner-capital",
@@ -60,6 +64,7 @@ function blueprintsForLane(
         whyItMatters:
           "Capital-account movement, contributions, and basis change the partnership story materially.",
         recordIds: ["partnership-capital"],
+        ownerFlowBasisItemIds: ["opening-basis-footing", "distribution-taxability"],
       },
       {
         id: "partner-payments",
@@ -67,6 +72,11 @@ function blueprintsForLane(
         whyItMatters:
           "Guaranteed payments and distributions can change allocations, deductions, and review posture.",
         recordIds: ["partnership-payments"],
+        ownerFlowBasisItemIds: [
+          "owner-flow-characterization",
+          "loan-vs-equity",
+          "distribution-taxability",
+        ],
       },
       {
         id: "partner-transfers",
@@ -74,6 +84,7 @@ function blueprintsForLane(
         whyItMatters:
           "Year-of-change partnership files need the transition economics clear before the return family can be trusted.",
         recordIds: ["partnership-transfer"],
+        ownerFlowBasisItemIds: ["ownership-change-allocation", "buyout-redemption"],
         enabled: (currentDraft) =>
           currentDraft.profile.ownershipChangedDuringYear ||
           currentDraft.profile.hasOwnerBuyoutOrRedemption ||
@@ -85,6 +96,7 @@ function blueprintsForLane(
         whyItMatters:
           "A 1065 file is not reviewer-grade if balance-sheet and trial-balance footing are still weak.",
         recordIds: ["partnership-books"],
+        ownerFlowBasisItemIds: ["loan-vs-equity", "debt-basis-overlap", "asset-basis-overlap"],
       },
     ];
   }
@@ -97,6 +109,7 @@ function blueprintsForLane(
         whyItMatters:
           "S-corp returns need the shareholder picture settled before distributions and K-1s are believable.",
         recordIds: ["s-corp-shareholders"],
+        ownerFlowBasisItemIds: ["opening-basis-footing", "ownership-change-allocation"],
       },
       {
         id: "s-election",
@@ -111,6 +124,7 @@ function blueprintsForLane(
         whyItMatters:
           "Officer payroll and reasonable-comp treatment are central S-corp reviewer questions.",
         recordIds: ["s-corp-payroll"],
+        ownerFlowBasisItemIds: ["owner-flow-characterization"],
       },
       {
         id: "shareholder-flows",
@@ -118,6 +132,12 @@ function blueprintsForLane(
         whyItMatters:
           "Distribution and shareholder-loan economics can change tax treatment materially.",
         recordIds: ["s-corp-distributions"],
+        ownerFlowBasisItemIds: [
+          "owner-flow-characterization",
+          "loan-vs-equity",
+          "distribution-taxability",
+          "buyout-redemption",
+        ],
       },
       {
         id: "s-corp-balance-sheet",
@@ -125,6 +145,7 @@ function blueprintsForLane(
         whyItMatters:
           "A clean 1120-S path still needs books and balance-sheet support before reviewer trust is earned.",
         recordIds: ["s-corp-books"],
+        ownerFlowBasisItemIds: ["loan-vs-equity", "debt-basis-overlap", "asset-basis-overlap"],
       },
     ];
   }
@@ -137,6 +158,7 @@ function blueprintsForLane(
         whyItMatters:
           "C-corp prep depends on a clean corporate posture before equity and retained earnings are interpreted.",
         recordIds: ["c-corp-classification"],
+        ownerFlowBasisItemIds: ["opening-basis-footing"],
       },
       {
         id: "corporate-equity",
@@ -144,6 +166,12 @@ function blueprintsForLane(
         whyItMatters:
           "Corporate equity movement is one of the first things a reviewer will challenge on an 1120 lane.",
         recordIds: ["c-corp-equity"],
+        ownerFlowBasisItemIds: [
+          "opening-basis-footing",
+          "loan-vs-equity",
+          "distribution-taxability",
+          "buyout-redemption",
+        ],
       },
       {
         id: "corporate-compensation",
@@ -151,6 +179,7 @@ function blueprintsForLane(
         whyItMatters:
           "Officer compensation needs to be separated from dividends or loans before a C-corp package is believable.",
         recordIds: ["c-corp-compensation"],
+        ownerFlowBasisItemIds: ["owner-flow-characterization"],
       },
       {
         id: "shareholder-flows",
@@ -158,6 +187,12 @@ function blueprintsForLane(
         whyItMatters:
           "Shareholder-value extraction changes tax treatment and reviewer posture on C-corp files.",
         recordIds: ["c-corp-shareholder-flows"],
+        ownerFlowBasisItemIds: [
+          "owner-flow-characterization",
+          "loan-vs-equity",
+          "distribution-taxability",
+          "buyout-redemption",
+        ],
       },
       {
         id: "c-corp-balance-sheet",
@@ -165,6 +200,7 @@ function blueprintsForLane(
         whyItMatters:
           "A credible 1120 path still needs schedule-L-grade footing and book-to-tax support.",
         recordIds: ["c-corp-books"],
+        ownerFlowBasisItemIds: ["loan-vs-equity", "debt-basis-overlap", "asset-basis-overlap"],
       },
     ];
   }
@@ -186,8 +222,10 @@ export function buildTinaEntityEconomicsReadiness(
   const startPath = buildTinaStartPathAssessment(draft);
   const federalReturnRequirements = buildTinaFederalReturnRequirements(draft);
   const entityRecordMatrix = buildTinaEntityRecordMatrix(draft);
+  const ownerFlowBasis = buildTinaOwnerFlowBasisAdjudication(draft);
   const ownershipCapitalEvents = buildTinaOwnershipCapitalEvents(draft);
   const laneId = federalReturnRequirements.laneId;
+  const ownerFlowBasisMap = new Map(ownerFlowBasis.items.map((item) => [item.id, item]));
   const checks = blueprintsForLane(draft, laneId)
     .filter((blueprint) => !blueprint.enabled || blueprint.enabled(draft))
     .map((blueprint) => {
@@ -199,6 +237,9 @@ export function buildTinaEntityEconomicsReadiness(
           ? event.status !== "known"
           : false
       );
+      const relatedOwnerFlowBasisItems = (blueprint.ownerFlowBasisItemIds ?? [])
+        .map((itemId) => ownerFlowBasisMap.get(itemId) ?? null)
+        .filter((item): item is NonNullable<typeof item> => Boolean(item));
       const hasMissingCriticalRecord = relatedRecords.some(
         (record) => record.criticality === "critical" && record.status === "missing"
       );
@@ -206,14 +247,21 @@ export function buildTinaEntityEconomicsReadiness(
       const hasPartialRecord = relatedRecords.some((record) => record.status === "partial");
       const hasBlockedEvent = relatedEvents.some((event) => event.status === "blocked");
       const hasReviewEvent = relatedEvents.some((event) => event.status === "needs_review");
+      const hasBlockedOwnerFlowBasis = relatedOwnerFlowBasisItems.some(
+        (item) => item.status === "blocked"
+      );
+      const hasReviewOwnerFlowBasis = relatedOwnerFlowBasisItems.some(
+        (item) => item.status === "needs_review"
+      );
 
       const status =
         startPath.route === "blocked" ||
         hasBlockedEvent ||
+        hasBlockedOwnerFlowBasis ||
         hasMissingCriticalRecord ||
         (laneId !== "schedule_c_single_member_llc" && hasMissingRecord)
           ? "blocked"
-          : hasReviewEvent || hasPartialRecord || hasMissingRecord
+          : hasReviewEvent || hasReviewOwnerFlowBasis || hasPartialRecord || hasMissingRecord
             ? "needs_review"
             : "clear";
 
@@ -232,10 +280,12 @@ export function buildTinaEntityEconomicsReadiness(
         relatedDocumentIds: [
           ...relatedRecords.flatMap((record) => record.matchedDocumentIds),
           ...relatedEvents.flatMap((event) => event.relatedDocumentIds),
+          ...relatedOwnerFlowBasisItems.flatMap((item) => item.relatedDocumentIds),
         ],
         relatedFactIds: [
           ...relatedRecords.flatMap((record) => record.matchedFactIds),
           ...relatedEvents.flatMap((event) => event.relatedFactIds),
+          ...relatedOwnerFlowBasisItems.flatMap((item) => item.relatedFactIds),
         ],
       });
     });

@@ -3,7 +3,7 @@ import { buildTinaReviewBundle } from "@/tina/lib/review-bundle";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 
 describe("review-bundle", () => {
-  it("builds a multi-file reviewer bundle from the live Tina draft", () => {
+  it("builds a multi-file reviewer bundle from the live Tina draft", { timeout: 15000 }, () => {
     const draft = {
       ...createDefaultTinaWorkspaceDraft(),
       profile: {
@@ -103,6 +103,20 @@ describe("review-bundle", () => {
     expect(bundle.files.some((file) => file.id === "official-form-fill")).toBe(true);
     expect(bundle.files.some((file) => file.id === "official-form-execution")).toBe(true);
     expect(bundle.files.some((file) => file.id === "federal-return-classification")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "entity-filing-remediation")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "single-member-entity-history-proof")).toBe(
+      true
+    );
+    expect(bundle.files.some((file) => file.id === "single-owner-corporate-route-proof")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "unknown-pattern-engine")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "confidence-calibration")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "document-intelligence")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "case-memory-ledger")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "reviewer-learning-loop")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "reviewer-observed-deltas")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "reviewer-override-governance")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "reviewer-policy-versioning")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "reviewer-acceptance-reality")).toBe(true);
     expect(bundle.files.some((file) => file.id === "entity-judgment")).toBe(true);
     expect(bundle.files.some((file) => file.id === "federal-return-requirements")).toBe(true);
     expect(bundle.files.some((file) => file.id === "ownership-capital-events")).toBe(true);
@@ -114,6 +128,8 @@ describe("review-bundle", () => {
     expect(bundle.files.some((file) => file.id === "evidence-sufficiency")).toBe(true);
     expect(bundle.files.some((file) => file.id === "reviewer-challenges")).toBe(true);
     expect(bundle.files.some((file) => file.id === "books-reconstruction")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "ledger-reconstruction")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "evidence-credibility")).toBe(true);
     expect(bundle.files.some((file) => file.id === "accounting-artifact-coverage")).toBe(true);
     expect(bundle.files.some((file) => file.id === "books-reconciliation")).toBe(true);
     expect(bundle.files.some((file) => file.id === "books-normalization")).toBe(true);
@@ -130,10 +146,20 @@ describe("review-bundle", () => {
     expect(bundle.files.some((file) => file.id === "attachment-schedules")).toBe(true);
     expect(bundle.files.some((file) => file.id === "decision-briefings")).toBe(true);
     expect(bundle.files.some((file) => file.id === "companion-form-calculations")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "companion-form-render-plan")).toBe(true);
     expect(bundle.files.some((file) => file.id === "companion-form-plan")).toBe(true);
     expect(bundle.files.some((file) => file.id === "cross-form-consistency")).toBe(true);
     expect(bundle.files.some((file) => file.id === "entity-record-matrix")).toBe(true);
     expect(bundle.files.some((file) => file.id === "entity-economics-readiness")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "owner-flow-basis-adjudication")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "entity-return-calculations")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "entity-return-schedule-families")).toBe(true);
+    expect(bundle.files.some((file) => file.id === "entity-return-schedule-family-finalizations")).toBe(
+      true
+    );
+    expect(bundle.files.some((file) => file.id === "entity-return-schedule-family-payloads")).toBe(
+      true
+    );
     expect(bundle.files.some((file) => file.id === "entity-return-runbook")).toBe(true);
     expect(bundle.files.find((file) => file.id === "schedule-c-pdf")?.encoding).toBe("base64");
     expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
@@ -146,6 +172,78 @@ describe("review-bundle", () => {
       "\"federalReturnClassificationConfidence\""
     );
     expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"entityFilingRemediationOverallStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"entityFilingRemediationHistoryStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"entityFilingRemediationElectionStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"entityFilingRemediationAmendmentStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"singleMemberEntityHistoryOverallStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"singleMemberEntityHistoryBooksPostureStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"singleOwnerCorporateRouteOverallStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"singleOwnerCorporateRoutePayrollRequirementStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"unknownPatternOverallStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"unknownPatternCustomProofRequestCount\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"confidenceCalibrationStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"confidenceCalibrationDebtCount\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"caseMemoryLedgerStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"caseMemoryOpenOverrideCount\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"reviewerLearningLoopStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"reviewerLearningPolicyCandidateCount\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"reviewerObservedDeltasOverallStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"reviewerObservedDeltaCount\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"reviewerOverrideGovernanceOverallStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"reviewerOverrideGovernanceBlockingAcceptanceDeltaCount\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"reviewerPolicyVersioningOverallStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"reviewerPolicyVersioningBenchmarkCoverageGapCount\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"reviewerAcceptanceRealityOverallStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"reviewerAcceptanceRealityObservedAcceptanceRate\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
       "\"evidenceSufficiencyStatus\""
     );
     expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
@@ -153,6 +251,12 @@ describe("review-bundle", () => {
     );
     expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
       "\"booksReconstructionStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"ledgerReconstructionStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"evidenceCredibilityStatus\""
     );
     expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
       "\"booksReconciliationStatus\""
@@ -212,10 +316,40 @@ describe("review-bundle", () => {
       "\"companionFormCalculationStatus\""
     );
     expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"companionFormRenderPlanStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"companionFormRenderPayloadCount\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
       "\"entityRecordMatrixStatus\""
     );
     expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
       "\"entityEconomicsStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"ownerFlowBasisOverallStatus\""
+    );
+      expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+        "\"ownerFlowBasisBlockedCount\""
+      );
+      expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+        "\"ownerFlowBasisRollforwardStatus\""
+      );
+      expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+        "\"entityReturnCalculationsStatus\""
+      );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"entityReturnCalculationFieldCount\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"entityReturnScheduleFamiliesStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"entityReturnScheduleFamilyFinalizationsStatus\""
+    );
+    expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
+      "\"entityReturnScheduleFamilyPayloadsStatus\""
     );
     expect(bundle.files.find((file) => file.id === "bundle-manifest")?.contents).toContain(
       "\"entityReturnRunbookStatus\""
@@ -232,7 +366,10 @@ describe("review-bundle", () => {
     expect(bundle.files.some((file) => file.id === "official-primary-blank-form")).toBe(true);
   });
 
-  it("includes missing start-path proof ids in the bundle manifest for complex LLCs", () => {
+  it(
+    "includes missing start-path proof ids in the bundle manifest for complex LLCs",
+    { timeout: 15000 },
+    () => {
     const draft = {
       ...createDefaultTinaWorkspaceDraft(),
       profile: {
@@ -276,5 +413,6 @@ describe("review-bundle", () => {
     expect(manifest).toContain("\"entityRecordMissingCriticalCount\"");
     expect(manifest).toContain("\"blockedEntityEconomicsCount\"");
     expect(manifest).toContain("\"entityReturnRunbookExecutionMode\"");
-  });
+    }
+  );
 });

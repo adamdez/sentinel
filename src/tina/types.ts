@@ -356,6 +356,41 @@ export interface TinaReviewerDecisionRecord {
   decidedAt: string;
 }
 
+export type TinaReviewerObservedDeltaDomain =
+  | "entity_route"
+  | "evidence_books"
+  | "treatment_authority"
+  | "form_execution"
+  | "workflow_governance"
+  | "planning"
+  | "general";
+
+export type TinaReviewerObservedDeltaKind =
+  | "accepted_first_pass"
+  | "accepted_after_adjustment"
+  | "change_requested"
+  | "rejected"
+  | "stale_after_acceptance";
+
+export type TinaReviewerObservedDeltaSeverity = "info" | "needs_attention" | "blocking";
+
+export interface TinaReviewerObservedDeltaRecord {
+  id: string;
+  title: string;
+  domain: TinaReviewerObservedDeltaDomain;
+  kind: TinaReviewerObservedDeltaKind;
+  severity: TinaReviewerObservedDeltaSeverity;
+  occurredAt: string;
+  reviewerName: string | null;
+  summary: string;
+  trustEffect: string;
+  ownerEngines: string[];
+  benchmarkScenarioIds: string[];
+  relatedDecisionId: string | null;
+  relatedSnapshotId: string | null;
+  relatedAuthorityWorkIdeaId: string | null;
+}
+
 export interface TinaPackageSnapshotRecord {
   id: string;
   createdAt: string;
@@ -382,6 +417,15 @@ export interface TinaReviewerSignoffSnapshot {
 }
 
 export type TinaTaxPositionBucket = "use" | "review" | "appendix" | "reject";
+export type TinaTreatmentCleanupDependency =
+  | "cleanup_first"
+  | "proof_first"
+  | "return_prep_ready";
+export type TinaTreatmentFederalStateSensitivity =
+  | "federal_only"
+  | "federal_with_state_follow_through"
+  | "state_can_change_answer";
+export type TinaTreatmentCommercialPriority = "immediate" | "next" | "later";
 
 export interface TinaAppendixItem {
   id: string;
@@ -546,6 +590,7 @@ export interface TinaWorkspaceDraft {
   cpaHandoff: TinaCpaHandoffSnapshot;
   reviewerSignoff: TinaReviewerSignoffSnapshot;
   reviewerDecisions: TinaReviewerDecisionRecord[];
+  reviewerObservedDeltas: TinaReviewerObservedDeltaRecord[];
   packageSnapshots: TinaPackageSnapshotRecord[];
   appendix: TinaAppendixSnapshot;
   operationalStatus: TinaOperationalStatusSnapshot;
@@ -767,11 +812,17 @@ export interface TinaEntityJudgmentSnapshot {
 export interface TinaTreatmentJudgmentItem {
   id: string;
   title: string;
+  policyArea: string;
   summary: string;
   taxPositionBucket: TinaTaxPositionBucket;
   confidence: "high" | "medium" | "low";
   suggestedTreatment: string;
   nextStep: string;
+  requiredProof: string[];
+  alternativeTreatments: string[];
+  cleanupDependency: TinaTreatmentCleanupDependency;
+  federalStateSensitivity: TinaTreatmentFederalStateSensitivity;
+  commercialPriority: TinaTreatmentCommercialPriority;
   authorityWorkIdeaIds: string[];
   relatedFactIds: string[];
   relatedDocumentIds: string[];
@@ -803,6 +854,165 @@ export interface TinaOwnershipTimelineSnapshot {
   hasMidYearChange: boolean;
   hasFormerOwnerPayments: boolean;
   events: TinaOwnershipTimelineEvent[];
+}
+
+export type TinaEntityAmbiguitySignalCategory =
+  | "route_conflict"
+  | "owner_count_conflict"
+  | "election_gap"
+  | "spouse_exception"
+  | "transition_timeline"
+  | "buyout_economics";
+export type TinaEntityAmbiguitySignalSeverity = "signal" | "review" | "blocking";
+export type TinaEntityAmbiguityHypothesisStatus = "leading" | "plausible" | "fallback";
+export type TinaEntityAmbiguityOverallStatus = "stable_route" | "competing_routes" | "blocked";
+export type TinaEntityAmbiguityRecommendedHandling =
+  | "continue"
+  | "carry_competing_paths"
+  | "blocked_until_proved";
+
+export interface TinaEntityAmbiguitySignal {
+  id: string;
+  title: string;
+  category: TinaEntityAmbiguitySignalCategory;
+  severity: TinaEntityAmbiguitySignalSeverity;
+  summary: string;
+  relatedLaneIds: TinaFilingLaneId[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaEntityAmbiguityHypothesis {
+  id: string;
+  title: string;
+  laneId: TinaFilingLaneId;
+  status: TinaEntityAmbiguityHypothesisStatus;
+  confidence: "high" | "medium" | "low";
+  stabilityScore: number;
+  summary: string;
+  whyPlausible: string[];
+  whatCouldChange: string[];
+  requiredProof: string[];
+  supportingSignalCount: number;
+  contradictingSignalCount: number;
+  recommendedFirstQuestion: string | null;
+  relatedSignalIds: string[];
+}
+
+export interface TinaEntityAmbiguitySnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  overallStatus: TinaEntityAmbiguityOverallStatus;
+  recommendedHandling: TinaEntityAmbiguityRecommendedHandling;
+  leadingHypothesisId: string | null;
+  summary: string;
+  nextStep: string;
+  signals: TinaEntityAmbiguitySignal[];
+  hypotheses: TinaEntityAmbiguityHypothesis[];
+  priorityQuestions: string[];
+}
+
+export type TinaEntityFilingRemediationSignalCategory =
+  | "current_vs_prior_route_drift"
+  | "ownership_timeline_gap"
+  | "election_trail_gap"
+  | "missing_return_backlog"
+  | "transition_year"
+  | "state_registration_drift"
+  | "prior_year_books_drift"
+  | "late_election_relief"
+  | "amended_return_sequencing";
+export type TinaEntityFilingRemediationSignalSeverity = "signal" | "review" | "blocking";
+export type TinaEntityFilingRemediationOverallStatus = "aligned" | "review_required" | "blocked";
+export type TinaEntityFilingRemediationPosture =
+  | "aligned_current_path"
+  | "prior_return_drift"
+  | "missing_return_backlog"
+  | "election_unproved"
+  | "late_election_relief"
+  | "amended_return_pressure"
+  | "transition_year_rebuild"
+  | "competing_entity_paths";
+export type TinaEntityFilingRemediationReturnKind =
+  | "current_year_return"
+  | "prior_year_remediation"
+  | "election_relief"
+  | "state_alignment"
+  | "amended_return";
+export type TinaEntityFilingRemediationReturnStatus =
+  | "aligned"
+  | "conditional"
+  | "likely_missing"
+  | "reviewer_controlled";
+export type TinaEntityFilingRemediationHistoryStatus =
+  | "aligned"
+  | "review_required"
+  | "blocked";
+export type TinaEntityFilingRemediationElectionStatus =
+  | "not_applicable"
+  | "accepted_or_timely"
+  | "relief_candidate"
+  | "unproved";
+export type TinaEntityFilingRemediationAmendmentStatus =
+  | "not_applicable"
+  | "possible"
+  | "sequencing_required";
+
+export interface TinaEntityFilingRemediationSignal {
+  id: string;
+  title: string;
+  category: TinaEntityFilingRemediationSignalCategory;
+  severity: TinaEntityFilingRemediationSignalSeverity;
+  summary: string;
+  relatedLaneIds: TinaFilingLaneId[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaEntityFilingRemediationIssue {
+  id: string;
+  title: string;
+  summary: string;
+  severity: "blocking" | "needs_attention";
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
+}
+
+export interface TinaEntityFilingRemediationReturnAction {
+  id: string;
+  title: string;
+  kind: TinaEntityFilingRemediationReturnKind;
+  status: TinaEntityFilingRemediationReturnStatus;
+  summary: string;
+  whyNow: string;
+  returnFamily: string;
+  laneId: TinaFilingLaneId | null;
+  taxYears: string[];
+  relatedSignalIds: string[];
+}
+
+export interface TinaEntityFilingRemediationSnapshot {
+  lastBuiltAt: string | null;
+  status: "idle" | "complete";
+  overallStatus: TinaEntityFilingRemediationOverallStatus;
+  posture: TinaEntityFilingRemediationPosture;
+  historyStatus: TinaEntityFilingRemediationHistoryStatus;
+  electionStatus: TinaEntityFilingRemediationElectionStatus;
+  amendmentStatus: TinaEntityFilingRemediationAmendmentStatus;
+  currentLaneId: TinaFilingLaneId;
+  likelyPriorLaneIds: TinaFilingLaneId[];
+  alternateLaneIds: TinaFilingLaneId[];
+  summary: string;
+  nextStep: string;
+  priorityQuestions: string[];
+  remediationStepsFirst: string[];
+  blockedIssueCount: number;
+  reviewIssueCount: number;
+  signals: TinaEntityFilingRemediationSignal[];
+  issues: TinaEntityFilingRemediationIssue[];
+  actions: TinaEntityFilingRemediationReturnAction[];
+  relatedFactIds: string[];
+  relatedDocumentIds: string[];
 }
 
 export interface TinaFederalReturnRequirementItem {
@@ -984,6 +1194,11 @@ export interface TinaTaxTreatmentPolicyDecision {
   summary: string;
   recommendedBucket: TinaTaxPositionBucket;
   nextStep: string;
+  requiredProof: string[];
+  alternativeTreatments: string[];
+  cleanupDependency: TinaTreatmentCleanupDependency;
+  federalStateSensitivity: TinaTreatmentFederalStateSensitivity;
+  commercialPriority: TinaTreatmentCommercialPriority;
   authorityWorkIdeaIds: string[];
   relatedJudgmentIds: string[];
   relatedFactIds: string[];
@@ -1134,6 +1349,7 @@ export interface TinaOfficialFormFillPlacement {
   fieldKey: string;
   label: string;
   value: string;
+  pdfFieldName: string | null;
   x: number;
   y: number;
   fontSize: number;
@@ -1149,7 +1365,7 @@ export interface TinaOfficialFormFillSnapshot {
   formId: TinaOfficialFederalFormId | null;
   templateTitle: string | null;
   overallStatus: "ready" | "needs_review" | "blocked";
-  mode: "overlay_plan" | "blocked_route";
+  mode: "overlay_plan" | "direct_field_plan" | "blocked_route";
   summary: string;
   nextStep: string;
   placements: TinaOfficialFormFillPlacement[];

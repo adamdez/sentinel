@@ -456,6 +456,415 @@ function buildCreatorMediaDraft(): TinaWorkspaceDraft {
   return draft;
 }
 
+function buildPayrollContractorOverlapDraft(): TinaWorkspaceDraft {
+  const draft = buildDirtyBooksDraft();
+  draft.profile.businessName = "River Bend Field Ops LLC";
+  draft.profile.notes =
+    "Crew labor is split across W-2 payroll, 1099 subcontractors, and year-end reclasses between payroll and contract labor.";
+  draft.documents.push(
+    createDocument({
+      id: "doc-payroll-register",
+      name: "payroll-register.csv",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T11:30:00.000Z",
+      mimeType: "text/csv",
+    }),
+    createDocument({
+      id: "doc-1099-summary",
+      name: "1099-summary.pdf",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T11:31:00.000Z",
+    })
+  );
+  draft.documentReadings.push(
+    createReading({
+      documentId: "doc-payroll-register",
+      kind: "spreadsheet",
+      lastReadAt: "2026-04-03T11:32:00.000Z",
+      detailLines: ["Payroll register shows field crew labor, overtime, and officer pay."],
+    }),
+    createReading({
+      documentId: "doc-1099-summary",
+      kind: "pdf",
+      lastReadAt: "2026-04-03T11:33:00.000Z",
+      detailLines: ["1099 package shows subcontractor labor overlapping with payroll-coded crews."],
+    })
+  );
+  draft.sourceFacts.push(
+    {
+      id: "fact-payroll-overlap",
+      sourceDocumentId: "doc-payroll-register",
+      label: "Payroll clue",
+      value: "W-2 payroll register shows crew labor that overlaps with job-cost labor categories.",
+      confidence: "high",
+      capturedAt: "2026-04-03T11:34:00.000Z",
+    },
+    {
+      id: "fact-contractor-overlap",
+      sourceDocumentId: "doc-1099-summary",
+      label: "Contractor clue",
+      value: "1099 subcontractor labor overlaps with payroll-coded field labor and year-end reclasses.",
+      confidence: "high",
+      capturedAt: "2026-04-03T11:35:00.000Z",
+    }
+  );
+  return draft;
+}
+
+function buildHeavyDepreciationDraft(): TinaWorkspaceDraft {
+  const draft = requireDraft("sole-prop-supported-core");
+  draft.profile.businessName = "Iron Lantern Fabrication LLC";
+  draft.profile.principalBusinessActivity = "Custom fabrication and shop work";
+  draft.profile.naicsCode = "332322";
+  draft.profile.hasFixedAssets = true;
+  draft.profile.notes =
+    "Heavy depreciation year with shop equipment, a service vehicle, and section 179 pressure.";
+  draft.documents.push(
+    createDocument({
+      id: "doc-asset-rollforward",
+      name: "asset-rollforward.xlsx",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T11:40:00.000Z",
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    createDocument({
+      id: "doc-asset-invoices",
+      name: "asset-invoices.pdf",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T11:41:00.000Z",
+    })
+  );
+  draft.documentReadings.push(
+    createReading({
+      documentId: "doc-asset-rollforward",
+      kind: "spreadsheet",
+      lastReadAt: "2026-04-03T11:42:00.000Z",
+      detailLines: ["Asset rollforward shows placed-in-service dates, cost, and prior depreciation."],
+    }),
+    createReading({
+      documentId: "doc-asset-invoices",
+      kind: "pdf",
+      lastReadAt: "2026-04-03T11:43:00.000Z",
+      detailLines: ["Equipment and vehicle invoices support the current-year depreciation story."],
+    })
+  );
+  draft.sourceFacts.push({
+    id: "fact-depreciation-heavy",
+    sourceDocumentId: "doc-asset-rollforward",
+    label: "Depreciation clue",
+    value: "Heavy current-year depreciation and section 179 treatment are supported by an asset rollforward.",
+    confidence: "high",
+    capturedAt: "2026-04-03T11:44:00.000Z",
+  });
+  draft.reviewerFinal.lines.push({
+    id: "rf-depreciation-heavy",
+    kind: "expense",
+    layer: "reviewer_final",
+    label: "Depreciation expense candidate",
+    amount: 18000,
+    status: "needs_attention",
+    summary: "Depreciation is large enough that Form 4562 support matters.",
+    sourceDocumentIds: ["doc-asset-rollforward", "doc-asset-invoices"],
+    sourceFactIds: ["fact-depreciation-heavy"],
+    issueIds: [],
+    derivedFromLineIds: [],
+    cleanupSuggestionIds: [],
+    taxAdjustmentIds: [],
+  });
+  draft.scheduleCDraft.fields.push({
+    id: "line-13-depreciation",
+    lineNumber: "Line 13",
+    label: "Depreciation and section 179 expense deduction",
+    amount: 18000,
+    status: "needs_attention",
+    summary: "Large depreciation year needs Form 4562 support.",
+    reviewerFinalLineIds: ["rf-depreciation-heavy"],
+    taxAdjustmentIds: [],
+    sourceDocumentIds: ["doc-asset-rollforward", "doc-asset-invoices"],
+  });
+  return draft;
+}
+
+function buildInventoryHeavyRetailDraft(): TinaWorkspaceDraft {
+  const draft = buildSalesTaxAuthorityDraft();
+  draft.profile.businessName = "Summit Trail Mercantile LLC";
+  draft.profile.notes =
+    "Inventory-heavy ecommerce retailer with year-end counts, returns, shrinkage, and marketplace sales-tax complexity.";
+  draft.documents.push(
+    createDocument({
+      id: "doc-inventory-count",
+      name: "year-end-inventory-count.xlsx",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T11:50:00.000Z",
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    createDocument({
+      id: "doc-cogs-rollforward",
+      name: "cogs-rollforward.pdf",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T11:51:00.000Z",
+    })
+  );
+  draft.documentReadings.push(
+    createReading({
+      documentId: "doc-inventory-count",
+      kind: "spreadsheet",
+      lastReadAt: "2026-04-03T11:52:00.000Z",
+      detailLines: ["Year-end inventory count, shrinkage, and returns are tracked by SKU."],
+    }),
+    createReading({
+      documentId: "doc-cogs-rollforward",
+      kind: "pdf",
+      lastReadAt: "2026-04-03T11:53:00.000Z",
+      detailLines: ["COGS rollforward ties beginning inventory, purchases, and ending inventory."],
+    })
+  );
+  draft.sourceFacts.push({
+    id: "fact-inventory-method",
+    sourceDocumentId: "doc-cogs-rollforward",
+    label: "Inventory clue",
+    value: "Inventory method, counts, and COGS rollforward support are available for the year.",
+    confidence: "high",
+    capturedAt: "2026-04-03T11:54:00.000Z",
+  });
+  draft.reviewerFinal.lines.push({
+    id: "rf-cogs-heavy",
+    kind: "expense",
+    layer: "reviewer_final",
+    label: "Cost of goods sold candidate",
+    amount: 46000,
+    status: "needs_attention",
+    summary: "Inventory-heavy retailer needs COGS support and reviewer confirmation.",
+    sourceDocumentIds: ["doc-inventory-count", "doc-cogs-rollforward"],
+    sourceFactIds: ["fact-inventory-method"],
+    issueIds: [],
+    derivedFromLineIds: [],
+    cleanupSuggestionIds: [],
+    taxAdjustmentIds: [],
+  });
+  draft.scheduleCDraft.fields.push({
+    id: "line-4-cost-of-goods-sold",
+    lineNumber: "Line 4",
+    label: "Cost of goods sold",
+    amount: 46000,
+    status: "needs_attention",
+    summary: "Inventory-heavy retailer requires COGS support.",
+    reviewerFinalLineIds: ["rf-cogs-heavy"],
+    taxAdjustmentIds: [],
+    sourceDocumentIds: ["doc-inventory-count", "doc-cogs-rollforward"],
+  });
+  return draft;
+}
+
+function buildMixedUseHomeOfficeVehicleDraft(): TinaWorkspaceDraft {
+  const draft = requireDraft("sole-prop-supported-core");
+  draft.profile.businessName = "Juniper Trail Advisory LLC";
+  draft.profile.principalBusinessActivity = "Consulting with home office and field travel";
+  draft.profile.naicsCode = "541618";
+  draft.profile.notes =
+    "Home office, vehicle mileage, travel, and mixed use equipment still need separation between personal and business use.";
+  draft.documents.push(
+    createDocument({
+      id: "doc-mileage-log",
+      name: "mileage-log.csv",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T12:10:00.000Z",
+      mimeType: "text/csv",
+    }),
+    createDocument({
+      id: "doc-home-office",
+      name: "home-office-measurements.pdf",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T12:11:00.000Z",
+    })
+  );
+  draft.documentReadings.push(
+    createReading({
+      documentId: "doc-mileage-log",
+      kind: "spreadsheet",
+      lastReadAt: "2026-04-03T12:12:00.000Z",
+      detailLines: ["Mileage log mixes business, commuting, and personal travel."],
+    }),
+    createReading({
+      documentId: "doc-home-office",
+      kind: "pdf",
+      lastReadAt: "2026-04-03T12:13:00.000Z",
+      detailLines: ["Home office square footage and utility allocation support are partial."],
+    })
+  );
+  draft.sourceFacts.push({
+    id: "fact-mixed-use-vehicle",
+    sourceDocumentId: "doc-mileage-log",
+    label: "Mixed personal/business clue",
+    value: "Vehicle, travel, and home office amounts appear partially personal and partially business.",
+    confidence: "high",
+    capturedAt: "2026-04-03T12:14:00.000Z",
+  });
+  draft.reviewerFinal.lines.push(
+    {
+      id: "rf-travel-mixed",
+      kind: "expense",
+      layer: "reviewer_final",
+      label: "Travel expense candidate",
+      amount: 3200,
+      status: "needs_attention",
+      summary: "Travel still needs mixed-use separation.",
+      sourceDocumentIds: ["doc-mileage-log"],
+      sourceFactIds: ["fact-mixed-use-vehicle"],
+      issueIds: [],
+      derivedFromLineIds: [],
+      cleanupSuggestionIds: [],
+      taxAdjustmentIds: [],
+    },
+    {
+      id: "rf-other-mixed",
+      kind: "expense",
+      layer: "reviewer_final",
+      label: "Other expenses candidate",
+      amount: 2100,
+      status: "needs_attention",
+      summary: "Home office and vehicle support remain mixed-use sensitive.",
+      sourceDocumentIds: ["doc-mileage-log", "doc-home-office"],
+      sourceFactIds: ["fact-mixed-use-vehicle"],
+      issueIds: [],
+      derivedFromLineIds: [],
+      cleanupSuggestionIds: [],
+      taxAdjustmentIds: [],
+    }
+  );
+  draft.scheduleCDraft.fields.push(
+    {
+      id: "line-24a-travel",
+      lineNumber: "Line 24a",
+      label: "Travel",
+      amount: 3200,
+      status: "needs_attention",
+      summary: "Travel needs mixed-use separation.",
+      reviewerFinalLineIds: ["rf-travel-mixed"],
+      taxAdjustmentIds: [],
+      sourceDocumentIds: ["doc-mileage-log"],
+    },
+    {
+      id: "line-27a-other-expenses-mixed",
+      lineNumber: "Line 27a",
+      label: "Other expenses",
+      amount: 2100,
+      status: "needs_attention",
+      summary: "Home office and vehicle support remain mixed-use sensitive.",
+      reviewerFinalLineIds: ["rf-other-mixed"],
+      taxAdjustmentIds: [],
+      sourceDocumentIds: ["doc-mileage-log", "doc-home-office"],
+    }
+  );
+  return draft;
+}
+
+function buildRelatedPartyPaymentsDraft(): TinaWorkspaceDraft {
+  const draft = buildDirtyBooksDraft();
+  draft.profile.businessName = "Atlas Family Property Services LLC";
+  draft.profile.principalBusinessActivity = "Property management and family-owned project coordination";
+  draft.profile.naicsCode = "531311";
+  draft.profile.notes =
+    "Related-party management fees, family warehouse rent, and intercompany transfers are mixed into ordinary books.";
+  draft.documents.push(
+    createDocument({
+      id: "doc-related-ledger",
+      name: "related-party-ledger.csv",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T12:20:00.000Z",
+      mimeType: "text/csv",
+    }),
+    createDocument({
+      id: "doc-management-agreement",
+      name: "family-management-agreement.pdf",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T12:21:00.000Z",
+    })
+  );
+  draft.documentReadings.push(
+    createReading({
+      documentId: "doc-related-ledger",
+      kind: "spreadsheet",
+      lastReadAt: "2026-04-03T12:22:00.000Z",
+      detailLines: ["Ledger shows due-to owner, related-party rent, and intercompany recharge activity."],
+    }),
+    createReading({
+      documentId: "doc-management-agreement",
+      kind: "pdf",
+      lastReadAt: "2026-04-03T12:23:00.000Z",
+      detailLines: ["Management agreement references family-owned related-party service charges."],
+    })
+  );
+  draft.sourceFacts.push(
+    {
+      id: "fact-related-party",
+      sourceDocumentId: "doc-management-agreement",
+      label: "Related-party clue",
+      value: "Family-owned management company and related-party rent are charged through the books.",
+      confidence: "high",
+      capturedAt: "2026-04-03T12:24:00.000Z",
+    },
+    {
+      id: "fact-intercompany",
+      sourceDocumentId: "doc-related-ledger",
+      label: "Intercompany transfer clue",
+      value: "Intercompany and due-to owner transfers are mixed into ordinary expense and balance flows.",
+      confidence: "high",
+      capturedAt: "2026-04-03T12:25:00.000Z",
+    }
+  );
+  return draft;
+}
+
+function buildPriorReturnDriftDraft(): TinaWorkspaceDraft {
+  const draft = requireDraft("sole-prop-supported-core");
+  draft.profile.businessName = "Signal Ridge Works LLC";
+  draft.profile.taxElection = "s_corp";
+  draft.profile.notes =
+    "Prior return shows Schedule C, but current Form 2553 and current-year election paperwork indicate an S corporation path.";
+  draft.documents.push(
+    createDocument({
+      id: "doc-current-2553",
+      name: "current-form-2553.pdf",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T12:30:00.000Z",
+      requestId: "entity-election",
+      requestLabel: "Entity election proof",
+    }),
+    createDocument({
+      id: "doc-formation-minutes",
+      name: "corporate-election-minutes.pdf",
+      category: "supporting_document",
+      uploadedAt: "2026-04-03T12:31:00.000Z",
+      requestId: "formation-papers",
+      requestLabel: "Formation or election papers",
+    })
+  );
+  draft.documentReadings.push(
+    createReading({
+      documentId: "doc-current-2553",
+      kind: "pdf",
+      lastReadAt: "2026-04-03T12:32:00.000Z",
+      detailLines: ["Form 2553 and S corporation election language appear in the current-year packet."],
+    }),
+    createReading({
+      documentId: "doc-formation-minutes",
+      kind: "pdf",
+      lastReadAt: "2026-04-03T12:33:00.000Z",
+      detailLines: ["Board minutes reference a current-year S corporation election and corporate tax treatment."],
+    })
+  );
+  draft.sourceFacts.push({
+    id: "fact-current-election",
+    sourceDocumentId: "doc-current-2553",
+    label: "Entity election clue",
+    value: "Current-year Form 2553 and S corporation election paperwork conflict with the older Schedule C prior return.",
+    confidence: "high",
+    capturedAt: "2026-04-03T12:34:00.000Z",
+  });
+  return draft;
+}
+
 function buildDriftedPackageDraft(): TinaWorkspaceDraft {
   const draft = requireDraft("sole-prop-supported-core");
   draft.packageReadiness = {
@@ -550,6 +959,36 @@ export const TINA_SKILL_REVIEW_FIXTURE_METADATA: TinaSkillReviewFixture[] = [
     title: "Signed-off then drifted package",
     summary: "Package snapshot was approved, then the live draft changed underneath it.",
   },
+  {
+    id: "payroll-contractor-overlap",
+    title: "Payroll plus contractors overlap",
+    summary: "Crew labor is split across payroll and 1099 flows, forcing worker-classification and books separation review.",
+  },
+  {
+    id: "heavy-depreciation-year",
+    title: "Heavy depreciation year",
+    summary: "Asset-heavy year with a large depreciation number and Form 4562 pressure.",
+  },
+  {
+    id: "inventory-heavy-retailer",
+    title: "Inventory-heavy retailer",
+    summary: "Retail file with year-end counts, COGS rollforward pressure, and inventory-specific attachment needs.",
+  },
+  {
+    id: "mixed-use-home-office-vehicle",
+    title: "Home office plus vehicle mixed-use file",
+    summary: "Schedule C file with home office, mileage, travel, and mixed-use separation pressure.",
+  },
+  {
+    id: "related-party-payments",
+    title: "Related-party payments file",
+    summary: "Books contain related-party management fees and intercompany transfers that should stay under review.",
+  },
+  {
+    id: "prior-return-drift",
+    title: "Prior-return drift against current facts",
+    summary: "Older Schedule C history conflicts with current-year entity-election evidence.",
+  },
 ];
 
 export const TINA_SKILL_REVIEW_DRAFTS: Record<string, TinaWorkspaceDraft> = {
@@ -563,4 +1002,10 @@ export const TINA_SKILL_REVIEW_DRAFTS: Record<string, TinaWorkspaceDraft> = {
   "sales-tax-authority": buildSalesTaxAuthorityDraft(),
   "creator-media": buildCreatorMediaDraft(),
   "drifted-package": buildDriftedPackageDraft(),
+  "payroll-contractor-overlap": buildPayrollContractorOverlapDraft(),
+  "heavy-depreciation-year": buildHeavyDepreciationDraft(),
+  "inventory-heavy-retailer": buildInventoryHeavyRetailDraft(),
+  "mixed-use-home-office-vehicle": buildMixedUseHomeOfficeVehicleDraft(),
+  "related-party-payments": buildRelatedPartyPaymentsDraft(),
+  "prior-return-drift": buildPriorReturnDriftDraft(),
 };

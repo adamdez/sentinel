@@ -64,11 +64,13 @@ describe("official-form-fill", () => {
     const snapshot = buildTinaOfficialFormFill(draft);
 
     expect(snapshot.formId).toBe("f1040sc");
-    expect(snapshot.mode).toBe("overlay_plan");
+    expect(snapshot.mode).toBe("direct_field_plan");
     expect(snapshot.overallStatus).toBe("ready");
-    expect(snapshot.placements.some((placement) => placement.fieldKey === "grossReceipts")).toBe(
-      true
-    );
+    expect(
+      snapshot.placements.some(
+        (placement) => placement.fieldKey === "grossReceipts" && placement.pdfFieldName
+      )
+    ).toBe(true);
     expect(snapshot.placements.some((placement) => placement.fieldKey === "businessName")).toBe(
       true
     );

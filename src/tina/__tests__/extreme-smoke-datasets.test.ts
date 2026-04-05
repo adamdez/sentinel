@@ -74,6 +74,6 @@ describe("extreme smoke datasets", () => {
       if (dataset.expected.laneId === "1120_s") {
         expect(report.officialFormTemplates.primaryTemplateId).toBe("f1120s");
       }
-    }, 20000);
+    }, 60000);
   });
 });

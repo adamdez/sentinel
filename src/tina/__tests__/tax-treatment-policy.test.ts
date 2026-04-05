@@ -45,5 +45,13 @@ describe("tax-treatment-policy", () => {
         (decision) => decision.id === "depreciation-treatment" && decision.status === "review_required"
       )
     ).toBe(true);
+    expect(
+      snapshot.decisions.some(
+        (decision) =>
+          decision.id === "mixed-use-treatment" &&
+          decision.cleanupDependency === "cleanup_first" &&
+          decision.requiredProof.length > 0
+      )
+    ).toBe(true);
   });
 });

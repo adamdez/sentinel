@@ -4,36 +4,57 @@ import { buildTinaAccountingArtifactCoverage } from "@/tina/lib/accounting-artif
 import { buildTinaAuthorityPositionMatrix } from "@/tina/lib/authority-position-matrix";
 import { buildTinaBooksNormalization } from "@/tina/lib/books-normalization";
 import { buildTinaBooksReconciliation } from "@/tina/lib/books-reconciliation";
+import { buildTinaCaseMemoryLedger } from "@/tina/lib/case-memory-ledger";
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { buildTinaCompanionFormCalculations } from "@/tina/lib/companion-form-calculations";
 import { buildTinaCompanionFormPlan } from "@/tina/lib/companion-form-plan";
+import { buildTinaCompanionFormRenderPlan } from "@/tina/lib/companion-form-render-plan";
+import { buildTinaConfidenceCalibration } from "@/tina/lib/confidence-calibration";
 import { buildTinaCrossFormConsistency } from "@/tina/lib/cross-form-consistency";
 import { buildTinaDecisionBriefings } from "@/tina/lib/decision-briefings";
 import { buildTinaDocumentRequestPlan } from "@/tina/lib/document-request-plan";
 import { buildTinaDisclosureReadiness } from "@/tina/lib/disclosure-readiness";
 import { buildTinaEntityEconomicsReadiness } from "@/tina/lib/entity-economics-readiness";
+import { buildTinaEntityFilingRemediation } from "@/tina/lib/entity-filing-remediation";
 import { buildTinaEntityJudgment } from "@/tina/lib/entity-judgment";
+import { buildTinaEntityReturnCalculations } from "@/tina/lib/entity-return-calculations";
+import { buildTinaEntityReturnPackagePlan } from "@/tina/lib/entity-return-package-plan";
+import { buildTinaEntityReturnScheduleFamilyFinalizations } from "@/tina/lib/entity-return-schedule-family-finalizations";
+import { buildTinaEntityReturnScheduleFamilyPayloads } from "@/tina/lib/entity-return-schedule-family-payloads";
+import { buildTinaEntityReturnScheduleFamilyArtifacts } from "@/tina/lib/entity-return-schedule-family-artifacts";
+import { buildTinaEntityReturnSupportArtifacts } from "@/tina/lib/entity-return-support-artifacts";
 import { buildTinaEntityRecordMatrix } from "@/tina/lib/entity-record-matrix";
 import { buildTinaEntityReturnRunbook } from "@/tina/lib/entity-return-runbook";
+import { buildTinaEvidenceCredibility } from "@/tina/lib/evidence-credibility";
 import { buildTinaFederalReturnRequirements } from "@/tina/lib/federal-return-requirements";
 import { buildTinaFormReadiness } from "@/tina/lib/form-readiness";
 import { buildTinaIndustryPlaybooks } from "@/tina/lib/industry-playbooks";
 import { buildTinaIndustryEvidenceMatrix } from "@/tina/lib/industry-evidence-matrix";
 import { buildTinaOfficialFormFill } from "@/tina/lib/official-form-fill";
 import { buildTinaOfficialFormExecution } from "@/tina/lib/official-form-execution";
+import { buildTinaOwnerFlowBasisAdjudication } from "@/tina/lib/owner-flow-basis-adjudication";
 import { buildTinaOwnershipTimeline } from "@/tina/lib/ownership-timeline";
 import { buildTinaPackageReadiness } from "@/tina/lib/package-readiness";
 import { buildTinaPackageState } from "@/tina/lib/package-state";
+import { buildTinaPayrollComplianceReconstruction } from "@/tina/lib/payroll-compliance-reconstruction";
 import { buildTinaReviewerChallenges } from "@/tina/lib/reviewer-challenges";
 import { buildTinaReviewerAcceptanceForecast } from "@/tina/lib/reviewer-acceptance-forecast";
+import { buildTinaReviewerAcceptanceReality } from "@/tina/lib/reviewer-acceptance-reality";
+import { buildTinaReviewerLearningLoop } from "@/tina/lib/reviewer-learning-loop";
+import { buildTinaReviewerOverrideGovernance } from "@/tina/lib/reviewer-override-governance";
+import { buildTinaReviewerPolicyVersioning } from "@/tina/lib/reviewer-policy-versioning";
 import { buildTinaScheduleCFormCoverage } from "@/tina/lib/schedule-c-form-coverage";
 import { buildTinaScheduleCFormTrace } from "@/tina/lib/schedule-c-form-trace";
 import { buildTinaScheduleCReturn } from "@/tina/lib/schedule-c-return";
+import { buildTinaSingleMemberEntityHistoryProof } from "@/tina/lib/single-member-entity-history-proof";
+import { buildTinaSingleOwnerCorporateRouteProof } from "@/tina/lib/single-owner-corporate-route-proof";
 import { buildTinaStartPathAssessment } from "@/tina/lib/start-path";
 import { buildTinaTaxOpportunityEngine } from "@/tina/lib/tax-opportunity-engine";
 import { buildTinaPlanningActionBoard } from "@/tina/lib/planning-action-board";
 import { buildTinaTaxPlanningMemo } from "@/tina/lib/tax-planning-memo";
 import { buildTinaTreatmentJudgment } from "@/tina/lib/treatment-judgment";
+import { buildTinaUnknownPatternEngine } from "@/tina/lib/unknown-pattern-engine";
+import { buildTinaLedgerReconstruction } from "@/tina/lib/ledger-reconstruction";
 import type {
   TinaCpaHandoffArtifact,
   TinaCpaHandoffArtifactStatus,
@@ -115,19 +136,41 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
   const entityJudgment = buildTinaEntityJudgment(draft);
   const entityRecordMatrix = buildTinaEntityRecordMatrix(draft);
   const entityEconomicsReadiness = buildTinaEntityEconomicsReadiness(draft);
+  const entityReturnCalculations = buildTinaEntityReturnCalculations(draft);
+  const ownerFlowBasis = buildTinaOwnerFlowBasisAdjudication(draft);
+  const entityReturnPackagePlan = buildTinaEntityReturnPackagePlan(draft);
+  const entityReturnScheduleFamilyFinalizations =
+    buildTinaEntityReturnScheduleFamilyFinalizations(draft);
+  const entityReturnScheduleFamilyPayloads = buildTinaEntityReturnScheduleFamilyPayloads(draft);
+  const entityReturnScheduleFamilies = buildTinaEntityReturnScheduleFamilyArtifacts(draft);
+  const entityReturnSupportArtifacts = buildTinaEntityReturnSupportArtifacts(draft);
   const entityReturnRunbook = buildTinaEntityReturnRunbook(draft);
   const federalReturnRequirements = buildTinaFederalReturnRequirements(draft);
+  const entityFilingRemediation = buildTinaEntityFilingRemediation(draft);
+  const unknownPatternEngine = buildTinaUnknownPatternEngine(draft);
+  const confidenceCalibration = buildTinaConfidenceCalibration(draft);
+  const caseMemoryLedger = buildTinaCaseMemoryLedger(draft);
+  const reviewerLearningLoop = buildTinaReviewerLearningLoop(draft);
+  const reviewerOverrideGovernance = buildTinaReviewerOverrideGovernance(draft);
+  const reviewerPolicyVersioning = buildTinaReviewerPolicyVersioning(draft);
+  const reviewerAcceptanceReality = buildTinaReviewerAcceptanceReality(draft);
   const ownershipTimeline = buildTinaOwnershipTimeline(draft);
   const treatmentJudgment = buildTinaTreatmentJudgment(draft);
   const lane = startPath.recommendation;
   const booksNormalization = buildTinaBooksNormalization(draft);
+  const ledgerReconstruction = buildTinaLedgerReconstruction(draft);
   const booksReconciliation = buildTinaBooksReconciliation(draft);
+  const evidenceCredibility = buildTinaEvidenceCredibility(draft);
   const accountingArtifactCoverage = buildTinaAccountingArtifactCoverage(draft);
+  const payrollCompliance = buildTinaPayrollComplianceReconstruction(draft);
+  const singleMemberEntityHistory = buildTinaSingleMemberEntityHistoryProof(draft);
+  const singleOwnerCorporateRoute = buildTinaSingleOwnerCorporateRouteProof(draft);
   const industryPlaybooks = buildTinaIndustryPlaybooks(draft);
   const industryEvidenceMatrix = buildTinaIndustryEvidenceMatrix(draft);
   const taxOpportunityEngine = buildTinaTaxOpportunityEngine(draft);
   const companionFormPlan = buildTinaCompanionFormPlan(draft);
   const companionFormCalculations = buildTinaCompanionFormCalculations(draft);
+  const companionFormRenderPlan = buildTinaCompanionFormRenderPlan(draft);
   const crossFormConsistency = buildTinaCrossFormConsistency(draft);
   const reviewerChallenges = buildTinaReviewerChallenges(draft);
   const scheduleCReturn = buildTinaScheduleCReturn(draft);
@@ -268,6 +311,24 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       : startPath.route === "review_only"
         ? "waiting"
         : "blocked";
+  const entityFilingRemediationStatus: TinaCpaHandoffArtifactStatus =
+    entityFilingRemediation.overallStatus === "blocked"
+      ? "blocked"
+      : entityFilingRemediation.overallStatus === "review_required"
+        ? "waiting"
+        : "ready";
+  const singleOwnerCorporateRouteStatus: TinaCpaHandoffArtifactStatus =
+    singleOwnerCorporateRoute.overallStatus === "blocked"
+      ? "blocked"
+      : singleOwnerCorporateRoute.overallStatus === "review_required"
+        ? "waiting"
+        : "ready";
+  const singleMemberEntityHistoryStatus: TinaCpaHandoffArtifactStatus =
+    singleMemberEntityHistory.overallStatus === "blocked"
+      ? "blocked"
+      : singleMemberEntityHistory.overallStatus === "review_required"
+        ? "waiting"
+        : "ready";
   const blockingNormalizationIssues = booksNormalization.issues.filter(
     (issue) => issue.severity === "blocking"
   );
@@ -302,6 +363,12 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
     missingCriticalAccountingArtifacts.length > 0
       ? "blocked"
       : partialAccountingArtifacts.length > 0
+        ? "waiting"
+        : "ready";
+  const payrollComplianceStatus: TinaCpaHandoffArtifactStatus =
+    payrollCompliance.overallStatus === "blocked"
+      ? "blocked"
+      : payrollCompliance.overallStatus === "needs_review"
         ? "waiting"
         : "ready";
   const industryPlaybookStatus: TinaCpaHandoffArtifactStatus =
@@ -351,6 +418,12 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       : reviewCompanionFormCalculations.length > 0
         ? "waiting"
         : "ready";
+  const companionFormRenderPlanStatus: TinaCpaHandoffArtifactStatus =
+    companionFormRenderPlan.overallStatus === "blocked"
+      ? "blocked"
+      : companionFormRenderPlan.overallStatus === "review_required"
+        ? "waiting"
+        : "ready";
   const traceableLineCount = formTrace.lines.filter(
     (line) =>
       line.sourceFieldIds.length > 0 ||
@@ -388,6 +461,49 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       : officialFormExecution.overallStatus === "review_required"
         ? "waiting"
         : "ready";
+  const unknownPatternStatus: TinaCpaHandoffArtifactStatus =
+    unknownPatternEngine.overallStatus === "novel_pattern"
+      ? "blocked"
+      : unknownPatternEngine.overallStatus === "ambiguous_pattern"
+        ? "waiting"
+        : "ready";
+  const confidenceCalibrationStatus: TinaCpaHandoffArtifactStatus =
+    confidenceCalibration.overallStatus === "blocked"
+      ? "blocked"
+      : confidenceCalibration.overallStatus === "watch" ||
+          confidenceCalibration.overallStatus === "overstated"
+        ? "waiting"
+        : "ready";
+  const caseMemoryLedgerStatus: TinaCpaHandoffArtifactStatus =
+    caseMemoryLedger.overallStatus === "stable"
+      ? "ready"
+      : caseMemoryLedger.overallStatus === "review_pending"
+        ? "waiting"
+        : "blocked";
+  const reviewerLearningLoopStatus: TinaCpaHandoffArtifactStatus =
+    reviewerLearningLoop.overallStatus === "stable"
+      ? "ready"
+      : reviewerLearningLoop.overallStatus === "active_learning"
+        ? "waiting"
+        : "blocked";
+  const reviewerOverrideGovernanceStatus: TinaCpaHandoffArtifactStatus =
+    reviewerOverrideGovernance.overallStatus === "stable"
+      ? "ready"
+      : reviewerOverrideGovernance.overallStatus === "active_overrides"
+        ? "waiting"
+        : "blocked";
+  const reviewerPolicyVersioningStatus: TinaCpaHandoffArtifactStatus =
+    reviewerPolicyVersioning.overallStatus === "stable"
+      ? "ready"
+      : reviewerPolicyVersioning.overallStatus === "release_queue"
+        ? "waiting"
+        : "blocked";
+  const reviewerAcceptanceRealityStatus: TinaCpaHandoffArtifactStatus =
+    reviewerAcceptanceReality.overallStatus === "trusted"
+      ? "ready"
+      : reviewerAcceptanceReality.overallStatus === "regressing"
+        ? "blocked"
+        : "waiting";
   const attachmentStatementStatus: TinaCpaHandoffArtifactStatus =
     attachmentStatements.overallStatus === "blocked"
       ? "blocked"
@@ -451,6 +567,12 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       : nextDocumentRequests.length > 0
         ? "waiting"
         : "ready";
+  const ownerFlowBasisStatus: TinaCpaHandoffArtifactStatus =
+    ownerFlowBasis.overallStatus === "blocked"
+      ? "blocked"
+      : ownerFlowBasis.overallStatus === "review_required"
+        ? "waiting"
+        : "ready";
   const reviewBundleStatus: TinaCpaHandoffArtifactStatus =
     [
       startPathStatus,
@@ -462,6 +584,12 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       booksNormalizationStatus,
       officialFormFillStatus,
       officialFormExecutionStatus,
+      unknownPatternStatus,
+      confidenceCalibrationStatus,
+      reviewerLearningLoopStatus,
+      reviewerPolicyVersioningStatus,
+      singleMemberEntityHistoryStatus,
+      ownerFlowBasisStatus,
       attachmentStatementStatus,
       attachmentScheduleStatus,
       companionFormCalculationsStatus,
@@ -483,6 +611,12 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
             booksNormalizationStatus,
             officialFormFillStatus,
             officialFormExecutionStatus,
+            unknownPatternStatus,
+            confidenceCalibrationStatus,
+            reviewerLearningLoopStatus,
+            reviewerPolicyVersioningStatus,
+            singleMemberEntityHistoryStatus,
+            ownerFlowBasisStatus,
             attachmentStatementStatus,
             attachmentScheduleStatus,
             companionFormCalculationsStatus,
@@ -555,6 +689,42 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       : entityReturnRunbook.overallStatus === "review_required"
         ? "waiting"
         : "ready";
+  const entityReturnCalculationsStatus: TinaCpaHandoffArtifactStatus =
+    entityReturnCalculations.overallStatus === "blocked"
+      ? "blocked"
+      : entityReturnCalculations.overallStatus === "needs_review"
+        ? "waiting"
+        : "ready";
+  const entityReturnSupportArtifactsStatus: TinaCpaHandoffArtifactStatus =
+    entityReturnSupportArtifacts.overallStatus === "blocked"
+      ? "blocked"
+      : entityReturnSupportArtifacts.overallStatus === "needs_review"
+        ? "waiting"
+        : "ready";
+  const entityReturnScheduleFamiliesStatus: TinaCpaHandoffArtifactStatus =
+    entityReturnScheduleFamilies.overallStatus === "blocked"
+      ? "blocked"
+      : entityReturnScheduleFamilies.overallStatus === "needs_review"
+        ? "waiting"
+        : "ready";
+  const entityReturnScheduleFamilyPayloadsStatus: TinaCpaHandoffArtifactStatus =
+    entityReturnScheduleFamilyPayloads.overallStatus === "blocked"
+      ? "blocked"
+      : entityReturnScheduleFamilyPayloads.overallStatus === "needs_review"
+        ? "waiting"
+        : "ready";
+  const entityReturnScheduleFamilyFinalizationsStatus: TinaCpaHandoffArtifactStatus =
+    entityReturnScheduleFamilyFinalizations.overallStatus === "blocked"
+      ? "blocked"
+      : entityReturnScheduleFamilyFinalizations.overallStatus === "needs_review"
+        ? "waiting"
+        : "ready";
+  const entityReturnPackagePlanStatus: TinaCpaHandoffArtifactStatus =
+    entityReturnPackagePlan.overallStatus === "blocked"
+      ? "blocked"
+      : entityReturnPackagePlan.overallStatus === "review_required"
+        ? "waiting"
+        : "ready";
   const reviewTreatmentItems = treatmentJudgment.items.filter(
     (item) => item.taxPositionBucket === "review"
   );
@@ -573,7 +743,7 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       : ownershipTimeline.events.some((event) => event.status === "assumed")
         ? "waiting"
         : "ready";
-  const reviewBundleFileCount = officialFormFill.formId ? 45 : 44;
+  const reviewBundleFileCount = officialFormFill.formId ? 51 : 50;
   const reviewBundleSourceMode =
     draft.packageSnapshots.length > 0 ? "immutable snapshot available" : "live draft";
 
@@ -599,6 +769,261 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
         ...startPath.reviewReasons.slice(0, 3),
       ],
       sourceDocumentIds: startPath.relatedDocumentIds,
+    }),
+    buildArtifact({
+      id: "entity-filing-remediation",
+      title: "Entity filing continuity and remediation",
+      status: entityFilingRemediationStatus,
+      summary:
+        entityFilingRemediationStatus === "ready"
+          ? "Tina has an aligned entity-filing story, so the current route and prior-return continuity are coherent."
+          : entityFilingRemediationStatus === "waiting"
+            ? "Tina has a likely entity-filing path, but continuity gaps still need reviewer-controlled cleanup."
+            : "Tina should fail closed because prior-return drift, election proof gaps, or missing-return backlog still change the route story.",
+      includes: [
+        `Overall status: ${entityFilingRemediation.overallStatus}`,
+        `Posture: ${entityFilingRemediation.posture.replace(/_/g, " ")}`,
+        `History status: ${entityFilingRemediation.historyStatus.replace(/_/g, " ")}`,
+        `Election status: ${entityFilingRemediation.electionStatus.replace(/_/g, " ")}`,
+        `Amendment status: ${entityFilingRemediation.amendmentStatus.replace(/_/g, " ")}`,
+        `Current lane: ${entityFilingRemediation.currentLaneId}`,
+        `Likely prior lanes: ${
+          entityFilingRemediation.likelyPriorLaneIds.length > 0
+            ? entityFilingRemediation.likelyPriorLaneIds.join(", ")
+            : "None"
+        }`,
+        `Blocked issues: ${entityFilingRemediation.blockedIssueCount}`,
+        `Review issues: ${entityFilingRemediation.reviewIssueCount}`,
+        ...entityFilingRemediation.priorityQuestions
+          .slice(0, 2)
+          .map((question) => `Question: ${question}`),
+        ...entityFilingRemediation.actions
+          .slice(0, 3)
+          .map((action) => `${action.title} [${action.status}]`),
+      ],
+      sourceDocumentIds: entityFilingRemediation.relatedDocumentIds,
+    }),
+    buildArtifact({
+      id: "single-member-entity-history-proof",
+      title: "Single-member entity-history proof",
+      status:
+        singleMemberEntityHistory.overallStatus === "not_applicable"
+          ? "ready"
+          : singleMemberEntityHistoryStatus,
+      summary:
+        singleMemberEntityHistory.overallStatus === "not_applicable"
+          ? "Tina does not currently see a single-member history issue that should travel with the packet."
+          : singleMemberEntityHistoryStatus === "ready"
+            ? "Tina sees a coherent single-member entity-history story with prior filings and books aligned enough to carry forward."
+            : singleMemberEntityHistoryStatus === "waiting"
+              ? "Tina sees a plausible single-member history, but owner-count, spouse-exception, or books-posture proof still needs reviewer control."
+              : "Tina should fail closed because owner history, spouse-exception proof, or transition-year books posture is still unresolved.",
+      includes: [
+        `Overall status: ${singleMemberEntityHistory.overallStatus}`,
+        `Posture: ${singleMemberEntityHistory.posture.replace(/_/g, " ")}`,
+        `Owner history: ${singleMemberEntityHistory.ownerHistoryStatus.replace(/_/g, " ")}`,
+        `Spouse exception: ${singleMemberEntityHistory.spouseExceptionStatus.replace(/_/g, " ")}`,
+        `Prior filing alignment: ${singleMemberEntityHistory.priorFilingAlignmentStatus.replace(/_/g, " ")}`,
+        `Transition year: ${singleMemberEntityHistory.transitionYearStatus.replace(/_/g, " ")}`,
+        `Books posture: ${singleMemberEntityHistory.booksPostureStatus.replace(/_/g, " ")}`,
+        `Blocked issues: ${singleMemberEntityHistory.blockedIssueCount}`,
+        `Review issues: ${singleMemberEntityHistory.reviewIssueCount}`,
+        ...singleMemberEntityHistory.questions
+          .slice(0, 2)
+          .map((question) => `Question: ${question}`),
+      ],
+      sourceDocumentIds: singleMemberEntityHistory.relatedDocumentIds,
+    }),
+    buildArtifact({
+      id: "single-owner-corporate-route-proof",
+      title: "Single-owner corporate route proof",
+      status:
+        singleOwnerCorporateRoute.overallStatus === "not_applicable"
+          ? "ready"
+          : singleOwnerCorporateRouteStatus,
+      summary:
+        singleOwnerCorporateRoute.overallStatus === "not_applicable"
+          ? "Tina does not currently see a single-owner corporate route problem that should travel with the packet."
+          : singleOwnerCorporateRouteStatus === "ready"
+            ? "Tina sees a single-owner corporate route with election and payroll posture that is coherent enough to carry forward."
+            : singleOwnerCorporateRouteStatus === "waiting"
+              ? "Tina sees a plausible single-owner corporate route, but election or owner-pay facts still need reviewer control."
+              : "Tina should fail closed because the single-owner corporate route or no-payroll S-corp posture is still unsafe.",
+      includes: [
+        `Overall status: ${singleOwnerCorporateRoute.overallStatus}`,
+        `Posture: ${singleOwnerCorporateRoute.posture.replace(/_/g, " ")}`,
+        `Election proof: ${singleOwnerCorporateRoute.electionProofStatus.replace(/_/g, " ")}`,
+        `Payroll requirement: ${singleOwnerCorporateRoute.payrollRequirementStatus.replace(/_/g, " ")}`,
+        `Owner services: ${singleOwnerCorporateRoute.ownerServiceStatus.replace(/_/g, " ")}`,
+        `Blocked issues: ${singleOwnerCorporateRoute.blockedIssueCount}`,
+        `Review issues: ${singleOwnerCorporateRoute.reviewIssueCount}`,
+        ...singleOwnerCorporateRoute.questions.slice(0, 2).map((question) => `Question: ${question}`),
+        ...singleOwnerCorporateRoute.issues
+          .slice(0, 2)
+          .map((issue) => `${issue.title} [${issue.severity}]`),
+      ],
+      sourceDocumentIds: singleOwnerCorporateRoute.relatedDocumentIds,
+    }),
+    buildArtifact({
+      id: "unknown-pattern-resolution",
+      title: "Unknown-pattern resolution",
+      status: unknownPatternStatus,
+      summary:
+        unknownPatternStatus === "ready"
+          ? "Tina does not currently see enough novelty pressure to break out of the known pattern."
+          : unknownPatternStatus === "waiting"
+            ? "Tina is holding multiple plausible explanations open until the reviewer narrows the file."
+            : "Tina sees a novel or unstable pattern and should block the nearest canned category until proof catches up.",
+      includes: [
+        `Overall status: ${unknownPatternEngine.overallStatus}`,
+        `Handling: ${unknownPatternEngine.recommendedHandling.replace(/_/g, " ")}`,
+        `Signals: ${unknownPatternEngine.signals.length}`,
+        `Hypotheses: ${unknownPatternEngine.hypotheses.length}`,
+        ...unknownPatternEngine.hypotheses
+          .slice(0, 3)
+          .map(
+            (hypothesis) =>
+              `${hypothesis.title} [${hypothesis.status} | ${hypothesis.confidence}]`
+          ),
+        ...unknownPatternEngine.customProofRequests
+          .slice(0, 2)
+          .map((request) => `Proof request: ${request}`),
+      ],
+      sourceDocumentIds: uniqueIds(
+        unknownPatternEngine.signals.flatMap((signal) => signal.relatedDocumentIds)
+      ),
+    }),
+    buildArtifact({
+      id: "confidence-calibration",
+      title: "Confidence calibration",
+      status: confidenceCalibrationStatus,
+      summary:
+        confidenceCalibrationStatus === "ready"
+          ? "Tina's claimed certainty and earned support are aligned across the major backend judgment domains."
+          : confidenceCalibrationStatus === "waiting"
+            ? "Tina is keeping some confidence under reviewer control because parts of the file are not fully earned yet."
+            : "Tina should fail closed because confidence debt is still blocking a safe reviewer-grade posture.",
+      includes: [
+        `Overall status: ${confidenceCalibration.overallStatus}`,
+        `Recommended posture: ${confidenceCalibration.recommendedPosture.replace(/_/g, " ")}`,
+        `Checks: ${confidenceCalibration.checks.length}`,
+        `Debt items: ${confidenceCalibration.debts.length}`,
+        ...confidenceCalibration.checks
+          .slice(0, 3)
+          .map(
+            (check) =>
+              `${check.title} [${check.status}] claimed ${check.claimedConfidence}, earned ${check.supportedConfidence}`
+          ),
+        ...confidenceCalibration.debts
+          .slice(0, 2)
+          .map((debt) => `Debt: ${debt.title} [${debt.severity}]`),
+      ],
+      sourceDocumentIds: uniqueIds(
+        confidenceCalibration.checks.flatMap((check) => check.relatedDocumentIds)
+      ),
+    }),
+    buildArtifact({
+      id: "case-memory-ledger",
+      title: "Durable case memory and decision ledger",
+      status: caseMemoryLedgerStatus,
+      summary:
+        caseMemoryLedgerStatus === "ready"
+          ? "Tina has a stable reviewer-approved anchor and a durable history of why the live package is still trustworthy."
+          : caseMemoryLedgerStatus === "waiting"
+            ? "Tina has reviewer history, but she still needs a fresh anchor before she should sound durably settled."
+            : "Tina remembers the reviewer history, but the live package drift or open overrides mean she should not lean on it yet.",
+      includes: [
+        `Overall status: ${caseMemoryLedger.overallStatus}`,
+        `Active anchor: ${caseMemoryLedger.activeAnchorSnapshotId ?? "None"}`,
+        `Open overrides: ${caseMemoryLedger.openOverrideCount}`,
+        `Drift reasons: ${caseMemoryLedger.driftReasons.length}`,
+        ...caseMemoryLedger.driftReasons.slice(0, 3),
+        ...caseMemoryLedger.overrides
+          .slice(0, 2)
+          .map((override) => `${override.summary} [${override.status}]`),
+        ...caseMemoryLedger.entries
+          .slice(0, 2)
+          .map((entry) => `${entry.title} [${entry.severity}]`),
+      ],
+    }),
+    buildArtifact({
+      id: "reviewer-override-governance",
+      title: "Reviewer override governance",
+      status: reviewerOverrideGovernanceStatus,
+      summary:
+        reviewerOverrideGovernanceStatus === "ready"
+          ? "Reviewer overrides are anchored tightly enough that Tina can keep them as bounded reusable guardrails."
+          : reviewerOverrideGovernanceStatus === "waiting"
+            ? "Reviewer overrides are still active, so Tina should keep some postures bounded and reviewer-controlled."
+            : "Reviewer overrides and acceptance deltas still need explicit policy follow-through before Tina widens certainty.",
+      includes: [
+        `Overall status: ${reviewerOverrideGovernance.overallStatus}`,
+        `Open overrides: ${reviewerOverrideGovernance.openOverrideCount}`,
+        `Anchored overrides: ${reviewerOverrideGovernance.anchoredOverrideCount}`,
+        `Policy updates still needed: ${reviewerOverrideGovernance.policyUpdateRequiredCount}`,
+        `Blocking acceptance deltas: ${reviewerOverrideGovernance.blockingAcceptanceDeltaCount}`,
+        ...reviewerOverrideGovernance.items
+          .slice(0, 3)
+          .map(
+            (item) =>
+              `${item.title} [${item.status} | ${item.policyState} | ${item.trustBoundary}]`
+          ),
+        ...reviewerOverrideGovernance.acceptanceDeltas
+          .slice(0, 2)
+          .map((delta) => `${delta.title} [${delta.status} | ${delta.severity}]`),
+        ...reviewerOverrideGovernance.recommendedBenchmarkScenarioIds
+          .slice(0, 2)
+          .map((scenarioId) => `Benchmark scenario: ${scenarioId}`),
+      ],
+    }),
+    buildArtifact({
+      id: "reviewer-policy-versioning",
+      title: "Reviewer policy versioning",
+      status: reviewerPolicyVersioningStatus,
+      summary:
+        reviewerPolicyVersioningStatus === "ready"
+          ? "Reviewer-approved lessons are benchmark-backed tightly enough to act like bounded reusable policy."
+          : reviewerPolicyVersioningStatus === "waiting"
+            ? "Reviewer policy tracks are maturing, but Tina still needs benchmark or release work before widening certainty."
+            : "Reviewer policy tracks are still blocked by open deltas, open overrides, or missing release maturity.",
+      includes: [
+        `Overall status: ${reviewerPolicyVersioning.overallStatus}`,
+        `Active policy tracks: ${reviewerPolicyVersioning.activePolicyCount}`,
+        `Ready to promote: ${reviewerPolicyVersioning.readyToPromoteCount}`,
+        `Benchmark coverage gaps: ${reviewerPolicyVersioning.benchmarkCoverageGapCount}`,
+        ...reviewerPolicyVersioning.items.slice(0, 3).map(
+          (item) =>
+            `${item.title} [${item.status} | ${item.benchmarkCoverageStatus}${item.currentVersionId ? ` | ${item.currentVersionId}` : ""}]`
+        ),
+        ...reviewerPolicyVersioning.items
+          .flatMap((item) => item.topPriorityBenchmarkScenarioIds)
+          .slice(0, 2)
+          .map((scenarioId) => `Top-priority benchmark: ${scenarioId}`),
+      ],
+      sourceDocumentIds: allDocumentIds,
+    }),
+    buildArtifact({
+      id: "reviewer-acceptance-reality",
+      title: "Reviewer acceptance reality",
+      status: reviewerAcceptanceRealityStatus,
+      summary:
+        reviewerAcceptanceRealityStatus === "ready"
+          ? "Observed reviewer outcomes are strong enough that Tina can lean on real acceptance history as a bounded trust signal."
+          : reviewerAcceptanceRealityStatus === "waiting"
+            ? "Tina has some observed reviewer acceptance history, but it is still thin or not durable enough to widen certainty aggressively."
+            : "Observed reviewer outcomes are regressing or stale enough that Tina should tighten trust language immediately.",
+      includes: [
+        `Overall status: ${reviewerAcceptanceReality.overallStatus}`,
+        `Observed themes: ${reviewerAcceptanceReality.totalObservedThemeCount}`,
+        `Observed acceptance rate: ${reviewerAcceptanceReality.observedAcceptanceRate}%`,
+        `Durable acceptance rate: ${reviewerAcceptanceReality.durableAcceptanceRate}%`,
+        `Top-priority accepted coverage: ${reviewerAcceptanceReality.topPriorityAcceptedCoverageCount}`,
+        ...reviewerAcceptanceReality.items.slice(0, 3).map(
+          (item) =>
+            `${item.title} [${item.outcome}${item.policyTrackStatus ? ` | ${item.policyTrackStatus}` : ""}]`
+        ),
+      ],
+      sourceDocumentIds: allDocumentIds,
     }),
     buildArtifact({
       id: "entity-treatment-judgment",
@@ -667,6 +1092,145 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
         entityEconomicsReadiness.checks.flatMap((check) => check.relatedDocumentIds)
       ),
     }),
+      buildArtifact({
+        id: "owner-flow-basis-adjudication",
+        title: "Owner-flow and basis adjudication",
+        status: ownerFlowBasisStatus,
+        summary:
+          ownerFlowBasisStatus === "ready"
+            ? "Tina has a coherent owner-flow and basis story that can travel into return calculations and reviewer artifacts."
+            : ownerFlowBasisStatus === "waiting"
+              ? "Tina sees the owner-flow and basis shape, but reviewer control still matters around footing, rollforward continuity, or transition economics."
+              : "Tina still has blocked owner-flow or basis-sensitive areas around footing, rollforward continuity, loan/equity posture, or transition economics that can change treatment materially.",
+        includes: [
+          `Opening footing: ${ownerFlowBasis.openingFootingStatus.replace(/_/g, " ")}`,
+          `Basis rollforward: ${ownerFlowBasis.basisRollforwardStatus.replace(/_/g, " ")}`,
+          `Loan versus equity: ${ownerFlowBasis.loanEquityStatus.replace(/_/g, " ")}`,
+          `Distribution taxability: ${ownerFlowBasis.distributionTaxabilityStatus.replace(/_/g, " ")}`,
+          `Transition economics: ${ownerFlowBasis.transitionEconomicsStatus.replace(/_/g, " ")}`,
+          `Adjudication items: ${ownerFlowBasis.items.length}`,
+          ...ownerFlowBasis.items
+            .slice(0, 4)
+          .map((item) => `${item.title} [${item.status} | ${item.sensitivity}]`),
+      ],
+      sourceDocumentIds: uniqueIds(
+        ownerFlowBasis.items.flatMap((item) => item.relatedDocumentIds)
+      ),
+    }),
+    buildArtifact({
+      id: "entity-return-calculations",
+      title: "Entity return calculations",
+      status: entityReturnCalculationsStatus,
+      summary:
+        entityReturnCalculationsStatus === "ready"
+          ? "Tina has structured non-Schedule-C return values she can carry into rendered package artifacts."
+          : entityReturnCalculationsStatus === "waiting"
+            ? "Tina has structured non-Schedule-C return values, but reviewer-controlled completion still matters."
+            : "Tina still lacks enough route, record, or economics support to trust the non-Schedule-C return values.",
+      includes: [
+        `Calculation items: ${entityReturnCalculations.items.length}`,
+        ...entityReturnCalculations.items
+          .slice(0, 4)
+          .map(
+            (item) => `${item.title} [${item.status}] (${item.fields.length} structured values)`
+          ),
+      ],
+      sourceDocumentIds: uniqueIds(
+        entityReturnCalculations.items.flatMap((item) => item.relatedDocumentIds)
+      ),
+    }),
+    buildArtifact({
+      id: "entity-return-schedule-families",
+      title: "Entity return schedule families",
+      status: entityReturnScheduleFamiliesStatus,
+      summary:
+        entityReturnScheduleFamiliesStatus === "ready"
+          ? "Tina now carries explicit K-1, Schedule L, M-family, capital, and shareholder-flow schedule artifacts behind this entity return family."
+          : entityReturnScheduleFamiliesStatus === "waiting"
+            ? "Tina now carries explicit entity schedule-family artifacts, but some still need reviewer-controlled completion."
+            : "Tina still has blocked K-1, Schedule L, M-family, capital, or shareholder-flow schedule artifacts behind this entity return family.",
+      includes: [
+        `Schedule families: ${entityReturnScheduleFamilies.items.length}`,
+        ...entityReturnScheduleFamilies.items
+          .slice(0, 5)
+          .map(
+            (item) =>
+              `${item.title} [${item.status}] (${item.supportedFieldCount}/${item.fieldCount} supported fields)`
+          ),
+      ],
+      sourceDocumentIds: uniqueIds(
+        entityReturnScheduleFamilies.items.flatMap((item) => item.relatedDocumentIds)
+      ),
+    }),
+    buildArtifact({
+      id: "entity-return-schedule-family-payloads",
+      title: "Entity return schedule-family payloads",
+      status: entityReturnScheduleFamilyPayloadsStatus,
+      summary:
+        entityReturnScheduleFamilyPayloadsStatus === "ready"
+          ? "Tina now carries sectioned K-1, Schedule L, M-family, capital, and flow payloads as near-filing-grade package truth behind this entity return family."
+          : entityReturnScheduleFamilyPayloadsStatus === "waiting"
+            ? "Tina now carries sectioned schedule-family payloads, but some still need reviewer-controlled completion before they behave filing-grade."
+            : "Tina still has blocked schedule-family payloads behind this entity return family.",
+      includes: [
+        `Schedule-family payloads: ${entityReturnScheduleFamilyPayloads.items.length}`,
+        ...entityReturnScheduleFamilyPayloads.items
+          .slice(0, 5)
+          .map(
+            (item) =>
+              `${item.title} [${item.status} | ${item.payloadReadiness} | ${item.completionPercent}% complete]`
+          ),
+      ],
+      sourceDocumentIds: uniqueIds(
+        entityReturnScheduleFamilyPayloads.items.flatMap((item) => item.relatedDocumentIds)
+      ),
+    }),
+    buildArtifact({
+      id: "entity-return-schedule-family-finalizations",
+      title: "Entity return schedule-family finalizations",
+      status: entityReturnScheduleFamilyFinalizationsStatus,
+      summary:
+        entityReturnScheduleFamilyFinalizationsStatus === "ready"
+          ? "Tina now carries line-oriented K-1, Schedule L, M-family, capital, and flow finalizations behind this entity return family."
+          : entityReturnScheduleFamilyFinalizationsStatus === "waiting"
+            ? "Tina now carries line-oriented schedule-family finalizations, but some still need reviewer-controlled completion before they behave filing-grade."
+            : "Tina still has blocked schedule-family finalization outputs behind this entity return family.",
+      includes: [
+        `Schedule-family finalizations: ${entityReturnScheduleFamilyFinalizations.items.length}`,
+        ...entityReturnScheduleFamilyFinalizations.items
+          .slice(0, 5)
+          .map(
+            (item) =>
+              `${item.title} [${item.status} | ${item.finalizationReadiness} | ${item.completionPercent}%]`
+          ),
+      ],
+      sourceDocumentIds: uniqueIds(
+        entityReturnScheduleFamilyFinalizations.items.flatMap((item) => item.relatedDocumentIds)
+      ),
+    }),
+    buildArtifact({
+      id: "entity-return-support-artifacts",
+      title: "Entity return support artifacts",
+      status: entityReturnSupportArtifactsStatus,
+      summary:
+        entityReturnSupportArtifactsStatus === "ready"
+          ? "Tina has explicit K-1, capital, balance-sheet, equity, or compensation support artifacts behind this entity return family."
+          : entityReturnSupportArtifactsStatus === "waiting"
+            ? "Tina has explicit entity support artifacts, but some still need reviewer-controlled completion."
+            : "Tina still has blocked K-1, capital, balance-sheet, equity, or compensation support artifacts behind this entity return family.",
+      includes: [
+        `Support artifacts: ${entityReturnSupportArtifacts.items.length}`,
+        ...entityReturnSupportArtifacts.items
+          .slice(0, 5)
+          .map(
+            (item) =>
+              `${item.title} [${item.status}] (${item.supportedFieldCount}/${item.fieldCount} supported fields)`
+          ),
+      ],
+      sourceDocumentIds: uniqueIds(
+        entityReturnSupportArtifacts.items.flatMap((item) => item.relatedDocumentIds)
+      ),
+    }),
     buildArtifact({
       id: "entity-return-runbook",
       title: "Entity return runbook",
@@ -683,6 +1247,30 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
           .slice(0, 5)
           .map((step) => `${step.title} [${step.status} | ${step.audience}]`),
       ],
+    }),
+    buildArtifact({
+      id: "entity-return-package-plan",
+      title: "Entity return package plan",
+      status: entityReturnPackagePlanStatus,
+      summary:
+        entityReturnPackagePlanStatus === "ready"
+          ? "Tina now names the actual return-family deliverables for this lane, not just the runbook."
+          : entityReturnPackagePlanStatus === "waiting"
+            ? "Tina can name the return-family deliverables, but some are still reviewer-controlled."
+            : "Tina can name the return-family deliverables, but some are still blocked by route, record, or economics gaps.",
+      includes: [
+        `Execution mode: ${entityReturnPackagePlan.executionMode}`,
+        `Package items: ${entityReturnPackagePlan.items.length}`,
+        ...entityReturnPackagePlan.items
+          .slice(0, 5)
+          .map(
+            (item) =>
+              `${item.title} [${item.status} | ${item.kind} | ${item.executionOwner}]`
+          ),
+      ],
+      sourceDocumentIds: uniqueIds(
+        entityReturnPackagePlan.items.flatMap((item) => item.relatedDocumentIds)
+      ),
     }),
     buildArtifact({
       id: "ownership-timeline",
@@ -747,6 +1335,33 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
         requiredChecklistItems.length > 0
           ? `${formatCount(requiredChecklistItems.length, "required ask")} still open`
           : "Required paper asks are covered",
+      ],
+      sourceDocumentIds: allDocumentIds,
+    }),
+    buildArtifact({
+      id: "reviewer-learning-loop",
+      title: "Reviewer learning loop",
+      status: reviewerLearningLoopStatus,
+      summary:
+        reviewerLearningLoopStatus === "ready"
+          ? "Tina has anchored reviewer lessons and is preserving them as reusable backend guardrails."
+          : reviewerLearningLoopStatus === "waiting"
+            ? "Tina has reviewer lessons queued for policy and regression reuse, but none are severe enough to stop the whole file."
+            : "Tina has reviewer lessons that should become explicit policy and regression updates before confidence widens again.",
+      includes: [
+        `Overall status: ${reviewerLearningLoop.overallStatus}`,
+        `Active lessons: ${reviewerLearningLoop.activeLessonCount}`,
+        `Anchored lessons: ${reviewerLearningLoop.anchoredLessonCount}`,
+        `Policy candidates: ${reviewerLearningLoop.policyCandidateCount}`,
+        ...reviewerLearningLoop.policyCandidates
+          .slice(0, 3)
+          .map((candidate) => `${candidate.title} [${candidate.priority}]`),
+        ...reviewerLearningLoop.regressionTargets
+          .slice(0, 2)
+          .map(
+            (target) =>
+              `${target.title}${target.fixtureId ? ` (${target.fixtureId})` : ""}`
+          ),
       ],
       sourceDocumentIds: allDocumentIds,
     }),
@@ -892,9 +1507,9 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       status: officialFormExecutionStatus,
       summary:
         officialFormExecutionStatus === "ready"
-          ? "Tina has a coherent blank-form execution stack for the current federal lane."
+          ? "Tina has a coherent render-plan-backed execution stack for the current federal lane."
           : officialFormExecutionStatus === "waiting"
-            ? "Tina has an execution stack, but some forms still need reviewer-controlled cleanup."
+            ? "Tina has a render-plan-backed execution stack, but some forms still need reviewer-controlled cleanup."
             : "Tina still has blocked form-execution work before she should act finished.",
       includes: [
         `Execution items: ${officialFormExecution.items.length}`,
@@ -938,6 +1553,10 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
             : "Tina still sees blocked books-to-return reconciliation checks.",
       includes: [
         `Reconciliation checks: ${booksReconciliation.checks.length}`,
+        `Material variances: ${booksReconciliation.materialVarianceCount}`,
+        `Unsupported balances: ${booksReconciliation.unsupportedBalanceCount}`,
+        `Ledger blocked groups: ${ledgerReconstruction.blockedGroupCount}`,
+        `Evidence credibility: ${evidenceCredibility.overallStatus}`,
         ...booksReconciliation.checks
           .slice(0, 4)
           .map((check) => `${check.title} [${check.status}]`),
@@ -958,6 +1577,8 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
             : "Tina is still missing critical bookkeeping artifacts that keep the accounting picture from feeling veteran-grade.",
       includes: [
         `Coverage items: ${accountingArtifactCoverage.items.length}`,
+        `Ledger concentration groups: ${ledgerReconstruction.concentratedGroupCount}`,
+        `Blocking credibility factors: ${evidenceCredibility.blockingFactorCount}`,
         ...accountingArtifactCoverage.items
           .slice(0, 4)
           .map((item) => `${item.title} [${item.status} | ${item.criticality}]`),
@@ -965,6 +1586,29 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       sourceDocumentIds: uniqueIds(
         accountingArtifactCoverage.items.flatMap((item) => item.matchedDocumentIds)
       ),
+    }),
+    buildArtifact({
+      id: "payroll-compliance-reconstruction",
+      title: "Payroll compliance reconstruction",
+      status:
+        payrollCompliance.overallStatus === "not_applicable"
+          ? "ready"
+          : payrollComplianceStatus,
+      summary:
+        payrollCompliance.overallStatus === "not_applicable"
+          ? "Tina does not currently see a payroll compliance story that should travel with the packet."
+          : payrollComplianceStatus === "ready"
+            ? "Tina sees a coherent payroll operations and compliance trail."
+            : payrollComplianceStatus === "waiting"
+              ? "Payroll support is present, but Tina still wants reviewer control over payroll compliance or labor classification."
+              : "Payroll activity appears real, but filings, deposits, or owner-compensation proof are still broken.",
+      includes: [
+        `Posture: ${payrollCompliance.posture.replace(/_/g, " ")}`,
+        `Worker classification: ${payrollCompliance.workerClassification.replace(/_/g, " ")}`,
+        `Likely missing filings: ${payrollCompliance.likelyMissingFilings.join(", ") || "None"}`,
+        ...payrollCompliance.questions.slice(0, 2),
+      ],
+      sourceDocumentIds: payrollCompliance.relatedDocumentIds,
     }),
     buildArtifact({
       id: "books-normalization",
@@ -1042,6 +1686,26 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       ],
       sourceDocumentIds: uniqueIds(
         companionFormCalculations.items.flatMap((item) => item.relatedDocumentIds)
+      ),
+    }),
+    buildArtifact({
+      id: "companion-form-render-plan",
+      title: "Companion form render plan",
+      status: companionFormRenderPlanStatus,
+      summary:
+        companionFormRenderPlanStatus === "ready"
+          ? "Tina has explicit companion-form field payloads that are ready to drive preview rendering."
+          : companionFormRenderPlanStatus === "waiting"
+            ? "Tina has companion-form field payloads, but some still need reviewer-controlled completion."
+            : "Tina still lacks enough support to trust the companion-form render payloads.",
+      includes: [
+        `Render-plan items: ${companionFormRenderPlan.items.length}`,
+        ...companionFormRenderPlan.items
+          .slice(0, 4)
+          .map((item) => `${item.title} [${item.status}] (${item.fieldValues.length} fields)`),
+      ],
+      sourceDocumentIds: uniqueIds(
+        companionFormRenderPlan.items.flatMap((item) => item.relatedDocumentIds)
       ),
     }),
     buildArtifact({

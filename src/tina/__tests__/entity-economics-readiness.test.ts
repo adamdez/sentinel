@@ -65,5 +65,10 @@ describe("entity-economics-readiness", () => {
     expect(readiness.overallStatus).toBe("blocked");
     expect(readiness.checks.find((check) => check.id === "partner-capital")?.status).toBe("blocked");
     expect(readiness.checks.find((check) => check.id === "partner-transfers")?.status).toBe("blocked");
+    expect(
+      readiness.checks
+        .find((check) => check.id === "partner-capital")
+        ?.relatedDocumentIds.includes("doc-operating")
+    ).toBe(true);
   });
 });

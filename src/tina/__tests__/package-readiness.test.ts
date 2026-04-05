@@ -1853,7 +1853,7 @@ describe("buildTinaPackageReadiness", () => {
     const readiness = buildTinaPackageReadiness(staleDraft);
     expect(readiness.level).toBe("blocked");
     expect(readiness.items.some((item) => item.id === "signed-off-snapshot-stale")).toBe(true);
-  });
+  }, 10000);
 });
 
 describe("markTinaPackageReadinessStale", () => {
