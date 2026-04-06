@@ -977,6 +977,32 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
   }, [cf.propertyId]);
 
+  const [legalDocs, setLegalDocs] = useState<{ id: string; document_type: string; case_number: string | null; instrument_number: string | null; amount: number | null; recording_date: string | null; status: string }[]>([]);
+
+  useEffect(() => {
+
+    if (!cf.id) return;
+
+    (async () => {
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
+      const { data } = await (supabase.from("recorded_documents") as any)
+
+        .select("id, document_type, case_number, instrument_number, amount, recording_date, status")
+
+        .eq("lead_id", cf.id)
+
+        .order("recording_date", { ascending: false, nullsFirst: false })
+
+        .limit(5);
+
+      if (data) setLegalDocs(data);
+
+    })();
+
+  }, [cf.id]);
+
 
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1323,6 +1349,44 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
             );
 
           })()}
+
+          {/* Legal records one-liners — fast decision context */}
+
+          {legalDocs.length > 0 && (
+
+            <div className="mt-2 space-y-1 border-t border-overlay-6 pt-2">
+
+              {legalDocs.map((doc) => {
+
+                const label = doc.document_type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+                const ref = doc.case_number ? `Case #${doc.case_number}` : doc.instrument_number ? `Instr. ${doc.instrument_number}` : null;
+
+                const amount = doc.amount ? `$${Number(doc.amount).toLocaleString()}` : null;
+
+                const date = doc.recording_date ? new Date(doc.recording_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "2-digit" }) : null;
+
+                const parts = [ref, amount, date].filter(Boolean);
+
+                return (
+
+                  <p key={doc.id} className="text-[10px] leading-tight truncate">
+
+                    <span className="font-medium text-muted-foreground">{label}</span>
+
+                    {parts.length > 0 && <span className="text-muted-foreground/50"> — {parts.join(" · ")}</span>}
+
+                    {doc.status === "active" && <span className="ml-1 text-amber-500/70 font-medium">active</span>}
+
+                  </p>
+
+                );
+
+              })}
+
+            </div>
+
+          )}
 
         </div>
 

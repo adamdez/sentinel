@@ -341,8 +341,21 @@ function filterDocumentsForInput(
   input: LegalSearchInput,
   sourceLabel: string,
 ): NormalizedDocument[] {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - 24);
+
   let rejected = 0;
+  let dateRejected = 0;
   const filtered = docs.filter((doc) => {
+    // Date filter: exclude documents older than 24 months (only when date is known)
+    if (doc.recordingDate) {
+      const recDate = new Date(doc.recordingDate);
+      if (!isNaN(recDate.getTime()) && recDate < cutoff) {
+        dateRejected += 1;
+        return false;
+      }
+    }
+
     const assessment = assessLegalDocumentMatch(doc, input);
     if (!assessment.accepted) {
       rejected += 1;
@@ -351,6 +364,9 @@ function filterDocumentsForInput(
     return true;
   });
 
+  if (dateRejected > 0) {
+    console.log(`[LegalSearch:${sourceLabel}] Filtered ${dateRejected} documents older than 24 months`);
+  }
   if (rejected > 0) {
     console.log(`[LegalSearch:${sourceLabel}] Filtered ${rejected} low-confidence documents; kept ${filtered.length}`);
   }
@@ -550,13 +566,131 @@ const LIEN_SCHEMA = {
 
 async function searchRecorder(
   input: LegalSearchInput,
-  apiKey: string,
+  apiKey?: string,
 ): Promise<NormalizedDocument[]> {
   const docs: NormalizedDocument[] = [];
   const owner = parseOwnerName(input.ownerName);
   const { last, first } = owner;
   const ownerPhrase = owner.fullNameVariants[0] ?? input.ownerName;
   const nameQuery = owner.surnameCandidates[0] ?? last;
+
+  // Plain-fetch fallback: use APN direct search when no Firecrawl key
+  if (!apiKey) {
+    if (!input.apn || input.apn.startsWith("MANUAL-")) {
+      return [];
+    }
+
+    try {
+      const today = new Date();
+      const twoYearsAgo = new Date();
+      twoYearsAgo.setFullYear(today.getFullYear() - 2);
+      const fmt = (d: Date) =>
+        `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}/${d.getFullYear()}`;
+
+      const recorderApnUrl =
+        `https://recording.spokanecounty.org/recorder/web/doclist.jsp` +
+        `?searchType=APN` +
+        `&parcelNumber=${encodeURIComponent(input.apn)}` +
+        `&dateFrom=${encodeURIComponent(fmt(twoYearsAgo))}` +
+        `&dateTo=${encodeURIComponent(fmt(today))}` +
+        `&submit=Search`;
+
+      console.log(`[LegalSearch:Recorder] Plain-fetch APN search for "${input.apn}"`);
+      const res = await fetch(recorderApnUrl, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) {
+        console.warn(`[LegalSearch:Recorder] APN fetch failed: ${res.status}`);
+        return [];
+      }
+      const html = await res.text();
+
+      // Extract instrument numbers (Spokane uses 7-9 digit instrument numbers)
+      const instrumentRe = /\b(\d{7,9})\b/g;
+      const dateRe = /(\d{1,2}\/\d{1,2}\/\d{4})/g;
+      const docTypeKeywords = ["deed", "trust", "lien", "judgment", "probate", "foreclosure", "release", "reconveyance", "assignment"];
+
+      const instrumentMatches: string[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = instrumentRe.exec(html)) !== null) {
+        if (!instrumentMatches.includes(m[1])) {
+          instrumentMatches.push(m[1]);
+        }
+      }
+
+      const dateMatches: string[] = [];
+      while ((m = dateRe.exec(html)) !== null) {
+        if (!dateMatches.includes(m[1])) {
+          dateMatches.push(m[1]);
+        }
+      }
+
+      // Extract table rows to pair instrument/date/type/names
+      // Look for <tr> blocks and pull out cell content
+      const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      const cellRe = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+      const stripTags = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+      const rows: string[][] = [];
+      let rowMatch: RegExpExecArray | null;
+      while ((rowMatch = rowRe.exec(html)) !== null) {
+        const cells: string[] = [];
+        let cellMatch: RegExpExecArray | null;
+        const rowHtml = rowMatch[1];
+        const cellPattern = new RegExp(cellRe.source, "gi");
+        while ((cellMatch = cellPattern.exec(rowHtml)) !== null) {
+          cells.push(stripTags(cellMatch[1]));
+        }
+        if (cells.length >= 2) rows.push(cells);
+      }
+
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - 24);
+
+      for (const cells of rows) {
+        const rowText = cells.join(" ").toLowerCase();
+        const hasDocKeyword = docTypeKeywords.some((kw) => rowText.includes(kw));
+        const instrMatch = cells.join(" ").match(/\b(\d{7,9})\b/);
+        const dateStr = cells.join(" ").match(/(\d{1,2}\/\d{1,2}\/\d{4})/)?.[1] ?? null;
+        const recDate = dateStr ? new Date(dateStr) : null;
+
+        if (!instrMatch && !hasDocKeyword) continue;
+        if (recDate && !isNaN(recDate.getTime()) && recDate < cutoff) continue;
+
+        const rawType = docTypeKeywords.find((kw) => rowText.includes(kw)) ?? "";
+        const docType = classifyDocumentType(rawType);
+        const grantor = cells[2] ?? null;
+        const grantee = cells[3] ?? null;
+
+        docs.push({
+          documentType: docType === "unknown" ? "recorded_document" : docType,
+          instrumentNumber: instrMatch ? instrMatch[1] : null,
+          recordingDate: dateStr ? normalizeDate(dateStr) : null,
+          documentDate: null,
+          grantor: grantor && grantor.length > 1 ? grantor : null,
+          grantee: grantee && grantee.length > 1 ? grantee : null,
+          amount: null,
+          lenderName: grantee && grantee.length > 1 ? grantee : null,
+          status: inferStatus(docType),
+          caseNumber: null,
+          courtName: null,
+          caseType: null,
+          attorneyName: null,
+          contactPerson: null,
+          nextHearingDate: null,
+          eventDescription: rawType || null,
+          source: "spokane_recorder",
+          sourceUrl: recorderApnUrl,
+          rawExcerpt: cells.join(" ").slice(0, 500) || null,
+        });
+      }
+
+      console.log(`[LegalSearch:Recorder] Plain-fetch extracted ${docs.length} candidate docs`);
+    } catch (err) {
+      console.warn("[LegalSearch:Recorder] Plain-fetch error:", err);
+      return [];
+    }
+
+    return filterDocumentsForInput(docs, input, "Recorder");
+  }
 
   // Strategy 1: Use Firecrawl actions to interact with the recorder search form.
   // The guest login at loginPOST.jsp?guest=true auto-redirects to the search page.
@@ -666,16 +800,38 @@ async function searchRecorder(
 
 async function searchCourts(
   input: LegalSearchInput,
-  apiKey: string,
+  apiKey?: string,
 ): Promise<NormalizedDocument[]> {
   const docs: NormalizedDocument[] = [];
   const owner = parseOwnerName(input.ownerName);
   const { last, first } = owner;
   const ownerPhrase = owner.fullNameVariants[0] ?? input.ownerName;
 
+  // Construct the direct WA Courts name search URL (used by both paths)
+  const courtSearchUrl = `https://dw.courts.wa.gov/index.cfm?fa=home.namesearchresult&terms=accept&county=32&last=${encodeURIComponent(last)}&first=${encodeURIComponent(first)}&middle=&SearchType=&SearchMode=&SoundexType=&partyType=&courtClassCode=&caseYear=&casePinNumber=&DisableSessionCheck=0&CaseSearchType=`;
+
+  // Plain-fetch fallback: GET the WA Courts URL directly and run regex extraction
+  if (!apiKey) {
+    try {
+      console.log(`[LegalSearch:Courts] Plain-fetch for "${last}, ${first}"`);
+      const res = await fetch(courtSearchUrl, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) {
+        console.warn(`[LegalSearch:Courts] Plain-fetch failed: ${res.status}`);
+        return [];
+      }
+      const html = await res.text();
+      const extracted = extractCasesFromText(html, courtSearchUrl);
+      console.log(`[LegalSearch:Courts] Plain-fetch extracted ${extracted.length} cases`);
+      docs.push(...extracted);
+    } catch (err) {
+      console.warn("[LegalSearch:Courts] Plain-fetch error:", err);
+      return [];
+    }
+    return filterDocumentsForInput(docs, input, "Courts");
+  }
+
   // Strategy 1: Construct a direct WA Courts name search URL.
   // This submits the search server-side — no form interaction needed.
-  const courtSearchUrl = `https://dw.courts.wa.gov/index.cfm?fa=home.namesearchresult&terms=accept&county=32&last=${encodeURIComponent(last)}&first=${encodeURIComponent(first)}&middle=&SearchType=&SearchMode=&SoundexType=&partyType=&courtClassCode=&caseYear=&casePinNumber=&DisableSessionCheck=0&CaseSearchType=`;
   const { extract: courtExtract, markdown: courtMd } = await firecrawlScrape(
     courtSearchUrl,
     COURT_CASE_SCHEMA,
@@ -839,8 +995,14 @@ function normalizeDate(dateStr: string): string | null {
 
 async function searchLiens(
   input: LegalSearchInput,
-  apiKey: string,
+  apiKey?: string,
 ): Promise<NormalizedDocument[]> {
+  // Without Firecrawl web search, lien data adds no value — tax delinquency
+  // is already covered by SCOUT data stored in owner_flags.
+  if (!apiKey) {
+    return [];
+  }
+
   const docs: NormalizedDocument[] = [];
   const owner = parseOwnerName(input.ownerName);
   const { last, first } = owner;
@@ -939,7 +1101,7 @@ function deduplicateDocuments(docs: NormalizedDocument[]): NormalizedDocument[] 
 
 export async function runLegalSearch(
   input: LegalSearchInput,
-  apiKey: string,
+  apiKey?: string,
 ): Promise<{ documents: NormalizedDocument[]; errors: string[] }> {
   const errors: string[] = [];
 

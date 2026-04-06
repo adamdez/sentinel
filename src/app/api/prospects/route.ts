@@ -1764,6 +1764,118 @@ export async function POST(req: NextRequest) {
                 },
               })
               .eq("id", property.id);
+
+            // ── Fix 1: Write real APN back to properties.apn ──────────
+            // Manual leads are created with apn = MANUAL-{timestamp}.
+            // Once GIS resolves the real parcel number, write it back so
+            // the Scout backfill can find this property by APN.
+            if (effectiveGisData.parcelNumber && finalApn.startsWith("MANUAL-")) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (sb.from("properties") as any)
+                .update({ apn: effectiveGisData.parcelNumber })
+                .eq("id", property.id);
+              console.log(
+                `[API/prospects POST] APN back-filled: ${finalApn} → ${effectiveGisData.parcelNumber}`,
+              );
+            }
+
+            // ── Fix 2: Auto-trigger Scout for Spokane, WA leads ──────
+            // Only run when we have a real parcel number and the property
+            // is in Spokane County, WA. Failure is non-fatal.
+            const scoutCounty = finalCounty;
+            const scoutState = (state?.trim().toUpperCase()) || "WA";
+            if (
+              effectiveGisData.parcelNumber &&
+              scoutCounty.includes("spokane") &&
+              scoutState === "WA"
+            ) {
+              const scoutNow = new Date().toISOString();
+              try {
+                const { fetchSpokaneScoutSummary } = await import(
+                  "@/providers/spokane-scout/adapter"
+                );
+                const scoutSummary = await fetchSpokaneScoutSummary(
+                  effectiveGisData.parcelNumber,
+                );
+
+                const scoutData = scoutSummary
+                  ? {
+                      owner_name: scoutSummary.ownerName,
+                      taxpayer_name: scoutSummary.taxpayerName,
+                      site_address: scoutSummary.siteAddress,
+                      assessed_tax_year: scoutSummary.assessedTaxYear,
+                      assessed_value: scoutSummary.assessedValue,
+                      land_value: scoutSummary.landValue,
+                      improvement_value: scoutSummary.improvementValue,
+                      total_charges_owing: scoutSummary.totalChargesOwing,
+                      current_tax_year: scoutSummary.currentTaxYear,
+                      current_annual_taxes: scoutSummary.currentAnnualTaxes,
+                      current_remaining_charges_owing:
+                        scoutSummary.currentRemainingChargesOwing,
+                      year_built: scoutSummary.yearBuilt,
+                      gross_living_area_sqft: scoutSummary.grossLivingAreaSqft,
+                      bedrooms: scoutSummary.bedrooms,
+                      half_baths: scoutSummary.halfBaths,
+                      full_baths: scoutSummary.fullBaths,
+                      last_sale_date: scoutSummary.lastSaleDate,
+                      last_sale_price: scoutSummary.lastSalePrice,
+                      photo_count: scoutSummary.photoCount,
+                      source_url: scoutSummary.sourceUrl,
+                    }
+                  : null;
+
+                // Check for owner name mismatch (fuzzy — at least one surname token must match)
+                let scoutParcelMismatch = false;
+                if (scoutSummary?.taxpayerName && owner_name) {
+                  const tokenize = (s: string) =>
+                    s
+                      .toLowerCase()
+                      .replace(/[^a-z\s]/g, "")
+                      .split(/\s+/)
+                      .filter(Boolean);
+                  const taxpayerTokens = tokenize(scoutSummary.taxpayerName);
+                  const ownerTokens = tokenize(owner_name);
+                  const hasOverlap = taxpayerTokens.some((t) =>
+                    ownerTokens.includes(t),
+                  );
+                  if (!hasOverlap) scoutParcelMismatch = true;
+                }
+
+                // Re-read owner_flags fresh to avoid clobbering concurrent writes
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { data: currentProp3 } = await (sb.from("properties") as any)
+                  .select("owner_flags")
+                  .eq("id", property.id)
+                  .single();
+                const flags3 = (currentProp3?.owner_flags ?? {}) as Record<
+                  string,
+                  unknown
+                >;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (sb.from("properties") as any)
+                  .update({
+                    owner_flags: {
+                      ...flags3,
+                      scout_data: scoutData,
+                      scout_data_at: scoutSummary?.fetchedAt ?? scoutNow,
+                      ...(scoutParcelMismatch
+                        ? { scout_parcel_mismatch: true }
+                        : {}),
+                    },
+                  })
+                  .eq("id", property.id);
+
+                console.log(
+                  `[API/prospects POST] Scout data stored for APN ${effectiveGisData.parcelNumber} (found: ${!!scoutSummary}, mismatch: ${scoutParcelMismatch})`,
+                );
+              } catch (scoutErr) {
+                // Scout failure must never block lead creation
+                console.error(
+                  "[API/prospects POST] Auto-Scout fetch failed (non-fatal):",
+                  scoutErr,
+                );
+              }
+            }
           }
         }
 
@@ -1834,6 +1946,164 @@ export async function POST(req: NextRequest) {
 
     // Wait for enrichment to complete (it's fast — just DB writes + scoring)
     await enrichmentPromise;
+
+    // ── Task D: Auto-trigger county legal search for manual Spokane leads ────
+    // Fire-and-forget — runs after enrichment so scout_data / real APN are ready.
+    // Failure is non-fatal and never blocks the lead creation response.
+    if (sourceChannel === "manual" && finalCounty.includes("spokane")) {
+      (async () => {
+        try {
+          const { createHash: lsHash } = await import("crypto");
+          const { runLegalSearch, assessLegalDocumentMatch } =
+            await import("@/lib/county-legal-search");
+
+          // Re-read property to pick up real APN + scout_data written by enrichment
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: lsProp } = await (sb.from("properties") as any)
+            .select("apn, county, address, city, owner_name, owner_flags")
+            .eq("id", property.id)
+            .single();
+          if (!lsProp) return;
+
+          const lsFlags = (lsProp.owner_flags ?? {}) as Record<string, unknown>;
+          const lsScout = (lsFlags.scout_data ?? {}) as Record<string, unknown>;
+          const lsOwner: string =
+            typeof lsScout.taxpayer_name === "string" && lsScout.taxpayer_name.trim()
+              ? lsScout.taxpayer_name.trim()
+              : (lsProp.owner_name as string);
+          const lsRawApn = lsProp.apn as string;
+          const lsApn: string =
+            lsRawApn.startsWith("MANUAL-") &&
+            typeof lsFlags.gis_parcel_number === "string" &&
+            lsFlags.gis_parcel_number.trim()
+              ? lsFlags.gis_parcel_number.trim()
+              : lsRawApn;
+
+          const lsInput = {
+            ownerName: lsOwner,
+            address: lsProp.address as string,
+            apn: lsApn,
+            county: lsProp.county as string,
+            city: (lsProp.city as string) || "",
+          };
+
+          const { documents: lsRaw } = await runLegalSearch(
+            lsInput,
+            process.env.FIRECRAWL_API_KEY,
+          );
+          const lsAccepted = lsRaw.filter(
+            (d) => assessLegalDocumentMatch(d, lsInput).accepted,
+          );
+
+          const lsNow = new Date().toISOString();
+          const LS_DISTRESS_MAP: Record<string, string> = {
+            probate_petition: "probate",
+            foreclosure_notice: "pre_foreclosure",
+            lis_pendens: "pre_foreclosure",
+            trustee_sale_notice: "pre_foreclosure",
+            tax_lien: "tax_lien",
+            bankruptcy_filing: "bankruptcy",
+            judgment: "tax_lien",
+            divorce_filing: "divorce",
+          };
+
+          if (lsAccepted.length > 0) {
+            const buildLsFp = (doc: (typeof lsAccepted)[0]) => {
+              const key =
+                doc.instrumentNumber ||
+                doc.caseNumber ||
+                `${doc.documentType}:${doc.recordingDate ?? ""}:${doc.grantor ?? ""}`;
+              return lsHash("sha256").update(`${lead.id}:${key}`).digest("hex");
+            };
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (sb.from("recorded_documents") as any).upsert(
+              lsAccepted.map((doc) => ({
+                property_id: property.id,
+                lead_id: lead.id,
+                document_type: doc.documentType,
+                instrument_number: doc.instrumentNumber ?? null,
+                recording_date: doc.recordingDate ?? null,
+                document_date: doc.documentDate ?? null,
+                grantor: doc.grantor ?? null,
+                grantee: doc.grantee ?? null,
+                amount: doc.amount ?? null,
+                lender_name: doc.lenderName ?? null,
+                status: doc.status,
+                case_number: doc.caseNumber ?? null,
+                court_name: doc.courtName ?? null,
+                case_type: doc.caseType ?? null,
+                attorney_name: doc.attorneyName ?? null,
+                contact_person: doc.contactPerson ?? null,
+                next_hearing_date: doc.nextHearingDate ?? null,
+                event_description: doc.eventDescription ?? null,
+                source: doc.source,
+                source_url: doc.sourceUrl ?? null,
+                raw_excerpt: doc.rawExcerpt ?? null,
+                fingerprint: buildLsFp(doc),
+              })),
+              { onConflict: "fingerprint" },
+            );
+
+            // Distress events — one per unique type, deduped by fingerprint
+            const lsTypesSeen = new Set<string>();
+            const lsDistressRows = lsAccepted
+              .map((doc) => {
+                const dt = LS_DISTRESS_MAP[doc.documentType];
+                if (!dt || lsTypesSeen.has(dt)) return null;
+                lsTypesSeen.add(dt);
+                return {
+                  property_id: property.id,
+                  event_type: dt,
+                  source: "county_legal_search",
+                  status: "active",
+                  severity: 7,
+                  fingerprint: lsHash("sha256")
+                    .update(`${property.id}:${dt}:county_legal_search`)
+                    .digest("hex"),
+                  event_date: doc.recordingDate ?? null,
+                  raw_data: {
+                    document_type: doc.documentType,
+                    case_number: doc.caseNumber ?? null,
+                    instrument_number: doc.instrumentNumber ?? null,
+                    amount: doc.amount ?? null,
+                    source_url: doc.sourceUrl ?? null,
+                  },
+                };
+              })
+              .filter(Boolean);
+
+            if (lsDistressRows.length > 0) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              await (sb.from("distress_events") as any).insert(lsDistressRows);
+            }
+          }
+
+          // Stamp last-run time on property
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: lsFreshProp } = await (sb.from("properties") as any)
+            .select("owner_flags")
+            .eq("id", property.id)
+            .single();
+          const lsFreshFlags = (lsFreshProp?.owner_flags ?? {}) as Record<string, unknown>;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (sb.from("properties") as any)
+            .update({
+              owner_flags: { ...lsFreshFlags, legal_search_last_run_at: lsNow },
+            })
+            .eq("id", property.id);
+
+          console.log(
+            `[API/prospects POST] Auto legal search: ${lsAccepted.length} docs for lead ${lead.id}`,
+          );
+        } catch (legalErr) {
+          console.error(
+            "[API/prospects POST] Auto legal search failed (non-fatal):",
+            legalErr,
+          );
+        }
+      })();
+    }
 
     if (isAssigned) {
       await refreshAssignmentZillowEstimate({
