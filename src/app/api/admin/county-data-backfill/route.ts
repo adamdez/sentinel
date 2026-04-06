@@ -96,8 +96,8 @@ function buildCoreUpdates(
   }
 
   if (scout.assessedValue != null) updates.estimated_value = scout.assessedValue;
-  if (scout.lastSaleDate != null) updates.last_sale_date = scout.lastSaleDate;
-  if (scout.lastSalePrice != null) updates.last_sale_price = scout.lastSalePrice;
+  // last_sale_date / last_sale_price intentionally omitted from core writes —
+  // column not present in current Supabase schema cache. Data lives in owner_flags.scout_data.
 
   return updates;
 }
