@@ -59,10 +59,6 @@ export const SOURCE_MAP: Record<string, string> = {
   // CSV / bulk import
   csv_import: "csv_import",
 
-  // Craigslist
-  craigslist: "craigslist",
-  cl: "craigslist",
-
   // Zillow
   zillow_fsbo: "zillow",
   zillow: "zillow",
@@ -116,7 +112,6 @@ export const SOURCE_LABELS: Record<string, string> = {
   cold_call: "Cold Call List",
   driving_for_dollars: "Driving for Dollars",
   csv_import: "CSV Import",
-  craigslist: "Craigslist",
   zillow: "Zillow",
   fsbo: "FSBO",
   ranger: "Ranger",

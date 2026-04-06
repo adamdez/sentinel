@@ -6,7 +6,7 @@
  */
 
 export const FOLLOW_UP_AGENT_VERSION = "1.0.0";
-export const FOLLOW_UP_AGENT_MODEL = "claude-sonnet-4-6";
+export const FOLLOW_UP_AGENT_MODEL = "gpt-5.4";
 
 export const FOLLOW_UP_SYSTEM_PROMPT = `You are a follow-up strategist for Dominion Home Deals, a real estate investment company in Spokane, WA.
 

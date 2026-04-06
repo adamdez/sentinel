@@ -1,5 +1,16 @@
 # Sentinel AI Platform Coordination Protocol
 
+This file is Sentinel-local coordination only.
+
+Instruction Surface Version: `2026-04-06-control-hardening-3`
+
+Fresh-session rule:
+
+- If this file or the repo-local instruction files change, start a fresh session before trusting the active instructions.
+- Already-loaded instructions can stay stale for the life of a session.
+
+It does not redefine AL-global doctrine, org structure, or authority.
+
 > **This file is the single source of truth for all AI coding platforms working on Sentinel.**
 > Every AI (Claude Code, Cursor, Codex) MUST read this file at the start of every session.
 > Every AI MUST check the rules below before writing to any file.

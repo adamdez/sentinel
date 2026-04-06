@@ -4,7 +4,7 @@ import { createServerClient } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const DEFAULT_FSBO_SOURCES = ["facebook", "craigslist", "fb", "fb_craigslist", "fsbo", "zillow_fsbo", "fsbo_com"];
+const DEFAULT_FSBO_SOURCES = ["facebook", "fb", "fsbo", "zillow_fsbo", "fsbo_com"];
 
 // ── GET /api/leads/by-source?sources=craigslist,facebook,... ──
 

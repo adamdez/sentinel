@@ -263,7 +263,6 @@ function TodayView() {
         .in("status", ["staging", "prospect"])
         .gte("created_at", twoDaysAgo)
         .not("source", "like", "csv:%")
-        .not("source", "eq", "craigslist")
         .not("source", "like", "crawl%")
         .order("created_at", { ascending: false })
         .limit(6);

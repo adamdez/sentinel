@@ -32,7 +32,8 @@ import {
   startResearchRun,
   closeResearchRun,
 } from "@/lib/intelligence";
-import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
+import { extractJsonObject } from "@/lib/claude-client";
+import { analyzeWithOpenAIReasoning } from "@/lib/executive-reasoning-client";
 import { lookupProperty } from "@/providers/lookup-service";
 import type { ProviderLookupResult } from "@/providers/base-adapter";
 import { runBrowserResearch, type WebResearchFinding } from "@/agents/browser-research";
@@ -407,16 +408,12 @@ export async function runResearchAgent(
     }
 
     // ── Phase 4: Claude analysis (provider fact extraction + dossier structure) ──
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error("ANTHROPIC_API_KEY not set");
-
     const leadContext = toLeadContext(lead, input.leadId);
     const userPrompt = buildResearchPrompt(leadContext, input, providerResults, webFindings, perplexityNarrative);
 
-    const rawResponse = await analyzeWithClaude({
+    const rawResponse = await analyzeWithOpenAIReasoning({
       prompt: userPrompt,
       systemPrompt: RESEARCH_AGENT_PROMPT,
-      apiKey,
       temperature: 0.3,
       maxTokens: 8192,
       model: RESEARCH_AGENT_MODEL,

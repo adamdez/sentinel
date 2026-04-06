@@ -79,9 +79,7 @@ describe("normalizeSource", () => {
     expect(normalizeSource("manual-new-prospect")).toBe("manual");
   });
 
-  it("normalizes craigslist/fsbo/zillow", () => {
-    expect(normalizeSource("craigslist")).toBe("craigslist");
-    expect(normalizeSource("cl")).toBe("craigslist");
+  it("normalizes fsbo/zillow", () => {
     expect(normalizeSource("fsbo")).toBe("fsbo");
     expect(normalizeSource("fsbo_com")).toBe("fsbo");
     expect(normalizeSource("zillow")).toBe("zillow");
@@ -105,7 +103,6 @@ describe("sourceLabel", () => {
     expect(sourceLabel("google_ads")).toBe("Google Ads");
     expect(sourceLabel("facebook_ads")).toBe("Facebook Ads");
     expect(sourceLabel("csv_import")).toBe("CSV Import");
-    expect(sourceLabel("craigslist")).toBe("Craigslist");
     expect(sourceLabel("zillow")).toBe("Zillow");
     expect(sourceLabel("fsbo")).toBe("FSBO");
     expect(sourceLabel("ranger")).toBe("Ranger");

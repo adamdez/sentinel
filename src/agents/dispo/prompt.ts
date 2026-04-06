@@ -6,7 +6,7 @@
  */
 
 export const DISPO_AGENT_VERSION = "1.0.0";
-export const DISPO_AGENT_MODEL = "claude-sonnet-4-6";
+export const DISPO_AGENT_MODEL = "gpt-5.4";
 
 export const DISPO_SYSTEM_PROMPT = `You are a disposition specialist for Dominion Home Deals, a real estate wholesaling company in Spokane, WA.
 

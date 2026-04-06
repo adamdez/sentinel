@@ -704,7 +704,7 @@ const CALL_ASSIST_CARDS: CallAssistCard[] = [
 
       const adLikeSource =
 
-        source.includes("google") || source.includes("facebook") || source.includes("craigslist") || source.includes("ads");
+        source.includes("google") || source.includes("facebook") || source.includes("ads");
 
       if ((cf.totalCalls ?? 0) === 0) return 3;
 

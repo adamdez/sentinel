@@ -59,5 +59,5 @@ Use these exact source_type values when capturing artifacts:
 ## Tone
 Factual, specific, evidence-based. No speculation presented as fact. Every finding cites its source.`;
 
-export const RESEARCH_AGENT_MODEL = "claude-sonnet-4-6";
+export const RESEARCH_AGENT_MODEL = "gpt-5.4";
 export const RESEARCH_AGENT_VERSION = "1.0.0";

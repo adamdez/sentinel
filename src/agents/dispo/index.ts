@@ -13,7 +13,7 @@
  */
 
 import { createServerClient } from "@/lib/supabase";
-import { analyzeWithClaude } from "@/lib/claude-client";
+import { analyzeWithOpenAIReasoning } from "@/lib/executive-reasoning-client";
 import {
   createAgentRun,
   completeAgentRun,
@@ -195,16 +195,14 @@ Generate one outreach draft per buyer above. Return JSON:
   ]
 }`;
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      await completeAgentRun({ runId, status: "failed", error: "ANTHROPIC_API_KEY not set" });
-      return emptyResult(input, "failed", "ANTHROPIC_API_KEY not configured", runId);
+    if (!process.env.OPENAI_API_KEY) {
+      await completeAgentRun({ runId, status: "failed", error: "OPENAI_API_KEY not set" });
+      return emptyResult(input, "failed", "OPENAI_API_KEY not configured", runId);
     }
 
-    const response = await analyzeWithClaude({
+    const response = await analyzeWithOpenAIReasoning({
       prompt: userPrompt,
       systemPrompt: DISPO_SYSTEM_PROMPT,
-      apiKey,
       temperature: 0.3,
       maxTokens: 3000,
     });
