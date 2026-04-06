@@ -431,7 +431,7 @@ export async function runSkipTraceIntel(
     }
   }
 
-  for (const phone of result.phones.slice(0, 5)) {
+  for (const phone of result.phones.slice(0, 10)) {
     const normalizedPhone = normalizePhoneForDedup(phone.number);
     if (fingerprints.phones.has(normalizedPhone)) continue;
     fingerprints.phones.add(normalizedPhone);
@@ -469,7 +469,7 @@ export async function runSkipTraceIntel(
   if (result.primaryPhone) {
     phonesToPromote.push({ number: result.primaryPhone, source: providerLabel, isPrimary: true });
   }
-  for (const phone of result.phones.slice(0, 5)) {
+  for (const phone of result.phones.slice(0, 10)) {
     phonesToPromote.push({ number: phone.number, source: phone.source, isPrimary: false });
   }
 

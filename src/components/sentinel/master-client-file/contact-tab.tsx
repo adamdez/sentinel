@@ -167,7 +167,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
     for (const pd of phoneDetails) addUnique(pd.number);
     if (phones.length === 0 && cf.ownerPhone) addUnique(cf.ownerPhone);
     for (const ip of importPhones) addUnique(ip);
-    const MIN_PHONE_SLOTS = 5;
+    const MIN_PHONE_SLOTS = 3;
     while (phones.length < MIN_PHONE_SLOTS) phones.push("");
     return phones;
   })();
