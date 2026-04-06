@@ -152,7 +152,7 @@ export function PropertyPreviewModal() {
         const res = await fetch("/api/property-photos", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address: property.fullAddress, lat: property.latitude, lng: property.longitude }),
+          body: JSON.stringify({ address: property.fullAddress, lat: property.latitude, lng: property.longitude, property_id: enrichedPropertyId ?? undefined }),
         });
         if (cancelled) return;
         const data = await res.json();
@@ -164,7 +164,17 @@ export function PropertyPreviewModal() {
     })();
 
     return () => { cancelled = true; };
-  }, [open, property]);
+  }, [open, property, enrichedPropertyId]);
+
+  // Once enrichment gives us a property_id and photos are already loaded, persist them to DB
+  useEffect(() => {
+    if (!enrichedPropertyId || photos.length === 0 || !property) return;
+    fetch("/api/property-photos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address: property.fullAddress, property_id: enrichedPropertyId, lat: property.latitude, lng: property.longitude }),
+    }).catch(() => {});
+  }, [enrichedPropertyId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fire enrichment-on-preview when modal opens
   useEffect(() => {

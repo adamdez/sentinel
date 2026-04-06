@@ -2463,11 +2463,11 @@ function CompsTab({ cf, selectedComps, onAddComp, onRemoveComp, onSkipTrace, com
 
     // Bricked AI photos
 
-    const brickedImgs = (oFlags?.bricked_images) as string | undefined;
+    const brickedImgs = (oFlags?.bricked_subject_images) as string[] | undefined;
 
-    if (brickedImgs) {
+    if (Array.isArray(brickedImgs)) {
 
-      try { const parsed = JSON.parse(brickedImgs); if (Array.isArray(parsed)) urls.push(...parsed.filter((u: unknown) => typeof u === "string")); } catch {}
+      urls.push(...brickedImgs.filter((u: unknown) => typeof u === "string"));
 
     }
 
