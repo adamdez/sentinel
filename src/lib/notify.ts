@@ -73,15 +73,18 @@ async function sendSlack(text: string, blocks?: unknown[]): Promise<NotifyResult
 
 /**
  * Send an SMS via Twilio to all configured notification numbers.
+ * Uses TWILIO_NOTIFY_MESSAGING_SERVICE_SID (Messaging Service) when set —
+ * this is required for A2P 10DLC compliance. Falls back to TWILIO_PHONE_NUMBER.
  * Never throws — all errors are caught and logged.
  */
 async function sendSMS(message: string): Promise<NotifyResult> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const messagingServiceSid = process.env.TWILIO_NOTIFY_MESSAGING_SERVICE_SID;
   const fromNumber = process.env.TWILIO_PHONE_NUMBER;
   const toNumbers = process.env.NOTIFY_SMS_NUMBERS;
 
-  if (!accountSid || !authToken || !fromNumber) {
+  if (!accountSid || !authToken || (!messagingServiceSid && !fromNumber)) {
     console.warn("[notify] Twilio credentials not set — skipping SMS");
     return { ok: false, channel: "sms", error: "Twilio not configured" };
   }
@@ -99,6 +102,11 @@ async function sendSMS(message: string): Promise<NotifyResult> {
   // Truncate to SMS-safe length (1600 chars max for Twilio)
   const truncated = message.length > 1500 ? message.slice(0, 1497) + "..." : message;
 
+  // Use Messaging Service for A2P compliance, fall back to direct From number
+  const senderParams: Record<string, string> = messagingServiceSid
+    ? { MessagingServiceSid: messagingServiceSid }
+    : { From: fromNumber! };
+
   try {
     const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
     const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
@@ -111,7 +119,7 @@ async function sendSMS(message: string): Promise<NotifyResult> {
             Authorization: `Basic ${auth}`,
             "Content-Type": "application/x-www-form-urlencoded",
           },
-          body: new URLSearchParams({ To: to, From: fromNumber, Body: truncated }).toString(),
+          body: new URLSearchParams({ To: to, ...senderParams, Body: truncated }).toString(),
         });
         if (!res.ok) {
           const errBody = await res.text().catch(() => "");
