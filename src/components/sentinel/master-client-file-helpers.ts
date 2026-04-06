@@ -566,6 +566,12 @@ export function sourceDisplayLabel(source: string | null | undefined): string {
   if (normalized === "ranger_push") return "Ranger";
   if (normalized === "google_ads") return "Google Ads";
   if (normalized === "facebook_ads") return "Facebook Ads";
+  if (normalized === "csv_import") return "CSV Import";
+  if (normalized === "manual") return "Manual";
+  if (normalized === "special_intake") return "Special Intake";
+  if (normalized === "spokane_scout_harvest") return "Scout Harvest";
+  if (normalized === "eliteseed_top10_20260301") return "EliteSeed";
+  if (normalized.startsWith("eliteseed")) return "EliteSeed";
   return normalized
     .replace(/^csv:/, "CSV ")
     .replace(/[_-]/g, " ")

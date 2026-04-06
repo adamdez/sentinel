@@ -27,6 +27,7 @@ import { useSentinelStore } from "@/lib/store";
 import { useModal } from "@/providers/modal-provider";
 import { cn } from "@/lib/utils";
 import type { LeadStatus } from "@/lib/types";
+import { sourceDisplayLabel } from "@/components/sentinel/master-client-file-helpers";
 
 const ACTIVE_STATUSES: LeadStatus[] = ["lead", "negotiation", "disposition", "nurture"];
 
@@ -928,7 +929,7 @@ function LeadRow({ lead, showScore, showAge }: { lead: PriorityLead; showScore?:
           "text-sm mt-0.5",
           diff !== null && diff < 0 ? "text-red-400" : "text-muted-foreground"
         )}>
-          {showAge ? `${lead.source ?? "Unknown source"} — ${timeAgo(lead.created_at)}` : urgencyText(lead)}
+          {showAge ? `${sourceDisplayLabel(lead.source)} — ${timeAgo(lead.created_at)}` : urgencyText(lead)}
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">

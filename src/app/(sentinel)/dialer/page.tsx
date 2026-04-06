@@ -63,6 +63,7 @@ import {
   type DialerKpiPreset,
   type DialerKpiSnapshot,
 } from "@/lib/dialer-kpis";
+import { sourceDisplayLabel } from "@/components/sentinel/master-client-file-helpers";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -3492,6 +3493,9 @@ function DialerPageInner() {
                         </p>
                         <p className="text-xs text-muted-foreground/50 mt-0.5">
                           {currentLead.properties?.city}, {currentLead.properties?.state} — {currentLead.properties?.county} County
+                        </p>
+                        <p className="text-xs text-muted-foreground/35 mt-0.5">
+                          {sourceDisplayLabel(currentLead.source)}
                         </p>
                         <button
                           onClick={() => setFileModalOpen(true)}
