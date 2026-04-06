@@ -2012,7 +2012,7 @@ export async function POST(req: NextRequest) {
               const key =
                 doc.instrumentNumber ||
                 doc.caseNumber ||
-                `${doc.documentType}:${doc.recordingDate ?? ""}:${doc.grantor ?? ""}`;
+                `${doc.documentType}:${doc.recordingDate ?? ""}:${doc.grantor ?? ""}:${doc.grantee ?? ""}:${doc.source}`;
               return lsHash("sha256").update(`${lead.id}:${key}`).digest("hex");
             };
 

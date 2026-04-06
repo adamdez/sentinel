@@ -42,10 +42,12 @@ const DISTRESS_TYPE_MAP: Record<string, DistressType> = {
 // ── Fingerprint helper ────────────────────────────────────────────────────────
 
 function buildFingerprint(leadId: string, doc: NormalizedDocument): string {
+  // Prefer stable unique IDs; fall back to composite of all available discriminators
+  // so two different documents never share a fingerprint even without an instrument/case number.
   const key =
     doc.instrumentNumber ||
     doc.caseNumber ||
-    `${doc.documentType}:${doc.recordingDate ?? ""}:${doc.grantor ?? ""}`;
+    `${doc.documentType}:${doc.recordingDate ?? ""}:${doc.grantor ?? ""}:${doc.grantee ?? ""}:${doc.source}`;
   return createHash("sha256")
     .update(`${leadId}:${key}`)
     .digest("hex");

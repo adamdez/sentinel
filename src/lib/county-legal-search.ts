@@ -808,7 +808,10 @@ async function searchCourts(
   const ownerPhrase = owner.fullNameVariants[0] ?? input.ownerName;
 
   // Construct the direct WA Courts name search URL (used by both paths)
-  const courtSearchUrl = `https://dw.courts.wa.gov/index.cfm?fa=home.namesearchresult&terms=accept&county=32&last=${encodeURIComponent(last)}&first=${encodeURIComponent(first)}&middle=&SearchType=&SearchMode=&SoundexType=&partyType=&courtClassCode=&caseYear=&casePinNumber=&DisableSessionCheck=0&CaseSearchType=`;
+  // DisableSessionCheck=1 tells the CFML server to skip session validation.
+  // Without it (=0), a plain fetch with no cookies gets a session-error page (200 OK)
+  // instead of results, causing extractCasesFromText to silently return nothing.
+  const courtSearchUrl = `https://dw.courts.wa.gov/index.cfm?fa=home.namesearchresult&terms=accept&county=32&last=${encodeURIComponent(last)}&first=${encodeURIComponent(first)}&middle=&SearchType=&SearchMode=&SoundexType=&partyType=&courtClassCode=&caseYear=&casePinNumber=&DisableSessionCheck=1&CaseSearchType=`;
 
   // Plain-fetch fallback: GET the WA Courts URL directly and run regex extraction
   if (!apiKey) {
@@ -820,6 +823,17 @@ async function searchCourts(
         return [];
       }
       const html = await res.text();
+      // Guard: CFML session error pages return 200 OK with no case data.
+      // Detect by looking for tell-tale session/login error strings.
+      if (
+        html.includes("session has expired") ||
+        html.includes("Session Expired") ||
+        html.includes("cflogin") ||
+        (html.length < 500 && !html.includes("Case Number"))
+      ) {
+        console.warn(`[LegalSearch:Courts] Plain-fetch returned session/error page — no results`);
+        return [];
+      }
       const extracted = extractCasesFromText(html, courtSearchUrl);
       console.log(`[LegalSearch:Courts] Plain-fetch extracted ${extracted.length} cases`);
       docs.push(...extracted);
