@@ -87,6 +87,7 @@ export interface MissedInbound {
   caller_type:     string | null;   // "seller" | "buyer" | "vendor" | "spam" | "unknown" | null
   routing_action:  string | null;   // routing action from classify event
   is_classified:   boolean;
+  source:          "event" | "calls_log_fallback";
 }
 
 export interface UnclassifiedAnswered {
@@ -368,8 +369,52 @@ export async function GET(req: NextRequest) {
           caller_type:    classifyInfo?.caller_type    ?? null,
           routing_action: classifyInfo?.routing_action ?? null,
           is_classified:  !!classifyInfo,
+          source:         "event",
         };
       });
+  }
+
+  if (missedInbound.length < limit) {
+    const fallbackCutoff = new Date(now.getTime() - 2 * 60_000).toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: stuckCalls, error: stuckErr } = await (sb.from("calls_log") as any)
+      .select("id, lead_id, phone_dialed, twilio_sid, created_at, disposition")
+      .eq("direction", "inbound")
+      .in("disposition", ["in_progress", "initiating", "ringing_prospect"])
+      .lt("created_at", fallbackCutoff)
+      .order("created_at", { ascending: false })
+      .limit(limit * 2);
+
+    if (stuckErr) {
+      console.error("[dialer/queue] stuck inbound fallback query failed:", stuckErr.message);
+    } else if ((stuckCalls ?? []).length > 0) {
+      const knownIds = new Set(missedInbound.map((item) => item.event_id));
+      for (const row of stuckCalls as Array<{
+        id: string;
+        lead_id: string | null;
+        phone_dialed: string | null;
+        twilio_sid: string | null;
+        created_at: string;
+      }>) {
+        if (knownIds.has(row.id)) continue;
+        missedInbound.push({
+          event_id: row.id,
+          lead_id: row.lead_id,
+          from_number: row.phone_dialed ?? "unknown",
+          missed_at: row.created_at,
+          minutes_ago: Math.max(0, Math.floor((now.getTime() - new Date(row.created_at).getTime()) / 60_000)),
+          task_id: null,
+          task_due_at: null,
+          task_overdue: false,
+          lead_matched: !!row.lead_id,
+          caller_type: null,
+          routing_action: null,
+          is_classified: false,
+          source: "calls_log_fallback",
+        });
+        if (missedInbound.length >= limit) break;
+      }
+    }
   }
 
   // ── 6. Unclassified answered calls ───────────────────────────

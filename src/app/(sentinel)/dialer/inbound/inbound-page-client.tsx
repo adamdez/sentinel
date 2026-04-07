@@ -221,6 +221,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
   const fromNumber = item.from_number;
   const isMissed = type === "missed";
   const missed = isMissed ? (item as MissedInbound) : null;
+  const hasEventActions = !missed || missed.source !== "calls_log_fallback";
 
   async function handleRecover() {
     setBusy(true);
@@ -332,6 +333,11 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
                   task overdue
                 </Badge>
               )}
+              {missed?.source === "calls_log_fallback" && (
+                <Badge variant="outline" className="text-xs h-4 px-1.5 border-amber-500/20 text-amber-200/80">
+                  Fallback signal
+                </Badge>
+              )}
             </div>
           </div>
         </div>
@@ -346,7 +352,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
               </Button>
             </Link>
 
-            {!missed?.is_classified && (
+            {hasEventActions && !missed?.is_classified && (
               <Button
                 size="sm"
                 variant="outline"
@@ -358,7 +364,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
               </Button>
             )}
 
-            {isMissed && (
+            {isMissed && hasEventActions && (
               <Button
                 size="sm"
                 variant="outline"
@@ -371,25 +377,33 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
               </Button>
             )}
 
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-sm px-2.5 border-white/[0.06] text-muted-foreground/50 hover:bg-white/[0.03]"
-              onClick={() => setMode("writeback")}
-            >
-              <ArrowRight className="h-3 w-3 mr-1" />
-              Review & commit
-            </Button>
+            {hasEventActions ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-sm px-2.5 border-white/[0.06] text-muted-foreground/50 hover:bg-white/[0.03]"
+                  onClick={() => setMode("writeback")}
+                >
+                  <ArrowRight className="h-3 w-3 mr-1" />
+                  Review & commit
+                </Button>
 
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-sm px-2 text-muted-foreground/40 hover:text-muted-foreground"
-              onClick={() => setMode("dismiss")}
-            >
-              <XCircle className="h-3 w-3 mr-1" />
-              Dismiss
-            </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-sm px-2 text-muted-foreground/40 hover:text-muted-foreground"
+                  onClick={() => setMode("dismiss")}
+                >
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Dismiss
+                </Button>
+              </>
+            ) : (
+              <Badge variant="outline" className="text-xs h-6 px-2 border-amber-500/20 text-amber-200/80">
+                Needs manual follow-up
+              </Badge>
+            )}
           </div>
         )}
 

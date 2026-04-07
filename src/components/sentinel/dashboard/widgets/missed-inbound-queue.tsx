@@ -46,6 +46,7 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
 
   const severity = ageSeverity(item.minutes_ago);
   const ageLabel = formatAge(item.minutes_ago);
+  const hasEventActions = item.source !== "calls_log_fallback";
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -179,26 +180,34 @@ function MissedInboundRow({ item, idx, token, onResolved }: RowProps) {
             </Button>
           </Link>
 
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 text-sm px-2 border-border/40 text-foreground hover:bg-muted/30"
-            onClick={handleRecover}
-            disabled={busy}
-          >
-            {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-            Mark recovered
-          </Button>
+          {hasEventActions ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 text-sm px-2 border-border/40 text-foreground hover:bg-muted/30"
+                onClick={handleRecover}
+                disabled={busy}
+              >
+                {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+                Mark recovered
+              </Button>
 
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-6 text-sm px-2 text-muted-foreground/50 hover:text-muted-foreground"
-            onClick={() => setMode("dismiss")}
-          >
-            <XCircle className="h-3 w-3 mr-1" />
-            Dismiss
-          </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-sm px-2 text-muted-foreground/50 hover:text-muted-foreground"
+                onClick={() => setMode("dismiss")}
+              >
+                <XCircle className="h-3 w-3 mr-1" />
+                Dismiss
+              </Button>
+            </>
+          ) : (
+            <Badge variant="outline" className="text-xs h-5 px-1.5 border-amber-500/20 text-amber-200/80">
+              Tracking fallback only
+            </Badge>
+          )}
         </div>
       )}
 

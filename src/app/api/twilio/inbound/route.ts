@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 export const maxDuration = 15;
 
 const INBOUND_TRANSCRIPTION_STREAM_NAME = "sentinel-inbound-live-notes";
+const DEFAULT_INBOUND_USER_ID = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
 
 /**
  * POST /api/twilio/inbound
@@ -618,6 +619,7 @@ async function handleMissedInbound({
   const { error: eventErr } = await (sb.from("dialer_events") as any)
     .insert({
       event_type: "inbound.missed",
+      user_id: taskAssignee,
       lead_id: leadId,
       session_id: null,
       task_id: taskId,
@@ -701,6 +703,7 @@ async function handleAnsweredInbound({
   const { error: eventErr } = await (sb.from("dialer_events") as any)
     .insert({
       event_type: "inbound.answered",
+      user_id: DEFAULT_INBOUND_USER_ID,
       lead_id: leadId,
       session_id: null,
       task_id: null,
@@ -835,6 +838,7 @@ async function handleMissedTransfer({
   await (sb.from("dialer_events") as any)
     .insert({
       event_type: "transfer.missed",
+      user_id: taskAssignee,
       lead_id: leadId,
       session_id: voiceSessionId || null,
       task_id: taskRow?.id ?? null,
