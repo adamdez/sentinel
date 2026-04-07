@@ -1,4 +1,5 @@
 import { normalizeCounty } from "@/lib/dedup";
+import { resolveMarketCity } from "@/lib/inbound-intake";
 import {
   getCountyData,
   isCountySupported,
@@ -153,6 +154,11 @@ export async function runClaimEnrichment({
   };
   let resolvedLat = typeof property.lat === "number" ? property.lat : null;
   let resolvedLng = typeof property.lng === "number" ? property.lng : null;
+  const normalizedCity = resolveMarketCity(property.city, property.zip).city;
+
+  if (normalizedCity && normalizedCity !== property.city) {
+    updates.city = normalizedCity;
+  }
 
   try {
     let countyOwnerData: Awaited<ReturnType<typeof getCountyData>>["owner"] | null = null;
@@ -245,7 +251,7 @@ export async function runClaimEnrichment({
     if (!alreadyHasPhotos) {
       const bestAddress = [
         (updates.address as string | undefined) ?? property.address ?? "",
-        property.city ?? "",
+        (updates.city as string | undefined) ?? property.city ?? "",
         (updates.state as string | undefined) ?? property.state ?? "",
         (updates.zip as string | undefined) ?? property.zip ?? "",
       ].filter(Boolean).join(", ");

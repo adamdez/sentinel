@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveMarketCity } from "@/lib/inbound-intake";
 import { createServerClient } from "@/lib/supabase";
 import { runClaimEnrichment } from "@/lib/intake-claim-enrichment";
 
@@ -95,6 +96,21 @@ export async function POST(req: NextRequest) {
     }
 
     const sourceCategory = provider.name;
+    const resolvedOwnerName = owner_name || intakeLead.owner_name || "Unknown";
+    const resolvedPhoneDigits = String(owner_phone || intakeLead.owner_phone || "").replace(/\D/g, "").slice(-10);
+    const resolvedOwnerPhone = resolvedPhoneDigits.length === 10 ? resolvedPhoneDigits : null;
+    const resolvedOwnerEmail =
+      typeof intakeLead.owner_email === "string" && intakeLead.owner_email.trim().length > 0
+        ? intakeLead.owner_email.trim().toLowerCase()
+        : null;
+    const resolvedAddress = property_address || intakeLead.property_address || "Address TBD";
+    const resolvedState = property_state || intakeLead.property_state || "WA";
+    const resolvedZip = property_zip || intakeLead.property_zip || "";
+    const resolvedCounty = county || intakeLead.county || "Unknown";
+    const resolvedCity = resolveMarketCity(
+      property_city || intakeLead.property_city || null,
+      resolvedZip,
+    ).city;
 
     // Step 1: Create or update property record (upsert via APN + county)
     // Accept incomplete property data — address/city/state/zip are optional
@@ -106,12 +122,14 @@ export async function POST(req: NextRequest) {
       .upsert(
         {
           apn: safeApn,
-          county: county || "Unknown",
-          address: property_address || "Address TBD",
-          city: property_city || "",
-          state: property_state || "WA",
-          zip: property_zip || "",
-          owner_name: owner_name || intakeLead.owner_name || "Unknown",
+          county: resolvedCounty,
+          address: resolvedAddress,
+          city: resolvedCity || "",
+          state: resolvedState,
+          zip: resolvedZip,
+          owner_name: resolvedOwnerName,
+          owner_phone: resolvedOwnerPhone,
+          owner_email: resolvedOwnerEmail,
           owner_flags: {},
         },
         {
@@ -131,17 +149,17 @@ export async function POST(req: NextRequest) {
 
     // Step 2: Create or find contact record (optional if phone provided)
     let contact = null;
-    if (owner_phone) {
-      const nameParts = (owner_name || "Unknown").split(" ");
+    if (resolvedOwnerPhone) {
+      const nameParts = resolvedOwnerName.split(" ");
       const firstName = nameParts[0] || "Unknown";
       const lastName = nameParts.slice(1).join(" ") || "Contact";
-      const contactEmail = intakeLead.owner_email || null;
+      const contactEmail = resolvedOwnerEmail;
 
       // First try to find existing contact by phone
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: existing } = await (sb.from("contacts") as any)
         .select("*")
-        .eq("phone", owner_phone)
+        .eq("phone", resolvedOwnerPhone)
         .limit(1)
         .maybeSingle();
 
@@ -158,7 +176,7 @@ export async function POST(req: NextRequest) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: newContact, error: contactError } = await (sb.from("contacts") as any)
           .insert({
-            phone: owner_phone,
+            phone: resolvedOwnerPhone,
             first_name: firstName,
             last_name: lastName,
             email: contactEmail,
@@ -203,6 +221,25 @@ export async function POST(req: NextRequest) {
         { error: "Failed to create lead record" },
         { status: 500 }
       );
+    }
+
+    if (resolvedOwnerPhone) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("lead_phones") as any)
+          .insert({
+            lead_id: lead.id,
+            property_id: property.id,
+            phone: `+1${resolvedOwnerPhone}`,
+            label: "primary",
+            source: `special_intake:${sourceCategory.toLowerCase().replace(/\s+/g, "_")}`,
+            status: "active",
+            is_primary: true,
+            position: 0,
+          });
+      } catch (error) {
+        console.error("[Intake Claim] lead_phones seed failed:", error);
+      }
     }
 
     // Step 4: Update intake_lead status to claimed

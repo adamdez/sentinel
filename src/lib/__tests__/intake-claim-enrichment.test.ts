@@ -205,4 +205,24 @@ describe("runClaimEnrichment", () => {
     expect(Array.isArray(ownerFlags.photos)).toBe(true);
     expect((ownerFlags.photos as Array<{ url: string }>).some((photo) => photo.url.includes("/api/street-view?lat=47.7001&lng=-117.4002"))).toBe(true);
   });
+
+  it("normalizes generic market cities from ZIP during claim enrichment", async () => {
+    const sb = createSb({
+      address: "5328 Rail Canyon Road",
+      city: "Spokane",
+      zip: "99006",
+      county: "Spokane",
+      owner_name: "Anna Macpherson",
+    });
+
+    const { runClaimEnrichment } = await import("@/lib/intake-claim-enrichment");
+    await runClaimEnrichment({
+      sb: sb.client as never,
+      propertyId: "property-1",
+      leadId: "lead-1",
+    });
+
+    const payload = sb.update.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(payload.city).toBe("Deer Park");
+  });
 });

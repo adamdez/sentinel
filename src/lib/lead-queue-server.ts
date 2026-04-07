@@ -119,14 +119,12 @@ function sanitizeOwnerFlags(ownerFlags: Record<string, unknown> | null | undefin
     deep_crawl,
     deep_crawl_result,
     deep_skip,
-    bricked_full_response,
     ...lightFlags
   } = ownerFlags;
   void pr_raw;
   void deep_crawl;
   void deep_crawl_result;
   void deep_skip;
-  void bricked_full_response;
   return lightFlags;
 }
 

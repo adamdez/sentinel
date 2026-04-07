@@ -113,6 +113,27 @@ const SPOKANE_ZIPS = new Set(["99001","99003","99004","99005","99006","99009","9
 const KOOTENAI_ZIPS = new Set(["83801","83810","83814","83815","83835","83843","83854","83858","83864","83869","83871","83876"]);
 const SPOKANE_CITIES = new Set(["spokane","spokane valley","liberty lake","cheney","airway heights","medical lake","millwood","deer park","colbert","mead","nine mile falls","greenacres","otis orchards","veradale","newman lake","four lakes","marshall","latah","fairfield","rockford","spangle","waverly"]);
 const KOOTENAI_CITIES = new Set(["coeur d'alene","post falls","hayden","rathdrum","dalton gardens","spirit lake","athol","hauser","worley","harrison","huetter"]);
+const GENERIC_MARKET_CITIES = new Set(["spokane", "coeur d'alene", "coeur d alene"]);
+const ZIP_TO_CITY: Record<string, string> = {
+  "99201": "Spokane", "99202": "Spokane", "99203": "Spokane", "99204": "Spokane",
+  "99205": "Spokane", "99206": "Spokane", "99207": "Spokane", "99208": "Spokane",
+  "99209": "Spokane", "99210": "Spokane", "99211": "Spokane", "99212": "Spokane",
+  "99213": "Spokane", "99214": "Spokane", "99215": "Spokane Valley", "99216": "Spokane",
+  "99217": "Spokane", "99218": "Spokane", "99219": "Spokane", "99220": "Spokane",
+  "99223": "Spokane", "99224": "Spokane", "99228": "Spokane",
+  "99001": "Airway Heights", "99003": "Chattaroy", "99004": "Cheney",
+  "99005": "Colbert", "99006": "Deer Park", "99009": "Elk",
+  "99011": "Fairchild AFB", "99012": "Fairfield", "99016": "Greenacres",
+  "99018": "Latah", "99019": "Liberty Lake", "99020": "Marshall",
+  "99021": "Mead", "99022": "Medical Lake", "99023": "Mica",
+  "99025": "Newman Lake", "99026": "Nine Mile Falls", "99027": "Otis Orchards",
+  "99029": "Reardan", "99030": "Rockford", "99031": "Spangle",
+  "99036": "Valleyford", "99037": "Veradale", "99039": "Waverly",
+  "99170": "Sprague",
+  "83801": "Athol", "83810": "Cataldo", "83814": "Coeur d'Alene", "83815": "Coeur d'Alene",
+  "83835": "Hayden", "83843": "Post Falls", "83854": "Post Falls", "83858": "Rathdrum",
+  "83864": "Sandpoint", "83869": "Spirit Lake", "83871": "Tensed", "83876": "Worley",
+};
 
 function inferCountyFromCityOrZip(city: string | null, zip: string | null): string | null {
   if (zip) {
@@ -134,6 +155,49 @@ function inferCounty(rawText: string | null): string | null {
   return county ? county.toLowerCase() : null;
 }
 
+function normalizeCityString(city: string | null | undefined): string | null {
+  const cleaned = cleanString(city);
+  if (!cleaned) return null;
+  return cleaned
+    .replace(/\s+/g, " ")
+    .replace(/\s*,\s*[A-Z]{2}$/i, "")
+    .trim();
+}
+
+function isUnknownCity(city: string | null): boolean {
+  if (!city) return true;
+  const normalized = city.trim().toLowerCase();
+  return normalized === "" || normalized === "unknown" || normalized === "n/a" || normalized === "none" || normalized === "null";
+}
+
+export function resolveMarketCity(
+  city: string | null | undefined,
+  zip: string | null | undefined,
+): { city: string | null; source: "original" | "zip_lookup" | "none" } {
+  const normalizedCity = normalizeCityString(city);
+  const normalizedZip = cleanString(zip)?.replace(/\D/g, "").slice(0, 5) ?? null;
+  const zipCity = normalizedZip ? ZIP_TO_CITY[normalizedZip] ?? null : null;
+
+  if (!zipCity) {
+    return normalizedCity ? { city: normalizedCity, source: "original" } : { city: null, source: "none" };
+  }
+
+  if (isUnknownCity(normalizedCity)) {
+    return { city: zipCity, source: "zip_lookup" };
+  }
+
+  const lowerCity = normalizedCity!.toLowerCase();
+  if (lowerCity === zipCity.toLowerCase()) {
+    return { city: normalizedCity, source: "original" };
+  }
+
+  if (GENERIC_MARKET_CITIES.has(lowerCity)) {
+    return { city: zipCity, source: "zip_lookup" };
+  }
+
+  return { city: normalizedCity, source: "original" };
+}
+
 function inferSpam(input: InboundIntakeInput, text: string | null): boolean {
   const source = `${input.sourceVendor ?? ""} ${input.sourceCampaign ?? ""} ${text ?? ""}`.toLowerCase();
   if (source.includes("unsubscribe") && !source.includes("property")) return true;
@@ -153,8 +217,9 @@ export function normalizeInboundCandidate(input: InboundIntakeInput): Normalized
   const propertyAddress = cleanString(input.propertyAddress) ?? inferAddress(rawText);
   const phone = cleanPhone(cleanString(input.phone) ?? inferPhone(rawText));
   const email = cleanEmail(cleanString(input.email) ?? inferEmail(rawText));
+  const propertyCityResolution = resolveMarketCity(input.propertyCity ?? null, input.propertyZip ?? null);
   const county = cleanString(input.county)?.toLowerCase()
-    ?? inferCountyFromCityOrZip(input.propertyCity ?? null, input.propertyZip ?? null)
+    ?? inferCountyFromCityOrZip(propertyCityResolution.city, input.propertyZip ?? null)
     ?? inferCounty(rawText);
   const warnings: string[] = [];
 
@@ -182,7 +247,7 @@ export function normalizeInboundCandidate(input: InboundIntakeInput): Normalized
     phone,
     email,
     propertyAddress,
-    propertyCity: cleanString(input.propertyCity),
+    propertyCity: propertyCityResolution.city,
     propertyState: cleanString(input.propertyState)?.toUpperCase() ?? null,
     propertyZip: cleanString(input.propertyZip),
     mailingAddress: cleanString(input.mailingAddress),

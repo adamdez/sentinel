@@ -153,7 +153,7 @@ describe("buildNormalizedVendorCandidate", () => {
     expect(candidate.ownerName).toBe("Renae Banks");
     expect(candidate.phone).toBe("5093893805");
     expect(candidate.propertyAddress).toBe("34124 N Newport hwy trlr 29: Chattaroy, WA 99003");
-    expect(candidate.propertyCity).toBe("Spokane");
+    expect(candidate.propertyCity).toBe("Chattaroy");
     expect(candidate.propertyState).toBe("WA");
     expect(candidate.propertyZip).toBe("99003");
   });
@@ -170,7 +170,7 @@ describe("buildNormalizedVendorCandidate", () => {
     expect(candidate.ownerName).toBe("Anna Macpherson");
     expect(candidate.phone).toBe("5093426379");
     expect(candidate.propertyAddress).toBe("5328 Rail Canyon Road");
-    expect(candidate.propertyCity).toBe("Spokane");
+    expect(candidate.propertyCity).toBe("Deer Park");
     expect(candidate.propertyState).toBe("WA");
     expect(candidate.propertyZip).toBe("99006");
   });

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildLeadQueueRow } from "@/lib/lead-queue-server";
 
 describe("buildLeadQueueRow", () => {
-  it("strips heavy owner flag payloads while preserving useful queue metadata", () => {
+  it("strips crawl payloads while preserving useful queue metadata and cached bricked analysis", () => {
     const row = buildLeadQueueRow({
       id: "lead-1",
       property_id: "property-1",
@@ -47,13 +47,13 @@ describe("buildLeadQueueRow", () => {
     expect(row.nicheTag).toBe("probate");
     expect(row.ownerFlags).toEqual(expect.objectContaining({
       absentee: true,
+      bricked_full_response: { huge: true },
       prospecting_intake: expect.any(Object),
       outbound_intake: expect.any(Object),
     }));
     expect(row.ownerFlags).not.toHaveProperty("pr_raw");
     expect(row.ownerFlags).not.toHaveProperty("deep_crawl");
     expect(row.ownerFlags).not.toHaveProperty("deep_crawl_result");
-    expect(row.ownerFlags).not.toHaveProperty("bricked_full_response");
   });
 
   it("falls back safely when property data is missing", () => {
