@@ -15,6 +15,8 @@ import {
   GripHorizontal,
   Maximize2,
   Minimize2,
+  MonitorUp,
+  PanelsTopLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { PreCallBrief } from "@/hooks/use-pre-call-brief";
@@ -128,6 +130,7 @@ export function LiveCoachWindow({
   const [windowState, setWindowState] = useState<LiveCoachWindowState>(() => (
     loadStoredLiveCoachWindowState(initialViewport)
   ));
+  const [popoutActive, setPopoutActive] = useState(false);
   const windowStateRef = useRef(windowState);
   const interactionCleanupRef = useRef<(() => void) | null>(null);
   const wasActiveRef = useRef(active);
@@ -151,13 +154,30 @@ export function LiveCoachWindow({
     if (!sessionId) return;
     broadcastRef.current?.postMessage({ type: "call-ended", sessionId });
     popoutRef.current = null;
+    setPopoutActive(false);
   }, [active, sessionId]);
+
+  useEffect(() => {
+    if (!popoutActive) return;
+
+    const timer = window.setInterval(() => {
+      if (!popoutRef.current || popoutRef.current.closed) {
+        popoutRef.current = null;
+        setPopoutActive(false);
+      }
+    }, 500);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [popoutActive]);
 
   const handlePopOut = useCallback(() => {
     if (!sessionId) return;
 
     if (popoutRef.current && !popoutRef.current.closed) {
       popoutRef.current.focus();
+      setPopoutActive(true);
       return;
     }
 
@@ -168,10 +188,21 @@ export function LiveCoachWindow({
     const opened = window.open(url, "sentinel-live-coach", features);
     if (opened) {
       popoutRef.current = opened;
+      setPopoutActive(true);
+      setWindowState((previous) => applyExplicitLiveCoachWindowMode(previous, "minimized"));
     } else {
       toast.error("Pop-out blocked — check your browser settings");
     }
   }, [sessionId, coachMode]);
+
+  const handleReturnToDock = useCallback(() => {
+    if (popoutRef.current && !popoutRef.current.closed) {
+      popoutRef.current.close();
+    }
+    popoutRef.current = null;
+    setPopoutActive(false);
+    setWindowState((previous) => applyExplicitLiveCoachWindowMode(previous, "open"));
+  }, []);
 
   const compactViewport = isCompactLiveCoachViewport(viewport);
   const stageLabel = useMemo(() => getStageLabel(brief, coach), [brief, coach]);
@@ -289,6 +320,38 @@ export function LiveCoachWindow({
 
   if (!active) return null;
 
+  if (popoutActive) {
+    return (
+      <div className="pointer-events-none fixed inset-0 z-[60]">
+        <div
+          className={cn(
+            "pointer-events-auto fixed flex items-center gap-2 rounded-full border border-primary/20 bg-card/95 px-4 py-2 text-sm shadow-[0_16px_40px_var(--shadow-heavy)] backdrop-blur-xl",
+            compactViewport ? "left-3 right-3 bottom-3 justify-center" : "right-6 bottom-6",
+          )}
+        >
+          <MonitorUp className="h-4 w-4 text-primary" />
+          <span className="font-medium text-foreground">Live Coach in pop-out</span>
+          <button
+            type="button"
+            onClick={() => popoutRef.current?.focus()}
+            className="inline-flex items-center gap-1 rounded-full border border-overlay-8 bg-overlay-3 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ExternalLink className="h-3 w-3" />
+            Focus
+          </button>
+          <button
+            type="button"
+            onClick={handleReturnToDock}
+            className="inline-flex items-center gap-1 rounded-full border border-overlay-8 bg-overlay-3 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <PanelsTopLeft className="h-3 w-3" />
+            Dock Here
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const openWindowClasses = compactViewport
     ? "inset-x-3 bottom-3 top-auto max-h-[72vh] min-h-[320px] h-auto"
     : "top-0 left-0";
@@ -315,6 +378,19 @@ export function LiveCoachWindow({
         >
           <Brain className="h-4 w-4 text-primary" />
           <span className="font-medium text-foreground">Restore Live Coach</span>
+          {sessionId && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                handlePopOut();
+              }}
+              className="inline-flex items-center gap-1 rounded-full border border-overlay-8 bg-overlay-3 px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Pop Out
+            </button>
+          )}
           <span className="rounded-full border border-primary/15 bg-primary/10 px-2 py-0.5 text-xs text-primary">
             {stageLabel}
           </span>
@@ -365,9 +441,10 @@ export function LiveCoachWindow({
                 aria-label="Pop out live coach"
                 onMouseDown={(event) => event.stopPropagation()}
                 onClick={handlePopOut}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-overlay-8 bg-overlay-3 text-muted-foreground/70 transition-colors hover:text-foreground"
+                className="inline-flex items-center gap-1.5 rounded-[10px] border border-overlay-8 bg-overlay-3 px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70 transition-colors hover:text-foreground"
               >
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="h-3.5 w-3.5" />
+                Pop Out
               </button>
             )}
             <button
