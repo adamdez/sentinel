@@ -40,6 +40,28 @@ function buildSiteUrl(req: NextRequest): string {
   return `${url.protocol}//${url.host}`;
 }
 
+function buildVoicemailFallbackTwiml(input: {
+  siteUrl: string;
+  callLogId: string | null;
+  leadName?: string | null;
+  transferReason?: string | null;
+}): string {
+  const recordingAction = input.callLogId
+    ? `${input.siteUrl}/api/twilio/voice/recording?callLogId=${encodeURIComponent(input.callLogId)}`
+    : `${input.siteUrl}/api/twilio/voice/recording`;
+  const leadLabel = input.leadName?.trim() ? ` for ${input.leadName.trim()}` : "";
+  const transferLabel = input.transferReason?.trim() ? ` regarding ${input.transferReason.trim()}` : "";
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    "<Response>",
+    '  <Say voice="Polly.Joanna">We missed your call. Please leave your name, number, and a short message after the tone, and we will call you back as soon as possible.</Say>',
+    `  <Record maxLength="120" playBeep="true" trim="trim-silence" action="${recordingAction}" method="POST" />`,
+    `  <Say voice="Polly.Joanna">We did not receive a voicemail${leadLabel}${transferLabel}. Goodbye.</Say>`,
+    "</Response>",
+  ].join("\n");
+}
+
 // Replicate nextBusinessMorningPacific locally to avoid importing publish-manager
 function nextBusinessMorningPacific(): Date {
   const TZ = "America/Los_Angeles";
@@ -131,6 +153,7 @@ export async function POST(req: NextRequest) {
     const isTransfer = url.searchParams.get("transfer") === "1";
     const transferVsid = url.searchParams.get("vsid") ?? "";
     const originalFrom = url.searchParams.get("originalFrom") ?? "";
+    const chainCallLogId = url.searchParams.get("callLogId");
     const formData = await req.formData();
     const dialStatus = formData.get("DialCallStatus")?.toString() ?? "";
     const fromNumber = formData.get("From")?.toString() ?? "";
@@ -177,12 +200,11 @@ export async function POST(req: NextRequest) {
       });
 
       return new NextResponse(
-        [
-          '<?xml version="1.0" encoding="UTF-8"?>',
-          "<Response>",
-          '  <Say voice="Polly.Joanna">We missed your call. We will call you back shortly. Thank you for calling Dominion Home Deals.</Say>',
-          "</Response>",
-        ].join("\n"),
+        buildVoicemailFallbackTwiml({
+          siteUrl,
+          callLogId: chainCallLogId,
+          transferReason: isTransfer ? "your earlier conversation with our team" : null,
+        }),
         { headers: { "Content-Type": "text/xml" } },
       );
     }
@@ -199,8 +221,10 @@ export async function POST(req: NextRequest) {
           "  </Stop>",
         ]
       : [];
-    const chainCallLogId = url.searchParams.get("callLogId") ?? "";
-    const chainParams2 = chainSessionId ? `&amp;sessionId=${chainSessionId}&amp;callLogId=${chainCallLogId}` : "";
+    const safeChainCallLogId = chainCallLogId ?? "";
+    const chainParams2 = chainSessionId
+      ? `&amp;sessionId=${chainSessionId}&amp;callLogId=${encodeURIComponent(safeChainCallLogId)}`
+      : "";
     // Carry transfer flag through the chain so subsequent steps know not to loop back to Vapi
     const transferParams = isTransfer ? `&amp;transfer=1&amp;vsid=${encodeURIComponent(transferVsid)}&amp;originalFrom=${encodeURIComponent(originalFrom)}` : "";
 
@@ -235,7 +259,7 @@ export async function POST(req: NextRequest) {
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
         ...stopInboundStreamLines,
-        `  <Dial callerId="${callerIdForJeff}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status" method="POST">`,
+        `  <Dial callerId="${callerIdForJeff}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status&amp;callLogId=${encodeURIComponent(safeChainCallLogId)}" method="POST">`,
         `    <Number>${vapiNumber}</Number>`,
         "  </Dial>",
         "</Response>",
@@ -258,12 +282,11 @@ export async function POST(req: NextRequest) {
         }
       });
 
-      nextTwiml = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        "<Response>",
-        '  <Say voice="Polly.Joanna">We missed your call. We will call you back shortly. Thank you for calling Dominion Home Deals.</Say>',
-        "</Response>",
-      ].join("\n");
+      nextTwiml = buildVoicemailFallbackTwiml({
+        siteUrl,
+        callLogId: safeChainCallLogId || null,
+        transferReason: isTransfer ? "your earlier conversation with our team" : null,
+      });
     }
 
     return new NextResponse(nextTwiml, {
@@ -278,6 +301,7 @@ export async function POST(req: NextRequest) {
     const fromNumber = formData.get("From")?.toString() ?? "";
     const callSid    = formData.get("CallSid")?.toString()  ?? "";
     const dialStatus = formData.get("DialCallStatus")?.toString() ?? "";
+    const callLogId = url.searchParams.get("callLogId");
     // DialCallDuration is present when the Dial action fires after the leg ends
     const dialDuration = formData.get("DialCallDuration")?.toString() ?? null;
 
@@ -313,6 +337,13 @@ export async function POST(req: NextRequest) {
         console.error("[inbound] after() call_status handler failed:", err);
       }
     });
+
+    if (isMissed) {
+      return new NextResponse(
+        buildVoicemailFallbackTwiml({ siteUrl, callLogId }),
+        { status: 200, headers: { "Content-Type": "text/xml" } },
+      );
+    }
 
     return new NextResponse("", { status: 204 });
   }
