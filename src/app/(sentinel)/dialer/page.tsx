@@ -996,7 +996,6 @@ function DialerPageInner() {
   const [pendingAutoDialLeadId, setPendingAutoDialLeadId] = useState<string | null>(null);
   const displayedQueue = queue;
   const displayedQueueLoading = queueLoading;
-  const refetchAutoCycle = useCallback(async () => {}, []);
   const phoneSelection = useMemo(
     () =>
       resolveDialerPhoneSelection({
@@ -2534,81 +2533,7 @@ function DialerPageInner() {
     timer.reset();
     setDispositionPending(false);
     advanceQueueAfterDisposition(dispoKey, autoCycleMode);
-    return;
-
-    // Phone cycling: if there are un-attempted active phones, stay on same lead
-    // Terminal dispositions (dead_lead / disqualified) skip phone cycling but still
-    // stay on lead — operator uses ⏩ to advance manually
-    const isTerminal = dispoKey === "dead_lead" || dispoKey === "disqualified";
-    const activePhones = leadPhones.filter(p => p.status === "active");
-    const nextPhoneIdx = phoneIndex + 1;
-
-    if (autoCycleMode && currentLead?.id) {
-      let shouldAdvanceLead = false;
-      try {
-        const outcomeRes = await fetch("/api/dialer/v1/auto-cycle/outcome", {
-          method: "POST",
-          headers: await authHeaders(),
-          body: JSON.stringify({
-            leadId: currentLead.id,
-            disposition: dispoKey,
-            phoneNumber: currentDialedPhone ?? selectedDialPhone ?? null,
-          }),
-        });
-        const outcomeData = await outcomeRes.json().catch(() => ({} as {
-          skipped?: boolean;
-          cycle_status?: string;
-          reason?: string;
-          error?: string;
-        }));
-        if (!outcomeRes.ok) {
-          console.warn("[Dialer] auto-cycle outcome update failed:", outcomeData.error ?? outcomeData.reason ?? outcomeRes.statusText);
-        }
-        shouldAdvanceLead = outcomeData.skipped === true || outcomeData.cycle_status === "exited";
-      } catch (err) {
-        console.warn("[Dialer] auto-cycle outcome request failed:", err);
-      }
-
-      await refetchAutoCycle();
-
-      if (shouldAdvanceLead) {
-        const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead.id);
-        const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
-        setCurrentLead(nextLead);
-        setPhoneIndex(0);
-        if (nextLead) {
-          setPendingAutoDialLeadId(nextLead.id);
-          toast.info("Power Dial: next lead dialing...");
-        } else {
-          toast.info("Power Dial complete - no leads ready");
-        }
-      } else {
-        setPendingAutoDialLeadId(currentLead.id);
-        toast.info("Power Dial: dialing next number...");
-      }
-    } else if (!isTerminal && nextPhoneIdx < activePhones.length) {
-      // Regular queue: cycle to next phone, stay on same lead
-      setPhoneIndex(nextPhoneIdx);
-      toast.info(`Phone ${nextPhoneIdx + 1} of ${activePhones.length} — next number loaded`);
-      if (currentLead?.id) {
-        authHeaders().then(hdrs =>
-          fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
-            .then(r => r.ok ? r.json() : null)
-            .then(data => { if (data?.phones) setLeadPhones(data.phones); })
-        ).catch(() => {});
-      }
-    } else {
-      const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
-      const nextLead = displayedQueue[currentIdx + 1] ?? null;
-      if (nextLead) {
-        setCurrentLead(nextLead);
-        setPhoneIndex(0);
-        toast.info(isTerminal ? "Lead done — next lead loaded" : "Next lead loaded");
-      } else {
-        toast.info("Queue complete — all leads attempted");
-      }
-    }
-  }, [autoCycleMode, currentCallLogId, callState, callNotes, currentLead, currentDialedPhone, currentUser.id, displayedQueue, handleHangup, refetchAutoCycle, refetchQueue, timer, leadPhones, phoneIndex, selectedDialPhone]);
+  }, [advanceQueueAfterDisposition, autoCycleMode, currentCallLogId, callState, callNotes, currentLead, currentUser.id, handleHangup, timer]);
 
   // ── PostCallPanel completion handler ────────────────────────────────
   // Shared by onComplete and onSkip — PostCallPanel handles its own API calls.
@@ -2627,42 +2552,7 @@ function DialerPageInner() {
     noteSeqRef.current = 0;
     timer.reset();
     advanceQueueAfterDisposition(disposition, autoCycleMode);
-    return;
-
-    if (autoCycleMode) {
-      setPhoneIndex(0);
-      refetchAutoCycle();
-      if (currentLead?.id) {
-        setPendingAutoDialLeadId(currentLead.id);
-      }
-      return;
-    }
-
-    // Regular queue: cycle phones within lead, then advance to next lead
-    const activePhones = leadPhones.filter((p) => p.status === "active");
-    const nextPhoneIdx = phoneIndex + 1;
-    if (activePhones.length > 1 && nextPhoneIdx < activePhones.length) {
-      setPhoneIndex(nextPhoneIdx);
-      toast.info(`Phone ${nextPhoneIdx + 1} of ${activePhones.length} — next number loaded`);
-      if (currentLead?.id) {
-        authHeaders().then(hdrs =>
-          fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
-            .then(r => r.ok ? r.json() : null)
-            .then(data => { if (data?.phones) setLeadPhones(data.phones); })
-        ).catch(() => {});
-      }
-    } else {
-      const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
-      const nextLead = displayedQueue[currentIdx + 1] ?? null;
-      if (nextLead) {
-        setCurrentLead(nextLead);
-        setPhoneIndex(0);
-        toast.info("Next lead loaded");
-      } else {
-        toast.info("Queue complete — all leads attempted");
-      }
-    }
-  }, [advanceQueueAfterDisposition, autoCycleMode, currentLead, displayedQueue, refetchAutoCycle, timer, leadPhones, phoneIndex]);
+  }, [advanceQueueAfterDisposition, autoCycleMode, timer]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────
   useEffect(() => {

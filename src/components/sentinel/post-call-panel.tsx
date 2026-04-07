@@ -867,7 +867,7 @@ export function PostCallPanel({
           )}
           {savedDispo && AUTO_ADVANCE_DISPOS.has(savedDispo) && leadId ? (
             <button
-              onClick={onComplete}
+              onClick={() => onComplete(savedDispo)}
               className="text-xs text-muted-foreground/40 hover:text-foreground/60 transition-colors text-center"
             >
               Skip wait — next lead now
@@ -915,7 +915,7 @@ export function PostCallPanel({
               )}
               {leadId ? (
                 <>
-                  <Button size="sm" className="w-full gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm" onClick={onComplete}>
+                  <Button size="sm" className="w-full gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm" onClick={() => onComplete(savedDispo ?? undefined)}>
                     Next Lead
                     <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
