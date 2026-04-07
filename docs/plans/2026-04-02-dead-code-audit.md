@@ -1,5 +1,8 @@
 # Sentinel Dead Code Audit — April 2, 2026
 
+See also:
+- [Clean-As-You-Go SOP](C:\Users\adamd\Desktop\Sentinel\docs\ops\CLEAN-AS-YOU-GO-SOP.md)
+
 ## Summary
 
 **134 total API routes.** ~15 cron-triggered, ~105 frontend-called, ~13 admin/one-time.
