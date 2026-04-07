@@ -4,7 +4,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function parseEmbeddedJson(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "string") return null;
-  const trimmed = value.trim();
+  const normalized = value
+    .replace(/\u00a0/g, " ")
+    .replace(/\ufeff/g, "");
+  const trimmed = normalized.trim();
   if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
 
   try {

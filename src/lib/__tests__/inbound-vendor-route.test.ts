@@ -63,6 +63,23 @@ describe("unwrapVendorPayload", () => {
       message: "Living in with mom due to medical reasons",
     });
   });
+
+  it("unwraps embedded JSON strings that use non-breaking spaces for indentation", () => {
+    const payload = {
+      "": '{\n\u00a0\u00a0"name": "Anna Macpherson",\n\u00a0\u00a0"phone": "++1 509 342 6379",\n\u00a0\u00a0"address": "5328 Rail Canyon Road",\n\u00a0\u00a0"city": "Spokane",\n\u00a0\u00a0"state": "WA",\n\u00a0\u00a0"zip": "99006",\n\u00a0\u00a0"message": "Multi-Family Home Reason for Selling: Want to retire. Selling Timeframe: Within 30 Days. Best time to Speak: Evenings"\n}',
+      source_vendor: "lead_house",
+    };
+
+    expect(unwrapVendorPayload(payload)).toMatchObject({
+      source_vendor: "lead_house",
+      name: "Anna Macpherson",
+      phone: "++1 509 342 6379",
+      address: "5328 Rail Canyon Road",
+      city: "Spokane",
+      state: "WA",
+      zip: "99006",
+    });
+  });
 });
 
 describe("buildNormalizedVendorCandidate", () => {
@@ -139,5 +156,22 @@ describe("buildNormalizedVendorCandidate", () => {
     expect(candidate.propertyCity).toBe("Spokane");
     expect(candidate.propertyState).toBe("WA");
     expect(candidate.propertyZip).toBe("99003");
+  });
+
+  it("builds a normalized candidate from Lead House payloads with non-breaking spaces", () => {
+    const candidate = buildNormalizedVendorCandidate({
+      "": '{\n\u00a0\u00a0"name": "Anna Macpherson",\n\u00a0\u00a0"phone": "++1 509 342 6379",\n\u00a0\u00a0"address": "5328 Rail Canyon Road",\n\u00a0\u00a0"city": "Spokane",\n\u00a0\u00a0"state": "WA",\n\u00a0\u00a0"zip": "99006",\n\u00a0\u00a0"message": "Multi-Family Home Reason for Selling: Want to retire. Selling Timeframe: Within 30 Days. Best time to Speak: Evenings"\n}',
+    }, {
+      sourceVendor: "lead_house",
+      sourceChannel: "vendor_inbound",
+      intakeMethod: "lead_house_webhook",
+    });
+
+    expect(candidate.ownerName).toBe("Anna Macpherson");
+    expect(candidate.phone).toBe("5093426379");
+    expect(candidate.propertyAddress).toBe("5328 Rail Canyon Road");
+    expect(candidate.propertyCity).toBe("Spokane");
+    expect(candidate.propertyState).toBe("WA");
+    expect(candidate.propertyZip).toBe("99006");
   });
 });
