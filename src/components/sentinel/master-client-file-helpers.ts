@@ -109,6 +109,9 @@ export interface ClientFile {
   liveAnswers: number;
   voicemailsLeft: number;
   dispositionCode: string | null;
+  skipTraceStatus: string | null;
+  skipTraceCompletedAt: string | null;
+  skipTraceLastError: string | null;
   prediction?: {
     predictiveScore: number;
     daysUntilDistress: number;
@@ -189,6 +192,7 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     ownerFlags: p.owner_flags, radarId: p.radar_id, enriched: p.enriched,
     appointmentAt: null, offerAmount: null, contractAt: null, assignmentFeeProjected: null, attribution: null,
     nextCallScheduledAt: null, nextAction: null, nextActionDueAt: null, callSequenceStep: 1, totalCalls: 0, liveAnswers: 0, voicemailsLeft: 0, dispositionCode: null,
+    skipTraceStatus: null, skipTraceCompletedAt: null, skipTraceLastError: null,
     prediction: p._prediction ?? null,
     monetizabilityScore: null,
     dispoFrictionLevel: null,
@@ -244,6 +248,9 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     ownerFlags: l.ownerFlags ?? {}, radarId: null, enriched: false,
     appointmentAt: (l as any).appointmentAt ?? null, offerAmount: (l as any).offerAmount ?? null, contractAt: (l as any).contractAt ?? null, assignmentFeeProjected: (l as any).assignmentFeeProjected ?? null, attribution: (l as any).attribution ?? null,
     nextCallScheduledAt: l.nextCallScheduledAt, nextAction: l.nextAction ?? null, nextActionDueAt: l.nextActionDueAt ?? null, callSequenceStep: l.callSequenceStep, totalCalls: l.totalCalls, liveAnswers: l.liveAnswers, voicemailsLeft: l.voicemailsLeft, dispositionCode: l.dispositionCode ?? null,
+    skipTraceStatus: l.skipTraceStatus ?? null,
+    skipTraceCompletedAt: (l as LeadRow & { skipTraceCompletedAt?: string | null }).skipTraceCompletedAt ?? null,
+    skipTraceLastError: (l as LeadRow & { skipTraceLastError?: string | null }).skipTraceLastError ?? null,
     prediction: null,
     monetizabilityScore: (l as any).monetizability_score ?? null,
     dispoFrictionLevel: (l as any).dispo_friction_level ?? null,
@@ -333,6 +340,9 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     liveAnswers: lead.live_answers ?? 0,
     voicemailsLeft: lead.voicemails_left ?? 0,
     dispositionCode: lead.disposition_code ?? null,
+    skipTraceStatus: lead.skip_trace_status ?? null,
+    skipTraceCompletedAt: lead.skip_trace_completed_at ?? null,
+    skipTraceLastError: lead.skip_trace_last_error ?? null,
     prediction: lead._prediction ?? null,
     monetizabilityScore: lead.monetizability_score != null ? Number(lead.monetizability_score) : null,
     dispoFrictionLevel: lead.dispo_friction_level ?? null,
@@ -403,6 +413,53 @@ export type CloseoutPresetId =
   | "escalate_review"
   | "drive_by_tomorrow"
   | "drive_by_3_days";
+
+export type SkipTraceUiState = "skipped" | "skip_empty" | "skip_failed" | "not_run";
+
+export function deriveSkipTraceUiState(input: {
+  clientFile: ClientFile;
+  sessionHasResults?: boolean;
+  sessionFailed?: boolean;
+  persistedPhoneCount?: number;
+}): {
+  status: SkipTraceUiState;
+  durableFailureReason: string | null;
+} {
+  const cf = input.clientFile;
+  const durableSkipTraced = Boolean(
+    cf.skipTraceCompletedAt
+    || cf.ownerFlags?.skip_traced
+    || cf.ownerFlags?.skip_trace_intel_at
+    || (typeof cf.skipTraceStatus === "string" && ["completed", "partial_failure"].includes(cf.skipTraceStatus.trim().toLowerCase()))
+  );
+  const ownerFlagPhoneCount = (cf.ownerFlags?.all_phones as unknown[] | undefined)?.length ?? 0;
+  const persistedPhoneCount = Math.max(
+    input.persistedPhoneCount ?? 0,
+    ownerFlagPhoneCount,
+    cf.ownerPhone ? 1 : 0,
+  );
+  const durableFailureReason =
+    (typeof cf.skipTraceLastError === "string" && cf.skipTraceLastError.trim())
+      ? cf.skipTraceLastError
+      : (typeof cf.ownerFlags?.skip_trace_failure_reason === "string" && cf.ownerFlags.skip_trace_failure_reason.trim())
+        ? (cf.ownerFlags.skip_trace_failure_reason as string)
+        : (typeof cf.ownerFlags?.skip_trace_last_error === "string" && cf.ownerFlags.skip_trace_last_error.trim())
+          ? (cf.ownerFlags.skip_trace_last_error as string)
+          : null;
+  const durableFailed = Boolean(
+    durableFailureReason
+    || (typeof cf.skipTraceStatus === "string" && ["failed"].includes(cf.skipTraceStatus.trim().toLowerCase()))
+  );
+
+  const status: SkipTraceUiState =
+    input.sessionHasResults ? "skipped"
+    : (durableSkipTraced && persistedPhoneCount > 0) ? "skipped"
+    : (input.sessionFailed || durableFailed) ? "skip_failed"
+    : durableSkipTraced ? "skip_empty"
+    : "not_run";
+
+  return { status, durableFailureReason };
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // Constants (no icon/React dependencies)

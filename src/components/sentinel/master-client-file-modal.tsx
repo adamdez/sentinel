@@ -227,6 +227,7 @@ import {
   closeoutActionLabel,
 
   closeoutNextActionText,
+  deriveSkipTraceUiState,
 
   getQualificationDraft,
 
@@ -912,7 +913,11 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
   const displayEmail = cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
 
-  const alreadySkipTraced = Boolean(cf.ownerFlags?.skip_traced || cf.ownerFlags?.skip_trace_intel_at);
+  const skipTraceUi = deriveSkipTraceUiState({
+    clientFile: cf,
+    sessionHasResults: Boolean(skipTraceResult),
+  });
+  const alreadySkipTraced = skipTraceUi.status === "skipped" || skipTraceUi.status === "skip_empty";
 
   const { loading: callHistoryLoading } = useCallNotes(cf.id, 20, activityRefreshToken);
   const sellerContinuity = cf.sellerSituationSummaryShort?.trim() || null;
@@ -1256,7 +1261,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
           </div>
 
           {onSkipTrace && (
-            alreadySkipTraced || skipTraceResult ? (
+            alreadySkipTraced ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
                 Skipped
               </span>

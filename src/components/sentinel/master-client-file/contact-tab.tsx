@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import {
   type ClientFile,
   buildAddress,
+  deriveSkipTraceUiState,
   extractLatLng,
 } from "../master-client-file-helpers";
 import {
@@ -47,23 +48,8 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
   useEffect(() => { setImgFailed(false); }, [imageUrl]);
 
   // ── Skip-trace status (durable from owner_flags, or in-session from overlay/error) ──
-  const durableSkipTraced = Boolean(cf.ownerFlags?.skip_traced || cf.ownerFlags?.skip_trace_intel_at);
-  const durablePhoneCount = (cf.ownerFlags?.all_phones as unknown[] | undefined)?.length ?? 0;
-  const durableFailureReason =
-    (typeof cf.ownerFlags?.skip_trace_failure_reason === "string" && cf.ownerFlags.skip_trace_failure_reason.trim())
-      ? (cf.ownerFlags.skip_trace_failure_reason as string)
-      : (typeof cf.ownerFlags?.skip_trace_last_error === "string" && cf.ownerFlags.skip_trace_last_error.trim())
-        ? (cf.ownerFlags.skip_trace_last_error as string)
-        : null;
-  const durableFailed = Boolean(durableFailureReason);
   const sessionHasResults = overlay != null && (overlay.phones.length > 0 || overlay.emails.length > 0);
   const sessionFailed = skipTraceError != null;
-  const skipStatus: "skipped" | "skip_empty" | "skip_failed" | "not_run" =
-    sessionHasResults ? "skipped"
-    : (durableSkipTraced && durablePhoneCount > 0) ? "skipped"
-    : (sessionFailed || durableFailed) ? "skip_failed"
-    : durableSkipTraced ? "skip_empty"
-    : "not_run";
 
   // ── Phone & email data ──
   const persons = overlay?.persons ?? (cf.ownerFlags?.persons as Record<string, unknown>[]) ?? [];
@@ -131,6 +117,13 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
     ?? [];
 
   const useLeadPhones = leadPhones.length > 0;
+  const activeLeadPhoneCount = leadPhones.filter((phone) => phone.status === "active").length;
+  const { status: skipStatus, durableFailureReason } = useMemo(() => deriveSkipTraceUiState({
+    clientFile: cf,
+    sessionHasResults,
+    sessionFailed,
+    persistedPhoneCount: activeLeadPhoneCount,
+  }), [activeLeadPhoneCount, cf, sessionFailed, sessionHasResults]);
 
   // ── Mailing address from PR raw data ──
   const prMailAddr = prRaw.MailAddress ?? prRaw.MailingAddress ?? null;
