@@ -22,7 +22,7 @@ describe("dialer KPI call classification", () => {
   it("counts pickups only for answered outbound calls", () => {
     expect(isPickupCall({ direction: "outbound", disposition: "answered" })).toBe(true);
     expect(isPickupCall({ direction: "outbound", disposition: "interested" })).toBe(true);
-    expect(isPickupCall({ direction: "outbound", disposition: "completed" })).toBe(true);
+    expect(isPickupCall({ direction: "outbound", disposition: "completed" })).toBe(false);
     expect(isPickupCall({ direction: "outbound", disposition: "voicemail" })).toBe(false);
     expect(isPickupCall({ direction: "outbound", disposition: "left_voicemail" })).toBe(false);
     expect(isPickupCall({ direction: "outbound", disposition: "wrong_number" })).toBe(false);
@@ -99,8 +99,8 @@ describe("dialer KPI aggregation", () => {
 
     expect(snapshot.metrics.outbound.user).toBe(3);
     expect(snapshot.metrics.outbound.team).toBe(4);
-    expect(snapshot.metrics.pickups.user).toBe(1);
-    expect(snapshot.metrics.pickups.team).toBe(1);
+    expect(snapshot.metrics.pickups.user).toBe(0);
+    expect(snapshot.metrics.pickups.team).toBe(0);
   });
 });
 

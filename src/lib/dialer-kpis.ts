@@ -34,7 +34,6 @@ const HUMAN_PICKUP_DISPOSITIONS = new Set([
   "answered",
   "connected",
   "interested",
-  "completed",
   "not_interested",
   "follow_up",
   "appointment",
