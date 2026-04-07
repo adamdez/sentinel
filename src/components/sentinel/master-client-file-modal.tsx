@@ -4333,6 +4333,7 @@ export function MasterClientFileModal({
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const [claiming, setClaiming] = useState(false);
+  const [queueingLead, setQueueingLead] = useState(false);
 
   const [taskPanelOpen, setTaskPanelOpen] = useState(false);
   const [taskSaving, setTaskSaving] = useState(false);
@@ -5454,6 +5455,82 @@ export function MasterClientFileModal({
     }
 
   }, [applyLeadPatchFromResponse, assigneeLabel, clientFile, onClaim, onRefresh]);
+
+
+
+  const handleQueueLead = useCallback(async () => {
+
+    if (!clientFile) return;
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+
+      toast.error("Session expired - cannot queue lead");
+
+      return;
+
+    }
+
+
+
+    setQueueingLead(true);
+
+    try {
+
+      const res = await fetch(`/api/leads/${clientFile.id}/queue`, {
+
+        method: "POST",
+
+        headers: {
+
+          Authorization: `Bearer ${session.access_token}`,
+
+        },
+
+      });
+
+
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+
+        toast.error(data.error ?? "Failed to add to dial queue");
+
+        return;
+
+      }
+
+
+
+      toast.success(
+
+        clientFile.ownerPhone
+
+          ? "Added to dial queue"
+
+          : "Added to dial queue - no phone yet, use Skip Trace Queue in dialer",
+
+      );
+
+      onRefresh?.();
+
+      window.location.href = "/dialer";
+
+    } catch (err) {
+
+      console.error("[MCF] Queue lead error:", err);
+
+      toast.error("Failed to add to dial queue");
+
+    } finally {
+
+      setQueueingLead(false);
+
+    }
+
+  }, [clientFile, onRefresh]);
 
 
 
@@ -8408,26 +8485,10 @@ export function MasterClientFileModal({
                         size="sm"
                         variant="outline"
                         className="w-full justify-start gap-1.5 h-7 border-overlay-6 text-muted-foreground/75 hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
-                        disabled={claiming}
-                        onClick={async () => {
-                          try {
-                            setClaiming(true);
-                            const { data: { session: sess } } = await supabase.auth.getSession();
-                            const hdrs: Record<string, string> = sess?.access_token
-                              ? { Authorization: `Bearer ${sess.access_token}` }
-                              : {};
-                            await fetch(`/api/prospects?lead_id=${clientFile.id}`, {
-                              method: "PATCH",
-                              headers: { ...hdrs, "Content-Type": "application/json" },
-                              body: JSON.stringify({ assign_to: currentUserId }),
-                            });
-                            window.location.href = "/dialer";
-                          } catch {
-                            setClaiming(false);
-                          }
-                        }}
+                        disabled={queueingLead}
+                        onClick={handleQueueLead}
                       >
-                        <ListPlus className="h-3 w-3" />Queue
+                        {queueingLead ? <Loader2 className="h-3 w-3 animate-spin" /> : <ListPlus className="h-3 w-3" />}Queue
                       </Button>
 
                       {!(isAssignedToCurrentUser && assignmentOptions.length > 0) && !isAssignedToCurrentUser && (
