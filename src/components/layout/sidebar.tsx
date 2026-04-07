@@ -91,6 +91,13 @@ function useSidebarBadges(): SidebarBadges {
 
     void bootstrap();
 
+    const handleIntakeUpdated = () => {
+      void fetchCounts();
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("sentinel:intake-updated", handleIntakeUpdated);
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       void fetchCounts();
       void bindRealtime(session?.access_token);
@@ -98,6 +105,9 @@ function useSidebarBadges(): SidebarBadges {
 
     return () => {
       subscription.unsubscribe();
+      if (typeof window !== "undefined") {
+        window.removeEventListener("sentinel:intake-updated", handleIntakeUpdated);
+      }
       if (activeChannel) {
         supabase.removeChannel(activeChannel);
       }

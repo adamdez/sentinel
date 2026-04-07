@@ -127,6 +127,9 @@ export function IntakeClaimModal({
 
       const data = await response.json();
       console.log("[ClaimModal] Lead claimed successfully:", data);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("sentinel:intake-updated"));
+      }
       onSuccess();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
