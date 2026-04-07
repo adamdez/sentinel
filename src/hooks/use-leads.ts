@@ -162,6 +162,11 @@ const LEAD_LIST_SELECT = [
   "pinned_by",
   "dial_queue_active",
   "dial_queue_added_at",
+  "intro_sop_active",
+  "intro_day_count",
+  "intro_last_call_date",
+  "intro_completed_at",
+  "intro_exit_category",
 ].join(", ");
 
 const PROPERTY_LIST_SELECT = [
@@ -526,6 +531,14 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null,
     pinnedBy: raw.pinned_by ?? null,
     dialQueueActive: raw.dial_queue_active === true,
     dialQueueAddedAt: raw.dial_queue_added_at ?? null,
+    introSopActive: raw.intro_sop_active !== false,
+    introDayCount: typeof raw.intro_day_count === "number" ? Math.min(3, Math.max(0, Math.floor(raw.intro_day_count))) : 0,
+    introLastCallDate: typeof raw.intro_last_call_date === "string" ? raw.intro_last_call_date : null,
+    introCompletedAt: typeof raw.intro_completed_at === "string" ? raw.intro_completed_at : null,
+    introExitCategory: typeof raw.intro_exit_category === "string" ? raw.intro_exit_category : null,
+    requiresIntroExitCategory:
+      typeof raw.intro_completed_at === "string"
+      && !(typeof raw.intro_exit_category === "string" && raw.intro_exit_category.trim().length > 0),
   };
 }
 

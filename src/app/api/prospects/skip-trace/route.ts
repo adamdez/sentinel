@@ -53,6 +53,51 @@ async function requireAuthenticatedUser(req: NextRequest, sb: ReturnType<typeof 
   return data.user;
 }
 
+async function persistSkipTraceFailure(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sb: any,
+  input: {
+    leadId?: string | null;
+    propertyId?: string | null;
+    reason: string;
+    addressIssues?: string[];
+  },
+) {
+  const timestamp = new Date().toISOString();
+  const reason = input.reason.slice(0, 500);
+
+  if (input.leadId) {
+    try {
+      await sb.from("leads").update({
+        skip_trace_status: "failed",
+        skip_trace_last_attempted_at: timestamp,
+        skip_trace_last_error: reason,
+      }).eq("id", input.leadId);
+    } catch {}
+  }
+
+  if (input.propertyId) {
+    try {
+      const { data: prop } = await sb.from("properties")
+        .select("owner_flags")
+        .eq("id", input.propertyId)
+        .maybeSingle();
+      const flags = ((prop?.owner_flags as Record<string, unknown>) ?? {});
+      await sb.from("properties").update({
+        owner_flags: {
+          ...flags,
+          skip_trace_failure_reason: reason,
+          skip_trace_failed_at: timestamp,
+          ...(Array.isArray(input.addressIssues) && input.addressIssues.length > 0
+            ? { skip_trace_address_issues: input.addressIssues }
+            : {}),
+        },
+        updated_at: timestamp,
+      }).eq("id", input.propertyId);
+    } catch {}
+  }
+}
+
 /**
  * POST /api/prospects/skip-trace
  *
@@ -109,6 +154,12 @@ export async function POST(req: NextRequest) {
       const enrichResult = await enrichProperty(sb, apiKey, property, lead_id, user.id, manual);
       console.log(`[SkipTrace Perf] Enrichment: ${Date.now() - tEnrichStart}ms`);
       if (!enrichResult.success) {
+        await persistSkipTraceFailure(sb, {
+          leadId: lead_id,
+          propertyId: property_id,
+          reason: enrichResult.reason ?? enrichResult.error ?? "PropertyRadar enrichment failed",
+          addressIssues: enrichResult.addressIssues ?? [],
+        });
         console.error("[SkipTrace] Enrichment failed:", enrichResult.error, "| tier:", enrichResult.tier);
         return NextResponse.json({
           error: "Enrichment failed",
@@ -124,6 +175,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (!radarId) {
+      await persistSkipTraceFailure(sb, {
+        leadId: lead_id,
+        propertyId: property_id,
+        reason: "No matching property found in PropertyRadar after all lookup tiers",
+      });
       return NextResponse.json({
         error: "Enrichment failed",
         reason: "No matching property found in PropertyRadar after all lookup tiers",
@@ -200,7 +256,13 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const propUpdate: Record<string, any> = {
-      owner_flags: { ...existingFlags, ...skipFlags },
+      owner_flags: (() => {
+        const nextFlags = { ...existingFlags, ...skipFlags } as Record<string, unknown>;
+        delete nextFlags.skip_trace_failure_reason;
+        delete nextFlags.skip_trace_failed_at;
+        delete nextFlags.skip_trace_address_issues;
+        return nextFlags;
+      })(),
       updated_at: new Date().toISOString(),
     };
     if (skipResult.primaryPhone) propUpdate.owner_phone = skipResult.primaryPhone;

@@ -232,8 +232,8 @@ export function deriveLeadActionSummary(input: ActionDerivationInput): ActionSum
   // ── Rule 4: HIGH — Needs qualification ──
   if (status === "lead" && contacted && !route) {
     return {
-      action: "Needs qualification routing",
-      reason: "Lead has been contacted but has no qualification route set. Review and route to offer_ready, follow_up, nurture, or dead.",
+      action: "Needs next step",
+      reason: "Lead has been contacted but no next-step category is set. Choose: call later, call tomorrow, move to active, drive by, or nurture.",
       urgency: "high",
       actionType: "review",
       isActionable: true,

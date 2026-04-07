@@ -133,6 +133,7 @@ export function LeadTable({
   const [bulkAutoCycling, setBulkAutoCycling] = useState(false);
   const [bulkQueueing, setBulkQueueing] = useState(false);
   const [bulkJeffQueueing, setBulkJeffQueueing] = useState(false);
+  const [introActionLeadId, setIntroActionLeadId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(INITIAL_RENDER_COUNT);
 
   useEffect(() => {
@@ -450,6 +451,58 @@ export function LeadTable({
     }
   }, [selectedIds, onRefresh]);
 
+  const applyIntroExit = useCallback(async (leadId: string, category: "nurture" | "dead" | "disposition" | "drive_by") => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired. Please sign in again.");
+      return false;
+    }
+
+    setIntroActionLeadId(leadId);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/intro-exit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ category }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to update intro category");
+        return false;
+      }
+
+      const label =
+        category === "drive_by" ? "Drive By"
+        : category === "nurture" ? "Nurture"
+        : category === "dead" ? "Dead"
+        : "Disposition";
+      toast.success(`Intro completed -> ${label}`);
+      onRefresh?.();
+      return true;
+    } finally {
+      setIntroActionLeadId(null);
+    }
+  }, [onRefresh]);
+
+  const chooseIntroExitCategory = useCallback(async (leadId: string) => {
+    const choice = window.prompt(
+      "Day 3 complete. Choose category: nurture, disposition, dead, drive_by",
+      "nurture",
+    )?.trim().toLowerCase();
+
+    if (!choice) return;
+    if (!["nurture", "disposition", "dead", "drive_by"].includes(choice)) {
+      toast.error("Invalid category. Use nurture, disposition, dead, or drive_by.");
+      return;
+    }
+
+    await applyIntroExit(leadId, choice as "nurture" | "dead" | "disposition" | "drive_by");
+  }, [applyIntroExit]);
+
   const addToJeffQueue = useCallback(async (leadId: string) => {
     setQueuingId(leadId);
     try {
@@ -706,6 +759,16 @@ export function LeadTable({
                         Queued
                       </span>
                     )}
+                    <span
+                      className={cn(
+                        "shrink-0 text-[10px] px-1.5 py-0 rounded border font-semibold uppercase tracking-wide",
+                        lead.requiresIntroExitCategory
+                          ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                          : "bg-primary/10 text-primary border-primary/25",
+                      )}
+                    >
+                      {lead.requiresIntroExitCategory ? "Day 3 - Categorize" : `Day ${Math.min(3, Math.max(0, lead.introDayCount ?? 0))}/3`}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                     <span
@@ -766,6 +829,19 @@ export function LeadTable({
               >
                 {wf.doNow}
               </span>
+              {lead.requiresIntroExitCategory && (
+                <button
+                  type="button"
+                  disabled={introActionLeadId === lead.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void chooseIntroExitCategory(lead.id);
+                  }}
+                  className="mt-1 text-xs font-semibold text-amber-300 hover:text-amber-200 disabled:opacity-50 text-left"
+                >
+                  {introActionLeadId === lead.id ? "Updating..." : "Choose category"}
+                </button>
+              )}
             </div>
 
             {/* Due */}
@@ -801,6 +877,18 @@ export function LeadTable({
 
             {/* Actions (call + delete only) */}
             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => void applyIntroExit(lead.id, "drive_by")}
+                    disabled={introActionLeadId === lead.id}
+                    className="h-6 w-6 flex items-center justify-center rounded-md text-amber-300/80 hover:text-amber-200 hover:bg-amber-500/10 transition-colors disabled:opacity-40"
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent className="text-xs">Mark Drive By</TooltipContent>
+              </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button

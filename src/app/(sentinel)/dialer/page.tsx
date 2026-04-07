@@ -12,7 +12,7 @@ import {
   Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
   X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight,
-  AlertTriangle, Wifi, WifiOff, RefreshCw, FileText, ExternalLink,
+  AlertTriangle, Wifi, WifiOff, RefreshCw, FileText, ExternalLink, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -50,11 +50,9 @@ import { SellerMemoryPanel } from "@/components/sentinel/seller-memory-panel";
 import { SellerMemoryPreview } from "@/components/sentinel/seller-memory-preview";
 import { LiveCoachWindow } from "@/components/sentinel/live-coach-window";
 import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder";
-import { JeffMessagesBanner } from "@/components/sentinel/jeff-messages-banner";
 import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
 import { MissedInboundQueueAutoLoad } from "@/components/sentinel/dashboard/widgets/missed-inbound-queue";
 import type { LeadPhone } from "@/lib/dialer/types";
-import type { JeffCallStatus } from "@/lib/dialer/jeff-batch-types";
 import { resolveDialerPhoneSelection } from "@/lib/dialer/operator-auto-cycle";
 import { useTwilio } from "@/providers/twilio-provider";
 import {
@@ -465,7 +463,7 @@ function stageLabel(status: string | null | undefined): string {
 
 function qualificationRouteLabel(route: string | null | undefined): string {
   const normalized = (route ?? "").toLowerCase();
-  if (!normalized) return "Not routed";
+  if (!normalized) return "No category yet";
   if (normalized === "offer_ready") return "Offer Ready";
   if (normalized === "follow_up") return "Follow-Up";
   if (normalized === "nurture") return "Nurture";
@@ -782,6 +780,7 @@ function DialerPageInner() {
   const [dialerMode, setDialerMode] = useState<DialerMode>("queue");
   const autoCycleMode = dialerMode === "autoCycle";
   const [queueSkipTracing, setQueueSkipTracing] = useState(false);
+  const [introActionLeadId, setIntroActionLeadId] = useState<string | null>(null);
   const [currentDialedPhone, setCurrentDialedPhone] = useState<string | null>(null);
   const [currentCallLogId, setCurrentCallLogId] = useState<string | null>(null);
   const [dialerSessionId, setDialerSessionId] = useState<string | null>(null); // PR3b: survives call end for PostCallPanel publish
@@ -794,6 +793,7 @@ function DialerPageInner() {
   // Phone cycling roster — fetched from lead_phones API when a lead is loaded
   const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
   const [phoneIndex, setPhoneIndex] = useState(0);
+  const [pendingAutoDialLeadId, setPendingAutoDialLeadId] = useState<string | null>(null);
   const displayedQueue = autoCycleMode ? autoCycleQueue : queue;
   const displayedQueueLoading = autoCycleMode ? autoCycleLoading : queueLoading;
   const currentLeadAutoCycleEntry = autoCycleQueue.find((lead) => lead.id === currentLead?.id);
@@ -832,7 +832,7 @@ function DialerPageInner() {
   });
   const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
-  const [idleRailTab, setIdleRailTab] = useState<"missed" | "history" | "jeff" | "sms">("history");
+  const [idleRailTab, setIdleRailTab] = useState<"missed" | "history" | "sms">("history");
   const [briefDetailOpen, setBriefDetailOpen] = useState(false);
   const filteredBrief = useMemo(() => {
     if (!preCallBrief) return null;
@@ -1230,6 +1230,61 @@ function DialerPageInner() {
     }
   }, [currentLead?.id, refetchQueue]);
 
+  const applyIntroExitForLead = useCallback(async (
+    leadId: string,
+    category: "nurture" | "dead" | "disposition" | "drive_by",
+    e?: React.MouseEvent,
+  ) => {
+    e?.stopPropagation();
+    setIntroActionLeadId(leadId);
+    try {
+      const res = await fetch(`/api/leads/${leadId}/intro-exit`, {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({ category }),
+      });
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to update intro category");
+        return false;
+      }
+      await fetch(`/api/dialer/v1/auto-cycle?leadId=${encodeURIComponent(leadId)}`, {
+        method: "DELETE",
+        headers: await authHeaders(),
+      }).catch(() => {});
+      await refetchQueue();
+      await refetchAutoCycle();
+      const label =
+        category === "drive_by" ? "Drive By"
+        : category === "nurture" ? "Nurture"
+        : category === "dead" ? "Dead"
+        : "Disposition";
+      toast.success(`Intro completed -> ${label}`);
+      return true;
+    } catch {
+      toast.error("Could not update intro category");
+      return false;
+    } finally {
+      setIntroActionLeadId(null);
+    }
+  }, [refetchAutoCycle, refetchQueue]);
+
+  const promptIntroExitCategory = useCallback(async (leadId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const choice = window.prompt(
+      "Day 3 complete. Choose category: nurture, disposition, dead, drive_by",
+      "nurture",
+    )?.trim().toLowerCase();
+
+    if (!choice) return;
+    if (!["nurture", "disposition", "dead", "drive_by"].includes(choice)) {
+      toast.error("Invalid category. Use nurture, disposition, dead, or drive_by.");
+      return;
+    }
+
+    await applyIntroExitForLead(leadId, choice as "nurture" | "dead" | "disposition" | "drive_by");
+  }, [applyIntroExitForLead]);
+
   const handleSkipTraceQueue = useCallback(async () => {
     if (queueSkipTracing) return;
     setQueueSkipTracing(true);
@@ -1251,6 +1306,13 @@ function DialerPageInner() {
         skippedAlreadyTraced: number;
         failed: number;
         phonesSaved: number;
+        persistedUpdates: number;
+        details?: Array<{
+          leadId: string;
+          status: "traced" | "skipped" | "failed";
+          reason: string;
+          phonesSaved: number;
+        }>;
       };
 
       refetchQueue();
@@ -1265,12 +1327,24 @@ function DialerPageInner() {
         `${summary.skippedAlreadyTraced} already traced`,
         `${summary.failed} failed`,
         `${summary.phonesSaved} phones saved`,
+        `${summary.persistedUpdates ?? 0} persisted`,
       ];
 
       if (summary.failed > 0) {
         toast.warning(`Queue skip trace finished: ${pieces.join(", ")}`);
       } else {
         toast.success(`Queue skip trace finished: ${pieces.join(", ")}`);
+      }
+
+      const missingInfoFailures = (summary.details ?? []).filter(
+        (detail) => detail.status === "failed" && detail.reason === "missing_address",
+      );
+      if (missingInfoFailures.length > 0) {
+        const sample = missingInfoFailures.slice(0, 3).map((detail) => detail.leadId.slice(0, 8)).join(", ");
+        toast.warning(
+          `${missingInfoFailures.length} file${missingInfoFailures.length === 1 ? "" : "s"} skipped: missing property address data (${sample}${missingInfoFailures.length > 3 ? ", ..." : ""})`,
+          { duration: 6000 },
+        );
       }
     } finally {
       setQueueSkipTracing(false);
@@ -1688,26 +1762,6 @@ function DialerPageInner() {
     setIncomingMatch(null);
   }, [incomingCall, incomingFrom]);
 
-  // ── Jeff callback handler ──────────────────────────────────────────
-  const handleJeffCallback = useCallback(async (phone: string, _summary: string | null) => {
-    const target = phone.replace(/\D/g, "");
-    if (!target || target.length < 10) { toast.error("Invalid phone number"); return; }
-    if (!deviceRef.current || deviceStatus !== "ready") { toast.error("VoIP not ready"); return; }
-    setCallState("dialing");
-    setManualStatus("dialing");
-    try {
-      const call = await deviceRef.current.connect({
-        params: { To: `+1${target.slice(-10)}`, CallerId: voipCallerId },
-      });
-      setActiveCall(call);
-      timer.start();
-    } catch {
-      toast.error("Call failed");
-      setCallState("idle");
-      setManualStatus("idle");
-    }
-  }, [deviceStatus, voipCallerId, timer]);
-
   const handleDial = useCallback(async () => {
     const target = currentLead;
     if (!target) return;
@@ -1908,6 +1962,7 @@ function DialerPageInner() {
           leadId: currentLead.id,
           propertyId: currentLead.property_id,
           userId: currentUser.id,
+          force: true,
         }),
       });
 
@@ -1938,6 +1993,7 @@ function DialerPageInner() {
           leadId: currentLead.id,
           propertyId: currentLead.property_id,
           userId: currentUser.id,
+          force: true,
         }),
       });
       const data = await res.json();
@@ -2142,6 +2198,7 @@ function DialerPageInner() {
           phone: toE164(manualPhone),
           message: smsComposeMsg.trim(),
           userId: currentUser.id,
+          force: true,
         }),
       });
       const data = await res.json();
@@ -2272,12 +2329,49 @@ function DialerPageInner() {
     const activePhones = leadPhones.filter(p => p.status === "active");
     const nextPhoneIdx = phoneIndex + 1;
 
-    if (autoCycleMode) {
-      // Auto-cycle: always advance to next lead
-      const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
-      const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
-      setCurrentLead(nextLead);
-      refetchAutoCycle();
+    if (autoCycleMode && currentLead?.id) {
+      let shouldAdvanceLead = false;
+      try {
+        const outcomeRes = await fetch("/api/dialer/v1/auto-cycle/outcome", {
+          method: "POST",
+          headers: await authHeaders(),
+          body: JSON.stringify({
+            leadId: currentLead.id,
+            disposition: dispoKey,
+            phoneNumber: currentDialedPhone ?? selectedDialPhone ?? null,
+          }),
+        });
+        const outcomeData = await outcomeRes.json().catch(() => ({} as {
+          skipped?: boolean;
+          cycle_status?: string;
+          reason?: string;
+          error?: string;
+        }));
+        if (!outcomeRes.ok) {
+          console.warn("[Dialer] auto-cycle outcome update failed:", outcomeData.error ?? outcomeData.reason ?? outcomeRes.statusText);
+        }
+        shouldAdvanceLead = outcomeData.skipped === true || outcomeData.cycle_status === "exited";
+      } catch (err) {
+        console.warn("[Dialer] auto-cycle outcome request failed:", err);
+      }
+
+      await refetchAutoCycle();
+
+      if (shouldAdvanceLead) {
+        const currentIdx = displayedQueue.findIndex((l) => l.id === currentLead.id);
+        const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
+        setCurrentLead(nextLead);
+        setPhoneIndex(0);
+        if (nextLead) {
+          setPendingAutoDialLeadId(nextLead.id);
+          toast.info("Auto Cycle: next lead dialing…");
+        } else {
+          toast.info("Auto Cycle complete — no leads ready");
+        }
+      } else {
+        setPendingAutoDialLeadId(currentLead.id);
+        toast.info("Auto Cycle: dialing next number…");
+      }
     } else if (!isTerminal && nextPhoneIdx < activePhones.length) {
       // Regular queue: cycle to next phone, stay on same lead
       setPhoneIndex(nextPhoneIdx);
@@ -2300,7 +2394,7 @@ function DialerPageInner() {
         toast.info("Queue complete — all leads attempted");
       }
     }
-  }, [autoCycleMode, currentCallLogId, callState, callNotes, currentLead, currentUser.id, displayedQueue, handleHangup, refetchAutoCycle, refetchQueue, timer, leadPhones, phoneIndex]);
+  }, [autoCycleMode, currentCallLogId, callState, callNotes, currentLead, currentDialedPhone, currentUser.id, displayedQueue, handleHangup, refetchAutoCycle, refetchQueue, timer, leadPhones, phoneIndex, selectedDialPhone]);
 
   // ── PostCallPanel completion handler ────────────────────────────────
   // Shared by onComplete and onSkip — PostCallPanel handles its own API calls.
@@ -2320,9 +2414,11 @@ function DialerPageInner() {
     timer.reset();
 
     if (autoCycleMode) {
-      setCurrentLead(null);
       setPhoneIndex(0);
       refetchAutoCycle();
+      if (currentLead?.id) {
+        setPendingAutoDialLeadId(currentLead.id);
+      }
       return;
     }
 
@@ -2353,6 +2449,29 @@ function DialerPageInner() {
   }, [autoCycleMode, currentLead, displayedQueue, refetchAutoCycle, timer, leadPhones, phoneIndex]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────
+  useEffect(() => {
+    if (!autoCycleMode) return;
+    if (!pendingAutoDialLeadId) return;
+    if (callState !== "idle" || dispositionPending) return;
+    if (!currentLead || currentLead.id !== pendingAutoDialLeadId) return;
+    if (!selectedDialPhone) return;
+
+    const autoDialTimer = setTimeout(() => {
+      setPendingAutoDialLeadId(null);
+      void handleDial();
+    }, 450);
+
+    return () => clearTimeout(autoDialTimer);
+  }, [
+    autoCycleMode,
+    pendingAutoDialLeadId,
+    callState,
+    dispositionPending,
+    currentLead,
+    selectedDialPhone,
+    handleDial,
+  ]);
+
   const handleManualPostCallDone = useCallback(() => {
     setManualStatus("idle");
     setManualCallLogId(null);
@@ -3271,12 +3390,6 @@ function DialerPageInner() {
                 >
                   Refresh
                 </button>
-                <a
-                  href="/settings/jeff-outbound"
-                  className="text-sm text-emerald-300/80 hover:text-emerald-200 transition-colors"
-                >
-                  Jeff Outbound
-                </a>
                 {!autoCycleMode && dialerMode === "queue" && (
                   <button
                     onClick={handleSkipTraceQueue}
@@ -3370,10 +3483,31 @@ function DialerPageInner() {
                           <p className="text-sm font-medium truncate flex-1 min-w-0">
                             {lead.properties?.owner_name ?? "Unknown"}
                           </p>
+                          <span
+                            className={cn(
+                              "shrink-0 rounded-[7px] border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                              lead.intro_completed_at && !lead.intro_exit_category
+                                ? "border-amber-500/30 bg-amber-500/[0.08] text-amber-300"
+                                : "border-primary/20 bg-primary/[0.08] text-primary/80",
+                            )}
+                          >
+                            {lead.intro_completed_at && !lead.intro_exit_category
+                              ? "Day 3 - Categorize"
+                              : `Day ${Math.min(3, Math.max(0, Number(lead.intro_day_count ?? 0)))}/3`}
+                          </span>
                           {!lead.compliant && !ghostMode && (
                             <span className="h-2 w-2 rounded-full bg-foreground/80 shadow-[0_0_6px_var(--shadow-medium)] shrink-0" title="Compliance blocked" />
                           )}
                           <RelationshipBadgeCompact data={{ tags: lead.tags }} />
+                          <button
+                            type="button"
+                            onClick={(e) => void applyIntroExitForLead(lead.id, "drive_by", e)}
+                            disabled={introActionLeadId === lead.id}
+                            className="shrink-0 p-0.5 rounded text-amber-300/50 hover:text-amber-300 hover:bg-amber-500/10 transition-colors disabled:opacity-40"
+                            title="Mark Drive By"
+                          >
+                            <MapPin className="h-3.5 w-3.5" />
+                          </button>
                           <button
                             type="button"
                             onClick={(e) => autoCycleMode ? handleRemoveFromAutoCycle(lead.id, e) : handleRemoveFromQueue(lead.id, e)}
@@ -3419,6 +3553,18 @@ function DialerPageInner() {
                             )}
                           </span>
                         </div>
+                        {lead.intro_completed_at && !lead.intro_exit_category && (
+                          <div className="pl-5 pt-0.5">
+                            <button
+                              type="button"
+                              disabled={introActionLeadId === lead.id}
+                              onClick={(e) => void promptIntroExitCategory(lead.id, e)}
+                              className="text-[11px] font-semibold text-amber-300 hover:text-amber-200 disabled:opacity-50"
+                            >
+                              {introActionLeadId === lead.id ? "Updating..." : "Choose category"}
+                            </button>
+                          </div>
+                        )}
                         {autoCycleLead && (
                           <div className="flex flex-wrap items-center gap-1.5 pl-5 pt-1">
                             <span className="rounded-[7px] border border-primary/15 bg-primary/[0.06] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary/80">
@@ -4140,12 +4286,11 @@ function DialerPageInner() {
                   exit={{ opacity: 0, y: -10 }}
                   transition={{ duration: 0.2 }}
                 >
-                  {/* ── Tab selector: History / Jeff / SMS ── */}
+                  {/* ── Tab selector: Missed / History / SMS ── */}
                   <div className="flex items-center gap-0.5 mb-2 rounded-[8px] border border-overlay-6 bg-overlay-2 p-0.5">
                     {([
                       { key: "missed" as const, label: "Missed" },
                       { key: "history" as const, label: "History" },
-                      { key: "jeff" as const, label: "Jeff" },
                       { key: "sms" as const, label: "SMS" },
                     ] as const).map(({ key, label }) => (
                       <button
@@ -4220,11 +4365,6 @@ function DialerPageInner() {
                         </div>
                       )}
                     </GlassCard>
-                  )}
-
-                  {/* Jeff tab — component renders its own GlassCard */}
-                  {idleRailTab === "jeff" && (
-                    <JeffMessagesBanner onCallBack={handleJeffCallback} onLinked={refetchQueue} />
                   )}
 
                   {/* SMS tab — component renders its own GlassCard */}

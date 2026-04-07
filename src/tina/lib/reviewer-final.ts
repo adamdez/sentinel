@@ -2,8 +2,10 @@ import type {
   TinaTaxAdjustment,
   TinaWorkpaperLine,
   TinaWorkpaperSnapshot,
+  TinaWorkpaperLineStatus,
   TinaWorkspaceDraft,
 } from "@/tina/types";
+import { findTinaReviewerPatternScore } from "@/tina/lib/reviewer-outcomes";
 
 function createEmptySnapshot(): TinaWorkpaperSnapshot {
   return {
@@ -50,6 +52,58 @@ function buildSummary(adjustment: TinaTaxAdjustment, fallback: string): string {
     : fallback;
 }
 
+function resolveLineStatusWithReviewerLearning(
+  draft: TinaWorkspaceDraft,
+  status: TinaWorkpaperLineStatus
+): TinaWorkpaperLineStatus {
+  if (status !== "ready") return status;
+
+  const reviewerFinalPattern = findTinaReviewerPatternScore(draft.reviewerOutcomeMemory, {
+    targetType: "reviewer_final_line",
+    phase: "package",
+  });
+  const taxAdjustmentPattern = findTinaReviewerPatternScore(draft.reviewerOutcomeMemory, {
+    targetType: "tax_adjustment",
+    phase: "tax_review",
+  });
+
+  if (
+    reviewerFinalPattern?.confidenceImpact === "lower" ||
+    taxAdjustmentPattern?.confidenceImpact === "lower"
+  ) {
+    return "needs_attention";
+  }
+
+  return status;
+}
+
+function buildReviewerLearningNote(draft: TinaWorkspaceDraft): string {
+  const reviewerFinalPattern = findTinaReviewerPatternScore(draft.reviewerOutcomeMemory, {
+    targetType: "reviewer_final_line",
+    phase: "package",
+  });
+  const taxAdjustmentPattern = findTinaReviewerPatternScore(draft.reviewerOutcomeMemory, {
+    targetType: "tax_adjustment",
+    phase: "tax_review",
+  });
+  const lessons = Array.from(
+    new Set([
+      ...(reviewerFinalPattern?.lessons ?? []),
+      ...(taxAdjustmentPattern?.lessons ?? []),
+    ])
+  );
+  const pattern = reviewerFinalPattern ?? taxAdjustmentPattern;
+
+  if (!pattern || pattern.confidenceImpact !== "lower") return "";
+
+  let note = `Reviewer history is fragile for ${pattern.label} (${pattern.acceptanceScore}/100), so Tina is keeping this line in active review.`;
+  if (lessons.length > 0) {
+    note += ` Lessons: ${lessons.join(" ")}`;
+  }
+
+  return note;
+}
+
 function buildLineFromAdjustment(
   draft: TinaWorkspaceDraft,
   adjustment: TinaTaxAdjustment
@@ -63,6 +117,7 @@ function buildLineFromAdjustment(
     cleanupSuggestionIds: baseLine?.cleanupSuggestionIds ?? [],
     taxAdjustmentIds: [adjustment.id],
   };
+  const reviewerLearningNote = buildReviewerLearningNote(draft);
 
   switch (adjustment.kind) {
     case "carryforward_line":
@@ -81,10 +136,10 @@ function buildLineFromAdjustment(
                 ? "Net business result candidate"
                 : adjustment.title,
         amount: adjustment.amount,
-        status: "ready",
+        status: resolveLineStatusWithReviewerLearning(draft, "ready"),
         summary: buildSummary(
           adjustment,
-          "Tina can now carry this approved amount into her return-facing review layer."
+          `Tina can now carry this approved amount into her return-facing review layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}`
         ),
         ...shared,
       };
@@ -123,10 +178,10 @@ function buildLineFromAdjustment(
         layer: "reviewer_final",
         label: "Payroll expense candidate",
         amount: adjustment.amount,
-        status: "ready",
+        status: resolveLineStatusWithReviewerLearning(draft, "ready"),
         summary: buildSummary(
           adjustment,
-          "Tina can keep this approved payroll treatment visible in the return-facing layer."
+          `Tina can keep this approved payroll treatment visible in the return-facing layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}`
         ),
         ...shared,
       };
@@ -137,10 +192,10 @@ function buildLineFromAdjustment(
         layer: "reviewer_final",
         label: "Contract labor candidate",
         amount: adjustment.amount,
-        status: "ready",
+        status: resolveLineStatusWithReviewerLearning(draft, "ready"),
         summary: buildSummary(
           adjustment,
-          "Tina can keep this approved contractor treatment visible in the return-facing layer."
+          `Tina can keep this approved contractor treatment visible in the return-facing layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}`
         ),
         ...shared,
       };
@@ -222,6 +277,22 @@ export function buildTinaReviewerFinalSnapshot(
   if (needsAttentionCount > 0) {
     nextStep =
       "Some approved items still need careful form mapping, so keep those in review before Tina treats them like settled return lines.";
+  }
+
+  const fragileReviewerFinalPattern = findTinaReviewerPatternScore(draft.reviewerOutcomeMemory, {
+    targetType: "reviewer_final_line",
+    phase: "package",
+  });
+  const fragileTaxAdjustmentPattern = findTinaReviewerPatternScore(draft.reviewerOutcomeMemory, {
+    targetType: "tax_adjustment",
+    phase: "tax_review",
+  });
+  if (
+    fragileReviewerFinalPattern?.confidenceImpact === "lower" ||
+    fragileTaxAdjustmentPattern?.confidenceImpact === "lower"
+  ) {
+    nextStep =
+      "Reviewer history is still fragile, so keep these return-facing lines in review until Tina stops repeating the same correction pattern.";
   }
 
   return {

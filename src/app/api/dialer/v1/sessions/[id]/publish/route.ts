@@ -359,6 +359,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     calls_log_id: result.calls_log_id,
     lead_id:      result.lead_id,
     task_id:      result.task_id ?? null,
+    intro_sop_active: typeof result.intro_sop_active === "boolean" ? result.intro_sop_active : undefined,
+    intro_day_count: typeof result.intro_day_count === "number" ? result.intro_day_count : undefined,
+    intro_exit_category: result.intro_exit_category ?? null,
+    requires_exit_category: result.requires_exit_category === true,
     qaFindings,
     ...(warnings.length > 0 ? { warnings } : {}),
   });

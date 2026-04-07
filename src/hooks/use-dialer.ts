@@ -30,6 +30,12 @@ export interface QueueLead {
   dial_queue_active?: boolean | null;
   dial_queue_added_at?: string | null;
   dial_queue_added_by?: string | null;
+  intro_sop_active?: boolean | null;
+  intro_day_count?: number | null;
+  intro_last_call_date?: string | null;
+  intro_completed_at?: string | null;
+  intro_exit_category?: string | null;
+  next_action?: string | null;
   next_action_due_at: string | null;
   next_follow_up_at: string | null;
   follow_up_date?: string | null;
@@ -74,6 +80,25 @@ export interface AutoCycleQueueLead extends QueueLead {
   autoCyclePhones: AutoCyclePhoneState[];
 }
 
+const TERMINAL_QUEUE_DISPOSITIONS = new Set([
+  "dead_lead",
+  "disqualified",
+  "not_interested",
+]);
+
+function shouldRenderInDialQueue(lead: QueueLead): boolean {
+  const status = (lead.status ?? "").toLowerCase();
+  if (status !== "lead" && status !== "negotiation") return false;
+  if (lead.dial_queue_active === false) return false;
+  if (lead.intro_sop_active === false) return false;
+  if (lead.intro_exit_category) return false;
+  const disposition = (lead.disposition_code ?? "").toLowerCase();
+  if (TERMINAL_QUEUE_DISPOSITIONS.has(disposition)) return false;
+  const nextAction = (lead.next_action ?? "").toLowerCase();
+  if (nextAction.startsWith("drive by")) return false;
+  return true;
+}
+
 async function dialerAuthHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
   const headers: Record<string, string> = {};
@@ -90,6 +115,7 @@ async function fetchQueueRowsForUser(userId: string, limit: number) {
       .in("status", ["lead", "negotiation"])
       .eq("assigned_to", userId)
       .eq("dial_queue_active", true)
+      .eq("intro_sop_active", true)
       .order("dial_queue_added_at", { ascending: false })
       .limit(limit + 40),
     10_000,
@@ -99,7 +125,7 @@ async function fetchQueueRowsForUser(userId: string, limit: number) {
     return response;
   }
 
-  if (isMissingDialQueueColumnError(response.error)) {
+  if (isMissingDialQueueColumnError(response.error) || isMissingIntroSopColumnError(response.error)) {
     response = await withTimeout<any>(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase.from("leads") as any)
@@ -132,6 +158,17 @@ function isMissingDialQueueColumnError(error: unknown): boolean {
     ? String((error as { message?: unknown }).message ?? "").toLowerCase()
     : "";
   return message.includes("dial_queue_active") || message.includes("dial_queue_added_at") || message.includes("dial_queue_added_by");
+}
+
+function isMissingIntroSopColumnError(error: unknown): boolean {
+  const message = error && typeof error === "object" && "message" in error
+    ? String((error as { message?: unknown }).message ?? "").toLowerCase()
+    : "";
+  return message.includes("intro_sop_active")
+    || message.includes("intro_day_count")
+    || message.includes("intro_last_call_date")
+    || message.includes("intro_completed_at")
+    || message.includes("intro_exit_category");
 }
 
 // ── Dialer Queue Hook ─────────────────────────────────────────────────
@@ -202,7 +239,7 @@ export function useDialerQueue(limit = 7) {
       }
 
       // Blend: 60% existing priority + 40% predictive score
-      const enriched = rows.map((lead) => {
+      const enriched = rows.filter((lead) => shouldRenderInDialQueue(lead)).map((lead) => {
         const predScore = predMap[lead.property_id] ?? null;
         const blendedPriority = predScore !== null
           ? Math.round(lead.priority * 0.6 + predScore * 0.4)

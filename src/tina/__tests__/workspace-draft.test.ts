@@ -416,4 +416,145 @@ describe("workspace draft helpers", () => {
       "field-review-line-1-gross-receipts",
     ]);
   });
+
+  it("normalizes reviewer outcome memory and drops malformed records", () => {
+    const result = parseTinaWorkspaceDraft(
+      JSON.stringify({
+        reviewerOutcomeMemory: {
+          updatedAt: "2026-04-06T20:16:00.000Z",
+          summary: "One saved reviewer outcome.",
+          nextStep: "Keep recording reviewer deltas.",
+          overrides: [
+            {
+              id: "override-1",
+              targetType: "tax_adjustment",
+              targetId: "tax-adjustment-1",
+              severity: "material",
+              reason: "Reviewer reclassified owner flow.",
+              beforeState: "Deductible expense",
+              afterState: "Owner distribution",
+              lesson: "Owner draws must never flow into deductible expense totals.",
+              sourceDocumentIds: ["doc-1"],
+              decidedAt: "2026-04-06T20:15:00.000Z",
+              decidedBy: "reviewer-1",
+            },
+            {
+              broken: true,
+            },
+          ],
+          outcomes: [
+            {
+              id: "outcome-1",
+              title: "Owner draw review",
+              phase: "tax_review",
+              verdict: "revised",
+              targetType: "tax_adjustment",
+              targetId: "tax-adjustment-1",
+              summary: "Reviewer revised owner-flow treatment.",
+              lessons: ["Owner-flow characterization needs stronger proof."],
+              caseTags: ["messy_books", "schedule_c"],
+              overrideIds: ["override-1"],
+              decidedAt: "2026-04-06T20:16:00.000Z",
+              decidedBy: "reviewer-1",
+            },
+            {
+              broken: true,
+            },
+          ],
+        },
+        taxPositionMemory: {
+          lastRunAt: "2026-04-06T20:17:00.000Z",
+          status: "complete",
+          summary: "One saved tax position.",
+          nextStep: "Keep tying positions to reviewer history.",
+          records: [
+            {
+              id: "tax-position-1",
+              adjustmentId: "tax-adjustment-1",
+              title: "Keep sales tax out of income",
+              status: "needs_review",
+              confidence: "medium",
+              summary: "Saved position memory.",
+              treatmentSummary: "Exclude collected sales tax when facts support it.",
+              reviewerGuidance: "Still needs reviewer anchoring.",
+              authorityWorkIdeaIds: ["wa-state-review"],
+              sourceDocumentIds: ["doc-1"],
+              sourceFactIds: ["source-1"],
+              reviewerOutcomeIds: ["outcome-1"],
+              reviewerOverrideIds: ["override-1"],
+              updatedAt: "2026-04-06T20:17:00.000Z",
+            },
+            {
+              broken: true,
+            },
+          ],
+        },
+      })
+    );
+
+    expect(result.reviewerOutcomeMemory.updatedAt).toBe("2026-04-06T20:16:00.000Z");
+    expect(result.reviewerOutcomeMemory.overrides).toHaveLength(1);
+    expect(result.reviewerOutcomeMemory.outcomes).toHaveLength(1);
+    expect(result.reviewerOutcomeMemory.overrides[0]?.targetType).toBe("tax_adjustment");
+    expect(result.reviewerOutcomeMemory.outcomes[0]?.verdict).toBe("revised");
+    expect(result.reviewerOutcomeMemory.scorecard.acceptanceScore).toBe(45);
+    expect(result.reviewerOutcomeMemory.scorecard.patterns[0]?.targetType).toBe(
+      "tax_adjustment"
+    );
+    expect(result.taxPositionMemory.status).toBe("complete");
+    expect(result.taxPositionMemory.records).toHaveLength(1);
+    expect(result.taxPositionMemory.records[0]?.adjustmentId).toBe("tax-adjustment-1");
+    expect(result.taxPositionMemory.records[0]?.reviewerOutcomeIds).toEqual(["outcome-1"]);
+  });
+
+  it("normalizes saved book tie-out snapshots", () => {
+    const result = parseTinaWorkspaceDraft(
+      JSON.stringify({
+        bookTieOut: {
+          lastRunAt: "2026-04-06T21:20:00.000Z",
+          status: "complete",
+          summary: "Tie-out built",
+          nextStep: "Keep going",
+          totalMoneyIn: 18000,
+          totalMoneyOut: 4000,
+          totalNet: 14000,
+          entries: [
+            {
+              id: "book-tie-out-doc-1",
+              documentId: "doc-1",
+              label: "QuickBooks",
+              status: "ready",
+              moneyIn: 18000,
+              moneyOut: 4000,
+              net: 14000,
+              dateCoverage: "2025-01-01 through 2025-12-31",
+              sourceFactIds: ["money-in", "money-out"],
+              issueIds: [],
+            },
+            {
+              broken: true,
+            },
+          ],
+          variances: [
+            {
+              id: "money-in-spread",
+              title: "Money-in totals diverge across papers",
+              severity: "needs_attention",
+              summary: "Large spread across papers.",
+              documentIds: ["doc-1", "doc-2"],
+              sourceFactIds: ["money-in-1", "money-in-2"],
+            },
+            {
+              broken: true,
+            },
+          ],
+        },
+      })
+    );
+
+    expect(result.bookTieOut.status).toBe("complete");
+    expect(result.bookTieOut.entries).toHaveLength(1);
+    expect(result.bookTieOut.variances).toHaveLength(1);
+    expect(result.bookTieOut.totalNet).toBe(14000);
+  });
 });

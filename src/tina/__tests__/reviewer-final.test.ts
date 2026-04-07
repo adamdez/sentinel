@@ -189,6 +189,99 @@ describe("buildTinaReviewerFinalSnapshot", () => {
     expect(snapshot.lines[0]?.status).toBe("needs_attention");
     expect(snapshot.lines[0]?.label).toBe("Sales tax should stay out of income");
   });
+
+  it("keeps otherwise ready reviewer-final lines in attention mode when reviewer history is fragile", () => {
+    const draft = buildDraft({
+      reviewerOutcomeMemory: {
+        updatedAt: "2026-04-07T01:00:00.000Z",
+        summary: "Fragile reviewer history.",
+        nextStep: "Review repeated corrections first.",
+        scorecard: {
+          totalOutcomes: 3,
+          acceptedCount: 1,
+          revisedCount: 1,
+          rejectedCount: 1,
+          acceptanceScore: 48,
+          trustLevel: "fragile",
+          nextStep: "Review repeated corrections first.",
+          patterns: [
+            {
+              patternId: "reviewer_final_line:package",
+              label: "reviewer final line in package",
+              targetType: "reviewer_final_line",
+              phase: "package",
+              totalOutcomes: 3,
+              acceptedCount: 1,
+              revisedCount: 1,
+              rejectedCount: 1,
+              acceptanceScore: 48,
+              trustLevel: "fragile",
+              confidenceImpact: "lower",
+              nextStep: "Treat reviewer final line in package as unstable until Tina stops repeating the correction pattern.",
+              lessons: ["Do not present gross receipts candidates as settled when tie-out proof is still thin."],
+              updatedAt: "2026-04-07T01:00:00.000Z",
+            },
+          ],
+        },
+        overrides: [],
+        outcomes: [],
+      },
+      aiCleanup: {
+        lastRunAt: "2026-03-27T02:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [
+          {
+            id: "ai-cleanup-1",
+            kind: "income",
+            layer: "ai_cleanup",
+            label: "Clean income",
+            amount: 12000,
+            status: "ready",
+            summary: "Looks clean",
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            issueIds: [],
+            derivedFromLineIds: ["line-1"],
+            cleanupSuggestionIds: ["cleanup-1"],
+          },
+        ],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T02:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-adjustment-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 12000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-cleanup-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaReviewerFinalSnapshot(draft);
+
+    expect(snapshot.lines[0]?.status).toBe("needs_attention");
+    expect(snapshot.lines[0]?.summary).toContain("fragile");
+    expect(snapshot.lines[0]?.summary).toContain("gross receipts candidates");
+    expect(snapshot.nextStep).toContain("Reviewer history is still fragile");
+  });
 });
 
 describe("markTinaReviewerFinalStale", () => {

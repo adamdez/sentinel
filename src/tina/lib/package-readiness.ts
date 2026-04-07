@@ -302,6 +302,51 @@ export function buildTinaPackageReadiness(
       );
     });
 
+  if (draft.taxAdjustments.status === "complete" && draft.taxPositionMemory.status !== "complete") {
+    items.push(
+      createItem({
+        id: "tax-position-memory-not-current",
+        title: "Tax-position memory is not current",
+        summary:
+          "Tina should not call this package ready until each tax move is tied to a current position record with reviewer and authority context.",
+        severity: "blocking",
+        sourceDocumentIds: draft.taxAdjustments.adjustments.flatMap(
+          (adjustment) => adjustment.sourceDocumentIds
+        ),
+      })
+    );
+  }
+
+  draft.taxPositionMemory.records
+    .filter((record) => record.status === "blocked")
+    .forEach((record) => {
+      items.push(
+        createItem({
+          id: `tax-position-blocked-${record.id}`,
+          title: record.title,
+          summary:
+            "This tax position is still blocked, so Tina should not treat the package as CPA-ready yet.",
+          severity: "blocking",
+          sourceDocumentIds: record.sourceDocumentIds,
+        })
+      );
+    });
+
+  draft.taxPositionMemory.records
+    .filter((record) => record.status === "needs_review")
+    .forEach((record) => {
+      items.push(
+        createItem({
+          id: `tax-position-review-${record.id}`,
+          title: record.title,
+          summary:
+            "This tax position still needs reviewer anchoring before Tina can honestly say the package is ready.",
+          severity: "blocking",
+          sourceDocumentIds: record.sourceDocumentIds,
+        })
+      );
+    });
+
   draft.scheduleCDraft.fields
     .filter((field) => fieldNeedsBlockingReview(field))
     .forEach((field) => {

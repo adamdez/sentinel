@@ -64,13 +64,27 @@ function toE164(phone: string): string {
 // ── FROM number routing ───────────────────────────────────────────────
 
 async function resolveFromNumber(
+  userId: string | null | undefined,
   leadId: string | null | undefined,
   defaultFrom: string,
 ): Promise<string> {
-  if (!leadId) return defaultFrom;
+  const sb = createServerClient();
 
   try {
-    const sb = createServerClient();
+    if (userId) {
+      // Prefer the sending operator's configured Twilio number.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: senderProfile } = await (sb.from("user_profiles") as any)
+        .select("twilio_phone_number")
+        .eq("id", userId)
+        .maybeSingle();
+      if (senderProfile?.twilio_phone_number) {
+        return senderProfile.twilio_phone_number;
+      }
+    }
+
+    if (!leadId) return defaultFrom;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: lead } = await (sb.from("leads") as any)
       .select("assigned_to")
@@ -171,7 +185,7 @@ export async function sendAndLogSMS(params: SendSMSParams): Promise<SendSMSResul
   }
 
   // ── FROM routing via user_profiles.twilio_phone_number ──────────────
-  const fromNumber = await resolveFromNumber(leadId, creds.from);
+  const fromNumber = await resolveFromNumber(effectiveUserId, leadId, creds.from);
 
   if (!fromNumber) {
     return { success: false, error: "No Twilio phone number configured" };

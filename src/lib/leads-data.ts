@@ -622,6 +622,12 @@ export interface LeadRow {
   // Dial queue membership
   dialQueueActive: boolean;
   dialQueueAddedAt: string | null;
+  introSopActive: boolean;
+  introDayCount: number;
+  introLastCallDate: string | null;
+  introCompletedAt: string | null;
+  introExitCategory: string | null;
+  requiresIntroExitCategory: boolean;
 }
 
 /**

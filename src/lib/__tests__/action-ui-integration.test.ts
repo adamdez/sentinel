@@ -69,7 +69,7 @@ describe("lead table data shape → action summary", () => {
       qualificationRoute: null,
     });
     expect(result.urgency).toBe("high");
-    expect(result.action).toContain("qualification");
+    expect(result.action).toContain("next step");
     expect(result.actionType).toBe("review");
   });
 

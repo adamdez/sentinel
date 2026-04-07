@@ -129,6 +129,12 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
   const reviewAdjustments = draft.taxAdjustments.adjustments.filter(
     (adjustment) => adjustment.status === "ready_for_review"
   );
+  const blockedTaxPositions = draft.taxPositionMemory.records.filter(
+    (record) => record.status === "blocked"
+  );
+  const reviewTaxPositions = draft.taxPositionMemory.records.filter(
+    (record) => record.status === "needs_review"
+  );
   const unresolvedAuthorityWork = draft.authorityWork.filter(
     (item) =>
       item.status === "not_started" ||
@@ -166,9 +172,13 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
     draft.reviewerFinal.lines.length > 0 ? "ready" : "waiting";
 
   const authorityStatus: TinaCpaHandoffArtifactStatus =
-    authorityBlockedAdjustments.length > 0
+    draft.taxPositionMemory.status !== "complete" ||
+    authorityBlockedAdjustments.length > 0 ||
+    blockedTaxPositions.length > 0
       ? "blocked"
-      : reviewAdjustments.length > 0 || unresolvedAuthorityWork.length > 0
+      : reviewAdjustments.length > 0 ||
+          reviewTaxPositions.length > 0 ||
+          unresolvedAuthorityWork.length > 0
         ? "waiting"
         : "ready";
 
@@ -253,13 +263,17 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
         authorityStatus === "ready"
           ? "Tina does not see authority blockers in the current packet."
           : authorityStatus === "waiting"
-            ? "Tina still has authority notes or review calls that should travel with the packet."
-            : "Tina still has tax moves that need proof before a reviewer should trust them.",
+            ? "Tina still has authority notes, position reviews, or review calls that should travel with the packet."
+            : draft.taxPositionMemory.status !== "complete"
+              ? "Tina still needs a current tax-position register before a reviewer should trust this packet."
+              : "Tina still has tax moves or positions that need proof before a reviewer should trust them.",
       includes: [
         formatCount(draft.authorityWork.length, "authority work item"),
         formatCount(citationCount, "citation"),
         formatCount(authorityBlockedAdjustments.length, "authority blocker"),
         formatCount(reviewAdjustments.length, "tax move waiting on review"),
+        formatCount(blockedTaxPositions.length, "blocked tax position"),
+        formatCount(reviewTaxPositions.length, "tax position waiting on review"),
       ],
       relatedReadinessItemIds: draft.packageReadiness.items
         .filter((item) => item.id.startsWith("adjustment-"))

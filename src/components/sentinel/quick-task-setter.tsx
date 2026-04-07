@@ -17,6 +17,7 @@ export const TASK_TYPES = [
 ] as const;
 
 export type TaskTypeId = (typeof TASK_TYPES)[number]["id"];
+type SopPresetId = "call_day_1" | "call_day_2" | "call_day_3" | "follow_up" | "drive_by";
 
 const WHEN_OPTIONS = [
   { id: "today", label: "Today", resolve: () => new Date() },
@@ -69,6 +70,7 @@ export function QuickTaskSetter({
   const [customDate, setCustomDate] = useState("");
   const [customTime, setCustomTime] = useState("");
   const [notes, setNotes] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const typeLabel = useMemo(
     () => TASK_TYPES.find((t) => t.id === taskType)?.label ?? "",
@@ -124,6 +126,46 @@ export function QuickTaskSetter({
     });
   }, [taskType, resolvedDueAt, title, notes, onSave]);
 
+  const applySopPreset = useCallback((preset: SopPresetId) => {
+    if (preset === "call_day_1") {
+      setTaskType("callback");
+      setWhenId("today");
+      setTimeId("9am");
+      setCustomDate("");
+      setCustomTime("");
+      return;
+    }
+    if (preset === "call_day_2") {
+      setTaskType("callback");
+      setWhenId("tomorrow");
+      setTimeId("9am");
+      setCustomDate("");
+      setCustomTime("");
+      return;
+    }
+    if (preset === "call_day_3") {
+      setTaskType("callback");
+      setWhenId("in_3_days");
+      setTimeId("9am");
+      setCustomDate("");
+      setCustomTime("");
+      return;
+    }
+    if (preset === "follow_up") {
+      setTaskType("follow_up");
+      setWhenId("in_3_days");
+      setTimeId("12pm");
+      setCustomDate("");
+      setCustomTime("");
+      return;
+    }
+    setTaskType("drive_by");
+    setWhenId("today");
+    setTimeId("12pm");
+    setCustomDate("");
+    setCustomTime("");
+  }, []);
+
   const chipClass = (active: boolean) =>
     `px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer select-none border ${
       active
@@ -146,99 +188,126 @@ export function QuickTaskSetter({
         </div>
       )}
 
-      {/* Task type chips */}
-      <div className="flex flex-wrap gap-1.5">
-        {TASK_TYPES.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTaskType(t.id)}
-            className={chipClass(taskType === t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* When chips */}
-      <div>
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40 mb-1.5">When?</p>
+      {/* SOP presets */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">SOP Presets</p>
         <div className="flex flex-wrap gap-1.5">
-          {WHEN_OPTIONS.map((w) => (
-            <button
-              key={w.id}
-              type="button"
-              onClick={() => { setWhenId(w.id); setCustomDate(""); }}
-              className={chipClass(whenId === w.id)}
-            >
-              {w.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setWhenId("custom")}
-            className={chipClass(whenId === "custom")}
-          >
-            <CalendarIcon className="h-3 w-3 inline mr-1" />
-            Pick Date
-          </button>
+          <button type="button" onClick={() => applySopPreset("call_day_1")} className={chipClass(taskType === "callback" && whenId === "today")}>Call Day 1</button>
+          <button type="button" onClick={() => applySopPreset("call_day_2")} className={chipClass(taskType === "callback" && whenId === "tomorrow")}>Call Day 2</button>
+          <button type="button" onClick={() => applySopPreset("call_day_3")} className={chipClass(taskType === "callback" && whenId === "in_3_days")}>Call Day 3</button>
+          <button type="button" onClick={() => applySopPreset("follow_up")} className={chipClass(taskType === "follow_up" && whenId === "in_3_days")}>Follow Up</button>
+          <button type="button" onClick={() => applySopPreset("drive_by")} className={chipClass(taskType === "drive_by")}>Drive By</button>
         </div>
-        {whenId === "custom" && (
-          <input
-            type="date"
-            value={customDate}
-            onChange={(e) => setCustomDate(e.target.value)}
-            min={minDate}
-            style={{ colorScheme: "dark" }}
-            className="mt-1.5 w-44 rounded-lg border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
-          />
-        )}
       </div>
 
-      {/* Time chips */}
-      <div>
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40 mb-1.5">Time?</p>
-        <div className="flex flex-wrap gap-1.5">
-          {TIME_OPTIONS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => { setTimeId(t.id); setCustomTime(""); }}
-              className={chipClass(timeId === t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setTimeId("custom")}
-            className={chipClass(timeId === "custom")}
-          >
-            Pick Time
-          </button>
-        </div>
-        {timeId === "custom" && (
-          <input
-            type="time"
-            value={customTime}
-            onChange={(e) => setCustomTime(e.target.value)}
-            style={{ colorScheme: "dark" }}
-            className="mt-1.5 w-32 rounded-lg border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
-          />
-        )}
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40">Advanced</p>
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="text-xs text-muted-foreground/60 hover:text-foreground/80"
+        >
+          {showAdvanced ? "Hide" : "Show"}
+        </button>
       </div>
 
-      {/* Optional note */}
-      <div>
-        <input
-          type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Optional note..."
-          maxLength={300}
-          className="w-full rounded-lg border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
-        />
-      </div>
+      {showAdvanced && (
+        <>
+          {/* Task type chips */}
+          <div className="flex flex-wrap gap-1.5">
+            {TASK_TYPES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTaskType(t.id)}
+                className={chipClass(taskType === t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* When chips */}
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40 mb-1.5">When?</p>
+            <div className="flex flex-wrap gap-1.5">
+              {WHEN_OPTIONS.map((w) => (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => { setWhenId(w.id); setCustomDate(""); }}
+                  className={chipClass(whenId === w.id)}
+                >
+                  {w.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setWhenId("custom")}
+                className={chipClass(whenId === "custom")}
+              >
+                <CalendarIcon className="h-3 w-3 inline mr-1" />
+                Pick Date
+              </button>
+            </div>
+            {whenId === "custom" && (
+              <input
+                type="date"
+                value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                min={minDate}
+                style={{ colorScheme: "dark" }}
+                className="mt-1.5 w-44 rounded-lg border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+              />
+            )}
+          </div>
+
+          {/* Time chips */}
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/40 mb-1.5">Time?</p>
+            <div className="flex flex-wrap gap-1.5">
+              {TIME_OPTIONS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => { setTimeId(t.id); setCustomTime(""); }}
+                  className={chipClass(timeId === t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => setTimeId("custom")}
+                className={chipClass(timeId === "custom")}
+              >
+                Pick Time
+              </button>
+            </div>
+            {timeId === "custom" && (
+              <input
+                type="time"
+                value={customTime}
+                onChange={(e) => setCustomTime(e.target.value)}
+                style={{ colorScheme: "dark" }}
+                className="mt-1.5 w-32 rounded-lg border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary/30"
+              />
+            )}
+          </div>
+
+          {/* Optional note */}
+          <div>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional note..."
+              maxLength={300}
+              className="w-full rounded-lg border border-overlay-6 bg-overlay-3 px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/20"
+            />
+          </div>
+        </>
+      )}
 
       {/* Preview title */}
       {title && (

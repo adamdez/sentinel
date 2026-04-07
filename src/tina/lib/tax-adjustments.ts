@@ -6,6 +6,7 @@ import type {
   TinaWorkpaperLine,
   TinaWorkspaceDraft,
 } from "@/tina/types";
+import { findTinaReviewerPatternScore } from "@/tina/lib/reviewer-outcomes";
 
 interface TinaAdjustmentSeed {
   kind: TinaTaxAdjustmentKind;
@@ -174,11 +175,40 @@ function buildCarryforwardSeed(line: TinaWorkpaperLine): TinaAdjustmentSeed {
   };
 }
 
+function raiseRisk(risk: TinaTaxAdjustmentRisk): TinaTaxAdjustmentRisk {
+  if (risk === "low") return "medium";
+  if (risk === "medium") return "high";
+  return "high";
+}
+
+function applyReviewerLearningToSeed(
+  draft: TinaWorkspaceDraft,
+  seed: TinaAdjustmentSeed
+): TinaAdjustmentSeed {
+  const patternScore = findTinaReviewerPatternScore(draft.reviewerOutcomeMemory, {
+    targetType: "tax_adjustment",
+    phase: "tax_review",
+  });
+
+  if (!patternScore || patternScore.confidenceImpact !== "lower") return seed;
+
+  const lessonText =
+    patternScore.lessons.length > 0 ? ` Lessons: ${patternScore.lessons.join(" ")}` : "";
+
+  return {
+    ...seed,
+    risk: raiseRisk(seed.risk),
+    summary: `${seed.summary} Reviewer history for tax adjustments is fragile (${patternScore.acceptanceScore}/100), so Tina should slow this treatment down.${lessonText}`.trim(),
+    suggestedTreatment: `${seed.suggestedTreatment} Keep this in explicit reviewer review until Tina proves it matches the repeated correction pattern.`,
+    whyItMatters: `${seed.whyItMatters} Reviewer history shows this kind of treatment still drifts when Tina moves too quickly.`,
+  };
+}
+
 function buildAdjustmentFromLine(
   draft: TinaWorkspaceDraft,
   line: TinaWorkpaperLine
 ): TinaTaxAdjustment {
-  const seed =
+  const rawSeed =
     line.kind === "signal"
       ? SIGNAL_ADJUSTMENT_MAP[line.label] ?? {
           kind: "carryforward_line",
@@ -194,6 +224,7 @@ function buildAdjustmentFromLine(
           authorityWorkIdeaIds: [],
         }
       : buildCarryforwardSeed(line);
+  const seed = applyReviewerLearningToSeed(draft, rawSeed);
 
   const authorityReady = authorityAllowsAdjustment(draft, seed.authorityWorkIdeaIds);
 
@@ -268,6 +299,15 @@ export function buildTinaTaxAdjustmentSnapshot(
   } else if (readyCount > 0) {
     nextStep =
       "A human can now review and approve the tax adjustments that are ready.";
+  }
+
+  const fragilePattern = findTinaReviewerPatternScore(draft.reviewerOutcomeMemory, {
+    targetType: "tax_adjustment",
+    phase: "tax_review",
+  });
+  if (fragilePattern?.confidenceImpact === "lower") {
+    nextStep =
+      "Start with the repeated reviewer correction pattern before approving these tax adjustments. Tina is treating tax-adjustment trust as fragile right now.";
   }
 
   return {

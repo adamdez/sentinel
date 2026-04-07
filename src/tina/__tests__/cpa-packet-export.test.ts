@@ -108,6 +108,93 @@ describe("buildTinaCpaPacketExport", () => {
           },
         ],
       },
+      taxPositionMemory: {
+        lastRunAt: "2026-03-27T04:03:40.000Z",
+        status: "complete" as const,
+        summary: "Position memory ready",
+        nextStep: "Hand it off",
+        records: [
+          {
+            id: "tax-position-tax-1",
+            adjustmentId: "tax-1",
+            title: "Carry it",
+            status: "ready" as const,
+            confidence: "high" as const,
+            summary: "Supported and reviewer anchored.",
+            treatmentSummary: "Carry it",
+            reviewerGuidance: "Reviewer accepted the treatment.",
+            authorityWorkIdeaIds: [],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: [],
+            reviewerOutcomeIds: [],
+            reviewerOverrideIds: [],
+            updatedAt: "2026-03-27T04:03:45.000Z",
+          },
+        ],
+      },
+      reviewerOutcomeMemory: {
+        updatedAt: "2026-03-27T04:03:50.000Z",
+        summary: "Saved reviewer outcomes.",
+        nextStep: "Keep measuring real reviewer traffic.",
+        scorecard: {
+          totalOutcomes: 2,
+          acceptedCount: 1,
+          revisedCount: 1,
+          rejectedCount: 0,
+          acceptanceScore: 73,
+          trustLevel: "mixed" as const,
+          nextStep: "Keep measuring real reviewer traffic.",
+          patterns: [
+            {
+              patternId: "tax_adjustment:tax_review",
+              label: "tax adjustment in tax review",
+              targetType: "tax_adjustment" as const,
+              phase: "tax_review" as const,
+              totalOutcomes: 2,
+              acceptedCount: 1,
+              revisedCount: 1,
+              rejectedCount: 0,
+              acceptanceScore: 73,
+              trustLevel: "mixed" as const,
+              confidenceImpact: "hold" as const,
+              nextStep: "Keep measuring tax adjustment in tax review.",
+              lessons: ["Keep tying gross receipts back to reviewer-visible proof."],
+              updatedAt: "2026-03-27T04:03:50.000Z",
+            },
+          ],
+        },
+        overrides: [],
+        outcomes: [
+          {
+            id: "outcome-1",
+            title: "Adjustment review",
+            phase: "tax_review" as const,
+            verdict: "accepted" as const,
+            targetType: "tax_adjustment" as const,
+            targetId: "tax-1",
+            summary: "Accepted.",
+            lessons: [],
+            caseTags: ["clean_books", "schedule_c"] as const,
+            overrideIds: [],
+            decidedAt: "2026-03-20T04:03:50.000Z",
+            decidedBy: "reviewer-1",
+          },
+          {
+            id: "outcome-2",
+            title: "Adjustment tweak",
+            phase: "tax_review" as const,
+            verdict: "revised" as const,
+            targetType: "tax_adjustment" as const,
+            targetId: "tax-1",
+            summary: "Revised.",
+            lessons: [],
+            caseTags: ["messy_books", "schedule_c"] as const,
+            overrideIds: [],
+            decidedAt: "2026-03-21T04:03:50.000Z",
+            decidedBy: "reviewer-1",
+          },
+        ],
+      },
     };
 
     const exportFile = buildTinaCpaPacketExport(draft);
@@ -117,5 +204,13 @@ describe("buildTinaCpaPacketExport", () => {
     expect(exportFile.contents).toContain("# Tina CPA Review Packet");
     expect(exportFile.contents).toContain("Line 1 Gross receipts or sales");
     expect(exportFile.contents).toContain("2025-return.pdf");
+    expect(exportFile.contents).toContain("## Tax position register");
+    expect(exportFile.contents).toContain("confidence: high");
+    expect(exportFile.contents).toContain("## Live acceptance benchmark");
+    expect(exportFile.contents).toContain("last 30 days");
+    expect(exportFile.contents).toContain("Benchmark movement:");
+    expect(exportFile.contents).toContain("Current file cohorts:");
+    expect(exportFile.contents).toContain("## Filing approval");
+    expect(exportFile.contents).toContain("## Review delivery");
   });
 });

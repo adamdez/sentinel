@@ -181,6 +181,79 @@ describe("buildTinaCpaHandoff", () => {
     expect(authorityArtifact?.status).toBe("blocked");
   });
 
+  it("blocks the authority packet section when tax-position memory is not current", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Sole Prop",
+        entityType: "sole_prop",
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review it",
+        fields: [],
+        notes: [],
+      },
+      packageReadiness: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        level: "blocked",
+        summary: "Blocked",
+        nextStep: "Fix blockers",
+        items: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:03:30.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "It matters",
+            amount: 18000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "Approved",
+          },
+        ],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-03-27T04:03:31.000Z",
+        status: "stale",
+        summary: "Needs rebuild",
+        nextStep: "Rebuild",
+        records: [],
+      },
+    });
+
+    const snapshot = buildTinaCpaHandoff(draft);
+    const authorityArtifact = snapshot.artifacts.find(
+      (artifact) => artifact.id === "authority-and-risk"
+    );
+
+    expect(authorityArtifact?.status).toBe("blocked");
+    expect(authorityArtifact?.summary).toContain("current tax-position register");
+  });
+
   it("marks the Schedule C packet section waiting when only review items remain", () => {
     const draft = buildDraft({
       profile: {
@@ -292,6 +365,30 @@ describe("buildTinaCpaHandoff", () => {
             sourceDocumentIds: ["doc-1"],
             sourceFactIds: ["fact-1"],
             reviewerNotes: "",
+          },
+        ],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-03-27T04:03:31.000Z",
+        status: "complete",
+        summary: "Current",
+        nextStep: "Hand it off",
+        records: [
+          {
+            id: "tax-position-tax-1",
+            adjustmentId: "tax-1",
+            title: "Carry it",
+            status: "ready",
+            confidence: "high",
+            summary: "Supported and reviewer anchored.",
+            treatmentSummary: "Carry it",
+            reviewerGuidance: "Approved by reviewer.",
+            authorityWorkIdeaIds: [],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerOutcomeIds: ["outcome-1"],
+            reviewerOverrideIds: [],
+            updatedAt: "2026-03-27T04:03:31.000Z",
           },
         ],
       },
@@ -469,6 +566,30 @@ describe("buildTinaCpaHandoff", () => {
             sourceDocumentIds: ["doc-1"],
             sourceFactIds: ["fact-1"],
             reviewerNotes: "",
+          },
+        ],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-03-27T04:03:31.000Z",
+        status: "complete",
+        summary: "Current",
+        nextStep: "Hand it off",
+        records: [
+          {
+            id: "tax-position-tax-1",
+            adjustmentId: "tax-1",
+            title: "Carry it",
+            status: "ready",
+            confidence: "high",
+            summary: "Supported and reviewer anchored.",
+            treatmentSummary: "Carry it",
+            reviewerGuidance: "Approved by reviewer.",
+            authorityWorkIdeaIds: [],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerOutcomeIds: ["outcome-1"],
+            reviewerOverrideIds: [],
+            updatedAt: "2026-03-27T04:03:31.000Z",
           },
         ],
       },

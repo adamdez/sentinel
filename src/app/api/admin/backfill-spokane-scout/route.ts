@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase";
 import { createArtifact, createFact } from "@/lib/intelligence";
 import { spokaneGisAdapter } from "@/providers/spokane-gis/adapter";
 import { fetchSpokaneScoutSummary } from "@/providers/spokane-scout/adapter";
+import { applyScoutIngestionPolicy } from "@/lib/scout-ingest";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -258,22 +259,27 @@ export async function POST(req: NextRequest) {
         ),
       };
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: updateError } = await (sb.from("properties") as any)
-        .update({
-          owner_flags: {
-            ...ownerFlags,
-          county_data: countyDataProjection,
-            county_data_at: now,
-            ...(scoutData ? { scout_data: scoutData, scout_data_at: scoutSummary?.fetchedAt ?? now } : {}),
-            ...(photoEntries.length > 0 ? { photos: mergePhotos(ownerFlags.photos, photoEntries), photos_fetched_at: now } : {}),
-          },
-          updated_at: now,
-        })
-        .eq("id", row.property_id);
+      const policyResult = await applyScoutIngestionPolicy(sb, {
+        source_system: "sentinel_backfill_spokane_scout",
+        source_run_id: `backfill:${notesMarker}:${new Date(now).toISOString().slice(0, 10)}`,
+        source_record_id: `${row.id}:${propertyApn}`,
+        ingest_mode: "enrich",
+        property: {
+          apn: property.apn,
+          county: property.county,
+          address: property.address ?? "",
+          city: property.city ?? "",
+          state: property.state ?? "",
+          zip: "",
+        },
+        owner_name: null,
+        county_data: countyDataProjection,
+        scout_data: scoutData ?? undefined,
+        photos: photoEntries,
+      });
 
-      if (updateError) {
-        throw new Error(updateError.message);
+      if (!policyResult.ok && policyResult.ingest_status !== "skipped") {
+        throw new Error(policyResult.failure_reason ?? "scout_ingest_policy_failed");
       }
 
       updated++;
@@ -285,6 +291,8 @@ export async function POST(req: NextRequest) {
           scoutPhotos: scoutSummary?.photoCount ?? 0,
           totalChargesOwing: scoutSummary?.totalChargesOwing ?? null,
         updated: true,
+          ingestStatus: policyResult.ingest_status,
+          persistedUpdates: policyResult.persisted_updates,
       });
     } catch (runError) {
       const message = runError instanceof Error ? runError.message : String(runError);

@@ -6,6 +6,7 @@ import { dispositionCategory } from "@/lib/comm-truth";
 import { getTwilioCredentials, isTwilioError, friendlyTwilioError } from "@/lib/twilio";
 import { validateStatusTransition } from "@/lib/lead-guardrails";
 import type { LeadStatus } from "@/lib/types";
+import { progressIntroSopForCallAttempt } from "@/lib/intro-sop";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const LEAD_STATUS_SET = new Set<LeadStatus>([
@@ -613,6 +614,16 @@ export async function PATCH(req: NextRequest) {
           }
         });
       }
+    }
+
+    try {
+      await progressIntroSopForCallAttempt({
+        sb,
+        leadId: callRow.lead_id,
+        attemptedAtIso: endedAt,
+      });
+    } catch (introError) {
+      console.warn("[Dialer] intro SOP progress failed (non-fatal):", introError);
     }
   }
 

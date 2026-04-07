@@ -117,6 +117,104 @@ describe("buildTinaPackageReadiness", () => {
     );
   });
 
+  it("blocks when tax-position memory is stale or still needs review", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Sole Prop",
+        entityType: "sole_prop",
+      },
+      bootstrapReview: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "Approved by reviewer.",
+          },
+        ],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-03-27T04:00:30.000Z",
+        status: "stale",
+        summary: "Needs rebuild",
+        nextStep: "Rebuild",
+        records: [
+          {
+            id: "tax-position-tax-1",
+            adjustmentId: "tax-1",
+            title: "Carry income",
+            status: "needs_review",
+            confidence: "medium",
+            summary: "Still needs reviewer anchoring.",
+            treatmentSummary: "Carry it",
+            reviewerGuidance: "Still needs reviewer confirmation.",
+            authorityWorkIdeaIds: [],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerOutcomeIds: [],
+            reviewerOverrideIds: [],
+            updatedAt: "2026-03-27T04:00:30.000Z",
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+
+    expect(snapshot.level).toBe("blocked");
+    expect(snapshot.items.some((item) => item.id === "tax-position-memory-not-current")).toBe(true);
+    expect(
+      snapshot.items.some((item) => item.id === "tax-position-review-tax-position-tax-1")
+    ).toBe(true);
+  });
+
   it("drops to needs review when only attention items remain", () => {
     const draft = buildDraft({
       profile: {
@@ -220,6 +318,30 @@ describe("buildTinaPackageReadiness", () => {
             sourceDocumentIds: ["doc-1"],
             sourceFactIds: ["fact-1"],
             reviewerNotes: "",
+          },
+        ],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-03-27T04:00:30.000Z",
+        status: "complete",
+        summary: "Current",
+        nextStep: "Keep going",
+        records: [
+          {
+            id: "tax-position-tax-1",
+            adjustmentId: "tax-1",
+            title: "Carry income",
+            status: "ready",
+            confidence: "high",
+            summary: "Reviewer anchored.",
+            treatmentSummary: "Carry it",
+            reviewerGuidance: "Approved by reviewer.",
+            authorityWorkIdeaIds: [],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerOutcomeIds: ["outcome-1"],
+            reviewerOverrideIds: [],
+            updatedAt: "2026-03-27T04:00:30.000Z",
           },
         ],
       },
@@ -1264,6 +1386,30 @@ describe("buildTinaPackageReadiness", () => {
           },
         ],
       },
+      taxPositionMemory: {
+        lastRunAt: "2026-03-27T04:00:30.000Z",
+        status: "complete",
+        summary: "Current",
+        nextStep: "Keep going",
+        records: [
+          {
+            id: "tax-position-tax-1",
+            adjustmentId: "tax-1",
+            title: "Carry income",
+            status: "ready",
+            confidence: "high",
+            summary: "Reviewer anchored.",
+            treatmentSummary: "Carry it",
+            reviewerGuidance: "Approved by reviewer.",
+            authorityWorkIdeaIds: [],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerOutcomeIds: ["outcome-1"],
+            reviewerOverrideIds: [],
+            updatedAt: "2026-03-27T04:00:30.000Z",
+          },
+        ],
+      },
       bootstrapReview: {
         lastRunAt: "2026-03-27T04:03:00.000Z",
         status: "complete",
@@ -1403,6 +1549,30 @@ describe("buildTinaPackageReadiness", () => {
             sourceDocumentIds: ["doc-1"],
             sourceFactIds: ["fact-1"],
             reviewerNotes: "",
+          },
+        ],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-03-27T04:00:30.000Z",
+        status: "complete",
+        summary: "Current",
+        nextStep: "Keep going",
+        records: [
+          {
+            id: "tax-position-tax-1",
+            adjustmentId: "tax-1",
+            title: "Carry income",
+            status: "ready",
+            confidence: "high",
+            summary: "Reviewer anchored.",
+            treatmentSummary: "Carry it",
+            reviewerGuidance: "Approved by reviewer.",
+            authorityWorkIdeaIds: [],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerOutcomeIds: ["outcome-1"],
+            reviewerOverrideIds: [],
+            updatedAt: "2026-03-27T04:00:30.000Z",
           },
         ],
       },

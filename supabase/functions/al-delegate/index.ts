@@ -106,9 +106,12 @@ Deno.serve(async (req: Request) => {
   const auth = req.headers.get("authorization") || "";
   const token = auth.replace("Bearer ", "").trim();
   const serviceKey = readEnvSecret("SUPABASE_SERVICE_ROLE_KEY");
-  const internalSecret = readEnvSecret("AL_DELEGATE_SECRET") || serviceKey;
+  const delegateSecret = readEnvSecret("AL_DELEGATE_SECRET");
+  const acceptedTokens = new Set<string>();
+  if (delegateSecret) acceptedTokens.add(delegateSecret);
+  if (serviceKey) acceptedTokens.add(serviceKey);
 
-  if (token !== internalSecret) {
+  if (!token || !acceptedTokens.has(token)) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 

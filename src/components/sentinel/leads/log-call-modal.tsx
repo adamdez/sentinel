@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { X, PhoneOutgoing } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const DISPOSITIONS = [
   { value: "voicemail", label: "Left Voicemail" },
@@ -32,6 +33,13 @@ function daysFromNowIso(days: number): string {
   d.setDate(d.getDate() + days);
   d.setHours(9, 0, 0, 0);
   return d.toISOString();
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+  return headers;
 }
 
 interface LogCallModalProps {
@@ -80,15 +88,30 @@ export function LogCallModal({
     try {
       const res = await fetch(`/api/leads/${leadId}/log-call`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authHeaders(),
         body: JSON.stringify(payload),
       });
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         setError(data.error || "Failed to log call");
         setSaving(false);
         return;
+      }
+
+      if (data.requires_exit_category) {
+        const choice = window.prompt(
+          "Day 3 complete. Choose category: nurture, disposition, dead, drive_by",
+          "nurture",
+        )?.trim().toLowerCase();
+
+        if (choice && ["nurture", "disposition", "dead", "drive_by"].includes(choice)) {
+          await fetch(`/api/leads/${leadId}/intro-exit`, {
+            method: "POST",
+            headers: await authHeaders(),
+            body: JSON.stringify({ category: choice }),
+          });
+        }
       }
 
       onSuccess();

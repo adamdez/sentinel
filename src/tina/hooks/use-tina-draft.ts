@@ -7,6 +7,7 @@ import type {
   TinaAuthorityCitation,
   TinaCpaHandoffSnapshot,
   TinaAuthorityWorkItem,
+  TinaBookTieOutSnapshot,
   TinaBootstrapReview,
   TinaBusinessTaxProfile,
   TinaCleanupPlan,
@@ -15,10 +16,14 @@ import type {
   TinaDraftSyncStatus,
   TinaIssueQueue,
   TinaPackageReadinessSnapshot,
+  TinaReviewerOutcomeMemory,
+  TinaReviewerOutcomeRecord,
+  TinaReviewerOverrideRecord,
   TinaScheduleCDraftSnapshot,
   TinaStoredDocument,
   TinaTaxAdjustment,
   TinaTaxAdjustmentSnapshot,
+  TinaTaxPositionMemorySnapshot,
   TinaWorkpaperSnapshot,
   TinaWorkspaceDraft,
 } from "@/tina/types";
@@ -27,15 +32,18 @@ import {
   createDefaultTinaAuthorityWorkItem,
   upsertTinaAuthorityWorkItem,
 } from "@/tina/lib/authority-work";
+import { markTinaBookTieOutStale } from "@/tina/lib/book-tie-out";
 import { markTinaBootstrapReviewStale } from "@/tina/lib/bootstrap-review";
 import { markTinaCpaHandoffStale } from "@/tina/lib/cpa-handoff";
 import { markTinaCleanupPlanStale } from "@/tina/lib/cleanup-plan";
 import { markTinaIssueQueueStale } from "@/tina/lib/issue-queue";
 import { markTinaPackageReadinessStale } from "@/tina/lib/package-readiness";
 import { markTinaReviewerFinalStale } from "@/tina/lib/reviewer-final";
+import { upsertTinaReviewerOutcomeMemory } from "@/tina/lib/reviewer-outcomes";
 import { markTinaScheduleCDraftStale } from "@/tina/lib/schedule-c-draft";
 import { deriveTinaSourceFactsFromReading } from "@/tina/lib/source-facts";
 import { markTinaTaxAdjustmentsStale } from "@/tina/lib/tax-adjustments";
+import { markTinaTaxPositionMemoryStale } from "@/tina/lib/tax-position-memory";
 import { markTinaWorkpapersStale } from "@/tina/lib/workpapers";
 import {
   createDefaultTinaWorkspaceDraft,
@@ -57,10 +65,12 @@ function withStaleReview(next: TinaWorkspaceDraft): TinaWorkspaceDraft {
     ...next,
     bootstrapReview: markTinaBootstrapReviewStale(next.bootstrapReview),
     issueQueue: markTinaIssueQueueStale(next.issueQueue),
+    bookTieOut: markTinaBookTieOutStale(next.bookTieOut),
     workpapers: markTinaWorkpapersStale(next.workpapers),
     cleanupPlan: markTinaCleanupPlanStale(next.cleanupPlan),
     aiCleanup: markTinaAiCleanupStale(next.aiCleanup),
     taxAdjustments: markTinaTaxAdjustmentsStale(next.taxAdjustments),
+    taxPositionMemory: markTinaTaxPositionMemoryStale(next.taxPositionMemory),
     reviewerFinal: markTinaReviewerFinalStale(next.reviewerFinal),
     scheduleCDraft: markTinaScheduleCDraftStale(next.scheduleCDraft),
     packageReadiness: markTinaPackageReadinessStale(next.packageReadiness),
@@ -262,6 +272,7 @@ export function useTinaDraft() {
       stampDraft({
         ...current,
         issueQueue,
+        bookTieOut: markTinaBookTieOutStale(current.bookTieOut),
         workpapers: markTinaWorkpapersStale(current.workpapers),
         cleanupPlan: markTinaCleanupPlanStale(current.cleanupPlan),
         aiCleanup: markTinaAiCleanupStale(current.aiCleanup),
@@ -324,6 +335,20 @@ export function useTinaDraft() {
       stampDraft({
         ...current,
         taxAdjustments,
+        taxPositionMemory: markTinaTaxPositionMemoryStale(current.taxPositionMemory),
+        reviewerFinal: markTinaReviewerFinalStale(current.reviewerFinal),
+        scheduleCDraft: markTinaScheduleCDraftStale(current.scheduleCDraft),
+        packageReadiness: markTinaPackageReadinessStale(current.packageReadiness),
+        cpaHandoff: markTinaCpaHandoffStale(current.cpaHandoff),
+      })
+    );
+  }
+
+  function saveTaxPositionMemory(taxPositionMemory: TinaTaxPositionMemorySnapshot) {
+    setDraft((current) =>
+      stampDraft({
+        ...current,
+        taxPositionMemory,
         reviewerFinal: markTinaReviewerFinalStale(current.reviewerFinal),
         scheduleCDraft: markTinaScheduleCDraftStale(current.scheduleCDraft),
         packageReadiness: markTinaPackageReadinessStale(current.packageReadiness),
@@ -370,6 +395,57 @@ export function useTinaDraft() {
       stampDraft({
         ...current,
         cpaHandoff,
+      })
+    );
+  }
+
+  function saveBookTieOut(bookTieOut: TinaBookTieOutSnapshot) {
+    setDraft((current) =>
+      stampDraft({
+        ...current,
+        bookTieOut,
+        workpapers: markTinaWorkpapersStale(current.workpapers),
+        cleanupPlan: markTinaCleanupPlanStale(current.cleanupPlan),
+        aiCleanup: markTinaAiCleanupStale(current.aiCleanup),
+        taxAdjustments: markTinaTaxAdjustmentsStale(current.taxAdjustments),
+        reviewerFinal: markTinaReviewerFinalStale(current.reviewerFinal),
+        scheduleCDraft: markTinaScheduleCDraftStale(current.scheduleCDraft),
+        packageReadiness: markTinaPackageReadinessStale(current.packageReadiness),
+        cpaHandoff: markTinaCpaHandoffStale(current.cpaHandoff),
+      })
+    );
+  }
+
+  function saveReviewerOutcomeMemory(reviewerOutcomeMemory: TinaReviewerOutcomeMemory) {
+    setDraft((current) =>
+      stampDraft({
+        ...current,
+        reviewerOutcomeMemory,
+        taxPositionMemory: markTinaTaxPositionMemoryStale(current.taxPositionMemory),
+      })
+    );
+  }
+
+  function addReviewerOverride(override: TinaReviewerOverrideRecord) {
+    setDraft((current) =>
+      stampDraft({
+        ...current,
+        reviewerOutcomeMemory: upsertTinaReviewerOutcomeMemory(current.reviewerOutcomeMemory, {
+          override,
+        }),
+        taxPositionMemory: markTinaTaxPositionMemoryStale(current.taxPositionMemory),
+      })
+    );
+  }
+
+  function addReviewerOutcome(outcome: TinaReviewerOutcomeRecord) {
+    setDraft((current) =>
+      stampDraft({
+        ...current,
+        reviewerOutcomeMemory: upsertTinaReviewerOutcomeMemory(current.reviewerOutcomeMemory, {
+          outcome,
+        }),
+        taxPositionMemory: markTinaTaxPositionMemoryStale(current.taxPositionMemory),
       })
     );
   }
@@ -424,6 +500,7 @@ export function useTinaDraft() {
         ...current,
         authorityWork: upsertTinaAuthorityWorkItem(current.authorityWork, workItem),
         taxAdjustments: markTinaTaxAdjustmentsStale(current.taxAdjustments),
+        taxPositionMemory: markTinaTaxPositionMemoryStale(current.taxPositionMemory),
         reviewerFinal: markTinaReviewerFinalStale(current.reviewerFinal),
         scheduleCDraft: markTinaScheduleCDraftStale(current.scheduleCDraft),
         packageReadiness: markTinaPackageReadinessStale(current.packageReadiness),
@@ -444,6 +521,7 @@ export function useTinaDraft() {
         ...current,
         authorityWork: upsertTinaAuthorityWorkItem(current.authorityWork, updater(existing)),
         taxAdjustments: markTinaTaxAdjustmentsStale(current.taxAdjustments),
+        taxPositionMemory: markTinaTaxPositionMemoryStale(current.taxPositionMemory),
         reviewerFinal: markTinaReviewerFinalStale(current.reviewerFinal),
         scheduleCDraft: markTinaScheduleCDraftStale(current.scheduleCDraft),
         packageReadiness: markTinaPackageReadinessStale(current.packageReadiness),
@@ -495,14 +573,17 @@ export function useTinaDraft() {
     saveDocumentReading,
     saveBootstrapReview,
     saveIssueQueue,
+    saveBookTieOut,
     saveWorkpapers,
     saveCleanupPlan,
     saveAiCleanup,
     saveTaxAdjustments,
+    saveTaxPositionMemory,
     saveReviewerFinal,
     saveScheduleCDraft,
     savePackageReadiness,
     saveCpaHandoff,
+    saveReviewerOutcomeMemory,
     updateCleanupSuggestion,
     updateTaxAdjustment,
     saveAuthorityWorkItem,
@@ -510,6 +591,8 @@ export function useTinaDraft() {
     addAuthorityCitation,
     updateAuthorityCitation,
     removeAuthorityCitation,
+    addReviewerOverride,
+    addReviewerOutcome,
     resetDraft,
   };
 }

@@ -40,6 +40,7 @@ import {
 import { getSession } from "./session-manager";
 import { notifyPostCallSummary } from "@/lib/notify";
 import { trackedDelivery } from "@/lib/delivery-tracker";
+import { exitIntroSop, progressIntroSopForCallAttempt, toIntroSopState, type IntroSopState } from "@/lib/intro-sop";
 
 // Dispositions that warrant a follow-up task when callback_at is supplied.
 const TASK_DISPOSITIONS = new Set(["follow_up", "appointment"]);
@@ -198,6 +199,7 @@ export async function publishSession(
   const leadId = session.lead_id ?? null;
   let callsLogId: string | null = null;
   const warnings: string[] = [];
+  let introState: IntroSopState | null = null;
 
   // ── Step 1: calls_log update ──────────────────────────────
 
@@ -270,6 +272,18 @@ export async function publishSession(
   // ── Step 2: leads qualification update ───────────────────
 
   if (leadId) {
+    // Load intro SOP state upfront for response envelope and workflow prompts.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: introLead } = await (sb.from("leads") as any)
+        .select("intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category")
+        .eq("id", leadId)
+        .maybeSingle();
+      introState = toIntroSopState((introLead ?? null) as Record<string, unknown> | null);
+    } catch {
+      introState = null;
+    }
+
     const qualPatch: Record<string, unknown> = {};
     if (input.motivation_level    !== undefined) qualPatch.motivation_level    = input.motivation_level;
     if (input.seller_timeline     !== undefined) qualPatch.seller_timeline     = input.seller_timeline;
@@ -307,6 +321,14 @@ export async function publishSession(
         const { evictFromDialQueueIfDriveBy } = await import("@/lib/dial-queue");
         await evictFromDialQueueIfDriveBy(sb, leadId, input.next_action);
       } catch { /* non-fatal */ }
+      if (input.next_action.toLowerCase().startsWith("drive by")) {
+        try {
+          const result = await exitIntroSop({ sb, leadId, category: "drive_by", userId });
+          if (result.state) introState = result.state;
+        } catch (err) {
+          console.warn("[publish-manager] intro drive_by exit failed (non-fatal):", err);
+        }
+      }
     }
 
     // Bidirectional sync: if next_action was set, upsert a task row
@@ -325,6 +347,19 @@ export async function publishSession(
         console.error("[publish-manager] task-lead-sync failed (non-fatal):", syncErr);
         warnings.push("task_sync_failed");
       }
+    }
+  }
+
+  if (leadId) {
+    try {
+      const introProgress = await progressIntroSopForCallAttempt({
+        sb,
+        leadId,
+        attemptedAtIso: new Date().toISOString(),
+      });
+      if (introProgress.state) introState = introProgress.state;
+    } catch (err) {
+      console.warn("[publish-manager] intro call progress failed (non-fatal):", err);
     }
   }
 
@@ -723,6 +758,14 @@ export async function publishSession(
     lead_id: leadId,
     task_id: taskId,
     ...(warnings.length > 0 ? { warnings } : {}),
+    ...(introState
+      ? {
+          intro_sop_active: introState.intro_sop_active,
+          intro_day_count: introState.intro_day_count,
+          intro_exit_category: introState.intro_exit_category,
+          requires_exit_category: introState.requires_exit_category,
+        }
+      : {}),
   };
 }
 

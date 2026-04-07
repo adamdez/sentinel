@@ -132,6 +132,11 @@ const LEAD_QUEUE_SELECT_FALLBACK = `
   pinned_by,
   dial_queue_active,
   dial_queue_added_at,
+  intro_sop_active,
+  intro_day_count,
+  intro_last_call_date,
+  intro_completed_at,
+  intro_exit_category,
   properties (
     id,
     apn,
@@ -163,13 +168,17 @@ function isSchemaDriftError(error: { code?: string | null; message?: string | nu
 
 async function fetchLeadQueueRows(
   sb: ReturnType<typeof createServerClient>,
+  includeNonIntro: boolean,
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const primaryQuery = (sb.from("leads") as any)
+  let primaryQuery = (sb.from("leads") as any)
     .select(LEAD_QUEUE_SELECT)
     .neq("status", "prospect")
     .neq("status", "staging")
     .order("priority", { ascending: false });
+  if (!includeNonIntro) {
+    primaryQuery = primaryQuery.eq("intro_sop_active", true);
+  }
 
   const primaryResult = await primaryQuery;
   if (!primaryResult.error || !isSchemaDriftError(primaryResult.error)) {
@@ -179,11 +188,15 @@ async function fetchLeadQueueRows(
   console.warn("[API/leads/queue] Falling back to legacy select:", primaryResult.error);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (sb.from("leads") as any)
+  let fallbackQuery = (sb.from("leads") as any)
     .select(LEAD_QUEUE_SELECT_FALLBACK)
     .neq("status", "prospect")
     .neq("status", "staging")
     .order("priority", { ascending: false });
+  if (!includeNonIntro && !isSchemaDriftError(primaryResult.error)) {
+    fallbackQuery = fallbackQuery.eq("intro_sop_active", true);
+  }
+  return fallbackQuery;
 }
 
 export async function GET(req: NextRequest) {
@@ -194,7 +207,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: leadsRaw, error: leadsErr } = await fetchLeadQueueRows(sb);
+    const includeNonIntro = req.nextUrl.searchParams.get("include_non_intro") === "1";
+    const { data: leadsRaw, error: leadsErr } = await fetchLeadQueueRows(sb, includeNonIntro);
 
     if (leadsErr) {
       console.error("[API/leads/queue] Lead query failed:", leadsErr);

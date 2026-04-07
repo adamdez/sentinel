@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { dispositionCategory } from "@/lib/comm-truth";
 import { suggestNextCadenceDate } from "@/lib/call-scheduler";
+import { exitIntroSop, progressIntroSopForCallAttempt, toIntroSopState } from "@/lib/intro-sop";
 
 /**
  * POST /api/leads/[id]/log-call
@@ -47,7 +48,7 @@ export async function POST(
   // Fetch lead + property for phone and counters
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: lead, error: leadErr } = await (sb.from("leads") as any)
-    .select("id, property_id, total_calls, call_sequence_step")
+    .select("id, property_id, total_calls, call_sequence_step, intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category")
     .eq("id", leadId)
     .single();
 
@@ -125,6 +126,25 @@ export async function POST(
       const { evictFromDialQueueIfDriveBy } = await import("@/lib/dial-queue");
       await evictFromDialQueueIfDriveBy(sb, leadId, body.next_action);
     } catch { /* non-fatal */ }
+    if (body.next_action.toLowerCase().startsWith("drive by")) {
+      try {
+        await exitIntroSop({ sb, leadId, category: "drive_by", userId: user.id });
+      } catch { /* non-fatal */ }
+    }
+  }
+
+  let introState = toIntroSopState(lead as Record<string, unknown>);
+  try {
+    const introResult = await progressIntroSopForCallAttempt({
+      sb,
+      leadId,
+      attemptedAtIso: now,
+    });
+    if (introResult.state) {
+      introState = introResult.state;
+    }
+  } catch (introError) {
+    console.warn("[LogCall] intro SOP progress failed (non-fatal):", introError);
   }
 
   // Audit log (non-blocking)
@@ -143,5 +163,12 @@ export async function POST(
     })
     .then(() => {});
 
-  return NextResponse.json({ success: true, callLogId: callLog?.id });
+  return NextResponse.json({
+    success: true,
+    callLogId: callLog?.id,
+    intro_sop_active: introState.intro_sop_active,
+    intro_day_count: introState.intro_day_count,
+    intro_exit_category: introState.intro_exit_category,
+    requires_exit_category: introState.requires_exit_category,
+  });
 }

@@ -573,6 +573,10 @@ export interface PublishResult {
   ok: boolean;
   calls_log_id: string | null;
   lead_id: string | null;
+  intro_sop_active?: boolean;
+  intro_day_count?: number;
+  intro_exit_category?: string | null;
+  requires_exit_category?: boolean;
   /** UUID of the tasks row created, if callback_at was provided. */
   task_id?: string | null;
   error?: string;

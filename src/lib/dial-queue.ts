@@ -65,11 +65,13 @@ export interface QueueSkipTraceSummary {
   skippedAlreadyTraced: number;
   failed: number;
   phonesSaved: number;
+  persistedUpdates: number;
   details: Array<{
     leadId: string;
     status: "traced" | "skipped" | "failed";
     reason: string;
     phonesSaved: number;
+    persisted: boolean;
   }>;
 }
 
@@ -377,7 +379,65 @@ export async function runSkipTraceForQueuedLeads(input: {
     skippedAlreadyTraced: 0,
     failed: 0,
     phonesSaved: 0,
+    persistedUpdates: 0,
     details: [],
+  };
+
+  const persistFailureReason = async (row: QueueSkipTraceLeadRow, reason: string): Promise<boolean> => {
+    const timestamp = new Date().toISOString();
+    let persisted = false;
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await ((input.sb.from("leads") as any)
+        .update({
+          skip_trace_status: "failed",
+          skip_trace_last_attempted_at: timestamp,
+          skip_trace_last_error: reason.slice(0, 500),
+        })
+        .eq("id", row.id));
+      persisted = !error;
+    } catch {}
+
+    if (row.property_id) {
+      try {
+        const baseFlags = (row.properties?.owner_flags ?? {}) as Record<string, unknown>;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await ((input.sb.from("properties") as any)
+          .update({
+            owner_flags: {
+              ...baseFlags,
+              skip_trace_failure_reason: reason,
+              skip_trace_failed_at: timestamp,
+            },
+            updated_at: timestamp,
+          })
+          .eq("id", row.property_id));
+        persisted = persisted || !error;
+      } catch {}
+    }
+
+    return persisted;
+  };
+
+  const clearFailureReason = async (row: QueueSkipTraceLeadRow): Promise<boolean> => {
+    if (!row.property_id) return false;
+    const timestamp = new Date().toISOString();
+    const baseFlags = (row.properties?.owner_flags ?? {}) as Record<string, unknown>;
+    const nextFlags = { ...baseFlags } as Record<string, unknown>;
+    delete nextFlags.skip_trace_failure_reason;
+    delete nextFlags.skip_trace_failed_at;
+    delete nextFlags.skip_trace_last_error;
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await ((input.sb.from("properties") as any)
+        .update({ owner_flags: nextFlags, updated_at: timestamp })
+        .eq("id", row.property_id));
+      return !error;
+    } catch {
+      return false;
+    }
   };
 
   const results = await runWithConcurrency(rows, QUEUE_SKIP_TRACE_CONCURRENCY, async (row) => {
@@ -392,26 +452,31 @@ export async function runSkipTraceForQueuedLeads(input: {
         skippedAlreadyTraced: 1,
         failed: 0,
         phonesSaved: 0,
+        persistedUpdates: 0,
         detail: {
           leadId: row.id,
           status: "skipped",
           reason: "already_traced",
           phonesSaved: 0,
+          persisted: false,
         } as QueueSkipTraceSummary["details"][number],
       };
     }
 
     if (!row.property_id || !row.properties?.address) {
+      const persisted = await persistFailureReason(row, "missing_address");
       return {
         tracedNow: 0,
         skippedAlreadyTraced: 0,
         failed: 1,
         phonesSaved: 0,
+        persistedUpdates: persisted ? 1 : 0,
         detail: {
           leadId: row.id,
           status: "failed",
           reason: "missing_address",
           phonesSaved: 0,
+          persisted,
         } as QueueSkipTraceSummary["details"][number],
       };
     }
@@ -439,16 +504,19 @@ export async function runSkipTraceForQueuedLeads(input: {
       });
 
       if (result.reason === "completed" && (result.saveFailures ?? 0) === 0) {
+        const persisted = await clearFailureReason(row);
         return {
           tracedNow: 1,
           skippedAlreadyTraced: 0,
           failed: 0,
           phonesSaved: result.phonesPromoted,
+          persistedUpdates: persisted ? 1 : 0,
           detail: {
             leadId: row.id,
             status: "traced",
             reason: "completed",
             phonesSaved: result.phonesPromoted,
+            persisted: true,
           } as QueueSkipTraceSummary["details"][number],
         };
       }
@@ -459,25 +527,30 @@ export async function runSkipTraceForQueuedLeads(input: {
           skippedAlreadyTraced: 1,
           failed: 0,
           phonesSaved: 0,
+          persistedUpdates: 0,
           detail: {
             leadId: row.id,
             status: "skipped",
             reason: "debounced_recent_run",
             phonesSaved: 0,
+            persisted: false,
           } as QueueSkipTraceSummary["details"][number],
         };
       }
 
+      const persisted = await persistFailureReason(row, result.reason);
       return {
         tracedNow: 0,
         skippedAlreadyTraced: 0,
         failed: 1,
         phonesSaved: result.phonesPromoted,
+        persistedUpdates: persisted ? 1 : 0,
         detail: {
           leadId: row.id,
           status: "failed",
           reason: result.reason,
           phonesSaved: result.phonesPromoted,
+          persisted,
         } as QueueSkipTraceSummary["details"][number],
       };
     } catch (error) {
@@ -493,16 +566,19 @@ export async function runSkipTraceForQueuedLeads(input: {
           .eq("id", row.id));
       } catch {}
 
+      const persisted = await persistFailureReason(row, message);
       return {
         tracedNow: 0,
         skippedAlreadyTraced: 0,
         failed: 1,
         phonesSaved: 0,
+        persistedUpdates: persisted ? 1 : 0,
         detail: {
           leadId: row.id,
           status: "failed",
           reason: message,
           phonesSaved: 0,
+          persisted,
         } as QueueSkipTraceSummary["details"][number],
       };
     }
@@ -513,6 +589,7 @@ export async function runSkipTraceForQueuedLeads(input: {
     summary.skippedAlreadyTraced += result.skippedAlreadyTraced;
     summary.failed += result.failed;
     summary.phonesSaved += result.phonesSaved;
+    summary.persistedUpdates += result.persistedUpdates ?? 0;
     summary.details.push(result.detail);
   }
 

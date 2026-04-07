@@ -47,14 +47,21 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
   useEffect(() => { setImgFailed(false); }, [imageUrl]);
 
   // ── Skip-trace status (durable from owner_flags, or in-session from overlay/error) ──
-  const durableSkipTraced = Boolean(cf.ownerFlags?.skip_traced);
+  const durableSkipTraced = Boolean(cf.ownerFlags?.skip_traced || cf.ownerFlags?.skip_trace_intel_at);
   const durablePhoneCount = (cf.ownerFlags?.all_phones as unknown[] | undefined)?.length ?? 0;
+  const durableFailureReason =
+    (typeof cf.ownerFlags?.skip_trace_failure_reason === "string" && cf.ownerFlags.skip_trace_failure_reason.trim())
+      ? (cf.ownerFlags.skip_trace_failure_reason as string)
+      : (typeof cf.ownerFlags?.skip_trace_last_error === "string" && cf.ownerFlags.skip_trace_last_error.trim())
+        ? (cf.ownerFlags.skip_trace_last_error as string)
+        : null;
+  const durableFailed = Boolean(durableFailureReason);
   const sessionHasResults = overlay != null && (overlay.phones.length > 0 || overlay.emails.length > 0);
   const sessionFailed = skipTraceError != null;
   const skipStatus: "skipped" | "skip_empty" | "skip_failed" | "not_run" =
     sessionHasResults ? "skipped"
-    : sessionFailed ? "skip_failed"
     : (durableSkipTraced && durablePhoneCount > 0) ? "skipped"
+    : (sessionFailed || durableFailed) ? "skip_failed"
     : durableSkipTraced ? "skip_empty"
     : "not_run";
 
@@ -65,6 +72,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
   const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
   const [phonesLoading, setPhonesLoading] = useState(false);
   const [deadReasonFor, setDeadReasonFor] = useState<string | null>(null);
+  const [driveBySaving, setDriveBySaving] = useState(false);
 
   const fetchPhones = useCallback(async () => {
     if (!cf.id) return;
@@ -300,6 +308,36 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
   // Show enrich button when no phones are populated (regardless of enriched badge)
   const hasPhones = phoneSlots.some((p) => p.trim().length >= 7);
 
+  const handleMarkDriveBy = useCallback(async () => {
+    setDriveBySaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired. Please sign in again.");
+        return;
+      }
+      const res = await fetch(`/api/leads/${cf.id}/intro-exit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ category: "drive_by" }),
+      });
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not mark Drive By");
+        return;
+      }
+      toast.success("Marked Drive By and removed from intro queue");
+      onRefresh?.();
+    } catch {
+      toast.error("Could not mark Drive By");
+    } finally {
+      setDriveBySaving(false);
+    }
+  }, [cf.id, onRefresh]);
+
   return (
     <div className="space-y-4 max-w-[680px] mx-auto">
       {/* ── Street View / Satellite Image ── */}
@@ -365,6 +403,14 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
               {skipTracing ? "Skipping..." : "Skip Trace"}
             </button>
           )}
+          <button
+            onClick={handleMarkDriveBy}
+            disabled={driveBySaving}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/12 text-amber-300 border border-amber-500/25 hover:bg-amber-500/22 transition-colors disabled:opacity-50"
+          >
+            <MapPin className="h-3 w-3" />
+            {driveBySaving ? "Saving..." : "Drive By"}
+          </button>
         </h3>
         <div className="flex items-center gap-2">
           {editing ? (
@@ -392,6 +438,20 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
           )}
         </div>
       </div>
+
+      {(skipTraceError || durableFailureReason) && (
+        <div className="rounded-[10px] border border-red-500/20 bg-red-500/5 p-3 space-y-1.5">
+          <div className="flex items-center gap-1.5 text-red-300 text-sm font-semibold">
+            <AlertCircle className="h-3.5 w-3.5" />
+            Skip Trace Needs More Info
+          </div>
+          <p className="text-xs text-red-200/90">
+            {skipTraceError?.address_issues && skipTraceError.address_issues.length > 0
+              ? `Missing or invalid fields: ${skipTraceError.address_issues.join(", ")}.`
+              : (skipTraceError?.suggestion || skipTraceError?.reason || skipTraceError?.error || durableFailureReason)}
+          </p>
+        </div>
+      )}
 
       {/* ── Property Address ── */}
       <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">

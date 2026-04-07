@@ -1,5 +1,55 @@
 [
   {
+    "hash": "b523f19a",
+    "date": "2026-04-06",
+    "message": "Remove Deep Intelligence Crawl — kill Anthropic spend on unused feature"
+  },
+  {
+    "hash": "0c67a7d1",
+    "date": "2026-04-06",
+    "message": "feat: vendor · list name combined source label across all three surfaces"
+  },
+  {
+    "hash": "3f26bda4",
+    "date": "2026-04-06",
+    "message": "fix: consistent lead source labels across all surfaces"
+  },
+  {
+    "hash": "713bc4c8",
+    "date": "2026-04-06",
+    "message": "fix: raise skip trace phone cap from 5 to 10"
+  },
+  {
+    "hash": "2c5738fd",
+    "date": "2026-04-06",
+    "message": "fix: remove last_sale_date from core writes — column not in Supabase schema cache"
+  },
+  {
+    "hash": "7776b6f6",
+    "date": "2026-04-06",
+    "message": "feat: county-data-backfill endpoint + fix push-sentinel lot size/owner name"
+  },
+  {
+    "hash": "be1a4fce",
+    "date": "2026-04-06",
+    "message": "fix: patch audit findings — fingerprint collision + WA Courts session check"
+  },
+  {
+    "hash": "278f9ff2",
+    "date": "2026-04-06",
+    "message": "chore: remove craigslist scraper and EliteSeed import pipeline"
+  },
+  {
+    "hash": "e063ae9f",
+    "date": "2026-04-06",
+    "message": "feat: county legal search pipeline — free scraping, auto-trigger on manual leads"
+  },
+  {
+    "hash": "9d535053",
+    "date": "2026-04-06",
+    "message": "fix: repair bricked photo key mismatch and add preview modal photo persistence"
+  },
+  {
     "hash": "91f605a0",
     "date": "2026-04-05",
     "message": "fix: route SMS notifications through A2P-compliant Messaging Service"
@@ -73,55 +123,5 @@
     "hash": "d078f6c0",
     "date": "2026-04-02",
     "message": "Fix global search to show contacts without linked leads"
-  },
-  {
-    "hash": "e8036523",
-    "date": "2026-04-02",
-    "message": "Refactor offer formula to ARV-basis MAO and default repair to $20k"
-  },
-  {
-    "hash": "77d8e893",
-    "date": "2026-04-02",
-    "message": "Unify skip trace button across Overview and Contact tabs"
-  },
-  {
-    "hash": "6d3dc0ca",
-    "date": "2026-04-02",
-    "message": "Add property address to Property Basics section"
-  },
-  {
-    "hash": "fe6a0638",
-    "date": "2026-04-02",
-    "message": "Fix overview call card: restore mailing address, gate skip trace button"
-  },
-  {
-    "hash": "1f2a9f6b",
-    "date": "2026-04-02",
-    "message": "Fix overview panel: skip trace button, address placement, tax assessed value"
-  },
-  {
-    "hash": "0003dc85",
-    "date": "2026-04-02",
-    "message": "Update true-north status, changelog, and misc fixes"
-  },
-  {
-    "hash": "f74dfb1b",
-    "date": "2026-04-02",
-    "message": "Harden E2E smoke tests with stable selectors and env loading"
-  },
-  {
-    "hash": "d1e3733f",
-    "date": "2026-04-02",
-    "message": "Add founder work-log gap detection and morning brief reminders"
-  },
-  {
-    "hash": "2813ff19",
-    "date": "2026-04-02",
-    "message": "Unify Jeff attribution funnel across scorecard, analytics, and notifications"
-  },
-  {
-    "hash": "b053bdd8",
-    "date": "2026-04-02",
-    "message": "Add sidebar navigation regression coverage"
   }
 ]

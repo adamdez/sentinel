@@ -536,6 +536,23 @@ export function PostCallPanel({
       : [];
 
     setPublishQaFindings(qaFindings);
+
+    if (leadId && publishData?.requires_exit_category === true) {
+      const choice = window.prompt(
+        "Day 3 complete. Choose category: nurture, disposition, dead, drive_by",
+        "nurture",
+      )?.trim().toLowerCase();
+      if (choice && ["nurture", "disposition", "dead", "drive_by"].includes(choice)) {
+        await fetch(`/api/leads/${leadId}/intro-exit`, {
+          method: "POST",
+          headers: await authHeaders(),
+          body: JSON.stringify({ category: choice }),
+        }).catch(() => null);
+      } else {
+        toast.warning("Lead requires category selection to finish intro workflow.");
+      }
+    }
+
     if (qaFindings.length > 0) {
       const flaggedCount = qaFindings.filter((finding) => finding.severity === "flag").length;
       const warnCount = qaFindings.filter((finding) => finding.severity === "warn").length;

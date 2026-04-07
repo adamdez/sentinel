@@ -196,7 +196,7 @@ describe("Rule 4: needs qualification", () => {
       qualificationRoute: null,
     });
     expect(result.urgency).toBe("high");
-    expect(result.action).toContain("qualification");
+    expect(result.action).toContain("next step");
     expect(result.actionType).toBe("review");
   });
 
@@ -207,7 +207,7 @@ describe("Rule 4: needs qualification", () => {
       lastContactAt: "2026-03-11T10:00:00Z",
       qualificationRoute: "offer_ready",
     });
-    expect(result.action).not.toContain("qualification");
+    expect(result.action).not.toContain("next step");
   });
 
   it("uncontacted lead with no route — not flagged (rule 2 or 'new' takes priority)", () => {
@@ -218,7 +218,7 @@ describe("Rule 4: needs qualification", () => {
       qualificationRoute: null,
       createdAt: "2026-03-12T12:00:00Z",
     });
-    expect(result.action).not.toContain("qualification");
+    expect(result.action).not.toContain("next step");
   });
 });
 

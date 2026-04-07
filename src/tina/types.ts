@@ -162,6 +162,43 @@ export interface TinaIssueQueue {
   records: TinaPrepRecord[];
 }
 
+export type TinaBookTieOutStatus = "idle" | "stale" | "running" | "complete";
+export type TinaBookTieOutVarianceSeverity = "blocking" | "needs_attention";
+
+export interface TinaBookTieOutEntry {
+  id: string;
+  documentId: string;
+  label: string;
+  status: TinaWorkpaperLineStatus;
+  moneyIn: number | null;
+  moneyOut: number | null;
+  net: number | null;
+  dateCoverage: string | null;
+  sourceFactIds: string[];
+  issueIds: string[];
+}
+
+export interface TinaBookTieOutVariance {
+  id: string;
+  title: string;
+  severity: TinaBookTieOutVarianceSeverity;
+  summary: string;
+  documentIds: string[];
+  sourceFactIds: string[];
+}
+
+export interface TinaBookTieOutSnapshot {
+  lastRunAt: string | null;
+  status: TinaBookTieOutStatus;
+  summary: string;
+  nextStep: string;
+  totalMoneyIn: number | null;
+  totalMoneyOut: number | null;
+  totalNet: number | null;
+  entries: TinaBookTieOutEntry[];
+  variances: TinaBookTieOutVariance[];
+}
+
 export type TinaWorkpaperStatus = "idle" | "stale" | "running" | "complete";
 export type TinaWorkpaperLayer =
   | "book_original"
@@ -411,6 +448,132 @@ export interface TinaAuthorityWorkItem {
   updatedAt: string | null;
 }
 
+export type TinaReviewerOverrideTargetType =
+  | "review_item"
+  | "cleanup_suggestion"
+  | "tax_adjustment"
+  | "reviewer_final_line"
+  | "schedule_c_field"
+  | "authority_work_item"
+  | "package_readiness_item"
+  | "cpa_handoff_artifact";
+
+export type TinaReviewerOverrideSeverity = "minor" | "material" | "blocking";
+
+export interface TinaReviewerOverrideRecord {
+  id: string;
+  targetType: TinaReviewerOverrideTargetType;
+  targetId: string;
+  severity: TinaReviewerOverrideSeverity;
+  reason: string;
+  beforeState: string;
+  afterState: string;
+  lesson: string;
+  sourceDocumentIds: string[];
+  decidedAt: string;
+  decidedBy: string | null;
+}
+
+export type TinaReviewerOutcomeVerdict = "accepted" | "revised" | "rejected";
+export type TinaReviewerOutcomePhase = "intake" | "cleanup" | "tax_review" | "package";
+export type TinaReviewerOutcomeCaseTag =
+  | "clean_books"
+  | "messy_books"
+  | "authority_heavy"
+  | "commingled_entity"
+  | "schedule_c"
+  | "s_corp"
+  | "partnership"
+  | "state_scope";
+
+export interface TinaReviewerOutcomeRecord {
+  id: string;
+  title: string;
+  phase: TinaReviewerOutcomePhase;
+  verdict: TinaReviewerOutcomeVerdict;
+  targetType: TinaReviewerOverrideTargetType;
+  targetId: string;
+  summary: string;
+  lessons: string[];
+  caseTags: TinaReviewerOutcomeCaseTag[];
+  overrideIds: string[];
+  decidedAt: string;
+  decidedBy: string | null;
+}
+
+export type TinaReviewerAcceptanceTrustLevel =
+  | "insufficient_history"
+  | "fragile"
+  | "mixed"
+  | "strong";
+export type TinaReviewerAcceptanceConfidenceImpact = "raise" | "hold" | "lower";
+
+export interface TinaReviewerPatternScore {
+  patternId: string;
+  label: string;
+  targetType: TinaReviewerOverrideTargetType;
+  phase: TinaReviewerOutcomePhase | "all";
+  totalOutcomes: number;
+  acceptedCount: number;
+  revisedCount: number;
+  rejectedCount: number;
+  acceptanceScore: number;
+  trustLevel: TinaReviewerAcceptanceTrustLevel;
+  confidenceImpact: TinaReviewerAcceptanceConfidenceImpact;
+  nextStep: string;
+  lessons: string[];
+  updatedAt: string | null;
+}
+
+export interface TinaReviewerAcceptanceScorecard {
+  totalOutcomes: number;
+  acceptedCount: number;
+  revisedCount: number;
+  rejectedCount: number;
+  acceptanceScore: number;
+  trustLevel: TinaReviewerAcceptanceTrustLevel;
+  nextStep: string;
+  patterns: TinaReviewerPatternScore[];
+}
+
+export interface TinaReviewerOutcomeMemory {
+  updatedAt: string | null;
+  summary: string;
+  nextStep: string;
+  scorecard: TinaReviewerAcceptanceScorecard;
+  overrides: TinaReviewerOverrideRecord[];
+  outcomes: TinaReviewerOutcomeRecord[];
+}
+
+export type TinaTaxPositionMemoryStatus = "idle" | "stale" | "running" | "complete";
+export type TinaTaxPositionRecordStatus = "blocked" | "needs_review" | "ready";
+export type TinaTaxPositionMemoryConfidence = "low" | "medium" | "high";
+
+export interface TinaTaxPositionRecord {
+  id: string;
+  adjustmentId: string;
+  title: string;
+  status: TinaTaxPositionRecordStatus;
+  confidence: TinaTaxPositionMemoryConfidence;
+  summary: string;
+  treatmentSummary: string;
+  reviewerGuidance: string;
+  authorityWorkIdeaIds: string[];
+  sourceDocumentIds: string[];
+  sourceFactIds: string[];
+  reviewerOutcomeIds: string[];
+  reviewerOverrideIds: string[];
+  updatedAt: string | null;
+}
+
+export interface TinaTaxPositionMemorySnapshot {
+  lastRunAt: string | null;
+  status: TinaTaxPositionMemoryStatus;
+  summary: string;
+  nextStep: string;
+  records: TinaTaxPositionRecord[];
+}
+
 export interface TinaWorkspaceDraft {
   version: number;
   savedAt: string | null;
@@ -421,6 +584,7 @@ export interface TinaWorkspaceDraft {
   sourceFacts: TinaSourceFact[];
   bootstrapReview: TinaBootstrapReview;
   issueQueue: TinaIssueQueue;
+  bookTieOut: TinaBookTieOutSnapshot;
   workpapers: TinaWorkpaperSnapshot;
   cleanupPlan: TinaCleanupPlan;
   aiCleanup: TinaAiCleanupSnapshot;
@@ -430,6 +594,8 @@ export interface TinaWorkspaceDraft {
   packageReadiness: TinaPackageReadinessSnapshot;
   cpaHandoff: TinaCpaHandoffSnapshot;
   authorityWork: TinaAuthorityWorkItem[];
+  reviewerOutcomeMemory: TinaReviewerOutcomeMemory;
+  taxPositionMemory: TinaTaxPositionMemorySnapshot;
   profile: TinaBusinessTaxProfile;
 }
 

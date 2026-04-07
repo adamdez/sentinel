@@ -177,6 +177,92 @@ describe("buildTinaTaxAdjustmentSnapshot", () => {
     expect(adjustment?.status).toBe("approved");
     expect(adjustment?.reviewerNotes).toBe("Keep this decision.");
   });
+
+  it("hardens tax adjustments when reviewer history is fragile", () => {
+    const draft = buildDraft({
+      reviewerOutcomeMemory: {
+        updatedAt: "2026-04-07T01:00:00.000Z",
+        summary: "Fragile reviewer history.",
+        nextStep: "Review repeated corrections first.",
+        scorecard: {
+          totalOutcomes: 3,
+          acceptedCount: 1,
+          revisedCount: 1,
+          rejectedCount: 1,
+          acceptanceScore: 48,
+          trustLevel: "fragile",
+          nextStep: "Review repeated corrections first.",
+          patterns: [
+            {
+              patternId: "tax_adjustment:all",
+              label: "tax adjustment overall",
+              targetType: "tax_adjustment",
+              phase: "all",
+              totalOutcomes: 3,
+              acceptedCount: 1,
+              revisedCount: 1,
+              rejectedCount: 1,
+              acceptanceScore: 48,
+              trustLevel: "fragile",
+              confidenceImpact: "lower",
+              nextStep: "Review repeated corrections first.",
+              lessons: ["Owner-flow cleanup is still being revised without stronger proof."],
+              updatedAt: "2026-04-07T01:00:00.000Z",
+            },
+            {
+              patternId: "tax_adjustment:tax_review",
+              label: "tax adjustment in tax review",
+              targetType: "tax_adjustment",
+              phase: "tax_review",
+              totalOutcomes: 3,
+              acceptedCount: 1,
+              revisedCount: 1,
+              rejectedCount: 1,
+              acceptanceScore: 48,
+              trustLevel: "fragile",
+              confidenceImpact: "lower",
+              nextStep: "Review repeated corrections first.",
+              lessons: ["Owner-flow cleanup is still being revised without stronger proof."],
+              updatedAt: "2026-04-07T01:00:00.000Z",
+            },
+          ],
+        },
+        overrides: [],
+        outcomes: [],
+      },
+      aiCleanup: {
+        lastRunAt: "2026-03-27T01:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [
+          {
+            id: "ai-cleanup-income-1",
+            kind: "income",
+            layer: "ai_cleanup",
+            label: "Clean business income",
+            amount: 22000,
+            status: "ready",
+            summary: "Looks clean",
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            issueIds: [],
+            derivedFromLineIds: ["line-1"],
+            cleanupSuggestionIds: ["cleanup-1"],
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaTaxAdjustmentSnapshot(draft);
+    const adjustment = snapshot.adjustments[0];
+
+    expect(adjustment?.risk).toBe("medium");
+    expect(adjustment?.summary).toContain("fragile");
+    expect(adjustment?.summary).toContain("Owner-flow cleanup is still being revised");
+    expect(adjustment?.suggestedTreatment).toContain("explicit reviewer review");
+    expect(snapshot.nextStep).toContain("repeated reviewer correction pattern");
+  });
 });
 
 describe("markTinaTaxAdjustmentsStale", () => {

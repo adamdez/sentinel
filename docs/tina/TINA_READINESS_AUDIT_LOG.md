@@ -1,9 +1,14 @@
 # Tina Readiness Audit Log
 
-Last updated: 2026-04-02
+Last updated: 2026-04-06
 
 This file is the running anchor for adversarial Tina readiness work.
 Use it to resume without relying on chat history.
+
+Current benchmark canon:
+
+- [TINA_SKILL_BENCHMARKS_CURRENT.md](/C:/Users/adamd/Desktop/Sentinel/docs/tina/TINA_SKILL_BENCHMARKS_CURRENT.md)
+- [skill-benchmarks.ts](/C:/Users/adamd/Desktop/Sentinel/src/tina/data/skill-benchmarks.ts)
 
 ## Goal
 
@@ -11,6 +16,15 @@ Ship Tina with deterministic, authority-backed behavior suitable for real busine
 without adding fake safety blocks when evidence is ambiguous.
 
 ## Completed in this pass
+
+29. Benchmark canon added for cross-agent review:
+- Added a current benchmark snapshot for Tina's:
+  - 16 hard skills
+  - 10 soft-skill-style elite outcomes
+- Saved in:
+  - [TINA_SKILL_BENCHMARKS_CURRENT.md](/C:/Users/adamd/Desktop/Sentinel/docs/tina/TINA_SKILL_BENCHMARKS_CURRENT.md)
+  - [skill-benchmarks.ts](/C:/Users/adamd/Desktop/Sentinel/src/tina/data/skill-benchmarks.ts)
+- These scores are intended as honest benchmark numbers, not gate-score inflation.
 
 1. Research authority classification hardened:
 - Added `ustaxcourt.gov`, `treasury.gov`, and `federalregister.gov` as primary-authority domains in

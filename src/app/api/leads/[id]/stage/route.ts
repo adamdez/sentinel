@@ -146,6 +146,10 @@ export async function PATCH(
       try {
         const { evictFromDialQueueIfDriveBy } = await import("@/lib/dial-queue");
         await evictFromDialQueueIfDriveBy(sb, id, body.next_action);
+        if (body.next_action.toLowerCase().startsWith("drive by")) {
+          const { exitIntroSop } = await import("@/lib/intro-sop");
+          await exitIntroSop({ sb, leadId: id, category: "drive_by", userId: user.id });
+        }
       } catch { /* non-fatal */ }
     }
 
@@ -268,4 +272,3 @@ export async function GET(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

@@ -912,7 +912,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
   const displayEmail = cf.ownerEmail ?? (cf.ownerFlags?.contact_email as string | null) ?? null;
 
-  const alreadySkipTraced = Boolean(cf.ownerFlags?.skip_traced);
+  const alreadySkipTraced = Boolean(cf.ownerFlags?.skip_traced || cf.ownerFlags?.skip_trace_intel_at);
 
   const { loading: callHistoryLoading } = useCallNotes(cf.id, 20, activityRefreshToken);
   const sellerContinuity = cf.sellerSituationSummaryShort?.trim() || null;
@@ -1132,7 +1132,22 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
   const ownerFlags = cf.ownerFlags ?? {};
   const scoutData = recordFromUnknown(ownerFlags.scout_data);
   const countyData = recordFromUnknown(ownerFlags.county_data);
-  const scoutTaxOwed = numberFromUnknown(scoutData?.total_charges_owing);
+  const scoutTaxSignals = recordFromUnknown(ownerFlags.scout_tax_signals);
+  const prRaw = recordFromUnknown(ownerFlags.pr_raw);
+  const scoutTaxOwed =
+    numberFromUnknown(scoutData?.total_charges_owing) ??
+    numberFromUnknown(scoutData?.totalChargesOwing);
+  const scoutRemainingCharges =
+    numberFromUnknown(scoutData?.current_remaining_charges_owing) ??
+    numberFromUnknown(scoutData?.currentRemainingChargesOwing);
+  const scoutTaxSignalsOwed =
+    numberFromUnknown(scoutTaxSignals?.total_charges_owing) ??
+    numberFromUnknown(scoutTaxSignals?.totalChargesOwing) ??
+    numberFromUnknown(scoutTaxSignals?.amount_owed) ??
+    numberFromUnknown(scoutTaxSignals?.amountOwed);
+  const prDelinquentAmount =
+    numberFromUnknown(prRaw?.DelinquentAmount) ??
+    numberFromUnknown(prRaw?.delinquent_amount);
   const scoutAnnualTaxes = numberFromUnknown(scoutData?.current_annual_taxes);
   const scoutTaxYear = numberFromUnknown(scoutData?.current_tax_year) ?? numberFromUnknown(scoutData?.assessed_tax_year);
   const scoutAssessedValue = numberFromUnknown(scoutData?.assessed_value);
@@ -1157,10 +1172,26 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
   const displaySqft = cf.sqft ?? scoutSqft;
   const displayYearBuilt = cf.yearBuilt ?? scoutYearBuilt;
   const displayLotSize = cf.lotSize ?? countyAcreage;
-  const displayedTaxOwed = scoutTaxOwed ?? cf.delinquentAmount ?? 0;
+  const displayedTaxOwed = scoutTaxOwed ?? scoutRemainingCharges ?? scoutTaxSignalsOwed ?? cf.delinquentAmount ?? prDelinquentAmount ?? 0;
   const scoutAnnualTaxesDisplay = scoutAnnualTaxes ?? 0;
   const countyTaxableValueDisplay = countyTaxableValue ?? 0;
   const taxAssessedValue = numberFromUnknown(ownerFlags.tax_assessed_value) ?? countyAssessedValue ?? scoutAssessedValue ?? 0;
+  const explicitDelinquentYear =
+    numberFromUnknown(prRaw?.DelinquentYear) ??
+    numberFromUnknown(prRaw?.delinquent_year) ??
+    numberFromUnknown(scoutTaxSignals?.DelinquentYear) ??
+    numberFromUnknown(scoutTaxSignals?.delinquent_year) ??
+    numberFromUnknown(scoutData?.delinquent_year);
+  const explicitDelinquentYears =
+    explicitDelinquentYear != null
+      ? Math.max(new Date().getFullYear() - explicitDelinquentYear, 0)
+      : null;
+  const inferredDelinquentYears =
+    explicitDelinquentYears == null && displayedTaxOwed > 0 && scoutAnnualTaxesDisplay > 0
+      ? Math.max(Math.floor(displayedTaxOwed / scoutAnnualTaxesDisplay), 1)
+      : null;
+  const delinquentYearsDisplay = explicitDelinquentYears ?? inferredDelinquentYears;
+  const delinquentYearsEstimated = explicitDelinquentYears == null && inferredDelinquentYears != null;
   const hasPropertyBasics =
     displayBedrooms != null ||
     displayBathrooms != null ||
@@ -1456,7 +1487,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
 
 
-      {(cf.recommendedCallAngle || bestArv > 0 || taxAssessedValue > 0 || displayedTaxOwed > 0 || scoutAnnualTaxesDisplay > 0 || countyTaxableValueDisplay > 0) && (
+      {(cf.recommendedCallAngle || bestArv > 0 || taxAssessedValue > 0 || displayedTaxOwed > 0 || scoutAnnualTaxesDisplay > 0 || countyTaxableValueDisplay > 0 || (delinquentYearsDisplay != null && delinquentYearsDisplay > 0)) && (
         <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Call Context</p>
 
@@ -1465,7 +1496,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
               <p className="text-foreground line-clamp-2">{cf.recommendedCallAngle}</p>
             )}
 
-            {(bestArv > 0 || taxAssessedValue > 0 || displayedTaxOwed > 0 || scoutAnnualTaxesDisplay > 0 || countyTaxableValueDisplay > 0) && (
+            {(bestArv > 0 || taxAssessedValue > 0 || displayedTaxOwed > 0 || scoutAnnualTaxesDisplay > 0 || countyTaxableValueDisplay > 0 || (delinquentYearsDisplay != null && delinquentYearsDisplay > 0)) && (
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 {bestArv > 0 && (
                   <span className="text-muted-foreground">
@@ -1485,6 +1516,11 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
                 {displayedTaxOwed > 0 && (
                   <span className="text-muted-foreground">
                     Scout Owed <span className="text-foreground font-mono font-semibold">{formatCurrency(displayedTaxOwed)}</span>
+                  </span>
+                )}
+                {delinquentYearsDisplay != null && delinquentYearsDisplay > 0 && (
+                  <span className="text-muted-foreground">
+                    {delinquentYearsEstimated ? "Est. Delinquent" : "Delinquent"} <span className="text-foreground font-mono font-semibold">{delinquentYearsDisplay}y</span>
                   </span>
                 )}
                 {scoutAnnualTaxesDisplay > 0 && (
@@ -4293,25 +4329,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const [taskSaving, setTaskSaving] = useState(false);
   const [activeTask, setActiveTask] = useState<TaskItem | null>(null);
   const [activeTaskLoading, setActiveTaskLoading] = useState(false);
-  const [jeffInteractions, setJeffInteractions] = useState<Array<{
-    id: string;
-    status: "needs_review" | "task_open" | "reviewed" | "resolved";
-    direction: string;
-    caller_phone: string | null;
-    caller_name: string | null;
-    property_address: string | null;
-    interaction_type: string;
-    summary: string | null;
-    callback_requested: boolean;
-    callback_due_at: string | null;
-    callback_timing_text: string | null;
-    transfer_outcome: string | null;
-    voice_session_id: string;
-    task_id: string | null;
-    task?: { id: string; title: string | null; status: string | null; due_at: string | null } | null;
-  }>>([]);
-  const [jeffInteractionsLoading, setJeffInteractionsLoading] = useState(false);
-
   const calling = twilioCallState === "dialing" || twilioCallState === "connected";
 
   const [callStatus, setCallStatus] = useState<string | null>(null);
@@ -7183,31 +7200,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   useEffect(() => { fetchActiveTask(); }, [fetchActiveTask]);
 
-  const fetchJeffInteractions = useCallback(async () => {
-    if (!clientFile?.id) return;
-    setJeffInteractionsLoading(true);
-    try {
-      const { data: { session: sess } } = await supabase.auth.getSession();
-      const hdrs: Record<string, string> = sess?.access_token
-        ? { Authorization: `Bearer ${sess.access_token}` }
-        : {};
-      const res = await fetch(
-        `/api/voice/jeff/interactions?leadId=${clientFile.id}&limit=3`,
-        { headers: hdrs },
-      );
-      if (res.ok) {
-        const json = await res.json();
-        setJeffInteractions(json.interactions ?? []);
-      }
-    } catch {
-      setJeffInteractions([]);
-    } finally {
-      setJeffInteractionsLoading(false);
-    }
-  }, [clientFile?.id]);
-
-  useEffect(() => { fetchJeffInteractions(); }, [fetchJeffInteractions]);
-
   const handleTaskSave = useCallback(async (result: QuickTaskResult) => {
     if (!clientFile?.id) return;
     setTaskSaving(true);
@@ -7268,24 +7260,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
       toast.error("Failed to delete task");
     }
   }, [activeTask, fetchActiveTask]);
-
-  const handleJeffInteractionStatus = useCallback(async (interactionId: string, status: "reviewed" | "resolved") => {
-    try {
-      const { data: { session: sess } } = await supabase.auth.getSession();
-      const hdrs: Record<string, string> = sess?.access_token
-        ? { Authorization: `Bearer ${sess.access_token}`, "Content-Type": "application/json" }
-        : { "Content-Type": "application/json" };
-      await fetch("/api/voice/jeff/interactions", {
-        method: "PATCH",
-        headers: hdrs,
-        body: JSON.stringify({ id: interactionId, status }),
-      });
-      fetchJeffInteractions();
-      toast.success(status === "resolved" ? "Jeff follow-up resolved" : "Jeff follow-up reviewed");
-    } catch {
-      toast.error("Failed to update Jeff follow-up");
-    }
-  }, [fetchJeffInteractions]);
 
   const handleDial = useCallback((phoneNumber?: string) => {
 
@@ -7581,6 +7555,16 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
             address_issues: data.address_issues,
 
           });
+
+          const reasonText = typeof data.reason === "string" ? data.reason.toLowerCase() : "";
+          const addressIssues = Array.isArray(data.address_issues) ? data.address_issues.filter((issue: unknown): issue is string => typeof issue === "string" && issue.trim().length > 0) : [];
+          if (reasonText.includes("missing") || reasonText.includes("address") || addressIssues.length > 0) {
+            toast.warning(
+              addressIssues.length > 0
+                ? `Skip trace needs missing address info: ${addressIssues.join(", ")}`
+                : "Skip trace could not run because required property address info is missing.",
+            );
+          }
 
         } else {
 
@@ -8942,82 +8926,6 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                               >
                                 <Plus className="h-3 w-3" /> Log Outcome
                               </button>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div className="px-4 pt-3">
-                          {jeffInteractionsLoading ? (
-                            <div className="rounded-xl border border-overlay-6 bg-overlay-2 p-3 flex items-center gap-2 text-xs text-muted-foreground/50">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading Jeff context…
-                            </div>
-                          ) : jeffInteractions.length > 0 ? (
-                            <div className="rounded-xl border border-sky-500/20 bg-sky-500/[0.04] p-3 space-y-2">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-1.5">
-                                  <Brain className="h-3.5 w-3.5 text-sky-300 shrink-0" />
-                                  <span className="text-xs font-semibold uppercase tracking-wider text-sky-200">Jeff Context</span>
-                                </div>
-                                <span className="text-[11px] text-sky-100/70">{jeffInteractions[0].status.replace("_", " ")}</span>
-                              </div>
-                              {jeffInteractions.map((interaction) => (
-                                <div key={interaction.id} className="rounded-lg border border-sky-500/10 bg-background/20 p-2.5 space-y-1.5">
-                                  <div className="flex flex-wrap items-center gap-2 text-[11px]">
-                                    <Badge variant="outline">{interaction.direction}</Badge>
-                                    <Badge variant="outline">{interaction.interaction_type.replace("_", " ")}</Badge>
-                                    {interaction.callback_due_at ? (
-                                      <span className="text-amber-300/80">Due {formatDueDateLabel(interaction.callback_due_at).text}</span>
-                                    ) : null}
-                                    {interaction.transfer_outcome ? (
-                                      <span className="text-muted-foreground/60">{interaction.transfer_outcome.replace(/_/g, " ")}</span>
-                                    ) : null}
-                                  </div>
-                                  {interaction.summary ? (
-                                    <p className="text-xs text-foreground/85 leading-relaxed">{interaction.summary}</p>
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground/60">AI-captured Jeff conversation. Review the linked task or recent call context.</p>
-                                  )}
-                                  {(interaction.caller_phone || interaction.caller_name || interaction.property_address) ? (
-                                    <div className="flex flex-wrap items-center gap-2 text-[11px] text-sky-100/75">
-                                      {interaction.caller_phone ? <span>Caller {interaction.caller_phone}</span> : null}
-                                      {interaction.caller_name ? <span>Name {interaction.caller_name}</span> : null}
-                                      {interaction.property_address ? <span>Property {interaction.property_address}</span> : null}
-                                    </div>
-                                  ) : null}
-                                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                                    {interaction.task?.id ? (
-                                      <Link
-                                        href="/tasks"
-                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-colors"
-                                      >
-                                        <Pin className="h-3 w-3" /> Open Task
-                                      </Link>
-                                    ) : null}
-                                    <button
-                                      onClick={() => handleDial()}
-                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors"
-                                    >
-                                      <Phone className="h-3 w-3" /> Call Now
-                                    </button>
-                                    {interaction.status !== "reviewed" && interaction.status !== "resolved" ? (
-                                      <button
-                                        onClick={() => handleJeffInteractionStatus(interaction.id, "reviewed")}
-                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-sky-200 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/20 transition-colors"
-                                      >
-                                        <CheckCircle2 className="h-3 w-3" /> Mark Reviewed
-                                      </button>
-                                    ) : null}
-                                    {interaction.status !== "resolved" && !interaction.task?.id ? (
-                                      <button
-                                        onClick={() => handleJeffInteractionStatus(interaction.id, "resolved")}
-                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-muted-foreground/70 bg-overlay-3 hover:bg-overlay-6 border border-overlay-6 transition-colors"
-                                      >
-                                        <CheckCircle className="h-3 w-3" /> Resolve
-                                      </button>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              ))}
                             </div>
                           ) : null}
                         </div>

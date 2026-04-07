@@ -9,6 +9,9 @@ import { supabase } from "@/lib/supabase";
 
 export type LiveCoachMode = SharedLiveCoachMode;
 export type LiveCoachState = LiveCoachResponseV2;
+type LiveCoachApiResponse = LiveCoachResponseV2 & {
+  state_persisted?: boolean;
+};
 
 interface UseLiveCoachOptions {
   sessionId: string | null;
@@ -31,6 +34,11 @@ export function useLiveCoach({
   const abortRef = useRef<AbortController | null>(null);
   const inFlightRef = useRef(false);
   const pollTimerRef = useRef<number | null>(null);
+  const coachRef = useRef<LiveCoachState | null>(null);
+
+  useEffect(() => {
+    coachRef.current = coach;
+  }, [coach]);
 
   const clearScheduledPoll = useCallback(() => {
     if (pollTimerRef.current !== null) {
@@ -66,21 +74,33 @@ export function useLiveCoach({
 
       if (!res.ok) {
         if (!controller.signal.aborted) {
-          setError(`Coaching unavailable (${res.status})`);
+          if (coachRef.current) {
+            setError(`Live coach refresh failed (${res.status}). Showing last known guidance.`);
+          } else {
+            setError(`Coaching unavailable (${res.status})`);
+          }
         }
         return;
       }
 
-      const data = await res.json() as LiveCoachState;
+      const data = await res.json() as LiveCoachApiResponse;
       if (!controller.signal.aborted) {
         setCoach(data);
-        setError(null);
+        setError(
+          data.state_persisted === false
+            ? "Live coach cache did not persist. Guidance is still live, but continuity may reset."
+            : null,
+        );
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("[Live Coach]", err);
       if (!controller.signal.aborted) {
-        setError("Coaching unavailable - network error");
+        if (coachRef.current) {
+          setError("Live coach refresh failed. Showing last known guidance.");
+        } else {
+          setError("Coaching unavailable - network error");
+        }
       }
     } finally {
       if (abortRef.current === controller) {

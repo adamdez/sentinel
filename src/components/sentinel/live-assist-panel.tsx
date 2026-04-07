@@ -103,26 +103,17 @@ const GENERIC_GUARDRAILS = new Set([
 
 function BriefOnlyBody({
   brief,
-  error,
   nepqQuestions,
   vossLabels,
   guardrail,
 }: {
   brief: PreCallBrief | null;
-  error: string | null;
   nepqQuestions: [string, string, string];
   vossLabels: [string, string, string];
   guardrail: string;
 }) {
   return (
     <div className="space-y-3">
-      {error && (
-        <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.06] p-3 flex items-center gap-2">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-200/80">{error}</p>
-        </div>
-      )}
-
       {brief && (
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-[10px] border border-yellow-500/20 bg-yellow-500/[0.06] p-3">
@@ -489,6 +480,12 @@ export function LiveAssistPanel({
 
   const body = (
     <div className={`${showHeader ? "px-3 pb-3 pt-2 border-t border-overlay-8" : "p-3"} space-y-2.5`}>
+      {error && (
+        <div className="rounded-[10px] border border-amber-500/20 bg-amber-500/[0.06] p-3 flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-200/80">{error}</p>
+        </div>
+      )}
       {coach ? (
         <LiveCoachBody
           coach={coach}
@@ -503,7 +500,6 @@ export function LiveAssistPanel({
       ) : (
         <BriefOnlyBody
           brief={brief}
-          error={error}
           nepqQuestions={nepqQuestions}
           vossLabels={vossLabels}
           guardrail={guardrail}
