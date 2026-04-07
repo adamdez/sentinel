@@ -2,6 +2,71 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
 
+function normalizePhoneDigits(value: string): string {
+  return value.replace(/\D/g, "").slice(-10);
+}
+
+function buildLegacyFallbackPhones(input: {
+  ownerPhone: string | null;
+  ownerFlags: Record<string, unknown> | null;
+}): Array<Record<string, unknown>> {
+  const seen = new Set<string>();
+  const rows: Array<Record<string, unknown>> = [];
+
+  const pushPhone = (raw: string | null | undefined, source: string, preferred = false) => {
+    if (typeof raw !== "string" || !raw.trim()) return;
+    const digits = normalizePhoneDigits(raw);
+    if (digits.length !== 10 || seen.has(digits)) return;
+    seen.add(digits);
+    rows.push({
+      id: `legacy-${digits}`,
+      phone: `+1${digits}`,
+      label: "unknown",
+      source,
+      status: "active",
+      dead_reason: null,
+      is_primary: preferred,
+      position: rows.length,
+      last_called_at: null,
+      call_count: 0,
+    });
+  };
+
+  const ownerFlags = input.ownerFlags ?? {};
+  const allPhones = Array.isArray(ownerFlags.all_phones) ? ownerFlags.all_phones : [];
+  const manualPhones = Array.isArray(ownerFlags.manual_phones) ? ownerFlags.manual_phones : [];
+
+  pushPhone(input.ownerPhone, "property_owner_phone", true);
+
+  for (const entry of allPhones) {
+    if (typeof entry === "string") {
+      pushPhone(entry, "owner_flags_all_phones");
+      continue;
+    }
+    if (entry && typeof entry === "object") {
+      const record = entry as Record<string, unknown>;
+      pushPhone(
+        typeof record.number === "string"
+          ? record.number
+          : typeof record.phone === "string"
+            ? record.phone
+            : null,
+        "owner_flags_all_phones",
+      );
+    }
+  }
+
+  for (const entry of manualPhones) {
+    pushPhone(typeof entry === "string" ? entry : null, "owner_flags_manual_phones");
+  }
+
+  if (!rows.some((row) => row.is_primary === true) && rows[0]) {
+    rows[0].is_primary = true;
+  }
+
+  return rows;
+}
+
 /**
  * GET /api/leads/[id]/phones
  *
@@ -32,7 +97,30 @@ export async function GET(
       return NextResponse.json({ error: "Failed to fetch phones" }, { status: 500 });
     }
 
-    const rows = (phones ?? []) as Array<Record<string, unknown>>;
+    let rows = (phones ?? []) as Array<Record<string, unknown>>;
+    if (rows.length === 0) {
+      // Fallback for older leads where phone results were stored in owner_flags
+      // but not yet promoted into the canonical lead_phones table.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: leadRow } = await (sb.from("leads") as any)
+        .select("property_id")
+        .eq("id", leadId)
+        .single();
+
+      const propertyId = leadRow?.property_id as string | undefined;
+      if (propertyId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: propertyRow } = await (sb.from("properties") as any)
+          .select("owner_phone, owner_flags")
+          .eq("id", propertyId)
+          .single();
+
+        rows = buildLegacyFallbackPhones({
+          ownerPhone: (propertyRow?.owner_phone as string | null | undefined) ?? null,
+          ownerFlags: (propertyRow?.owner_flags as Record<string, unknown> | null | undefined) ?? null,
+        });
+      }
+    }
     const activePhones = rows.filter((p) => p.status === "active");
     const deadPhones = rows.filter((p) => p.status !== "active");
 

@@ -934,15 +934,25 @@ function DialerPageInner() {
       try {
         const hdrs = await authHeaders();
         const res = await fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs });
-        if (res.ok && active) {
+        if (!active) return;
+        if (res.ok) {
           const data = await res.json();
           const phones: LeadPhone[] = data.phones ?? [];
           setLeadPhones(phones);
+        } else {
+          setLeadPhones([]);
+        }
+        if (!autoCycleMode) {
+          setPhoneIndex(0);
+        }
+      } catch {
+        if (active) {
+          setLeadPhones([]);
           if (!autoCycleMode) {
             setPhoneIndex(0);
           }
         }
-      } catch { /* non-fatal */ }
+      }
     })();
     return () => { active = false; };
   }, [autoCycleMode, currentAutoCycleLead?.autoCycle.nextPhoneId, currentLead?.id]);
