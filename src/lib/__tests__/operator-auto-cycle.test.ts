@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { LeadPhone } from "@/lib/dialer/types";
-import { resolveDialerPhoneSelection } from "@/lib/dialer/operator-auto-cycle";
+import {
+  planNextQueueTarget,
+  resolveDialerPhoneSelection,
+} from "@/lib/dialer/operator-auto-cycle";
 
 function buildPhone(id: string, phone: string, overrides: Partial<LeadPhone> = {}): LeadPhone {
   return {
@@ -104,5 +107,61 @@ describe("resolveDialerPhoneSelection", () => {
 
     expect(manualSelection.phone).toBe("5092222222");
     expect(fallbackSelection.phone).toBe("5099999999");
+  });
+});
+
+describe("planNextQueueTarget", () => {
+  const queueLeadIds = ["lead-1", "lead-2", "lead-3"];
+
+  it("stays on the same lead for the next phone when more active phones remain", () => {
+    expect(planNextQueueTarget({
+      queueLeadIds,
+      currentLeadId: "lead-1",
+      phoneIndex: 0,
+      activePhoneCount: 3,
+      isTerminalDisposition: false,
+    })).toEqual({
+      action: "stay",
+      leadId: "lead-1",
+      nextPhoneIndex: 1,
+    });
+  });
+
+  it("advances to the next lead after the final phone attempt", () => {
+    expect(planNextQueueTarget({
+      queueLeadIds,
+      currentLeadId: "lead-1",
+      phoneIndex: 1,
+      activePhoneCount: 2,
+      isTerminalDisposition: false,
+    })).toEqual({
+      action: "next",
+      leadId: "lead-2",
+    });
+  });
+
+  it("advances immediately on terminal dispositions", () => {
+    expect(planNextQueueTarget({
+      queueLeadIds,
+      currentLeadId: "lead-1",
+      phoneIndex: 0,
+      activePhoneCount: 3,
+      isTerminalDisposition: true,
+    })).toEqual({
+      action: "next",
+      leadId: "lead-2",
+    });
+  });
+
+  it("finishes cleanly at the end of the queue", () => {
+    expect(planNextQueueTarget({
+      queueLeadIds,
+      currentLeadId: "lead-3",
+      phoneIndex: 0,
+      activePhoneCount: 1,
+      isTerminalDisposition: false,
+    })).toEqual({
+      action: "done",
+    });
   });
 });

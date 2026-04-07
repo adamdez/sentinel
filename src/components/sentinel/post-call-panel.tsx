@@ -205,8 +205,8 @@ export interface PostCallPanelProps {
   leadId?: string | null;
   /** When true, route closeout progression through the Auto Cycle overlay instead of legacy cadence. */
   autoCycleEnabled?: boolean;
-  onComplete: () => void;
-  onSkip: () => void;
+  onComplete: (disposition?: PublishDisposition) => void;
+  onSkip: (disposition?: PublishDisposition) => void;
 }
 
 export function PostCallPanel({
@@ -649,9 +649,9 @@ export function PostCallPanel({
     });
     setPromoteFactsInfo(null);
     if (!leadId) {
-      setTimeout(() => onComplete(), 850);
+      setTimeout(() => onComplete(dispo), 850);
     } else if (AUTO_ADVANCE_DISPOS.has(dispo)) {
-      setTimeout(() => onComplete(), AUTO_ADVANCE_DELAY_MS);
+      setTimeout(() => onComplete(dispo), AUTO_ADVANCE_DELAY_MS);
     }
   };
 
@@ -719,7 +719,7 @@ export function PostCallPanel({
         }),
       ).catch(() => {});
     }
-    onSkip();
+    onSkip("completed");
   };
 
   const handleDispoTap = (dispo: PublishDisposition) => {

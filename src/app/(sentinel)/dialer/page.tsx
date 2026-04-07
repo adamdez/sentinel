@@ -26,11 +26,9 @@ import { useSentinelStore } from "@/lib/store";
 import { supabase } from "@/lib/supabase";
 import {
   useDialerQueue,
-  useAutoCycleQueue,
   useDialerKpis,
   useCallTimer,
   type QueueLead,
-  type AutoCycleQueueLead,
 } from "@/hooks/use-dialer";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 import { getSequenceLabel, getCadencePosition } from "@/lib/call-scheduler";
@@ -52,7 +50,10 @@ import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder
 import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
 import { MissedInboundQueueAutoLoad } from "@/components/sentinel/dashboard/widgets/missed-inbound-queue";
 import type { LeadPhone } from "@/lib/dialer/types";
-import { resolveDialerPhoneSelection } from "@/lib/dialer/operator-auto-cycle";
+import {
+  planNextQueueTarget,
+  resolveDialerPhoneSelection,
+} from "@/lib/dialer/operator-auto-cycle";
 import { useTwilio } from "@/providers/twilio-provider";
 import {
   formatTalkTime,
@@ -959,7 +960,6 @@ function getSkipTraceBadgeConfig(status: SkipTraceUiState): {
 function DialerPageInner() {
   const { currentUser, ghostMode } = useSentinelStore();
   const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(200);
-  const { queue: autoCycleQueue, loading: autoCycleLoading, refetch: refetchAutoCycle } = useAutoCycleQueue(200);
   const [selectedKpiPreset, setSelectedKpiPreset] = useState<DialerKpiPreset>("today");
   const [customKpiFrom, setCustomKpiFrom] = useState("");
   const [customKpiTo, setCustomKpiTo] = useState("");
@@ -994,22 +994,18 @@ function DialerPageInner() {
   const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
   const [phoneIndex, setPhoneIndex] = useState(0);
   const [pendingAutoDialLeadId, setPendingAutoDialLeadId] = useState<string | null>(null);
-  const displayedQueue = autoCycleMode ? autoCycleQueue : queue;
-  const displayedQueueLoading = autoCycleMode ? autoCycleLoading : queueLoading;
-  const currentLeadAutoCycleEntry = autoCycleQueue.find((lead) => lead.id === currentLead?.id);
-  const currentAutoCycleLead = (autoCycleMode
-    ? currentLeadAutoCycleEntry
-    : null) as AutoCycleQueueLead | undefined;
+  const displayedQueue = queue;
+  const displayedQueueLoading = queueLoading;
+  const refetchAutoCycle = useCallback(async () => {}, []);
   const phoneSelection = useMemo(
     () =>
       resolveDialerPhoneSelection({
-        autoCycleMode,
+        autoCycleMode: false,
         leadPhones,
         phoneIndex,
-        nextPhoneId: currentAutoCycleLead?.autoCycle.nextPhoneId ?? null,
         fallbackPhone: currentLead?.properties?.owner_phone ?? null,
       }),
-    [autoCycleMode, currentAutoCycleLead?.autoCycle.nextPhoneId, currentLead?.properties?.owner_phone, leadPhones, phoneIndex],
+    [currentLead?.properties?.owner_phone, leadPhones, phoneIndex],
   );
   const activeLeadPhones = phoneSelection.activePhones;
   const selectedPhoneIndex = phoneSelection.selectedIndex;
@@ -1086,20 +1082,16 @@ function DialerPageInner() {
         } else {
           setLeadPhones([]);
         }
-        if (!autoCycleMode) {
-          setPhoneIndex(0);
-        }
+        setPhoneIndex(0);
       } catch {
         if (active) {
           setLeadPhones([]);
-          if (!autoCycleMode) {
-            setPhoneIndex(0);
-          }
+          setPhoneIndex(0);
         }
       }
     })();
     return () => { active = false; };
-  }, [autoCycleMode, currentAutoCycleLead?.autoCycle.nextPhoneId, currentLead?.id]);
+  }, [currentLead?.id]);
 
   // Seed structured note scaffold once when call first becomes connected (session-backed only).
   // Only fires when callNotes is empty — never overwrites operator input.
@@ -1349,9 +1341,9 @@ function DialerPageInner() {
   useEffect(() => {
     if (!currentLead && displayedQueue.length > 0) {
       setCurrentLead(displayedQueue[0]);
-      if (!autoCycleMode) setPhoneIndex(0);
+      setPhoneIndex(0);
     }
-  }, [displayedQueue, currentLead, autoCycleMode]);
+  }, [displayedQueue, currentLead]);
 
   useEffect(() => {
     if (!currentLead) return;
@@ -1376,53 +1368,15 @@ function DialerPageInner() {
     }
   }, [displayedQueue]);
 
+  useEffect(() => {
+    if (!autoCycleMode) {
+      setPendingAutoDialLeadId(null);
+    }
+  }, [autoCycleMode]);
+
   const handleModalRefresh = useCallback(() => {
     refetchQueue();
-    refetchAutoCycle();
-  }, [refetchAutoCycle, refetchQueue]);
-
-  const handleAddCurrentLeadToAutoCycle = useCallback(async () => {
-    if (!currentLead?.id) return;
-    try {
-      const res = await fetch("/api/dialer/v1/auto-cycle", {
-        method: "POST",
-        headers: await authHeaders(),
-        body: JSON.stringify({ leadId: currentLead.id }),
-      });
-      const data = await res.json().catch(() => ({} as { error?: string }));
-      if (!res.ok) {
-        toast.error(data.error ?? "Could not add lead to Power Dial");
-        return;
-      }
-      await refetchAutoCycle();
-      setDialerMode("autoCycle");
-      toast.success("Lead added to Power Dial");
-    } catch {
-      toast.error("Could not add lead to Power Dial");
-    }
-  }, [currentLead?.id, refetchAutoCycle]);
-
-  const handleRemoveCurrentLeadFromAutoCycle = useCallback(async () => {
-    if (!currentLead?.id) return;
-    try {
-      const res = await fetch(`/api/dialer/v1/auto-cycle?leadId=${encodeURIComponent(currentLead.id)}`, {
-        method: "DELETE",
-        headers: await authHeaders(),
-      });
-      const data = await res.json().catch(() => ({} as { error?: string }));
-      if (!res.ok) {
-        toast.error(data.error ?? "Could not remove lead from Power Dial");
-        return;
-      }
-      await refetchAutoCycle();
-      if (autoCycleMode) {
-        setCurrentLead(null);
-      }
-      toast.success("Lead removed from Power Dial");
-    } catch {
-      toast.error("Could not remove lead from Power Dial");
-    }
-  }, [autoCycleMode, currentLead?.id, refetchAutoCycle]);
+  }, [refetchQueue]);
 
   // ── Remove lead from dial queue (unassign) ──────────────────────────
   const handleRemoveFromQueue = useCallback(async (leadId: string, e: React.MouseEvent) => {
@@ -1464,7 +1418,6 @@ function DialerPageInner() {
         headers: await authHeaders(),
       }).catch(() => {});
       await refetchQueue();
-      await refetchAutoCycle();
       const label =
         category === "drive_by" ? "Drive By"
         : category === "nurture" ? "Nurture"
@@ -1478,7 +1431,7 @@ function DialerPageInner() {
     } finally {
       setIntroActionLeadId(null);
     }
-  }, [refetchAutoCycle, refetchQueue]);
+  }, [refetchQueue]);
 
   const promptIntroExitCategory = useCallback(async (leadId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -1499,12 +1452,10 @@ function DialerPageInner() {
   const openLeadNextStepFix = useCallback((lead: QueueLead, e?: React.MouseEvent) => {
     e?.stopPropagation();
     setCurrentLead(lead);
-    if (!autoCycleMode) {
-      setPhoneIndex(0);
-    }
+    setPhoneIndex(0);
     setFileModalOpen(true);
     setOpenCloseoutSignal((prev) => prev + 1);
-  }, [autoCycleMode]);
+  }, []);
 
   const handleSkipTraceQueue = useCallback(async () => {
     if (queueSkipTracing) return;
@@ -1573,21 +1524,61 @@ function DialerPageInner() {
   }, [queueSkipTracing, refetchQueue, currentLead?.id]);
 
   // ── Remove lead from auto-cycle inline ──────────────────────────────
-  const handleRemoveFromAutoCycle = useCallback(async (leadId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      const res = await fetch(`/api/dialer/v1/auto-cycle?leadId=${encodeURIComponent(leadId)}`, {
-        method: "DELETE",
-        headers: await authHeaders(),
-      });
-      if (!res.ok) throw new Error();
-      if (currentLead?.id === leadId) setCurrentLead(null);
-      refetchAutoCycle();
-      toast.success("Removed from Power Dial");
-    } catch {
-      toast.error("Could not remove");
+  const refreshCurrentLeadPhones = useCallback(() => {
+    if (!currentLead?.id) return;
+    authHeaders().then((hdrs) =>
+      fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.phones) setLeadPhones(data.phones);
+        })
+    ).catch(() => {});
+  }, [currentLead?.id]);
+
+  const advanceQueueAfterDisposition = useCallback((disposition: string, autoDial: boolean) => {
+    const activePhoneCount = leadPhones.filter((phone) => phone.status === "active").length;
+    const plan = planNextQueueTarget({
+      queueLeadIds: displayedQueue.map((lead) => lead.id),
+      currentLeadId: currentLead?.id,
+      phoneIndex,
+      activePhoneCount,
+      isTerminalDisposition: disposition === "dead_lead" || disposition === "disqualified",
+    });
+
+    if (!autoDial) {
+      setPendingAutoDialLeadId(null);
     }
-  }, [currentLead?.id, refetchAutoCycle]);
+
+    if (plan.action === "stay") {
+      setPhoneIndex(plan.nextPhoneIndex);
+      refreshCurrentLeadPhones();
+      if (autoDial && currentLead?.id) {
+        setPendingAutoDialLeadId(currentLead.id);
+        toast.info("Power Dial: dialing next number...");
+      } else {
+        toast.info(`Phone ${plan.nextPhoneIndex + 1} of ${activePhoneCount} — next number loaded`);
+      }
+      return;
+    }
+
+    if (plan.action === "next") {
+      const nextLead = displayedQueue.find((lead) => lead.id === plan.leadId) ?? null;
+      setCurrentLead(nextLead);
+      setPhoneIndex(0);
+      if (autoDial && nextLead) {
+        setPendingAutoDialLeadId(nextLead.id);
+        toast.info("Power Dial: next lead dialing...");
+      } else if (nextLead) {
+        toast.info(disposition === "dead_lead" || disposition === "disqualified" ? "Lead done — next lead loaded" : "Next lead loaded");
+      } else {
+        toast.info(autoDial ? "Power Dial complete — queue finished" : "Queue complete — all leads attempted");
+      }
+      return;
+    }
+
+    setPendingAutoDialLeadId(null);
+    toast.info(autoDial ? "Power Dial complete — queue finished" : "Queue complete — all leads attempted");
+  }, [currentLead?.id, displayedQueue, leadPhones, phoneIndex, refreshCurrentLeadPhones]);
 
   // ── Incoming call handler — attached to provider-managed Device ──
   useEffect(() => {
@@ -2542,6 +2533,8 @@ function DialerPageInner() {
     setMuted(false);
     timer.reset();
     setDispositionPending(false);
+    advanceQueueAfterDisposition(dispoKey, autoCycleMode);
+    return;
 
     // Phone cycling: if there are un-attempted active phones, stay on same lead
     // Terminal dispositions (dead_lead / disqualified) skip phone cycling but still
@@ -2620,7 +2613,7 @@ function DialerPageInner() {
   // ── PostCallPanel completion handler ────────────────────────────────
   // Shared by onComplete and onSkip — PostCallPanel handles its own API calls.
   // Cycles to the next un-attempted phone before advancing to the next lead.
-  const handlePostCallDone = useCallback(() => {
+  const handlePostCallDone = useCallback((disposition = "completed") => {
     setCallState("idle");
     setCurrentCallLogId(null);
     setCurrentCallSid(null);
@@ -2633,6 +2626,8 @@ function DialerPageInner() {
     setSavedNotes([]);
     noteSeqRef.current = 0;
     timer.reset();
+    advanceQueueAfterDisposition(disposition, autoCycleMode);
+    return;
 
     if (autoCycleMode) {
       setPhoneIndex(0);
@@ -2667,7 +2662,7 @@ function DialerPageInner() {
         toast.info("Queue complete — all leads attempted");
       }
     }
-  }, [autoCycleMode, currentLead, displayedQueue, refetchAutoCycle, timer, leadPhones, phoneIndex]);
+  }, [advanceQueueAfterDisposition, autoCycleMode, currentLead, displayedQueue, refetchAutoCycle, timer, leadPhones, phoneIndex]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────
   useEffect(() => {
@@ -3625,7 +3620,7 @@ function DialerPageInner() {
             </div>
             <p className="text-xs text-muted-foreground/40 mb-2">
               {autoCycleMode
-                ? "Calls the next number automatically after each disposition."
+                ? "Uses the same dial queue and auto-calls the next number after each closeout."
                 : `${displayedQueue.length} queued`}
             </p>
 
@@ -3666,41 +3661,25 @@ function DialerPageInner() {
                       }).status,
                     )
                     : null;
-                  const rowDueIso = autoCycleMode && "autoCycle" in lead
-                    ? (lead as AutoCycleQueueLead).autoCycle.nextDueAt
-                    : lead.next_call_scheduled_at ?? lead.next_follow_up_at ?? lead.follow_up_date ?? null;
+                  const rowDueIso = lead.next_call_scheduled_at ?? lead.next_follow_up_at ?? lead.follow_up_date ?? null;
                   const wf = buildOperatorWorkflowSummary({
                     status: lead.status,
                     qualificationRoute: lead.qualification_route,
                     assignedTo: lead.assigned_to,
-                    nextCallScheduledAt: autoCycleMode && "autoCycle" in lead
-                      ? (lead as AutoCycleQueueLead).autoCycle.nextDueAt ?? lead.next_call_scheduled_at
-                      : lead.next_call_scheduled_at,
-                    nextFollowUpAt: autoCycleMode ? null : (lead.next_follow_up_at ?? lead.follow_up_date),
+                    nextCallScheduledAt: lead.next_call_scheduled_at,
+                    nextFollowUpAt: lead.next_follow_up_at ?? lead.follow_up_date,
                     lastContactAt: lead.last_contact_at,
                     totalCalls: lead.total_calls,
                     createdAt: lead.promoted_at,
                     promotedAt: lead.promoted_at,
                   });
-                  const autoCycleLead = autoCycleMode ? lead as AutoCycleQueueLead : null;
-                  const autoCycleStatusLabel = autoCycleLead
-                    ? autoCycleLead.autoCycle.readyNow
-                      ? "Ready now"
-                      : autoCycleLead.autoCycle.cycleStatus === "waiting"
-                        ? "Retry window"
-                        : autoCycleLead.autoCycle.cycleStatus === "paused"
-                          ? "Paused"
-                          : "In cycle"
-                    : null;
 
                   return (
                     <button
                       key={lead.id}
                       onClick={() => {
                         setCurrentLead(lead);
-                        if (!autoCycleMode) {
-                          setPhoneIndex(0);
-                        }
+                        setPhoneIndex(0);
                       }}
                       className={`w-full text-left rounded-[12px] p-2.5 transition-all duration-200 border ${
                         isActive
@@ -3741,9 +3720,9 @@ function DialerPageInner() {
                           </button>
                           <button
                             type="button"
-                            onClick={(e) => autoCycleMode ? handleRemoveFromAutoCycle(lead.id, e) : handleRemoveFromQueue(lead.id, e)}
+                            onClick={(e) => handleRemoveFromQueue(lead.id, e)}
                             className="shrink-0 p-0.5 rounded text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                            title={autoCycleMode ? "Remove from Power Dial" : "Remove from queue"}
+                            title="Remove from queue"
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -3816,26 +3795,6 @@ function DialerPageInner() {
                             >
                               {introActionLeadId === lead.id ? "Updating..." : "Choose category"}
                             </button>
-                          </div>
-                        )}
-                        {autoCycleLead && (
-                          <div className="flex flex-wrap items-center gap-1.5 pl-5 pt-1">
-                            <span className="rounded-[7px] border border-primary/15 bg-primary/[0.06] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary/80">
-                              Round {autoCycleLead.autoCycle.currentRound}
-                            </span>
-                            <span className="rounded-[7px] border border-overlay-6 bg-overlay-3 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-muted-foreground/65">
-                              {autoCycleLead.autoCycle.remainingPhones} phone{autoCycleLead.autoCycle.remainingPhones === 1 ? "" : "s"} left
-                            </span>
-                            {autoCycleStatusLabel && (
-                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/55">
-                                {autoCycleStatusLabel}
-                              </span>
-                            )}
-                            {autoCycleLead.autoCycle.voicemailDropNext && (
-                              <span className="rounded-[7px] border border-amber-500/20 bg-amber-500/[0.07] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-amber-300">
-                                VM next
-                              </span>
-                            )}
                           </div>
                         )}
                       </div>
@@ -3920,30 +3879,17 @@ function DialerPageInner() {
                           <Eye className="h-3 w-3" />
                           Open Lead Detail
                         </button>
-                        <button
-                          onClick={currentLeadAutoCycleEntry ? handleRemoveCurrentLeadFromAutoCycle : handleAddCurrentLeadToAutoCycle}
-                          className={cn(
-                            "mt-1 inline-flex items-center gap-1 text-sm transition-colors",
-                            currentLeadAutoCycleEntry
-                              ? "text-primary hover:text-primary/80"
-                              : "text-emerald-400 hover:text-emerald-300",
-                          )}
-                        >
-                          <Zap className="h-3 w-3" />
-                          {currentLeadAutoCycleEntry ? "Remove From Power Dial" : "Add To Power Dial"}
-                        </button>
+                        {autoCycleMode && (
+                          <p className="mt-1 text-xs text-emerald-300/80">
+                            Power Dial is using this same queue and will call the next number after closeout.
+                          </p>
+                        )}
                       </div>
                       <div className="flex flex-col items-end gap-1">
                         {/* Score hidden until live scoring loop is wired — showing untrusted numbers is worse than no number */}
                         <Badge variant="outline" className="text-sm px-2.5 py-0.5 gap-1 border-border/20 text-muted-foreground/50">
                           —
                         </Badge>
-                        {currentLeadAutoCycleEntry && (
-                          <Badge variant="outline" className="text-xs gap-1 border-primary/20 text-primary/80">
-                            <Zap className="h-2.5 w-2.5" />
-                            Round {currentLeadAutoCycleEntry.autoCycle.currentRound}
-                          </Badge>
-                        )}
                         <Badge variant="outline" className="text-xs gap-1 border-primary/20 text-primary/70">
                           <Phone className="h-2.5 w-2.5" />
                           {getCadencePosition(currentLead.total_calls ?? 0).label}
@@ -3955,12 +3901,6 @@ function DialerPageInner() {
                           >
                             <Search className="h-2.5 w-2.5" />
                             {currentLeadSkipTraceBadge.label}
-                          </Badge>
-                        )}
-                        {currentLeadAutoCycleEntry?.autoCycle.voicemailDropNext && (
-                          <Badge variant="outline" className="text-xs gap-1 border-amber-500/20 text-amber-300">
-                            <Voicemail className="h-2.5 w-2.5" />
-                            VM Next
                           </Badge>
                         )}
                         {!currentLead.compliant && !ghostMode && (
@@ -4124,9 +4064,7 @@ function DialerPageInner() {
                                 key={lp.id}
                                 type="button"
                                 onClick={() => {
-                                  if (!autoCycleMode) {
-                                    setPhoneIndex(i);
-                                  }
+                                  setPhoneIndex(i);
                                 }}
                                 className={cn(
                                   "h-7 px-2.5 rounded-[8px] text-sm font-mono border transition-all flex items-center gap-1.5",
@@ -4168,9 +4106,7 @@ function DialerPageInner() {
                               const nextLead = displayedQueue[currentIdx + 1] ?? displayedQueue[0] ?? null;
                               if (nextLead) {
                                 setCurrentLead(nextLead);
-                                if (!autoCycleMode) {
-                                  setPhoneIndex(0);
-                                }
+                                setPhoneIndex(0);
                               }
                             }}
                             variant="outline"
@@ -4427,7 +4363,7 @@ function DialerPageInner() {
                       } : null}
                       phoneNumber={currentDialedPhone}
                       leadId={currentLead?.id ?? null}
-                      autoCycleEnabled={autoCycleMode}
+                      autoCycleEnabled={false}
                       onComplete={handlePostCallDone}
                       onSkip={handlePostCallDone}
                     />
@@ -4474,9 +4410,7 @@ function DialerPageInner() {
                         onClick={() => {
                           const idx = displayedQueue.findIndex((l) => l.id === currentLead?.id);
                           setCurrentLead(displayedQueue[(idx + 1) % displayedQueue.length] ?? null);
-                          if (!autoCycleMode) {
-                            setPhoneIndex(0);
-                          }
+                          setPhoneIndex(0);
                           setCallState("idle");
                           setCallNotes("");
                           timer.reset();

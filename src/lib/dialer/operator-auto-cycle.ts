@@ -15,6 +15,19 @@ export type DialerPhoneSelection = {
   phone: string | null;
 };
 
+export type QueueAdvancePlanInput = {
+  queueLeadIds: string[];
+  currentLeadId: string | null | undefined;
+  phoneIndex: number;
+  activePhoneCount: number;
+  isTerminalDisposition?: boolean;
+};
+
+export type QueueAdvancePlan =
+  | { action: "stay"; leadId: string; nextPhoneIndex: number }
+  | { action: "next"; leadId: string }
+  | { action: "done" };
+
 export function resolveDialerPhoneSelection({
   autoCycleMode,
   leadPhones,
@@ -47,4 +60,35 @@ export function resolveDialerPhoneSelection({
     selectedPhone,
     phone: selectedPhone?.phone ?? fallbackPhone ?? null,
   };
+}
+
+export function planNextQueueTarget({
+  queueLeadIds,
+  currentLeadId,
+  phoneIndex,
+  activePhoneCount,
+  isTerminalDisposition = false,
+}: QueueAdvancePlanInput): QueueAdvancePlan {
+  const normalizedQueue = queueLeadIds.filter(Boolean);
+  if (!currentLeadId) {
+    const firstLeadId = normalizedQueue[0] ?? null;
+    return firstLeadId ? { action: "next", leadId: firstLeadId } : { action: "done" };
+  }
+
+  if (!isTerminalDisposition && activePhoneCount > 1 && phoneIndex + 1 < activePhoneCount) {
+    return {
+      action: "stay",
+      leadId: currentLeadId,
+      nextPhoneIndex: phoneIndex + 1,
+    };
+  }
+
+  const currentIdx = normalizedQueue.findIndex((leadId) => leadId === currentLeadId);
+  if (currentIdx >= 0) {
+    const nextLeadId = normalizedQueue[currentIdx + 1] ?? null;
+    return nextLeadId ? { action: "next", leadId: nextLeadId } : { action: "done" };
+  }
+
+  const firstLeadId = normalizedQueue[0] ?? null;
+  return firstLeadId ? { action: "next", leadId: firstLeadId } : { action: "done" };
 }
