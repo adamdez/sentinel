@@ -115,6 +115,36 @@ async function refreshAssignmentZillowEstimate(params: {
 
 // ── GET /api/prospects — Fetch all prospects (server-side, bypasses RLS) ──
 
+function acreageToSquareFeet(value: unknown): number | null {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return Math.round(numeric * 43_560);
+}
+
+function buildCountyDataFromGis(gisData: Record<string, unknown>): Record<string, unknown> {
+  return compactObject({
+    assessed_value: gisData.assessedValue,
+    county_assessed_value: gisData.assessedValue,
+    land_value: gisData.landValue,
+    county_land_value: gisData.landValue,
+    improvement_value: gisData.improvementValue,
+    county_improvement_value: gisData.improvementValue,
+    last_sale_price: gisData.lastSalePrice,
+    county_last_sale_price: gisData.lastSalePrice,
+    last_sale_date: gisData.lastSaleDate,
+    county_last_sale_date: gisData.lastSaleDate,
+    parcel_number: gisData.parcelNumber,
+    county_parcel_number: gisData.parcelNumber,
+    acreage: gisData.acreage,
+    county_acreage: gisData.acreage,
+    prop_use_desc: gisData.propUseDesc,
+    county_prop_use_desc: gisData.propUseDesc,
+    sales_history: gisData.salesHistory,
+    county_sales_history: gisData.salesHistory,
+    provider: gisData.provider,
+  });
+}
+
 export async function GET() {
   try {
     const sb = createServerClient();
@@ -1201,9 +1231,9 @@ export async function POST(req: NextRequest) {
     const mailingState = typeof mailing_state === "string" ? mailing_state.trim().toUpperCase() || null : null;
     const mailingZip = typeof mailing_zip === "string" ? mailing_zip.trim() || null : null;
     const coOwnerName = typeof co_owner_name === "string" ? co_owner_name.trim() || null : null;
-    const shouldSkipImmediateEnrichment =
+    const shouldSkipImmediateGis = skip_auto_gis === true;
+    const shouldSkipImmediateBricked =
       skip_auto_bricked === true
-      || skip_auto_gis === true
       || sourceChannel === "csv_import"
       || importBatchId != null;
 
@@ -1455,7 +1485,7 @@ export async function POST(req: NextRequest) {
     // ── 3.0: Auto-fetch County GIS if not provided by client ──────
     // County GIS is free and fast — always fetch it on lead creation
     let effectiveGisData = gis_data;
-    if ((!effectiveGisData || effectiveGisData.skipped) && !shouldSkipImmediateEnrichment) {
+    if ((!effectiveGisData || effectiveGisData.skipped) && !shouldSkipImmediateGis) {
       try {
         const countyForGis = finalCounty;
         const stateForGis = (state?.trim().toUpperCase()) || "WA";
@@ -1533,7 +1563,7 @@ export async function POST(req: NextRequest) {
     // ── 3.1: Auto-fetch Bricked AI if not provided by client ──────
     // Bricked is slower (~15s) but provides ARV, CMV, repairs, comps
     let effectiveBrickedData = bricked_data;
-    if (!effectiveBrickedData && address?.trim() && !shouldSkipImmediateEnrichment) {
+    if (!effectiveBrickedData && address?.trim() && !shouldSkipImmediateBricked) {
       try {
         const brickedHeaders: Record<string, string> = { "Content-Type": "application/json" };
         const incomingAuth = req.headers.get("authorization");
@@ -1745,26 +1775,44 @@ export async function POST(req: NextRequest) {
             // Store GIS data in owner_flags for backward compat
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data: currentProp2 } = await (sb.from("properties") as any)
-              .select("owner_flags")
+              .select("owner_flags, estimated_value, lot_size")
               .eq("id", property.id)
               .single();
 
             const flags2 = (currentProp2?.owner_flags ?? {}) as Record<string, unknown>;
+            const countyData = buildCountyDataFromGis(
+              effectiveGisData as Record<string, unknown>,
+            );
+            const lotSizeSqft = acreageToSquareFeet(effectiveGisData.acreage);
+            const gisStoredAt = new Date().toISOString();
+            const propertyUpdates: Record<string, unknown> = {
+              owner_flags: {
+                ...flags2,
+                county_data: {
+                  ...((flags2.county_data as Record<string, unknown> | null) ?? {}),
+                  ...countyData,
+                },
+                county_data_at: gisStoredAt,
+                county_backfill_status: "completed",
+                gis_assessed_value: effectiveGisData.assessedValue,
+                gis_land_value: effectiveGisData.landValue,
+                gis_improvement_value: effectiveGisData.improvementValue,
+                gis_sales_history: effectiveGisData.salesHistory,
+                gis_parcel_number: effectiveGisData.parcelNumber,
+                gis_parcel_geometry: effectiveGisData.parcelGeometry,
+                gis_source: effectiveGisData.provider,
+                gis_fetched_at: gisStoredAt,
+              },
+            };
+            if (!currentProp2?.estimated_value && effectiveGisData.assessedValue) {
+              propertyUpdates.estimated_value = effectiveGisData.assessedValue;
+            }
+            if (!currentProp2?.lot_size && lotSizeSqft) {
+              propertyUpdates.lot_size = lotSizeSqft;
+            }
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             await (sb.from("properties") as any)
-              .update({
-                owner_flags: {
-                  ...flags2,
-                  gis_assessed_value: effectiveGisData.assessedValue,
-                  gis_land_value: effectiveGisData.landValue,
-                  gis_improvement_value: effectiveGisData.improvementValue,
-                  gis_sales_history: effectiveGisData.salesHistory,
-                  gis_parcel_number: effectiveGisData.parcelNumber,
-                  gis_parcel_geometry: effectiveGisData.parcelGeometry,
-                  gis_source: effectiveGisData.provider,
-                  gis_fetched_at: new Date().toISOString(),
-                },
-              })
+              .update(propertyUpdates)
               .eq("id", property.id);
 
             // ── Fix 1: Write real APN back to properties.apn ──────────
