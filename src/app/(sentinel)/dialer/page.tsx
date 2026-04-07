@@ -41,7 +41,6 @@ import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
 import { useCallHistory, type CallHistoryEntry } from "@/hooks/use-call-history";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-workflow-summary";
-import { filterBriefBullets, filterBriefWatchOuts, filterBriefGoal } from "@/lib/brief-trust-filter";
 import { Eye } from "lucide-react";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
@@ -580,6 +579,64 @@ function formatMoneyFull(n: number): string {
   return `$${Math.round(n).toLocaleString()}`;
 }
 
+function recordFromUnknown(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function numberFromUnknown(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const normalized = value.replace(/[$,%\s,]/g, "").trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function formatLotSizeCompact(value: number | null): string | null {
+  if (value == null || value <= 0) return null;
+  if (value > 10) return `${Math.round(value).toLocaleString()} sqft`;
+  return `${value.toFixed(2)} ac`;
+}
+
+function deriveDialerPropertyContext(property: QueueLead["properties"] | null | undefined): {
+  displayedTaxOwed: number | null;
+  displayLotSize: string | null;
+} {
+  if (!property) {
+    return { displayedTaxOwed: null, displayLotSize: null };
+  }
+
+  const propertyRecord = property as Record<string, unknown>;
+  const ownerFlags = recordFromUnknown(property.owner_flags);
+  const scoutData = recordFromUnknown(ownerFlags?.scout_data);
+  const countyData = recordFromUnknown(ownerFlags?.county_data);
+  const scoutTaxSignals = recordFromUnknown(ownerFlags?.scout_tax_signals);
+  const prRaw = recordFromUnknown(ownerFlags?.pr_raw);
+
+  const displayedTaxOwed =
+    numberFromUnknown(scoutData?.total_charges_owing) ??
+    numberFromUnknown(scoutData?.totalChargesOwing) ??
+    numberFromUnknown(scoutData?.current_remaining_charges_owing) ??
+    numberFromUnknown(scoutData?.currentRemainingChargesOwing) ??
+    numberFromUnknown(scoutTaxSignals?.total_charges_owing) ??
+    numberFromUnknown(scoutTaxSignals?.totalChargesOwing) ??
+    numberFromUnknown(scoutTaxSignals?.amount_owed) ??
+    numberFromUnknown(scoutTaxSignals?.amountOwed) ??
+    numberFromUnknown(propertyRecord.delinquent_amount) ??
+    numberFromUnknown(prRaw?.DelinquentAmount) ??
+    numberFromUnknown(prRaw?.delinquent_amount);
+
+  const displayLotSize = formatLotSizeCompact(
+    numberFromUnknown(propertyRecord.lot_size) ??
+    numberFromUnknown(countyData?.county_acreage),
+  );
+
+  return { displayedTaxOwed, displayLotSize };
+}
+
 function needsNextStepAction(label: string | null | undefined): boolean {
   const normalized = (label ?? "").trim().toLowerCase();
   return normalized.includes("needs next step") || normalized.includes("no next step");
@@ -608,6 +665,7 @@ function LiveAnswerIntelPanel({
   onOpenDetail: () => void;
 }) {
   const ownerFlags = (lead.properties?.owner_flags as Record<string, unknown> | null) ?? null;
+  const { displayedTaxOwed, displayLotSize } = deriveDialerPropertyContext(lead.properties);
   const estimatedValue = lead.properties?.estimated_value ?? null;
   const compArv = typeof ownerFlags?.comp_arv === "number" ? ownerFlags.comp_arv : null;
   const brickedArv = typeof ownerFlags?.bricked_arv === "number" ? ownerFlags.bricked_arv : null;
@@ -707,6 +765,14 @@ function LiveAnswerIntelPanel({
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground/55">Repairs</span>
           <span className="font-mono text-foreground">{repairCost ? `-${formatMoneyFull(repairCost)}` : "—"}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground/55">Lot</span>
+          <span className="font-mono text-foreground">{displayLotSize ?? "—"}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground/55">Tax Owed</span>
+          <span className="font-mono text-foreground">{displayedTaxOwed != null && displayedTaxOwed > 0 ? formatMoneyFull(displayedTaxOwed) : "—"}</span>
         </div>
       </div>
 
@@ -824,7 +890,7 @@ function DialerPageInner() {
   const phonesAttempted = activeLeadPhones.filter((phone) => phone.last_called_at).length;
 
   // useCallNotes removed — seller memory preview covers last-call context
-  const { brief: preCallBrief, loading: briefLoading, error: briefError, regenerate: retryBrief } = usePreCallBrief(currentLead?.id ?? null);
+  const { brief: preCallBrief } = usePreCallBrief(currentLead?.id ?? null);
   const { coach: liveCoach, loading: liveCoachLoading, error: liveCoachError } = useLiveCoach({
     sessionId: dialerSessionId,
     enabled: callState === "connected" && !!dialerSessionId,
@@ -838,21 +904,6 @@ function DialerPageInner() {
   const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
   const [idleRailTab, setIdleRailTab] = useState<"missed" | "history" | "sms">("history");
-  const [briefDetailOpen, setBriefDetailOpen] = useState(false);
-  const filteredBrief = useMemo(() => {
-    if (!preCallBrief) return null;
-    const goal = filterBriefGoal(preCallBrief.primaryGoal);
-    const bullets = filterBriefBullets(preCallBrief.bullets).slice(0, 3);
-    const watchOuts = filterBriefWatchOuts(preCallBrief.watchOuts);
-    const hasContent = !!(goal || bullets.length || watchOuts.length || preCallBrief.riskFlags.length || preCallBrief.nextQuestions.length);
-    return hasContent ? { goal, bullets, watchOuts, riskFlags: preCallBrief.riskFlags, nextQuestions: preCallBrief.nextQuestions } : null;
-  }, [preCallBrief]);
-  const prevLeadIdForBrief = useRef<string | null>(null);
-  if (currentLead?.id !== prevLeadIdForBrief.current) {
-    prevLeadIdForBrief.current = currentLead?.id ?? null;
-    if (briefDetailOpen) setBriefDetailOpen(false);
-  }
-
   useCoachSurface("dialer", {});
   const [fileModalOpen, setFileModalOpen] = useState(false);
   const [openCloseoutSignal, setOpenCloseoutSignal] = useState(0);
@@ -3783,6 +3834,9 @@ function DialerPageInner() {
 
                     {/* Compact property vitals — single block instead of 9 tiles */}
                     <div className="rounded-[10px] bg-overlay-3 border border-overlay-6 px-3 py-2">
+                      {(() => {
+                        const { displayedTaxOwed, displayLotSize } = deriveDialerPropertyContext(currentLead.properties);
+                        return (
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                         <span className="font-mono text-foreground">{currentDialedPhone ?? currentLead.properties?.owner_phone ?? "No phone"}</span>
                         <span className="text-muted-foreground/40">|</span>
@@ -3810,7 +3864,15 @@ function DialerPageInner() {
                         <span>{(currentLead.properties as any)?.sqft?.toLocaleString() ?? "—"} sqft</span>
                         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                         <span>Built {(currentLead.properties as any)?.year_built ?? "—"}</span>
+                        {displayLotSize && (
+                          <span>Lot <span className="text-foreground font-medium">{displayLotSize}</span></span>
+                        )}
+                        {displayedTaxOwed != null && displayedTaxOwed > 0 && (
+                          <span>Tax <span className="text-foreground font-medium">{formatMoneyFull(displayedTaxOwed)}</span></span>
+                        )}
                       </div>
+                        );
+                      })()}
                       {(currentLead.tags ?? []).length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1.5">
                           {currentLead.tags.slice(0, 4).map((t) => (
@@ -3826,106 +3888,6 @@ function DialerPageInner() {
                     {callState === "idle" && currentLead && (
                       <SellerMemoryPreview leadId={currentLead.id} />
                     )}
-
-                    {/* Pre-Call Brief — trust-filtered: only specific, useful AI content */}
-                    <AnimatePresence>
-                      {callState === "idle" && (filteredBrief || briefLoading || (briefError && !preCallBrief)) && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="rounded-[10px] bg-muted/[0.06] border border-border/20 p-2.5 overflow-hidden"
-                        >
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <Sparkles className="h-3 w-3 text-foreground" />
-                            <span className="text-xs font-semibold tracking-wider uppercase text-foreground">Brief</span>
-                            {briefLoading && <Loader2 className="h-3 w-3 animate-spin text-foreground/60 ml-auto" />}
-                          </div>
-                          {briefError && !preCallBrief && (
-                            <div className="flex items-center gap-2 rounded-lg bg-amber-500/[0.06] border border-amber-500/20 p-2">
-                              <AlertTriangle className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                              <p className="text-xs text-amber-200/80 flex-1">{briefError}</p>
-                              <button onClick={retryBrief} className="text-xs text-amber-300 hover:text-amber-200 underline shrink-0">Retry</button>
-                            </div>
-                          )}
-                          {filteredBrief && (
-                            <>
-                              {filteredBrief.goal && (
-                                <p className="text-xs text-foreground/80 font-medium leading-snug mb-1.5">
-                                  {filteredBrief.goal}
-                                </p>
-                              )}
-                              {filteredBrief.bullets.length > 0 && (
-                                <ul className="space-y-0.5">
-                                  {filteredBrief.bullets.map((b, i) => (
-                                    <li key={i} className="text-xs text-foreground/70 flex items-start gap-1.5">
-                                      <span className="text-foreground/40 mt-0.5">•</span>
-                                      {b}
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                              {filteredBrief.watchOuts.length > 0 && (
-                                <div className="flex items-start gap-1.5 mt-1.5 text-xs text-amber-300/70">
-                                  <AlertTriangle className="h-2.5 w-2.5 shrink-0 mt-0.5" />
-                                  <span className="leading-snug line-clamp-2">{filteredBrief.watchOuts[0]}</span>
-                                </div>
-                              )}
-                              {filteredBrief.riskFlags.length > 0 && !briefDetailOpen && (
-                                <div className="flex items-center gap-1 mt-1.5 text-xs text-amber-400/80">
-                                  <AlertTriangle className="h-2.5 w-2.5" />
-                                  {filteredBrief.riskFlags.length} risk flag{filteredBrief.riskFlags.length !== 1 ? "s" : ""}
-                                </div>
-                              )}
-                              {(filteredBrief.nextQuestions.length > 0 || filteredBrief.riskFlags.length > 0) && (
-                                <>
-                                  <button
-                                    onClick={() => setBriefDetailOpen(!briefDetailOpen)}
-                                    className="mt-1.5 text-[10px] text-primary/70 hover:text-primary transition-colors"
-                                  >
-                                    {briefDetailOpen ? "Less" : "More detail"}
-                                  </button>
-                                  <AnimatePresence>
-                                    {briefDetailOpen && (
-                                      <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: "auto" }}
-                                        exit={{ opacity: 0, height: 0 }}
-                                        className="overflow-hidden"
-                                      >
-                                        {filteredBrief.nextQuestions.length > 0 && (
-                                          <div className="rounded-lg bg-overlay-3 border border-overlay-6 p-2 mt-1.5">
-                                            <p className="text-[10px] text-muted-foreground/55 uppercase mb-1">Questions</p>
-                                            <div className="space-y-0.5">
-                                              {filteredBrief.nextQuestions.slice(0, 3).map((q, i) => (
-                                                <p key={i} className="text-xs text-foreground/75 leading-snug">• {q}</p>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                        {filteredBrief.riskFlags.length > 0 && (
-                                          <div className="rounded-lg bg-muted/[0.06] border border-border/20 p-2 mt-1.5">
-                                            <p className="text-[10px] text-amber-400/70 uppercase mb-1">Risk Flags</p>
-                                            <div className="space-y-0.5">
-                                              {filteredBrief.riskFlags.map((flag, i) => (
-                                                <div key={i} className="flex items-start gap-1.5 text-xs text-foreground/75">
-                                                  <AlertTriangle className="h-2.5 w-2.5 mt-0.5 shrink-0 text-amber-400/60" />
-                                                  <p>{flag}</p>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </motion.div>
-                                    )}
-                                  </AnimatePresence>
-                                </>
-                              )}
-                            </>
-                          )}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
 
                     {/* Phone roster from lead_phones */}
                     {callState === "idle" && activeLeadPhones.length > 1 && (() => {
