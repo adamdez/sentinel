@@ -4,16 +4,11 @@ import { createArtifact, createFact } from "@/lib/intelligence";
 import { spokaneGisAdapter } from "@/providers/spokane-gis/adapter";
 import { fetchSpokaneScoutSummary } from "@/providers/spokane-scout/adapter";
 import { applyScoutIngestionPolicy } from "@/lib/scout-ingest";
+import { requireUserOrCron } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
-
-const ADMIN_EMAILS = [
-  "adam@dominionhomedeals.com",
-  "nathan@dominionhomedeals.com",
-  "logan@dominionhomedeals.com",
-];
 
 type LeadRow = {
   id: string;
@@ -62,26 +57,6 @@ function factValueToString(value: string | number | boolean): string {
   return String(value);
 }
 
-async function requireAdmin(req: NextRequest) {
-  const sb = createServerClient();
-  const cronSecret = req.headers.get("authorization");
-  const expectedSecret = process.env.CRON_SECRET;
-
-  if (expectedSecret && cronSecret === `Bearer ${expectedSecret}`) {
-    return { ok: true, sb };
-  }
-
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-
-  if (user?.email && ADMIN_EMAILS.includes(user.email)) {
-    return { ok: true, sb };
-  }
-
-  return { ok: false, sb };
-}
-
 /**
  * POST /api/admin/backfill-spokane-scout
  *
@@ -93,12 +68,12 @@ async function requireAdmin(req: NextRequest) {
  * currently persist the workbook marker in `leads.notes`.
  */
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin(req);
-  if (!auth.ok) {
-    return NextResponse.json({ error: "Unauthorized - admin only" }, { status: 401 });
+  const sb = createServerClient();
+  const auth = await requireUserOrCron(req, sb);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sb = auth.sb;
   const body = await req.json().catch(() => ({}));
   const notesMarker = typeof body.notesMarker === "string" && body.notesMarker.trim()
     ? body.notesMarker.trim()

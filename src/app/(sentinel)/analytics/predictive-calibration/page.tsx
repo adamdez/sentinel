@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
-  Brain, Sliders, RefreshCw, Save, Lock, AlertTriangle, CheckCircle,
+  Brain, Sliders, RefreshCw, Save, AlertTriangle, CheckCircle,
   Gauge, Target, Users, Phone, LineChart,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -53,7 +53,6 @@ const DEFAULT_WEIGHTS: Record<string, number> = {
 
 export default function PredictiveCalibrationPage() {
   const { currentUser } = useSentinelStore();
-  const isAdmin = currentUser.role === "admin";
 
   const [weights, setWeights] = useState<Record<string, number>>({ ...DEFAULT_WEIGHTS });
   const [saving, setSaving] = useState(false);
@@ -97,7 +96,7 @@ export default function PredictiveCalibrationPage() {
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!isAdmin || !isBalanced) return;
+    if (!isBalanced) return;
 
     setSaving(true);
     setSaveStatus("idle");
@@ -123,11 +122,9 @@ export default function PredictiveCalibrationPage() {
     } finally {
       setSaving(false);
     }
-  }, [isAdmin, isBalanced, weights, totalWeight, currentUser.id]);
+  }, [isBalanced, weights, totalWeight, currentUser.id]);
 
   const handleRetrain = useCallback(async () => {
-    if (!isAdmin) return;
-
     setRetraining(true);
     setRetrainResult(null);
 
@@ -149,20 +146,7 @@ export default function PredictiveCalibrationPage() {
     } finally {
       setRetraining(false);
     }
-  }, [isAdmin, weights]);
-
-  if (!isAdmin) {
-    return (
-      <PageShell title="Predictive Calibration" description="Admin access required">
-        <GlassCard className="p-8 text-center">
-          <Lock className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-          <p className="text-muted-foreground">
-            Only administrators can access the predictive calibration panel.
-          </p>
-        </GlassCard>
-      </PageShell>
-    );
-  }
+  }, [weights]);
 
   return (
     <PageShell

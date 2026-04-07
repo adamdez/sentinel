@@ -1,32 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireUserOrCron } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const ADMIN_EMAILS = [
-  "adam@dominionhomedeals.com",
-  "nathan@dominionhomedeals.com",
-  "logan@dominionhomedeals.com",
-];
-
-async function requireAdmin(req: NextRequest) {
-  const sb = createServerClient();
-  const cronSecret = req.headers.get("authorization");
-  const expectedSecret = process.env.CRON_SECRET;
-  if (expectedSecret && cronSecret === `Bearer ${expectedSecret}`) {
-    return { ok: true, sb };
-  }
-
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-  if (user?.email && ADMIN_EMAILS.includes(user.email)) {
-    return { ok: true, sb };
-  }
-  return { ok: false, sb };
-}
 
 type ScoutEventDetails = {
   source_system?: string;
@@ -48,12 +26,12 @@ function asDetails(value: unknown): ScoutEventDetails {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAdmin(req);
-  if (!auth.ok) {
+  const sb = createServerClient();
+  const auth = await requireUserOrCron(req, sb);
+  if (!auth) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sb = auth.sb;
   const url = new URL(req.url);
   const runId = (url.searchParams.get("runId") ?? "").trim();
   const sourceSystem = (url.searchParams.get("sourceSystem") ?? "").trim();
@@ -131,4 +109,3 @@ export async function GET(req: NextRequest) {
     items,
   });
 }
-

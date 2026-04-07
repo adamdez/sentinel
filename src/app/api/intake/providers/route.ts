@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { getAuthenticatedUser } from "@/lib/api-auth";
 
 /**
  * GET /api/intake/providers
@@ -57,17 +58,9 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const sb = createServerClient();
-
-    const authHeader = req.headers.get("authorization")?.replace("Bearer ", "");
-    const { data: { user } } = await sb.auth.getUser(authHeader);
+    const user = await getAuthenticatedUser(req, sb);
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Founder-only: restrict to admin users
-    const founderIds = (process.env.FOUNDER_USER_IDS || "").split(",").map(id => id.trim());
-    if (!founderIds.includes(user.id)) {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
 
     const body = await req.json();

@@ -92,13 +92,13 @@ const NAV_COMMANDS: NavCommand[] = [
   { kind: "nav", label: "Call Review", href: "/dialer/war-room", icon: Phone, group: "Review" },
   { kind: "nav", label: "Review Console", href: "/dialer/review", icon: BarChart3, group: "Review" },
   { kind: "nav", label: "AI Evals", href: "/dialer/review/eval", icon: Search, group: "Review" },
-  { kind: "nav", label: "Analytics", href: "/analytics", icon: BarChart3, group: "Admin" },
-  { kind: "nav", label: "Settings", href: "/settings", icon: Settings, group: "Admin" },
-  { kind: "nav", label: "Prompt Registry", href: "/settings/prompt-registry", icon: Settings, group: "Admin" },
-  { kind: "nav", label: "Voice Registry", href: "/settings/voice-registry", icon: Settings, group: "Admin" },
-  { kind: "nav", label: "Source Policies", href: "/settings/source-policies", icon: Settings, group: "Admin" },
-  { kind: "nav", label: "Agent Controls", href: "/settings/agent-controls", icon: Settings, group: "Admin" },
-  { kind: "nav", label: "Import", href: "/admin/import", icon: Upload, group: "Admin" },
+  { kind: "nav", label: "Analytics", href: "/analytics", icon: BarChart3, group: "Settings" },
+  { kind: "nav", label: "Settings", href: "/settings", icon: Settings, group: "Settings" },
+  { kind: "nav", label: "Prompt Registry", href: "/settings/prompt-registry", icon: Settings, group: "Settings" },
+  { kind: "nav", label: "Voice Registry", href: "/settings/voice-registry", icon: Settings, group: "Settings" },
+  { kind: "nav", label: "Source Policies", href: "/settings/source-policies", icon: Settings, group: "Settings" },
+  { kind: "nav", label: "Agent Controls", href: "/settings/agent-controls", icon: Settings, group: "Settings" },
+  { kind: "nav", label: "Import", href: "/admin/import", icon: Upload, group: "Settings" },
 ];
 
 

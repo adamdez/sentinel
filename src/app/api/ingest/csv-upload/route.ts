@@ -15,7 +15,7 @@
  *   7. Promote to leads if blended score >= 75
  *   8. Audit log
  *
- * Auth: Supabase session (admin role check via ADMIN_EMAILS).
+ * Auth: authenticated user session or CRON_SECRET.
  * Accepts: multipart/form-data with CSV file + JSON metadata.
  */
 
@@ -25,6 +25,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Papa from "papaparse";
 import { createHash } from "crypto";
 import { createServerClient } from "@/lib/supabase";
+import { requireUserOrCron } from "@/lib/api-auth";
 import { computeScore, SCORING_MODEL_VERSION, type ScoringInput } from "@/lib/scoring";
 import {
   computePredictiveScore,
@@ -48,12 +49,6 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const PROMOTION_THRESHOLD = 75;
 const BATCH_SIZE = 50;
 const MAX_ARV = 490_000; // $490K ARV ceiling — no lead created for properties above this
-
-const ADMIN_EMAILS = [
-  "adam@dominionhomedeals.com",
-  "nathan@dominionhomedeals.com",
-  "logan@dominionhomedeals.com",
-];
 
 interface CsvUploadMeta {
   source: string;
@@ -90,26 +85,10 @@ export async function POST(request: NextRequest) {
   // ── 1. Auth check ──────────────────────────────────────────────────
   const sb = createServerClient();
 
-  // Check for admin auth via cookie or CRON_SECRET header
-  const cronSecret = process.env.CRON_SECRET;
-  const cronAuth = request.headers.get("authorization");
-  let isAuthed = false;
+  // Check for an authenticated session or CRON_SECRET header
+  const auth = await requireUserOrCron(request, sb);
 
-  if (cronSecret && cronAuth === `Bearer ${cronSecret}`) {
-    isAuthed = true;
-  } else {
-    // Try session-based auth
-    try {
-      const { data: { user } } = await sb.auth.getUser();
-      if (user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
-        isAuthed = true;
-      }
-    } catch {
-      // Auth check failed
-    }
-  }
-
-  if (!isAuthed) {
+  if (!auth) {
     return NextResponse.json(
       { error: "Unauthorized — admin access required" },
       { status: 401 }

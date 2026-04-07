@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireUserOrCron } from "@/lib/api-auth";
 import { computeScore, SCORING_MODEL_VERSION, getScoreLabel, getScoreLabelTag, MIN_STORE_SCORE, type ScoringInput } from "@/lib/scoring";
 import {
   computePredictiveScore,
@@ -151,7 +152,7 @@ export function isStaleDistress(pr: PRProperty): { stale: boolean; reason?: stri
 /**
  * POST /api/ingest/propertyradar/bulk-seed
  *
- * Admin-only bulk pull from PropertyRadar.
+ * Bulk pull from PropertyRadar.
  * Pulls up to `limit` records (default 1000, max 1000), scores all with
  * v2.0 deterministic + v2.1 predictive, inserts those with blended >= 75.
  */
@@ -162,27 +163,9 @@ export async function POST(req: NextRequest) {
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* use defaults */ }
 
-  // Admin guard — check user role
-  const bearerToken = req.headers.get("authorization")?.replace("Bearer ", "");
-  const cronSecret = process.env.CRON_SECRET;
-  let isAdmin = false;
-
-  if (cronSecret && bearerToken === cronSecret) {
-    isAdmin = true;
-  } else {
-    const userId = body?.userId as string | undefined;
-    if (userId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: profile } = await (sb.from("user_profiles") as any)
-        .select("role")
-        .eq("id", userId)
-        .single();
-      isAdmin = profile?.role === "admin";
-    }
-  }
-
-  if (!isAdmin) {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  const auth = await requireUserOrCron(req, sb);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const apiKey = process.env.PROPERTYRADAR_API_KEY;

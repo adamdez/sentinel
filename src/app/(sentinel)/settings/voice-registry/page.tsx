@@ -3,9 +3,9 @@
 /**
  * /settings/voice-registry — Voice Script & Handoff Rule Registry
  *
- * Adam-only admin surface. Shows all registered voice scripts and handoff rules
- * grouped by workflow, with status, description, and changelog. Adam can update
- * status and descriptions inline, and register new versions.
+ * Shared registry surface. Shows all registered voice scripts and handoff rules
+ * grouped by workflow, with status, description, and changelog. Operators can
+ * update status and descriptions inline, and register new versions.
  *
  * Does NOT: deploy scripts live, trigger Twilio routing changes,
  * auto-run A/B tests, or route calls between versions.

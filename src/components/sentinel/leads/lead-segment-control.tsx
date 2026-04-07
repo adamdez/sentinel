@@ -27,7 +27,6 @@ export function LeadSegmentControl({
   value,
   onChange,
   counts,
-  currentUserRole,
   teamMembers,
 }: LeadSegmentControlProps) {
   const tabs: Tab[] = [
@@ -35,17 +34,14 @@ export function LeadSegmentControl({
     { id: "all", label: "Unclaimed Leads", icon: Users, count: counts.all },
   ];
 
-  // Admins see per-member tabs for OTHER team members (their own is "My Leads")
-  if (currentUserRole === "admin") {
-    for (const member of teamMembers) {
-      const firstName = member.name.split(" ")[0];
-      tabs.push({
-        id: member.id,
-        label: `${firstName}'s Leads`,
-        icon: User,
-        count: counts.byMember[member.id] ?? 0,
-      });
-    }
+  for (const member of teamMembers) {
+    const firstName = member.name.split(" ")[0];
+    tabs.push({
+      id: member.id,
+      label: `${firstName}'s Leads`,
+      icon: User,
+      count: counts.byMember[member.id] ?? 0,
+    });
   }
 
   return (

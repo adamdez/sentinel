@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireUserOrCron } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const ADMIN_EMAILS = [
-  "adam@dominionhomedeals.com",
-  "nathan@dominionhomedeals.com",
-  "logan@dominionhomedeals.com",
-];
 
 /**
  * POST /api/enrichment/backfill
@@ -26,24 +21,9 @@ const ADMIN_EMAILS = [
  */
 export async function POST(req: NextRequest) {
   const sb = createServerClient();
-
-  // Auth check
-  const cronSecret = req.headers.get("authorization");
-  const expectedSecret = process.env.CRON_SECRET;
-  let authorized = false;
-
-  if (expectedSecret && cronSecret === `Bearer ${expectedSecret}`) {
-    authorized = true;
-  } else {
-    // Check admin email from session
-    const { data: { user } } = await sb.auth.getUser();
-    if (user?.email && ADMIN_EMAILS.includes(user.email)) {
-      authorized = true;
-    }
-  }
-
-  if (!authorized) {
-    return NextResponse.json({ error: "Unauthorized — admin only" }, { status: 401 });
+  const auth = await requireUserOrCron(req, sb);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   console.log("[Enrichment/Backfill] Starting backfill...");

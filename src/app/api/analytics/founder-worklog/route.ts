@@ -1,27 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { requireAuth } from "@/lib/api-auth";
-import { parseFounderUserIds } from "@/lib/analytics-helpers";
+import { getAuthenticatedUser } from "@/lib/api-auth";
 import { computeFounderHoursFromWorkLogs } from "@/lib/founder-worklog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function isFounderUser(userId: string, role: string | null, founderIds: string[]): boolean {
-  if (role === "admin") return true;
-  return founderIds.includes(userId);
-}
-
 export async function GET(req: NextRequest) {
   const sb = createServerClient();
-  const user = await requireAuth(req, sb);
+  const user = await getAuthenticatedUser(req, sb);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const founderIds = parseFounderUserIds(process.env.FOUNDER_USER_IDS);
-  const userRole = (user as { role?: string | null }).role ?? null;
-  if (!isFounderUser(user.id, userRole, founderIds)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const now = new Date();
   const from = req.nextUrl.searchParams.get("from")
@@ -29,9 +17,7 @@ export async function GET(req: NextRequest) {
   const to = req.nextUrl.searchParams.get("to") ?? now.toISOString();
 
   const queryUserId = req.nextUrl.searchParams.get("user_id");
-  const scopeUserIds = queryUserId
-    ? [queryUserId]
-    : (founderIds.length > 0 ? founderIds : [user.id]);
+  const scopeUserIds = queryUserId ? [queryUserId] : null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (sb.from("founder_work_logs") as any)
@@ -40,7 +26,7 @@ export async function GET(req: NextRequest) {
     .or(`ended_at.is.null,ended_at.gte.${from}`)
     .order("started_at", { ascending: false });
 
-  if (scopeUserIds.length > 0) {
+  if (scopeUserIds && scopeUserIds.length > 0) {
     query = query.in("user_id", scopeUserIds);
   }
 
@@ -61,8 +47,17 @@ export async function GET(req: NextRequest) {
     updated_at: string | null;
   }>;
 
-  const total = computeFounderHoursFromWorkLogs(rows, from, to, scopeUserIds);
-  const byUser = scopeUserIds.map((id) => ({
+  const summaryUserIds = scopeUserIds
+    ?? Array.from(
+      new Set(
+        rows
+          .map((row) => row.user_id)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      ),
+    );
+
+  const total = computeFounderHoursFromWorkLogs(rows, from, to, summaryUserIds);
+  const byUser = summaryUserIds.map((id) => ({
     user_id: id,
     ...computeFounderHoursFromWorkLogs(rows, from, to, [id]),
   }));
@@ -83,20 +78,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const sb = createServerClient();
-  const user = await requireAuth(req, sb);
+  const user = await getAuthenticatedUser(req, sb);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const founderIds = parseFounderUserIds(process.env.FOUNDER_USER_IDS);
-  const userRole = (user as { role?: string | null }).role ?? null;
-  if (!isFounderUser(user.id, userRole, founderIds)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const body = await req.json();
   const targetUserId = typeof body.user_id === "string" && body.user_id.length > 0 ? body.user_id : user.id;
-  if (targetUserId !== user.id && userRole !== "admin") {
-    return NextResponse.json({ error: "Only admins can log time for another user" }, { status: 403 });
-  }
 
   const startedAt = typeof body.started_at === "string" ? body.started_at : new Date().toISOString();
   const endedAt = typeof body.ended_at === "string" ? body.ended_at : null;

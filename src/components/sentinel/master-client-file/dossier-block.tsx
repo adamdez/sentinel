@@ -29,24 +29,15 @@ import { ContradictionFlagsPanel } from "@/components/sentinel/contradiction-fla
 import { AbsenteeDossierBrief } from "./absentee-dossier-brief";
 import { deriveAbsenteeDossierBrief } from "@/lib/absentee-dossier";
 
-// ── Props ─────────────────────────────────────────────────────────────────────
-
 export type LeadDossierType = "absentee_landlord" | "probate" | "generic";
 
 interface DossierBlockProps {
   leadId: string;
   propertyId?: string | null;
-  isAdminView?: boolean;
-  /** Hint to select evidence source types and dossier renderer. Detected from dossier.raw_ai_output as fallback. */
   leadType?: LeadDossierType;
 }
 
-// ── DossierBlock ──────────────────────────────────────────────────────────────
-// Read-only. Renders ONLY when a reviewed/promoted dossier exists.
-// Does not render for proposed or flagged dossiers.
-// Proposed dossiers are visible only to Adam in the future review queue.
-
-export function DossierBlock({ leadId, propertyId, isAdminView = false, leadType }: DossierBlockProps) {
+export function DossierBlock({ leadId, propertyId, leadType }: DossierBlockProps) {
   const { dossier, loading, error, refetch } = useDossier(leadId);
 
   useEffect(() => {
@@ -54,53 +45,31 @@ export function DossierBlock({ leadId, propertyId, isAdminView = false, leadType
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadId]);
 
-  // For non-admin: render nothing unless a reviewed dossier exists
-  if (!isAdminView) {
-    if (loading) {
-      return (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          Loading intelligence…
-        </div>
-      );
-    }
-    if (error) {
-      return (
-        <div className="flex items-center gap-2 text-xs text-destructive py-1">
-          <AlertCircle className="h-3 w-3" />
-          Could not load dossier: {error}
-        </div>
-      );
-    }
-    if (!dossier) {
-      return (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground/50 py-2 px-1">
-          <ShieldCheck className="h-3 w-3 shrink-0" />
-          Intelligence report pending — run research to generate
-        </div>
-      );
-    }
-    return <DossierRenderer dossier={dossier} leadType={leadType} isAdminView={false} onPromoted={refetch} />;
-  }
-
-  // Admin view: always render — shows reviewed dossier (if any) + evidence capture panel
   return (
     <div className="space-y-2">
       {loading && (
         <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
           <Loader2 className="h-3 w-3 animate-spin" />
-          Loading intelligence…
+          Loading intelligence...
         </div>
       )}
+
       {error && (
         <div className="flex items-center gap-2 text-xs text-destructive py-1">
           <AlertCircle className="h-3 w-3" />
           Could not load dossier: {error}
         </div>
       )}
-      {!loading && dossier && (
-        <DossierRenderer dossier={dossier} leadType={leadType} isAdminView={true} onPromoted={refetch} />
+
+      {!loading && dossier && <DossierRenderer dossier={dossier} leadType={leadType} onPromoted={refetch} />}
+
+      {!loading && !error && !dossier && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground/50 py-2 px-1">
+          <ShieldCheck className="h-3 w-3 shrink-0" />
+          Intelligence report pending - run research to generate
+        </div>
       )}
+
       <ContradictionFlagsPanel leadId={leadId} />
       <EvidenceCapturePanel
         leadId={leadId}
@@ -112,70 +81,56 @@ export function DossierBlock({ leadId, propertyId, isAdminView = false, leadType
   );
 }
 
-// ── DossierRenderer — routes to the right renderer based on dossier_type ─────
-
 interface DossierRendererProps {
-  dossier:     DossierRow;
-  leadType?:   LeadDossierType;
-  isAdminView: boolean;
-  onPromoted:  () => void;
+  dossier: DossierRow;
+  leadType?: LeadDossierType;
+  onPromoted: () => void;
 }
 
-function DossierRenderer({ dossier, leadType, isAdminView, onPromoted }: DossierRendererProps) {
-  // Detect type: explicit prop takes precedence, then raw_ai_output.dossier_type, then generic
+function DossierRenderer({ dossier, leadType, onPromoted }: DossierRendererProps) {
   const rawType = dossier.raw_ai_output?.dossier_type as string | undefined;
   const resolvedType: LeadDossierType =
     leadType ?? (rawType === "absentee_landlord" ? "absentee_landlord" : "generic");
 
   if (resolvedType === "absentee_landlord") {
-    // Derive brief from the dossier's top_facts (which come from artifact extracted_notes)
-    // We pass empty artifacts here since the brief is derived at compile time and
-    // re-derived from top_facts for display. Real artifacts aren't re-fetched for rendering.
     const topFacts = Array.isArray(dossier.top_facts) ? dossier.top_facts : [];
-    // Reconstruct minimal artifact inputs from top_facts for re-derivation
-    const pseudoArtifacts = topFacts.map((f, i) => ({
-      id:              `tf-${i}`,
-      source_type:     "other" as const,
-      source_label:    f.source ?? null,
-      source_url:      null,
-      extracted_notes: f.fact,
-      captured_at:     dossier.created_at,
+    const pseudoArtifacts = topFacts.map((fact, index) => ({
+      id: `tf-${index}`,
+      source_type: "other" as const,
+      source_label: fact.source ?? null,
+      source_url: null,
+      extracted_notes: fact.fact,
+      captured_at: dossier.created_at,
     }));
     const brief = deriveAbsenteeDossierBrief(pseudoArtifacts);
-    return (
-      <AbsenteeDossierBrief
-        dossier={dossier}
-        brief={brief}
-        isAdminView={isAdminView}
-        onPromoted={onPromoted}
-      />
-    );
+
+    return <AbsenteeDossierBrief dossier={dossier} brief={brief} onPromoted={onPromoted} />;
   }
 
-  return <DossierContent dossier={dossier} isAdminView={isAdminView} onPromoted={onPromoted} />;
+  return <DossierContent dossier={dossier} onPromoted={onPromoted} />;
 }
-
-// ── DossierContent ────────────────────────────────────────────────────────────
 
 interface DossierContentProps {
   dossier: DossierRow;
-  isAdminView: boolean;
   onPromoted: () => void;
 }
 
-function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProps) {
+function DossierContent({ dossier, onPromoted }: DossierContentProps) {
   const [promoting, setPromoting] = useState(false);
   const [promoteError, setPromoteError] = useState<string | null>(null);
 
   const reviewedDate = dossier.reviewed_at
     ? new Date(dossier.reviewed_at).toLocaleDateString("en-US", {
-        month: "short", day: "numeric", year: "numeric",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
       })
     : null;
 
   async function handlePromote() {
     setPromoting(true);
     setPromoteError(null);
+
     try {
       await promoteDossier(dossier.lead_id, dossier.id);
       onPromoted();
@@ -188,7 +143,6 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
 
   return (
     <div className="rounded-md border border-border bg-muted/50 dark:border-border/40 dark:bg-muted/20 p-3 space-y-3 text-sm">
-      {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 font-medium text-foreground dark:text-foreground">
           <ShieldCheck className="h-4 w-4" />
@@ -202,12 +156,10 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
         </Badge>
       </div>
 
-      {/* Situation summary */}
       {dossier.situation_summary && (
         <p className="text-sm text-foreground leading-snug">{dossier.situation_summary}</p>
       )}
 
-      {/* Decision-maker */}
       {dossier.likely_decision_maker && (
         <div className="flex items-start gap-2">
           <User className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
@@ -220,7 +172,6 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
         </div>
       )}
 
-      {/* Call angle */}
       {dossier.recommended_call_angle && (
         <div className="flex items-start gap-2">
           <Lightbulb className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
@@ -233,7 +184,6 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
         </div>
       )}
 
-      {/* Top facts */}
       {Array.isArray(dossier.top_facts) && dossier.top_facts.length > 0 && (
         <div className="flex items-start gap-2">
           <List className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
@@ -242,12 +192,10 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
               Key facts
             </span>
             <ul className="space-y-1">
-              {(dossier.top_facts as DossierTopFact[]).map((f, i) => (
-                <li key={i} className="text-sm leading-snug">
-                  <span>{f.fact}</span>
-                  {f.source && (
-                    <span className="ml-1 text-xs text-muted-foreground">({f.source})</span>
-                  )}
+              {(dossier.top_facts as DossierTopFact[]).map((fact, index) => (
+                <li key={index} className="text-sm leading-snug">
+                  <span>{fact.fact}</span>
+                  {fact.source && <span className="ml-1 text-xs text-muted-foreground">({fact.source})</span>}
                 </li>
               ))}
             </ul>
@@ -257,34 +205,30 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
 
       <Separator />
 
-      {/* Verification checklist — read-only visual */}
       {Array.isArray(dossier.verification_checklist) && dossier.verification_checklist.length > 0 && (
         <div>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1.5">
             Verify before calling
           </span>
           <ul className="space-y-1.5">
-            {(dossier.verification_checklist as DossierVerificationItem[]).map((v, i) => (
-              <li key={i} className="flex items-center gap-2 text-sm">
-                <Checkbox checked={v.verified} disabled className="h-3.5 w-3.5 opacity-60" />
-                <span className={v.verified ? "line-through text-muted-foreground" : ""}>
-                  {v.item}
-                </span>
+            {(dossier.verification_checklist as DossierVerificationItem[]).map((item, index) => (
+              <li key={index} className="flex items-center gap-2 text-sm">
+                <Checkbox checked={item.verified} disabled className="h-3.5 w-3.5 opacity-60" />
+                <span className={item.verified ? "line-through text-muted-foreground" : ""}>{item.item}</span>
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {/* Source links */}
       {Array.isArray(dossier.source_links) && dossier.source_links.length > 0 && (
         <div>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide block mb-1">
             Sources
           </span>
           <ul className="space-y-1">
-            {(dossier.source_links as DossierSourceLink[]).map((link, i) => (
-              <li key={i}>
+            {(dossier.source_links as DossierSourceLink[]).map((link, index) => (
+              <li key={index}>
                 <a
                   href={link.url}
                   target="_blank"
@@ -300,15 +244,13 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
         </div>
       )}
 
-      {/* Footer — makes human review visible */}
       <div className="flex items-center justify-between gap-2 pt-1">
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <CheckCircle2 className="h-3 w-3 text-foreground" />
           {reviewedDate ? `Reviewed ${reviewedDate}` : "Reviewed"}
         </div>
 
-        {/* Promote button — Adam-only, only when status is 'reviewed' */}
-        {isAdminView && dossier.status === "reviewed" && (
+        {dossier.status === "reviewed" && (
           <div className="flex flex-col items-end gap-1">
             <Button
               size="sm"
@@ -317,16 +259,10 @@ function DossierContent({ dossier, isAdminView, onPromoted }: DossierContentProp
               onClick={handlePromote}
               disabled={promoting}
             >
-              {promoting ? (
-                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-              ) : (
-                <Flag className="h-3 w-3 mr-1" />
-              )}
+              {promoting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Flag className="h-3 w-3 mr-1" />}
               Promote to lead
             </Button>
-            {promoteError && (
-              <span className="text-xs text-destructive">{promoteError}</span>
-            )}
+            {promoteError && <span className="text-xs text-destructive">{promoteError}</span>}
           </div>
         )}
       </div>

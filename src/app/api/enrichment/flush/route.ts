@@ -1,52 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireUserOrCron } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const ADMIN_EMAILS = [
-  "adam@dominionhomedeals.com",
-  "nathan@dominionhomedeals.com",
-  "logan@dominionhomedeals.com",
-];
-
 /**
  * POST /api/enrichment/flush
  *
- * Nuclear reset — moves ALL current prospects back to staging and resets
+ * Nuclear reset: moves all current prospects back to staging and resets
  * their priority so the enrichment cron re-processes them from scratch.
  *
  * After flush:
- *   - Prospect folder is empty (agents see nothing temporarily)
+ *   - Prospect folder is empty temporarily
  *   - Reservoir has all leads with priority=0 (triggers re-enrichment)
  *   - Enrichment cron picks them up automatically every 15 min (50/batch)
- *   - Admin promotes platinum/gold when ready
+ *   - Operators can promote platinum/gold when ready
  *
- * Auth: Admin session or CRON_SECRET.
+ * Auth: authenticated user session or CRON_SECRET.
  */
 export async function POST(req: NextRequest) {
   const sb = createServerClient();
-
-  // Auth check
-  const cronSecret = req.headers.get("authorization");
-  const expectedSecret = process.env.CRON_SECRET;
-  let authorized = false;
-
-  if (expectedSecret && cronSecret === `Bearer ${expectedSecret}`) {
-    authorized = true;
-  } else {
-    const { data: { user } } = await sb.auth.getUser();
-    if (user?.email && ADMIN_EMAILS.includes(user.email)) {
-      authorized = true;
-    }
+  const auth = await requireUserOrCron(req, sb);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!authorized) {
-    return NextResponse.json({ error: "Unauthorized — admin only" }, { status: 401 });
-  }
-
-  console.log("[Enrichment/Flush] Starting full flush — all prospects → staging...");
+  console.log("[Enrichment/Flush] Starting full flush: all prospects -> staging...");
 
   try {
     // Step 1: Count current prospects
@@ -55,7 +36,7 @@ export async function POST(req: NextRequest) {
       .select("id", { count: "exact", head: true })
       .eq("status", "prospect");
 
-    // Step 2: Reset ALL prospect leads → staging with priority=0
+    // Step 2: Reset ALL prospect leads -> staging with priority=0
     // Priority=0 tells the batch filter this lead needs re-enrichment
     // even if the property already has enrichment_status = "enriched"
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -74,8 +55,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: prospectErr.message }, { status: 500 });
     }
 
-    // Step 3: Also reset any EXISTING staging leads that were already enriched
-    // so they also get a fresh pass
+    // Step 3: Also reset any existing staging leads that were already enriched
+    // so they also get a fresh pass.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: stagingErr } = await (sb.from("leads") as any)
       .update({
@@ -111,17 +92,17 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    console.log(`[Enrichment/Flush] Complete: ${prospectCount} prospects → staging, ${stagingCount} total in reservoir`);
+    console.log(`[Enrichment/Flush] Complete: ${prospectCount} prospects -> staging, ${stagingCount} total in reservoir`);
 
     const batchesNeeded = Math.ceil((stagingCount ?? 0) / 50);
     const estimatedMinutes = batchesNeeded * 15;
 
     return NextResponse.json({
       success: true,
-      message: `Flush complete — ${prospectCount} prospects moved to staging for re-enrichment`,
+      message: `Flush complete: ${prospectCount} prospects moved to staging for re-enrichment`,
       prospects_flushed: prospectCount ?? 0,
       total_staging: stagingCount ?? 0,
-      estimated_enrichment: `~${estimatedMinutes} minutes (${batchesNeeded} batches × 15 min cron)`,
+      estimated_enrichment: `~${estimatedMinutes} minutes (${batchesNeeded} batches x 15 min cron)`,
       note: "Enrichment cron runs every 15 min, processing 50 leads per batch. Promote platinum/gold when ready.",
     });
   } catch (err) {

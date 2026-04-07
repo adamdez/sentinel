@@ -6,32 +6,21 @@
  * Use this for testing or when Inngest isn't available.
  *
  * Body: { leadIds: string[] }  (max 5 per request)
- *
- * Founder-only endpoint.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { requireAuth } from "@/lib/api-auth";
+import { getAuthenticatedUser } from "@/lib/api-auth";
 import { runSkipTraceIntel } from "@/lib/skiptrace-intel";
 
 export const maxDuration = 300; // 5 min Vercel Pro timeout
 
 export async function POST(req: NextRequest) {
   const sb = createServerClient();
-  const user = await requireAuth(req, sb);
+  const user = await getAuthenticatedUser(req, sb);
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const founderIds = (process.env.FOUNDER_USER_IDS ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  if (!founderIds.includes(user.id)) {
-    return NextResponse.json({ error: "Forbidden — founder only" }, { status: 403 });
   }
 
   const body = await req.json().catch(() => ({}));

@@ -27,3 +27,31 @@ export async function requireAuth(req: NextRequest, sb: ReturnType<typeof create
   if (error || !data.user) return null;
   return data.user;
 }
+
+export async function getAuthenticatedUser(req: NextRequest, sb: ReturnType<typeof createServerClient>) {
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (token) {
+    if (token === process.env.CRON_SECRET) return null;
+    const user = await requireAuth(req, sb);
+    if (user) return user;
+  }
+
+  const { data, error } = await sb.auth.getUser();
+  if (error || !data.user) return null;
+  return data.user;
+}
+
+export async function requireUserOrCron(req: NextRequest, sb: ReturnType<typeof createServerClient>) {
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  if (token && token === process.env.CRON_SECRET) {
+    return { isCron: true, user: null };
+  }
+
+  const user = await getAuthenticatedUser(req, sb);
+  if (!user) return null;
+  return { isCron: false, user };
+}

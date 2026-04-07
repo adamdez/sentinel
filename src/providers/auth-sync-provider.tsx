@@ -7,9 +7,9 @@ import { useSentinelStore } from "@/lib/store";
 import type { User as SentinelUser } from "@/lib/types";
 
 const TEAM_MAP: Record<string, { name: string; role: SentinelUser["role"] }> = {
-  "adam@dominionhomedeals.com": { name: "Adam D.", role: "admin" },
+  "adam@dominionhomedeals.com": { name: "Adam D.", role: "agent" },
   "nathan@dominionhomedeals.com": { name: "user 1", role: "agent" },
-  "logan@dominionhomedeals.com": { name: "Logan Anyan", role: "admin" },
+  "logan@dominionhomedeals.com": { name: "Logan Anyan", role: "agent" },
 };
 
 async function ensureProfileAndResolve(

@@ -6,7 +6,7 @@
  * Call repeatedly to work through the full backlog.
  *
  * Body: { leadIds?, force?, batchSize? (default 15), offset? (default 0) }
- * Auth: Bearer token (founder-only) OR CRON_SECRET.
+ * Auth: authenticated user bearer token OR CRON_SECRET.
  */
 
 export const runtime = "nodejs";
@@ -14,31 +14,16 @@ export const maxDuration = 120;
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { requireAuth } from "@/lib/api-auth";
+import { requireUserOrCron } from "@/lib/api-auth";
 
 const BRICKED_BASE = "https://api.bricked.ai";
 const DEFAULT_BATCH_SIZE = 15;
 const DELAY_MS = 1500;
 
 export async function POST(req: NextRequest) {
-  // ── Auth ──────────────────────────────────────────────────────────
-  const authHeader = req.headers.get("authorization");
-
-  if (authHeader === `Bearer ${process.env.CRON_SECRET}`) {
-    // CRON_SECRET — allowed
-  } else {
-    const sb = createServerClient();
-    const user = await requireAuth(req, sb);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const founderIds = (process.env.FOUNDER_USER_IDS ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!founderIds.includes(user.id)) {
-      return NextResponse.json({ error: "Forbidden — founder only" }, { status: 403 });
-    }
+  const auth = await requireUserOrCron(req, createServerClient());
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const brickedKey = process.env.BRICKED_API_KEY;
@@ -61,7 +46,6 @@ export async function POST(req: NextRequest) {
 
   const sb = createServerClient();
 
-  // ── Fetch leads needing analysis ──────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (sb.from("leads") as any)
     .select(`
@@ -81,13 +65,12 @@ export async function POST(req: NextRequest) {
 
   const { data: rows, error: queryErr } = await query
     .order("created_at", { ascending: true })
-    .range(offset, offset + batchSize * 2); // fetch extra to account for skips
+    .range(offset, offset + batchSize * 2);
 
   if (queryErr) {
     return NextResponse.json({ error: queryErr.message }, { status: 500 });
   }
 
-  // Filter to properties needing analysis
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const eligible = (rows ?? []).filter((row: any) => {
     const prop = row.properties;
@@ -106,7 +89,6 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // ── Process each property ─────────────────────────────────────────
   const results: Array<{
     leadId: string;
     address: string;
@@ -125,7 +107,6 @@ export async function POST(req: NextRequest) {
       .join(", ");
 
     try {
-      // Check if we already have a bricked_id (re-fetch via /get)
       const existingId = (prop.owner_flags as Record<string, unknown>)?.bricked_id as string | undefined;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: any = null;
@@ -158,29 +139,34 @@ export async function POST(req: NextRequest) {
           const errMsg = res.status === 404
             ? `Not found: ${errText.slice(0, 200)}`
             : `HTTP ${res.status}: ${errText.slice(0, 200)}`;
-          console.error(`[BulkBricked] ${fullAddress} → ${errMsg}`);
+          console.error(`[BulkBricked] ${fullAddress} -> ${errMsg}`);
           results.push({ leadId: row.id, address: fullAddress, success: false, error: errMsg });
           continue;
         }
       }
 
-      // Persist to owner_flags
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const flags: Record<string, any> = {};
-      if (data.arv) { flags.bricked_arv = data.arv; flags.comp_arv = data.arv; }
+      if (data.arv) {
+        flags.bricked_arv = data.arv;
+        flags.comp_arv = data.arv;
+      }
       if (data.cmv) flags.bricked_cmv = data.cmv;
       if (data.totalRepairCost) flags.bricked_repair_cost = data.totalRepairCost;
       if (data.shareLink) flags.bricked_share_link = data.shareLink;
       if (data.dashboardLink) flags.bricked_dashboard_link = data.dashboardLink;
       if (data.id) flags.bricked_id = data.id;
       if (data.repairs?.length) flags.bricked_repairs = data.repairs;
-      if (data.comps?.length)
+      if (data.comps?.length) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         flags.comp_count = data.comps.filter((c: any) => c.selected).length;
-      if (data.property?.mortgageDebt?.estimatedEquity)
+      }
+      if (data.property?.mortgageDebt?.estimatedEquity) {
         flags.bricked_equity = data.property.mortgageDebt.estimatedEquity;
-      if (data.property?.mortgageDebt?.openMortgageBalance)
+      }
+      if (data.property?.mortgageDebt?.openMortgageBalance) {
         flags.bricked_open_mortgage = data.property.mortgageDebt.openMortgageBalance;
+      }
       if (data.property?.ownership?.owners?.length) {
         flags.bricked_owner_names = data.property.ownership.owners
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -188,12 +174,15 @@ export async function POST(req: NextRequest) {
           .filter(Boolean)
           .join("; ");
       }
-      if (data.property?.ownership?.ownershipLength)
+      if (data.property?.ownership?.ownershipLength) {
         flags.bricked_ownership_years = data.property.ownership.ownershipLength;
-      if (data.property?.details?.renovationScore?.hasScore)
+      }
+      if (data.property?.details?.renovationScore?.hasScore) {
         flags.bricked_renovation_score = data.property.details.renovationScore.score;
-      if (data.property?.images?.length)
+      }
+      if (data.property?.images?.length) {
         flags.bricked_subject_images = data.property.images;
+      }
 
       flags.bricked_full_response = data;
       flags.bricked_fetched_at = new Date().toISOString();
@@ -224,14 +213,13 @@ export async function POST(req: NextRequest) {
         arv: data.arv,
       });
 
-      console.log(`[BulkBricked] ✓ ${fullAddress} → ARV $${Math.round(data.arv ?? 0)}`);
+      console.log(`[BulkBricked] OK ${fullAddress} -> ARV $${Math.round(data.arv ?? 0)}`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[BulkBricked] ${fullAddress} threw:`, msg);
       results.push({ leadId: row.id, address: fullAddress, success: false, error: msg });
     }
 
-    // Delay between API calls
     if (i < eligible.length - 1) {
       await new Promise((r) => setTimeout(r, DELAY_MS));
     }

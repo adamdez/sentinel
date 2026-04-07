@@ -68,12 +68,9 @@ export function useAnalytics(): AnalyticsState {
     setLoading(true);
     setError(null);
     const periodStart = getPeriodStart(period);
-    const isAdmin = currentUser.role === "admin";
-    const scopedUserId = isAdmin ? undefined : currentUser.id || undefined;
-
     try {
       const [analytics, conversion] = await Promise.all([
-        fetchDominionAnalytics(periodStart, scopedUserId),
+        fetchDominionAnalytics(periodStart),
         fetchConversionSnapshot(),
       ]);
 
@@ -85,7 +82,7 @@ export function useAnalytics(): AnalyticsState {
     } finally {
       setLoading(false);
     }
-  }, [currentUser.id, currentUser.role, period]);
+  }, [period]);
 
   useEffect(() => {
     load();

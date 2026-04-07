@@ -3,7 +3,7 @@
  * POST /api/settings/voice-registry  — register a new script or handoff-rule version
  * PATCH /api/settings/voice-registry — update status/description/changelog/rule_config
  *
- * Adam-only config surface. No automatic deployment or live-routing changes.
+ * Shared config surface. No automatic deployment or live-routing changes.
  *
  * ── GET ───────────────────────────────────────────────────────────────────────
  * Returns all rows grouped by workflow.

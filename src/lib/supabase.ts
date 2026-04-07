@@ -72,12 +72,7 @@ export async function getOrCreateProfile(userId: string, fallback?: { email?: st
     const fullName = fallback?.name ?? email;
 
     // Dominion team members get admin automatically
-    const ADMIN_EMAILS = [
-      "adam@dominionhomedeals.com",
-      "nathan@dominionhomedeals.com",
-      "logan@dominionhomedeals.com",
-    ];
-    const role = ADMIN_EMAILS.includes(email.toLowerCase()) ? "admin" : "agent";
+    const role = "agent";
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: created, error: createError } = await (sb.from("user_profiles") as any)

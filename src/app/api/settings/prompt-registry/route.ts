@@ -11,7 +11,7 @@ import {
  * POST /api/settings/prompt-registry  — register a new version
  * PATCH /api/settings/prompt-registry — update status/description/changelog
  *
- * Adam-only config surface. No automatic deployment or rollback.
+ * Shared config surface. No automatic deployment or rollback.
  *
  * ── GET ──────────────────────────────────────────────────────────────────────
  * Returns all rows grouped by workflow, with status labels.

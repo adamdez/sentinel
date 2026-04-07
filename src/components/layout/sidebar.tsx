@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   Phone,
   ChevronRight,
@@ -58,16 +59,49 @@ function useSidebarBadges(): SidebarBadges {
       });
     };
 
-    fetchCounts();
+    let activeChannel: RealtimeChannel | null = null;
 
-    const channel = supabase
-      .channel("sidebar_badges")
-      .on("postgres_changes", { event: "*", schema: "public", table: "ads_alerts" }, () => fetchCounts())
-      .on("postgres_changes", { event: "*", schema: "public", table: "review_queue" }, () => fetchCounts())
-      .on("postgres_changes", { event: "*", schema: "public", table: "intake_leads" }, () => fetchCounts())
-      .subscribe();
+    const bindRealtime = async (accessToken: string | null | undefined) => {
+      if (activeChannel) {
+        supabase.removeChannel(activeChannel);
+        activeChannel = null;
+      }
 
-    return () => { supabase.removeChannel(channel); };
+      if (accessToken) {
+        await supabase.realtime.setAuth(accessToken);
+      }
+
+      activeChannel = supabase
+        .channel("sidebar_badges")
+        .on("postgres_changes", { event: "*", schema: "public", table: "ads_alerts" }, () => fetchCounts())
+        .on("postgres_changes", { event: "*", schema: "public", table: "review_queue" }, () => fetchCounts())
+        .on("postgres_changes", { event: "*", schema: "public", table: "intake_leads" }, () => fetchCounts())
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            void fetchCounts();
+          }
+        });
+    };
+
+    const bootstrap = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetchCounts();
+      await bindRealtime(session?.access_token);
+    };
+
+    void bootstrap();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      void fetchCounts();
+      void bindRealtime(session?.access_token);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      if (activeChannel) {
+        supabase.removeChannel(activeChannel);
+      }
+    };
   }, []);
 
   return badges;
@@ -303,12 +337,11 @@ function SidebarFooter({ isPsalm20 }: { isPsalm20: boolean }) {
 }
 
 export function Sidebar() {
-  const { sidebarOpen, sidebarWidth, setSidebarWidth, currentUser } = useSentinelStore();
+  const { sidebarOpen, sidebarWidth, setSidebarWidth } = useSentinelStore();
   const badges = useSidebarBadges();
   const hydrated = useHydrated();
   const [isResizing, setIsResizing] = useState(false);
   const isPsalm20 = usePsalm20();
-  const showReviewSection = currentUser.role === "admin";
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -382,7 +415,7 @@ export function Sidebar() {
               ))}
             </div>
             <SidebarSection section={toolsSection} badges={badges} defaultCollapsed />
-            {showReviewSection && <SidebarSection section={reviewSection} badges={badges} defaultCollapsed />}
+            <SidebarSection section={reviewSection} badges={badges} defaultCollapsed />
             <SidebarSection section={adminSection} badges={badges} defaultCollapsed />
           </nav>
 

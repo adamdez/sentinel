@@ -1,56 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireUserOrCron } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const ADMIN_EMAILS = [
-  "adam@dominionhomedeals.com",
-  "nathan@dominionhomedeals.com",
-  "logan@dominionhomedeals.com",
-];
-
-function toNumber(v: unknown): number | null {
-  if (v == null || v === "") return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+function toNumber(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 /**
  * POST /api/admin/backfill-photos
  *
  * Extracts photos from existing `owner_flags.pr_raw` data for all properties
- * that have PR data but no photos yet. Zero additional API cost — purely
- * reads from data already stored in the DB.
+ * that have PR data but no photos yet. Zero additional API cost; it only reads
+ * from data already stored in the database.
  */
 export async function POST(req: NextRequest) {
   const sb = createServerClient();
+  const auth = await requireUserOrCron(req, sb);
 
-  // Auth: CRON_SECRET or admin session
-  const cronSecret = req.headers.get("authorization");
-  const expectedSecret = process.env.CRON_SECRET;
-  let authorized = false;
-
-  if (expectedSecret && cronSecret === `Bearer ${expectedSecret}`) {
-    authorized = true;
-  } else {
-    const {
-      data: { user },
-    } = await sb.auth.getUser();
-    if (user?.email && ADMIN_EMAILS.includes(user.email)) {
-      authorized = true;
-    }
-  }
-
-  if (!authorized) {
-    return NextResponse.json({ error: "Unauthorized — admin only" }, { status: 401 });
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     console.log("[BackfillPhotos] Starting photo extraction from pr_raw...");
 
-    // Fetch properties that have pr_raw but no photos
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: properties, error: queryErr } = await (sb.from("properties") as any)
       .select("id, owner_flags")
@@ -66,10 +45,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, updated: 0, message: "No properties with pr_raw found" });
     }
 
-    // Filter to properties missing photos OR tax_assessed_value
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const needsBackfill = properties.filter((p: any) => {
-      const flags = p.owner_flags ?? {};
+    const needsBackfill = properties.filter((property: any) => {
+      const flags = property.owner_flags ?? {};
       const photos = flags.photos;
       const missingPhotos = !Array.isArray(photos) || photos.length === 0;
       const missingTaxValue = flags.tax_assessed_value == null;
@@ -82,14 +60,13 @@ export async function POST(req: NextRequest) {
     let skipped = 0;
     const errors: string[] = [];
 
-    // Process in chunks of 100
     for (let i = 0; i < needsBackfill.length; i += 100) {
       const chunk = needsBackfill.slice(i, i + 100);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const prop of chunk as any[]) {
+      for (const property of chunk as any[]) {
         try {
-          const flags = prop.owner_flags ?? {};
+          const flags = property.owner_flags ?? {};
           const pr = flags.pr_raw;
           if (!pr) {
             skipped++;
@@ -97,9 +74,8 @@ export async function POST(req: NextRequest) {
           }
 
           const now = new Date().toISOString();
-          const extractedPhotos: { url: string; source: string; capturedAt: string }[] = [];
+          const extractedPhotos: Array<{ url: string; source: string; capturedAt: string }> = [];
 
-          // PR photo arrays
           const prPhotos = pr.Photos || pr.photos;
           if (Array.isArray(prPhotos)) {
             for (const url of prPhotos) {
@@ -109,12 +85,10 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          // Single property image URL
           if (typeof pr.PropertyImageUrl === "string" && pr.PropertyImageUrl.startsWith("http")) {
             extractedPhotos.push({ url: pr.PropertyImageUrl, source: "assessor", capturedAt: now });
           }
 
-          // Google Street View from coordinates
           const lat = toNumber(pr.Latitude);
           const lng = toNumber(pr.Longitude);
           if (lat && lng) {
@@ -125,7 +99,6 @@ export async function POST(req: NextRequest) {
             });
           }
 
-          // Also extract tax assessed value from pr_raw
           const assessedValue = toNumber(pr.AssessedValue);
 
           if (extractedPhotos.length === 0 && assessedValue == null) {
@@ -133,7 +106,6 @@ export async function POST(req: NextRequest) {
             continue;
           }
 
-          // Build updated flags
           const updatedFlags: Record<string, unknown> = { ...flags };
           if (extractedPhotos.length > 0) {
             updatedFlags.photos = extractedPhotos;
@@ -143,24 +115,22 @@ export async function POST(req: NextRequest) {
             updatedFlags.tax_assessed_value = Math.round(assessedValue);
           }
 
-          // Update property
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { error: updateErr } = await (sb.from("properties") as any)
             .update({ owner_flags: updatedFlags })
-            .eq("id", prop.id);
+            .eq("id", property.id);
 
           if (updateErr) {
-            errors.push(`${prop.id}: ${updateErr.message}`);
+            errors.push(`${property.id}: ${updateErr.message}`);
           } else {
             updated++;
           }
         } catch (err) {
-          errors.push(`${prop.id}: ${err instanceof Error ? err.message : String(err)}`);
+          errors.push(`${property.id}: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
     }
 
-    // Audit log
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("event_log") as any).insert({
       user_id: "00000000-0000-0000-0000-000000000000",

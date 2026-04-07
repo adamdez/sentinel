@@ -3,9 +3,9 @@
 /**
  * /settings/prompt-registry — Prompt Version Registry
  *
- * Adam-only admin surface. Shows all registered prompt versions grouped by
- * workflow, with status, description, and changelog. Adam can update status
- * and descriptions inline, and register new versions.
+ * Shared registry surface. Shows all registered prompt versions grouped by
+ * workflow, with status, description, and changelog. Operators can update
+ * status and descriptions inline, and register new versions.
  *
  * Does NOT: deploy prompts, trigger rollbacks, route traffic between versions,
  * or manage model/provider assignments.
@@ -248,7 +248,7 @@ export default function PromptRegistryPage() {
   return (
     <PageShell
       title="Prompt Registry"
-      description="Registered AI workflow prompts with version, status, and changelog. Adam-only."
+      description="Registered AI workflow prompts with version, status, and changelog."
     >
       <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
 

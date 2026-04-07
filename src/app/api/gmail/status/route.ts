@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     let { data: profile, error: profileErr } = await (
       sb.from("user_profiles") as any
     )
-      .select("preferences, role")
+      .select("preferences")
       .eq("id", userId)
       .single();
 
@@ -56,32 +56,30 @@ export async function GET(req: NextRequest) {
       },
     };
 
-    if (profile.role === "admin") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: team } = await (sb.from("user_profiles") as any)
-        .select("id, full_name, email, preferences")
-        .eq("is_active", true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: team } = await (sb.from("user_profiles") as any)
+      .select("id, full_name, email, preferences")
+      .eq("is_active", true);
 
-      if (team) {
-        result.team = (
-          team as {
-            id: string;
-            full_name: string;
-            email: string;
-            preferences: Record<string, unknown> | null;
-          }[]
-        ).map((member) => {
-          const gm = (member.preferences?.gmail ?? null) as GmailPrefs | null;
-          return {
-            id: member.id,
-            name: member.full_name,
-            email: member.email,
-            gmail_connected: gm?.connected === true,
-            gmail_email: gm?.email ?? null,
-            connected_at: gm?.connected_at ?? null,
-          };
-        });
-      }
+    if (team) {
+      result.team = (
+        team as {
+          id: string;
+          full_name: string;
+          email: string;
+          preferences: Record<string, unknown> | null;
+        }[]
+      ).map((member) => {
+        const gm = (member.preferences?.gmail ?? null) as GmailPrefs | null;
+        return {
+          id: member.id,
+          name: member.full_name,
+          email: member.email,
+          gmail_connected: gm?.connected === true,
+          gmail_email: gm?.email ?? null,
+          connected_at: gm?.connected_at ?? null,
+        };
+      });
     }
 
     return NextResponse.json(result);

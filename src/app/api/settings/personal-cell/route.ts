@@ -47,13 +47,8 @@ export async function PATCH(req: NextRequest) {
   }
 
   // Row doesn't exist — create it with required fields.
-  const ADMIN_EMAILS = [
-    "adam@dominionhomedeals.com",
-    "nathan@dominionhomedeals.com",
-    "logan@dominionhomedeals.com",
-  ];
   const email = user.email ?? `${user.id}@sentinel.local`;
-  const role = ADMIN_EMAILS.includes(email.toLowerCase()) ? "admin" : "agent";
+  const role = "agent";
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: inserted, error: insertErr } = await (sb.from("user_profiles") as any)

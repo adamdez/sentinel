@@ -1,23 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { requireAuth } from "@/lib/api-auth";
-import { parseFounderUserIds } from "@/lib/analytics-helpers";
-
-function isFounderUser(userId: string, role: string | null, founderIds: string[]): boolean {
-  if (role === "admin") return true;
-  return founderIds.includes(userId);
-}
+import { getAuthenticatedUser } from "@/lib/api-auth";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const sb = createServerClient();
-  const user = await requireAuth(req, sb);
+  const user = await getAuthenticatedUser(req, sb);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const founderIds = parseFounderUserIds(process.env.FOUNDER_USER_IDS);
-  const userRole = (user as { role?: string | null }).role ?? null;
-  if (!isFounderUser(user.id, userRole, founderIds)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const { id } = await params;
   const body = await req.json();
@@ -29,9 +17,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .maybeSingle();
   if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (existing.user_id !== user.id && userRole !== "admin") {
-    return NextResponse.json({ error: "Cannot edit another user's log" }, { status: 403 });
-  }
 
   const endedAt = typeof body.ended_at === "string" ? body.ended_at : existing.ended_at;
   const note = typeof body.note === "string" ? body.note.trim() : undefined;
@@ -65,14 +50,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const sb = createServerClient();
-  const user = await requireAuth(_req, sb);
+  const user = await getAuthenticatedUser(_req, sb);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const founderIds = parseFounderUserIds(process.env.FOUNDER_USER_IDS);
-  const userRole = (user as { role?: string | null }).role ?? null;
-  if (!isFounderUser(user.id, userRole, founderIds)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
   const { id } = await params;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -82,9 +61,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     .maybeSingle();
   if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (existing.user_id !== user.id && userRole !== "admin") {
-    return NextResponse.json({ error: "Cannot delete another user's log" }, { status: 403 });
-  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (sb.from("founder_work_logs") as any).delete().eq("id", id);

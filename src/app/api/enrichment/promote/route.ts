@@ -1,47 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireUserOrCron } from "@/lib/api-auth";
 import { promoteByTier, getStagingSummary } from "@/lib/enrichment-engine";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const ADMIN_EMAILS = [
-  "adam@dominionhomedeals.com",
-  "nathan@dominionhomedeals.com",
-  "logan@dominionhomedeals.com",
-];
-
 /**
  * POST /api/enrichment/promote
  *
- * Admin endpoint to pull enriched leads from staging → prospect by score tier.
- * Staging acts as a reservoir — leads are enriched automatically, but only
- * become visible to agents when an admin explicitly promotes them.
+ * Pulls enriched leads from staging to prospect by score tier.
+ * Staging acts as a reservoir: leads are enriched automatically, but only
+ * become visible in prospect once an operator explicitly promotes them.
  *
  * Body: { tier: "platinum" | "gold" | "silver" | "bronze" | "all", limit?: number }
  *
- * Auth: Admin session token or CRON_SECRET.
+ * Auth: authenticated user session or CRON_SECRET.
  */
 export async function POST(req: NextRequest) {
   const sb = createServerClient();
-
-  // Auth check
-  const cronSecret = req.headers.get("authorization");
-  const expectedSecret = process.env.CRON_SECRET;
-  let authorized = false;
-
-  if (expectedSecret && cronSecret === `Bearer ${expectedSecret}`) {
-    authorized = true;
-  } else {
-    const { data: { user } } = await sb.auth.getUser();
-    if (user?.email && ADMIN_EMAILS.includes(user.email)) {
-      authorized = true;
-    }
-  }
-
-  if (!authorized) {
-    return NextResponse.json({ error: "Unauthorized — admin only" }, { status: 401 });
+  const auth = await requireUserOrCron(req, sb);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
@@ -63,7 +44,7 @@ export async function POST(req: NextRequest) {
       requiredTags.length > 0 ? `requiredTags=[${requiredTags.join(",")}]` : "",
       anyOfTags.length > 0 ? `anyOfTags=[${anyOfTags.join(",")}]` : "",
     ].filter(Boolean).join(", ");
-    console.log(`[Enrichment/Promote] Admin request: tier=${tier}, limit=${limit}${tagInfo ? `, ${tagInfo}` : ""}`);
+    console.log(`[Enrichment/Promote] Request: tier=${tier}, limit=${limit}${tagInfo ? `, ${tagInfo}` : ""}`);
 
     const result = await promoteByTier({ tier, limit, requiredTags, anyOfTags });
 
@@ -85,30 +66,16 @@ export async function POST(req: NextRequest) {
 /**
  * GET /api/enrichment/promote
  *
- * Returns a summary of staging reservoir — how many enriched leads
+ * Returns a summary of the staging reservoir: how many enriched leads
  * are available in each tier, ready to be pulled.
  *
- * Auth: Admin session token or CRON_SECRET.
+ * Auth: authenticated user session or CRON_SECRET.
  */
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   const sb = createServerClient();
-
-  // Auth check
-  const cronSecret = req.headers.get("authorization");
-  const expectedSecret = process.env.CRON_SECRET;
-  let authorized = false;
-
-  if (expectedSecret && cronSecret === `Bearer ${expectedSecret}`) {
-    authorized = true;
-  } else {
-    const { data: { user } } = await sb.auth.getUser();
-    if (user?.email && ADMIN_EMAILS.includes(user.email)) {
-      authorized = true;
-    }
-  }
-
-  if (!authorized) {
-    return NextResponse.json({ error: "Unauthorized — admin only" }, { status: 401 });
+  const auth = await requireUserOrCron(req, sb);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {

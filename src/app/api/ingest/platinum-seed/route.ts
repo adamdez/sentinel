@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { requireUserOrCron } from "@/lib/api-auth";
 import { runCrawlerPhase, runAttomPhase } from "@/lib/agent/ai-agent-core";
 import { blendHeatScore } from "@/lib/scoring-predictive";
 import { getScoreLabel } from "@/lib/scoring";
@@ -125,25 +126,14 @@ export async function GET() {
  *
  * Auth: CRON_SECRET bearer token or admin userId in body.
  */
-export async function POST(req: Request) {
-  const incomingAuth = req.headers.get("authorization") ?? "";
-  const bearerToken = incomingAuth.replace("Bearer ", "");
-  const cronSecret = process.env.CRON_SECRET;
+export async function POST(req: NextRequest) {
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* defaults */ }
 
-  let isAdmin = false;
-  if (cronSecret && bearerToken === cronSecret) {
-    isAdmin = true;
-  } else if (body.userId) {
-    const sb = createServerClient();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: profile } = await (sb.from("user_profiles") as any)
-      .select("role").eq("id", body.userId).single();
-    isAdmin = profile?.role === "admin";
-  }
-  if (!isAdmin && cronSecret) {
-    return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  const sb = createServerClient();
+  const auth = await requireUserOrCron(req, sb);
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const startTime = Date.now();
@@ -151,6 +141,8 @@ export async function POST(req: Request) {
   // Always use localhost for internal API calls in dev
   const baseUrl = "http://localhost:3000";
   // Forward the exact auth header for internal calls
+  const incomingAuth = req.headers.get("authorization") ?? "";
+  const cronSecret = process.env.CRON_SECRET;
   const authHeader = cronSecret ? `Bearer ${cronSecret}` : incomingAuth;
 
   console.log(`[PlatinumSeed] === MAXIMUM PLATINUM SEED STARTED === counties=[${counties}]`);
@@ -214,8 +206,6 @@ export async function POST(req: Request) {
   }
 
   // ── Phase 4: Query for Platinum Prospects ─────────────────────────
-  const sb = createServerClient();
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { count: totalProspects } = await (sb.from("leads") as any)
     .select("id", { count: "exact", head: true })

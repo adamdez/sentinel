@@ -3,12 +3,12 @@
 /**
  * MonetizabilityEditor
  *
- * Adam-only: manually set monetizability_score (1-10) and dispo_friction_level
- * on a lead. Not shown to Logan. Not auto-computed.
+ * Manually set monetizability_score (1-10) and dispo_friction_level
+ * on a lead. Not auto-computed.
  *
- * Per the plan: "Manual-only — Adam sets these through Lead Detail."
+ * Per the plan: "Manual-only — operators set these through Lead Detail."
  * The radar's computed monetizabilityScore is read-only and not persisted.
- * This component persists Adam's reviewed/confirmed score.
+ * This component persists the reviewed/confirmed score.
  */
 
 import { useState, useCallback } from "react";
@@ -18,9 +18,9 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 
 const FRICTION_OPTIONS = [
-  { value: "low",    label: "Low" },
+  { value: "low", label: "Low" },
   { value: "medium", label: "Medium" },
-  { value: "high",   label: "High" },
+  { value: "high", label: "High" },
 ];
 
 interface MonetizabilityEditorProps {
@@ -66,7 +66,7 @@ export function MonetizabilityEditor({
       const headers = await getAuthHeaders();
       const parsedScore = score.trim() === "" ? null : parseInt(score.trim(), 10);
       if (parsedScore !== null && (isNaN(parsedScore) || parsedScore < 1 || parsedScore > 10)) {
-        toast.error("Score must be 1–10 or blank");
+        toast.error("Score must be 1-10 or blank");
         return;
       }
       const res = await window.fetch(`/api/leads/${leadId}`, {
@@ -98,20 +98,19 @@ export function MonetizabilityEditor({
         <span className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">
           Monetizability
         </span>
-        <span className="text-xs text-muted-foreground/40 ml-auto">Admin only</span>
+        <span className="text-xs text-muted-foreground/40 ml-auto">Manual field</span>
       </div>
 
       <div className="flex items-end gap-2">
-        {/* Score 1-10 */}
         <div className="space-y-1 flex-1">
-          <label className="text-sm text-muted-foreground/60 uppercase tracking-wider">Score (1–10)</label>
+          <label className="text-sm text-muted-foreground/60 uppercase tracking-wider">Score (1-10)</label>
           <input
             type="number"
             min={1}
             max={10}
             value={score}
             onChange={(e) => handleScoreChange(e.target.value)}
-            placeholder="—"
+            placeholder="-"
             className={cn(
               "w-full px-2.5 py-1.5 rounded-[8px] text-sm bg-overlay-4 border border-overlay-8",
               "text-foreground placeholder:text-muted-foreground/30",
@@ -121,7 +120,6 @@ export function MonetizabilityEditor({
           />
         </div>
 
-        {/* Friction level */}
         <div className="space-y-1 flex-1">
           <label className="text-sm text-muted-foreground/60 uppercase tracking-wider">Dispo Friction</label>
           <select
@@ -133,14 +131,13 @@ export function MonetizabilityEditor({
               friction === "" && "text-muted-foreground/40"
             )}
           >
-            <option value="">— Not set</option>
+            <option value="">- Not set</option>
             {FRICTION_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
         </div>
 
-        {/* Save */}
         <button
           onClick={handleSave}
           disabled={!dirty || saving}
