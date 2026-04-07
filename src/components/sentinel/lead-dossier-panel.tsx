@@ -6,23 +6,16 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  FileText,
-  Globe,
-  Home,
   Loader2,
-  Scale,
-  Search,
   ShieldAlert,
   ShieldCheck,
   Upload,
-  Users,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
-import { cn } from "@/lib/utils";
 
 interface DossierRow {
   id: string;
@@ -50,49 +43,6 @@ interface QueuePayload {
   items: Array<DossierRow & { leads?: unknown }>;
 }
 
-interface LegacyDeepCrawlResult {
-  categories: Record<string, Array<{ url: string; title: string; excerpt: string }>>;
-  artifactCount: number;
-  queriesRun: number;
-}
-
-interface RichDeepCrawlSignal {
-  type: string;
-  filingDate?: string | null;
-  amount?: number | null;
-  stage?: string | null;
-  lender?: string | null;
-  source?: string | null;
-}
-
-interface RichDeepCrawlResult {
-  crawledAt?: string;
-  sources?: string[];
-  signals?: RichDeepCrawlSignal[];
-  agentFindings?: Array<{ source?: string; finding?: string; url?: string }>;
-  photos?: Array<{ url: string; source: string }>;
-  fromCache?: boolean;
-  aiDossier?: {
-    urgencyLevel?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-    urgencyReason?: string;
-    webFindings?: Array<{ source: string; finding: string }>;
-    redFlags?: string[];
-    talkingPoints?: string[];
-  };
-}
-
-export type DeepCrawlSnapshot = LegacyDeepCrawlResult | RichDeepCrawlResult;
-
-const CATEGORY_META: Record<string, { label: string; icon: typeof Scale }> = {
-  court: { label: "Court Records", icon: Scale },
-  foreclosure: { label: "Foreclosure Filings", icon: FileText },
-  tax: { label: "Tax & Assessor", icon: Home },
-  obituary: { label: "Obituary / Estates", icon: Users },
-  social: { label: "Social Media", icon: Globe },
-  social_x: { label: "X / Twitter", icon: Globe },
-  news: { label: "News & Public Filings", icon: Search },
-  property_condition: { label: "Property Condition", icon: Home },
-};
 
 function parseTopFacts(raw: unknown): Array<{ text: string; confidence?: string }> {
   if (!raw || !Array.isArray(raw)) return [];
@@ -136,106 +86,9 @@ function parseSourceLinks(raw: unknown): Array<{ label: string; url: string }> {
     .filter(Boolean) as Array<{ label: string; url: string }>;
 }
 
-function isLegacyDeepCrawlResult(result: DeepCrawlSnapshot | null | undefined): result is LegacyDeepCrawlResult {
-  return Boolean(result && "categories" in result);
-}
-
-function formatMoney(amount: number | null | undefined): string | null {
-  if (typeof amount !== "number" || Number.isNaN(amount)) return null;
-  return amount.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-}
-
-function formatSignalLabel(type: string): string {
-  return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function getUrgencyClasses(level?: string): string {
-  switch (level) {
-    case "CRITICAL":
-      return "border-red-500/30 bg-red-500/10 text-red-200";
-    case "HIGH":
-      return "border-amber-500/30 bg-amber-500/10 text-amber-200";
-    case "LOW":
-      return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
-    default:
-      return "border-border/40 bg-muted/10 text-foreground";
-  }
-}
-
-async function runDeepCrawlRequest(leadId: string): Promise<DeepCrawlSnapshot> {
-  const res = await fetch(`/api/leads/${leadId}/deep-crawl`, {
-    method: "POST",
-    headers: await sentinelAuthHeaders(),
-  });
-
-  const contentType = res.headers.get("content-type") ?? "";
-  if (!res.ok && !contentType.includes("text/event-stream")) {
-    const json = await res.json().catch(() => ({}));
-    throw new Error((json as { error?: string }).error ?? "Deep crawl failed");
-  }
-
-  if (contentType.includes("text/event-stream") && res.body) {
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let finalResult: DeepCrawlSnapshot | null = null;
-    let streamError: string | null = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const chunks = buffer.split("\n\n");
-      buffer = chunks.pop() ?? "";
-
-      for (const chunk of chunks) {
-        const dataLine = chunk.trim();
-        if (!dataLine.startsWith("data: ")) continue;
-
-        const event = JSON.parse(dataLine.slice(6)) as {
-          phase?: string;
-          detail?: string;
-          result?: DeepCrawlSnapshot;
-        };
-
-        if (event.phase === "error") {
-          streamError = event.detail ?? "Deep crawl failed";
-        }
-        if (event.phase === "complete" && event.result) {
-          finalResult = event.result;
-        }
-      }
-    }
-
-    if (finalResult) return finalResult;
-    throw new Error(streamError ?? "Deep crawl ended without a result");
-  }
-
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error((json as { error?: string }).error ?? "Deep crawl failed");
-  }
-  return json as DeepCrawlSnapshot;
-}
-
-export function LeadDossierPanel({
-  leadId,
-  cachedDeepCrawl,
-}: {
-  leadId: string;
-  cachedDeepCrawl?: DeepCrawlSnapshot | null;
-}) {
+export function LeadDossierPanel({ leadId }: { leadId: string }) {
   const qc = useQueryClient();
   const [artifactsOpen, setArtifactsOpen] = useState(false);
-  const [crawlResult, setCrawlResult] = useState<DeepCrawlSnapshot | null>(cachedDeepCrawl ?? null);
-  const [crawlResultOpen, setCrawlResultOpen] = useState(true);
-
-  useEffect(() => {
-    if (cachedDeepCrawl) {
-      setCrawlResult(cachedDeepCrawl);
-    }
-  }, [cachedDeepCrawl]);
 
   const dossierQuery = useQuery({
     queryKey: ["dossier", leadId],
@@ -263,19 +116,6 @@ export function LeadDossierPanel({
       if (!res.ok) throw new Error("Failed");
       return ((await res.json()) as { artifacts: ArtifactRow[] }).artifacts ?? [];
     },
-  });
-
-  const deepCrawlMutation = useMutation({
-    mutationFn: async () => runDeepCrawlRequest(leadId),
-    onSuccess: (data) => {
-      setCrawlResult(data);
-      setCrawlResultOpen(true);
-      toast.success("Deep crawl complete");
-      void qc.invalidateQueries({ queryKey: ["dossier", leadId] });
-      void qc.invalidateQueries({ queryKey: ["dossier-queue-proposed", leadId] });
-      void qc.invalidateQueries({ queryKey: ["dossier-artifacts", leadId] });
-    },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Deep crawl failed"),
   });
 
   const reviewMutation = useMutation({
@@ -321,155 +161,8 @@ export function LeadDossierPanel({
   const topFacts = display ? parseTopFacts(display.top_facts) : [];
   const checklist = display ? parseChecklist(display.verification_checklist) : [];
   const links = display ? parseSourceLinks(display.source_links) : [];
-  const richResult = !isLegacyDeepCrawlResult(crawlResult) ? crawlResult : null;
-
   return (
     <div className="space-y-5">
-      <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-4 flex items-center justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold text-foreground">Deep Intelligence Crawl</p>
-          <p className="text-xs text-muted-foreground/60 mt-0.5">
-            Builds an operator-ready seller dossier from property data, distress signals, public-web research, and AI synthesis.
-          </p>
-        </div>
-        <Button
-          size="sm"
-          className="gap-1.5 shrink-0 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/25"
-          disabled={deepCrawlMutation.isPending}
-          onClick={() => deepCrawlMutation.mutate()}
-        >
-          {deepCrawlMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-          {deepCrawlMutation.isPending ? "Crawling..." : "Run Deep Crawl"}
-        </Button>
-      </div>
-
-      {crawlResult && (
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => setCrawlResultOpen((v) => !v)}
-            className="flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-foreground"
-          >
-            {crawlResultOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            {isLegacyDeepCrawlResult(crawlResult)
-              ? `Deep Crawl Results (${crawlResult.artifactCount} artifacts from ${crawlResult.queriesRun} queries)`
-              : `Deep Crawl Snapshot${richResult?.crawledAt ? ` • ${new Date(richResult.crawledAt).toLocaleString()}` : ""}`}
-          </button>
-
-          {crawlResultOpen && isLegacyDeepCrawlResult(crawlResult) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {Object.entries(crawlResult.categories).map(([cat, results]) => {
-                const meta = CATEGORY_META[cat] ?? { label: cat.replace(/_/g, " "), icon: Search };
-                const CatIcon = meta.icon;
-                if (results.length === 0) return null;
-                return (
-                  <div key={cat} className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
-                    <div className="flex items-center gap-1.5">
-                      <CatIcon className="h-3.5 w-3.5 text-muted-foreground/60" />
-                      <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">{meta.label}</span>
-                      <Badge className="ml-auto text-[10px] h-4 border-overlay-10 bg-overlay-4 text-muted-foreground">{results.length}</Badge>
-                    </div>
-                    {results.map((r, i) => (
-                      <div key={i} className="space-y-0.5">
-                        <a href={r.url} target="_blank" rel="noreferrer" className="text-xs text-primary/80 hover:text-primary flex items-center gap-1 truncate">
-                          <ExternalLink className="h-2.5 w-2.5 shrink-0" />{r.title || r.url}
-                        </a>
-                        {r.excerpt && <p className="text-xs text-muted-foreground/60 line-clamp-2">{r.excerpt}</p>}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {crawlResultOpen && richResult && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Urgency</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className={cn("inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold", getUrgencyClasses(richResult.aiDossier?.urgencyLevel))}>
-                      {richResult.aiDossier?.urgencyLevel ?? "Unknown"}
-                    </span>
-                  </div>
-                  {richResult.aiDossier?.urgencyReason && (
-                    <p className="mt-2 text-xs text-muted-foreground/70 line-clamp-3">{richResult.aiDossier.urgencyReason}</p>
-                  )}
-                </div>
-
-                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Signals</p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">{richResult.signals?.length ?? 0}</p>
-                  <p className="text-xs text-muted-foreground/60">Distress or ownership signals found</p>
-                </div>
-
-                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Web Findings</p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">{richResult.aiDossier?.webFindings?.length ?? 0}</p>
-                  <p className="text-xs text-muted-foreground/60">Corroborated public-web notes</p>
-                </div>
-
-                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3">
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Evidence</p>
-                  <p className="mt-2 text-2xl font-semibold text-foreground">{richResult.agentFindings?.length ?? 0}</p>
-                  <p className="text-xs text-muted-foreground/60">
-                    {richResult.photos?.length ?? 0} photos • {richResult.sources?.length ?? 0} sources
-                  </p>
-                </div>
-              </div>
-
-              {(richResult.sources?.length ?? 0) > 0 && (
-                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Data Sources</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(richResult.sources ?? []).map((source) => (
-                      <Badge key={source} className="border-overlay-10 bg-overlay-4 text-muted-foreground">
-                        {source}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {(richResult.signals?.length ?? 0) > 0 && (
-                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Key Signals</p>
-                  <div className="space-y-2">
-                    {(richResult.signals ?? []).slice(0, 5).map((signal, idx) => (
-                      <div key={`${signal.type}-${idx}`} className="rounded-[8px] border border-overlay-4 bg-black/15 px-3 py-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium text-foreground">{formatSignalLabel(signal.type)}</span>
-                          {signal.filingDate && <span className="text-xs text-muted-foreground/70">Filed {signal.filingDate}</span>}
-                          {signal.amount != null && <span className="text-xs text-primary">{formatMoney(signal.amount)}</span>}
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground/70">
-                          {[signal.stage, signal.lender, signal.source].filter(Boolean).join(" • ") || "No extra detail yet"}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {(richResult.aiDossier?.webFindings?.length ?? 0) > 0 && (
-                <div className="rounded-[8px] border border-overlay-6 bg-overlay-2 p-3 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">Web Findings</p>
-                  <div className="space-y-2">
-                    {(richResult.aiDossier?.webFindings ?? []).slice(0, 5).map((finding, idx) => (
-                      <div key={`${finding.source}-${idx}`} className="rounded-[8px] border border-overlay-4 bg-black/15 px-3 py-2">
-                        <p className="text-xs font-semibold text-foreground/80">{finding.source}</p>
-                        <p className="mt-1 text-sm text-foreground/90">{finding.finding}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
       {loading ? (
         <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground justify-center">
           <Loader2 className="h-4 w-4 animate-spin" />Loading intelligence...
@@ -584,7 +277,7 @@ export function LeadDossierPanel({
       ) : (
         <div className="rounded-[10px] border border-overlay-6 bg-overlay-2 p-4 text-center">
           <Brain className="h-6 w-6 mx-auto text-muted-foreground/30 mb-2" />
-          <p className="text-sm text-muted-foreground/60">No AI dossier yet. Run a Deep Crawl to gather intelligence.</p>
+          <p className="text-sm text-muted-foreground/60">No intelligence dossier yet.</p>
         </div>
       )}
 

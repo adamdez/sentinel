@@ -140,7 +140,7 @@ import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
 
 import { getAllowedTransitions } from "@/lib/lead-guardrails";
 
-import { LeadDossierPanel, type DeepCrawlSnapshot } from "@/components/sentinel/lead-dossier-panel";
+import { LeadDossierPanel } from "@/components/sentinel/lead-dossier-panel";
 
 import { BrickedAnalysisPanel, type BrickedAnalysisPanelProps } from "@/components/sentinel/bricked/bricked-analysis-panel";
 
@@ -1430,7 +1430,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
           {cf.propertyType && <div><span className="text-muted-foreground/60">Type</span> <span className="text-foreground">{cf.propertyType}</span></div>}
 
-          {displayLotSize != null && <div><span className="text-muted-foreground/60">Lot</span> <span className="text-foreground font-mono">{displayLotSize.toFixed(2)} ac</span></div>}
+          {displayLotSize != null && <div><span className="text-muted-foreground/60">Lot</span> <span className="text-foreground font-mono">{displayLotSize > 10 ? `${Math.round(displayLotSize).toLocaleString()} sqft` : `${displayLotSize.toFixed(2)} ac`}</span></div>}
 
           {cf.apn && <div className="col-span-2"><span className="text-muted-foreground/60">APN</span> <span className="text-foreground font-mono">{cf.apn}</span></div>}
 
@@ -9047,11 +9047,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
                         <IntelligenceSummaryBlock cf={clientFile} />
 
-                        <LeadDossierPanel
-                          leadId={clientFile.id}
-                          cachedDeepCrawl={(((clientFile.ownerFlags as Record<string, unknown> | undefined)?.deep_crawl)
-                            ?? ((clientFile.ownerFlags as Record<string, unknown> | undefined)?.deep_crawl_result)) as DeepCrawlSnapshot | undefined}
-                        />
+                        <LeadDossierPanel leadId={clientFile.id} />
 
                       </div>
 
