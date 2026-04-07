@@ -27,7 +27,7 @@ import { useSentinelStore } from "@/lib/store";
 import { useModal } from "@/providers/modal-provider";
 import { cn } from "@/lib/utils";
 import type { LeadStatus } from "@/lib/types";
-import { sourceDisplayLabel } from "@/components/sentinel/master-client-file-helpers";
+import { buildSourceLabel } from "@/components/sentinel/master-client-file-helpers";
 
 const ACTIVE_STATUSES: LeadStatus[] = ["lead", "negotiation", "disposition", "nurture"];
 
@@ -54,6 +54,8 @@ interface PriorityLead {
   priority: number | null;
   created_at: string;
   source: string | null;
+  source_vendor: string | null;
+  source_list_name: string | null;
   notes: string | null;
   properties: { address: string | null; city: string | null; owner_name: string | null } | null;
 }
@@ -241,7 +243,7 @@ function TodayView() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from("leads") as any)
-        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
+        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, source_list_name, source_vendor, notes, properties(address, city, owner_name)")
         .or(`next_call_scheduled_at.lt.${nowIso},next_action_due_at.lt.${nowIso}`)
         .in("status", ACTIVE_STATUSES)
         .order("next_action_due_at", { ascending: true, nullsFirst: false })
@@ -260,7 +262,7 @@ function TodayView() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       // New inbound leads only — exclude bulk CSV imports and crawlers
       const { data, error } = await (supabase.from("leads") as any)
-        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
+        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, source_list_name, source_vendor, notes, properties(address, city, owner_name)")
         .in("status", ["staging", "prospect"])
         .gte("created_at", twoDaysAgo)
         .not("source", "like", "csv:%")
@@ -279,7 +281,7 @@ function TodayView() {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from("leads") as any)
-        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
+        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, source_list_name, source_vendor, notes, properties(address, city, owner_name)")
         .gte("next_call_scheduled_at", todayStart.toISOString())
         .lte("next_call_scheduled_at", todayEnd.toISOString())
         .in("status", ACTIVE_STATUSES)
@@ -298,7 +300,7 @@ function TodayView() {
       const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from("leads") as any)
-        .select("id, source, notes, updated_at, properties(address, city, owner_name)")
+        .select("id, source, source_list_name, source_vendor, notes, updated_at, properties(address, city, owner_name)")
         .eq("status", "disposition")
         .lt("updated_at", twoDaysAgo)
         .order("updated_at", { ascending: true })
@@ -349,7 +351,7 @@ function TodayView() {
       const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase.from("leads") as any)
-        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, notes, properties(address, city, owner_name)")
+        .select("id, next_action_due_at, next_call_scheduled_at, next_action, status, priority, created_at, source, source_list_name, source_vendor, notes, properties(address, city, owner_name)")
         .ilike("next_action", "drive by%")
         .not("status", "in", '("dead","closed")')
         .lte("next_action_due_at", todayEnd.toISOString())
@@ -929,7 +931,7 @@ function LeadRow({ lead, showScore, showAge }: { lead: PriorityLead; showScore?:
           "text-sm mt-0.5",
           diff !== null && diff < 0 ? "text-red-400" : "text-muted-foreground"
         )}>
-          {showAge ? `${sourceDisplayLabel(lead.source)} — ${timeAgo(lead.created_at)}` : urgencyText(lead)}
+          {showAge ? `${buildSourceLabel(lead.source, lead.source_vendor, lead.source_list_name)} — ${timeAgo(lead.created_at)}` : urgencyText(lead)}
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">

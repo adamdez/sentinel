@@ -1364,6 +1364,8 @@ export async function POST(req: NextRequest) {
       property_id: property.id,
       status: isAssigned || sourceChannel === "manual" || sourceChannel === "csv_import" || sourceChannel === "vendor_inbound" || sourceChannel === "webform" ? "lead" : "prospect",
       source: sourceChannel,
+      source_list_name: sourceListName ?? null,
+      source_vendor: sourceVendor ?? null,
       tags,
       notes: notes?.trim() || (sourceChannel === "manual" ? "Manually added prospect" : "Imported prospect"),
       promoted_at: receivedAt ?? new Date().toISOString(),

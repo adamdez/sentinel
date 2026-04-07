@@ -47,6 +47,8 @@ export interface ClientFile {
   pinnedBy: string | null;
   assignedTo: string | null;
   source: string;
+  sourceListName: string | null;
+  sourceVendor: string | null;
   tags: string[];
   notes: string | null;
   promotedAt: string | null;
@@ -154,6 +156,8 @@ export function clientFileFromProspect(p: ProspectRow): ClientFile {
     fullAddress: buildAddress(p.address, p.city, p.state, p.zip),
     ownerName: p.owner_name, ownerPhone: p.owner_phone, ownerEmail: p.owner_email,
     status: p.status, pinned: p.pinned === true, pinnedAt: p.pinned_at ?? null, pinnedBy: p.pinned_by ?? null, assignedTo: p.assigned_to, source: p.source,
+    sourceListName: (p.source_list_name as string | null) ?? ((p.owner_flags?.prospecting_intake as Record<string,unknown> | null)?.source_list_name as string | null) ?? null,
+    sourceVendor: (p.source_vendor as string | null) ?? ((p.owner_flags?.prospecting_intake as Record<string,unknown> | null)?.source_vendor as string | null) ?? null,
     tags: p.tags, notes: p.notes, promotedAt: p.promoted_at,
     lastContactAt: null, followUpDate: null,
     motivationLevel: p.motivation_level ?? null,
@@ -208,6 +212,8 @@ export function clientFileFromLead(l: LeadRow): ClientFile {
     fullAddress: buildAddress(l.address, l.city, l.state, l.zip),
     ownerName: l.ownerName, ownerPhone: l.ownerPhone, ownerEmail: l.ownerEmail,
     status: l.status, pinned: l.pinned === true, pinnedAt: l.pinnedAt ?? null, pinnedBy: l.pinnedBy ?? null, assignedTo: l.assignedTo, source: l.source,
+    sourceListName: l.sourceListName ?? null,
+    sourceVendor: l.sourceVendor ?? null,
     tags: l.tags, notes: l.notes, promotedAt: l.promotedAt,
     lastContactAt: l.lastContactAt, followUpDate: l.followUpDate,
     motivationLevel: l.motivationLevel,
@@ -276,7 +282,10 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
     fullAddress: buildAddress(prop.address, prop.city, prop.state, prop.zip),
     ownerName: prop.owner_name ?? "Unknown", ownerPhone: prop.owner_phone ?? null, ownerEmail: prop.owner_email ?? null,
     status: lead.status ?? "prospect", pinned: lead.pinned === true, pinnedAt: lead.pinned_at ?? null, pinnedBy: lead.pinned_by ?? null, assignedTo: lead.assigned_to ?? null,
-    source: lead.source ?? "unknown", tags: lead.tags ?? [], notes: lead.notes ?? null,
+    source: lead.source ?? "unknown",
+    sourceListName: (lead.source_list_name as string | null) ?? null,
+    sourceVendor: (lead.source_vendor as string | null) ?? null,
+    tags: lead.tags ?? [], notes: lead.notes ?? null,
     promotedAt: lead.promoted_at ?? null, lastContactAt: lead.last_contact_at ?? null,
     followUpDate: lead.follow_up_date ?? null,
     motivationLevel: lead.motivation_level != null ? Number(lead.motivation_level) : null,
@@ -570,6 +579,7 @@ export function sourceDisplayLabel(source: string | null | undefined): string {
   if (normalized === "manual") return "Manual";
   if (normalized === "special_intake") return "Special Intake";
   if (normalized === "spokane_scout_harvest") return "Scout Harvest";
+  if (normalized === "vendor_inbound") return "Vendor Inbound";
   if (normalized === "eliteseed_top10_20260301") return "EliteSeed";
   if (normalized.startsWith("eliteseed")) return "EliteSeed";
   return normalized
@@ -578,6 +588,34 @@ export function sourceDisplayLabel(source: string | null | undefined): string {
     .replace(/\s+/g, " ")
     .trim()
     .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function vendorDisplayLabel(vendor: string | null | undefined): string | null {
+  if (!vendor) return null;
+  const v = vendor.trim().toLowerCase();
+  if (v === "propradar" || v === "propertyradar") return "PropRadar";
+  if (v === "realsupermarket") return "RealSupermarket";
+  if (v === "batchdata") return "BatchData";
+  if (v === "propstream") return "PropStream";
+  if (v === "manual_resume" || v === "manual") return null; // not a real vendor name
+  return vendor.trim().replace(/[_-]/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+/**
+ * Returns "Vendor · List Name", "List Name", "Vendor", or the base source label —
+ * whichever pieces are available. Used consistently across all surfaces.
+ */
+export function buildSourceLabel(
+  source: string | null | undefined,
+  vendor: string | null | undefined,
+  listName: string | null | undefined,
+): string {
+  const v = vendorDisplayLabel(vendor);
+  const l = listName?.trim() || null;
+  if (v && l) return `${v} · ${l}`;
+  if (l) return l;
+  if (v) return v;
+  return sourceDisplayLabel(source);
 }
 
 export function marketDisplayLabel(county: string | null | undefined): string {

@@ -41,6 +41,8 @@ function buildRows(leadsData: any[], propertiesMap: Record<string, any>, predict
       pinned_by: lead.pinned_by ?? null,
       priority: lead.priority ?? 0,
       source: lead.source ?? "unknown",
+      source_vendor: (lead.source_vendor as string | null) ?? null,
+      source_list_name: (lead.source_list_name as string | null) ?? null,
       tags: lead.tags ?? [],
       notes: lead.notes ?? null,
       promoted_at: lead.promoted_at ?? null,

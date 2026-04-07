@@ -212,7 +212,7 @@ import {
 
   workflowStageLabel,
 
-  sourceDisplayLabel,
+  sourceDisplayLabel, buildSourceLabel,
 
   marketDisplayLabel,
 
@@ -8055,7 +8055,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
 
   const marketLabel = marketDisplayLabel(clientFile.county);
 
-  const sourceLabel = sourceDisplayLabel(clientFile.source);
+  const sourceLabel = buildSourceLabel(clientFile.source, clientFile.sourceVendor, clientFile.sourceListName);
 
   const operatorWf = buildOperatorWorkflowSummary({
 

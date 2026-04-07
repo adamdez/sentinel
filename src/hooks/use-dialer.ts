@@ -20,6 +20,8 @@ export interface QueueLead {
   status: string;
   priority: number;
   source: string;
+  source_vendor: string | null;
+  source_list_name: string | null;
   tags: string[];
   notes: string | null;
   assigned_to: string | null;
