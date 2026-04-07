@@ -22,6 +22,16 @@ export function isDriveByNextAction(nextAction: string | null | undefined): bool
   return typeof nextAction === "string" && nextAction.toLowerCase().startsWith("drive by");
 }
 
+const TERMINAL_QUEUE_DISPOSITIONS = new Set([
+  "dead_lead",
+  "disqualified",
+  "not_interested",
+]);
+
+export function shouldEvictFromDialQueueForDisposition(disposition: string | null | undefined): boolean {
+  return typeof disposition === "string" && TERMINAL_QUEUE_DISPOSITIONS.has(disposition.toLowerCase());
+}
+
 /**
  * If the new next_action is Drive By, clear dial queue membership.
  * Call this on every write path that sets next_action.
@@ -44,6 +54,31 @@ export async function evictFromDialQueueIfDriveBy(
     .eq("dial_queue_active", true);
   if (error) {
     console.warn(`[DialQueue] evict-on-drive-by failed for ${leadId}:`, error.message);
+  }
+  return !error;
+}
+
+/**
+ * Terminal closeouts should clear explicit queue membership so the lead does
+ * not remain "queued" in the database while being hidden by render filters.
+ */
+export async function evictFromDialQueueIfTerminalDisposition(
+  sb: SupabaseClientLike,
+  leadId: string,
+  disposition: string | null | undefined,
+): Promise<boolean> {
+  if (!shouldEvictFromDialQueueForDisposition(disposition)) return false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb.from("leads") as any)
+    .update({
+      dial_queue_active: false,
+      dial_queue_added_at: null,
+      dial_queue_added_by: null,
+    })
+    .eq("id", leadId)
+    .eq("dial_queue_active", true);
+  if (error) {
+    console.warn(`[DialQueue] evict-on-terminal-disposition failed for ${leadId}:`, error.message);
   }
   return !error;
 }

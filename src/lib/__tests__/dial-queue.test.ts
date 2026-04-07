@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  evictFromDialQueueIfTerminalDisposition,
   hasCompletedSkipTrace,
   queueLeadIdsForUser,
   removeLeadFromDialQueue,
   runSkipTraceForQueuedLeads,
+  shouldEvictFromDialQueueForDisposition,
 } from "@/lib/dial-queue";
 
 const runSkipTraceIntelMock = vi.fn();
@@ -261,6 +263,36 @@ describe("dial queue service", () => {
     expect(row.assigned_to).toBe("adam");
     expect(row.dial_queue_active).toBe(false);
     expect(row.dial_queue_added_at).toBeNull();
+  });
+
+  it("marks terminal dispositions as queue-evicting", () => {
+    expect(shouldEvictFromDialQueueForDisposition("not_interested")).toBe(true);
+    expect(shouldEvictFromDialQueueForDisposition("disqualified")).toBe(true);
+    expect(shouldEvictFromDialQueueForDisposition("dead_lead")).toBe(true);
+    expect(shouldEvictFromDialQueueForDisposition("callback")).toBe(false);
+    expect(shouldEvictFromDialQueueForDisposition(null)).toBe(false);
+  });
+
+  it("evicts a queued lead on terminal disposition", async () => {
+    const row = {
+      id: "lead-1",
+      assigned_to: "adam",
+      dial_queue_active: true,
+      dial_queue_added_at: "2026-03-30T12:00:00.000Z",
+      dial_queue_added_by: "adam",
+    };
+    const sb = createMockSb([row]);
+
+    const removed = await evictFromDialQueueIfTerminalDisposition(
+      sb as never,
+      "lead-1",
+      "not_interested",
+    );
+
+    expect(removed).toBe(true);
+    expect(row.dial_queue_active).toBe(false);
+    expect(row.dial_queue_added_at).toBeNull();
+    expect(row.dial_queue_added_by).toBeNull();
   });
 
   it("treats prior skip-trace flags as completed history", () => {

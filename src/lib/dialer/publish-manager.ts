@@ -374,6 +374,13 @@ export async function publishSession(
   if (leadId && ["not_interested", "disqualified", "dead_lead"].includes(input.disposition)) {
     const targetStatus = input.disposition === "dead_lead" ? "dead" : "nurture";
     try {
+      try {
+        const { evictFromDialQueueIfTerminalDisposition } = await import("@/lib/dial-queue");
+        await evictFromDialQueueIfTerminalDisposition(sb, leadId, input.disposition);
+      } catch (queueErr) {
+        console.warn("[publish-manager] terminal disposition queue eviction failed (non-fatal):", queueErr);
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: currentLead } = await (sb.from("leads") as any)
         .select("status, lock_version")
