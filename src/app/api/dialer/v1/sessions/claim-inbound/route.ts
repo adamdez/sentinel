@@ -52,12 +52,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Session not found or already ended" }, { status: 404 });
   }
 
-  // Also update the calls_log entry to the answering operator
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await (sb.from("calls_log") as any)
-    .update({ user_id: user.id })
-    .eq("dialer_session_id", body.sessionId)
-    .catch(() => {});
+  // Also update the calls_log entry to the answering operator.
+  // This is non-fatal for the live call, but it must not throw after the
+  // session ownership succeeds or inbound history will stay on the fallback user.
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: callLogErr } = await (sb.from("calls_log") as any)
+      .update({ user_id: user.id })
+      .eq("dialer_session_id", body.sessionId);
+
+    if (callLogErr) {
+      console.error("[claim-inbound] calls_log update failed:", callLogErr.message);
+    }
+  } catch (err) {
+    console.error("[claim-inbound] calls_log update threw:", err);
+  }
 
   console.log(`[claim-inbound] Session ${body.sessionId.slice(0, 8)} claimed by ${user.id.slice(0, 8)}`);
 
