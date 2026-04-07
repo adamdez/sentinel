@@ -4233,6 +4233,8 @@ interface MasterClientFileModalProps {
 
   onRefresh?: () => void;
 
+  openCloseoutComposerSignal?: number;
+
 }
 
 
@@ -4277,7 +4279,14 @@ function readResponseString(payload: Record<string, unknown>, key: string): stri
 
 
 
-export function MasterClientFileModal({ clientFile: incomingClientFile, open, onClose, onClaim, onRefresh }: MasterClientFileModalProps) {
+export function MasterClientFileModal({
+  clientFile: incomingClientFile,
+  open,
+  onClose,
+  onClaim,
+  onRefresh,
+  openCloseoutComposerSignal,
+}: MasterClientFileModalProps) {
 
   const router = useRouter();
 
@@ -4478,6 +4487,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   const [loadingReport, setLoadingReport] = useState(false);
 
   const deepCrawlCheckedRef = useRef<string | null>(null);
+  const lastCloseoutSignalRef = useRef(openCloseoutComposerSignal ?? 0);
 
   const clientFile = useMemo(
 
@@ -4512,6 +4522,30 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
   }, [clientFile]);
 
 
+
+  const openCloseoutComposer = useCallback(() => {
+    if (!clientFile) return;
+    setActiveTab("overview");
+    setCloseoutOpen(true);
+    setCloseoutOutcome(clientFile.dispositionCode ?? "");
+    setCloseoutNote("");
+    setCloseoutAction("follow_up_call");
+    setCloseoutPreset("call_3_days");
+    setCloseoutAt(
+      toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.nextActionDueAt ?? clientFile.followUpDate) || presetDateTimeLocal(3),
+    );
+    setCloseoutPresetTouched(false);
+    setCloseoutDateTouched(false);
+  }, [clientFile]);
+
+  useEffect(() => {
+    if (!open) return;
+    const signal = openCloseoutComposerSignal ?? 0;
+    if (signal === 0) return;
+    if (signal === lastCloseoutSignalRef.current) return;
+    lastCloseoutSignalRef.current = signal;
+    openCloseoutComposer();
+  }, [open, openCloseoutComposer, openCloseoutComposerSignal]);
 
   useCoachSurface(
 
@@ -8324,36 +8358,11 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                     className="gap-1.5 h-7 border-overlay-25 hover:border-white/45 hover:bg-overlay-8"
 
                     onClick={() => {
-
-                      setCloseoutOpen((v) => {
-
-                        const next = !v;
-
-                        if (next) {
-
-                          setCloseoutOutcome(clientFile.dispositionCode ?? "");
-
-                          setCloseoutNote("");
-
-                          setCloseoutAction("follow_up_call");
-
-                          setCloseoutPreset("call_3_days");
-
-                          setCloseoutAt(
-
-                            toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.nextActionDueAt ?? clientFile.followUpDate) || presetDateTimeLocal(3),
-
-                          );
-
-                          setCloseoutPresetTouched(false);
-
-                          setCloseoutDateTouched(false);
-
-                        }
-
-                        return next;
-
-                      });
+                      if (closeoutOpen) {
+                        setCloseoutOpen(false);
+                      } else {
+                        openCloseoutComposer();
+                      }
 
                       setNextActionEditorOpen(false);
 
@@ -8913,14 +8922,7 @@ export function MasterClientFileModal({ clientFile: incomingClientFile, open, on
                               </div>
                               <button
                                 onClick={() => {
-                                  setCloseoutOpen(true);
-                                  setCloseoutOutcome(clientFile.dispositionCode ?? "");
-                                  setCloseoutNote("");
-                                  setCloseoutAction("follow_up_call");
-                                  setCloseoutPreset("call_3_days");
-                                  setCloseoutAt(presetDateTimeLocal(3));
-                                  setCloseoutPresetTouched(false);
-                                  setCloseoutDateTouched(false);
+                                  openCloseoutComposer();
                                 }}
                                 className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-colors"
                               >

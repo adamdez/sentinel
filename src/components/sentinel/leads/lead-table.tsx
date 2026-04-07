@@ -355,10 +355,10 @@ export function LeadTable({
     const driveByCount = selected.filter((l) => l.nextAction?.toLowerCase().startsWith("drive by")).length;
     const dialable = selected.filter((l) => !l.nextAction?.toLowerCase().startsWith("drive by"));
     const noPhoneCount = dialable.filter((l) => !l.ownerPhone).length;
-    const callableIds = dialable.filter((l) => !!l.ownerPhone).map((l) => l.id);
+    const queueableIds = dialable.map((l) => l.id);
 
-    if (callableIds.length === 0) {
-      toast.error(`0 callable — ${noPhoneCount} selected have no phone`);
+    if (queueableIds.length === 0) {
+      toast.error("0 queued - selected leads are all in Drive By");
       setSelectedIds(new Set());
       return;
     }
@@ -377,7 +377,7 @@ export function LeadTable({
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ leadIds: callableIds }),
+        body: JSON.stringify({ leadIds: queueableIds }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -396,7 +396,7 @@ export function LeadTable({
       if (queued > 0) pieces.push(`${queued} queued`);
       if (blocked > 0) pieces.push(`${blocked} already owned`);
       if (driveByCount > 0) pieces.push(`${driveByCount} in Drive By`);
-      if (noPhoneCount > 0) pieces.push(`${noPhoneCount} no phone`);
+      if (noPhoneCount > 0) pieces.push(`${noPhoneCount} no phone - skip trace from dialer`);
       if (notFound > 0) pieces.push(`${notFound} not found`);
 
       const hasIssues = blocked > 0 || driveByCount > 0 || noPhoneCount > 0 || notFound > 0;

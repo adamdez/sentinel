@@ -580,6 +580,11 @@ function formatMoneyFull(n: number): string {
   return `$${Math.round(n).toLocaleString()}`;
 }
 
+function needsNextStepAction(label: string | null | undefined): boolean {
+  const normalized = (label ?? "").trim().toLowerCase();
+  return normalized.includes("needs next step") || normalized.includes("no next step");
+}
+
 function relativeUpdatedLabel(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const ms = new Date(iso).getTime();
@@ -850,6 +855,7 @@ function DialerPageInner() {
 
   useCoachSurface("dialer", {});
   const [fileModalOpen, setFileModalOpen] = useState(false);
+  const [openCloseoutSignal, setOpenCloseoutSignal] = useState(0);
   const [liveNotes, setLiveNotes] = useState<string[]>([]);
   const [savedNotes, setSavedNotes] = useState<Array<{ content: string; time: string }>>([]);
   const [savingNote, setSavingNote] = useState(false);
@@ -1284,6 +1290,16 @@ function DialerPageInner() {
 
     await applyIntroExitForLead(leadId, choice as "nurture" | "dead" | "disposition" | "drive_by");
   }, [applyIntroExitForLead]);
+
+  const openLeadNextStepFix = useCallback((lead: QueueLead, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setCurrentLead(lead);
+    if (!autoCycleMode) {
+      setPhoneIndex(0);
+    }
+    setFileModalOpen(true);
+    setOpenCloseoutSignal((prev) => prev + 1);
+  }, [autoCycleMode]);
 
   const handleSkipTraceQueue = useCallback(async () => {
     if (queueSkipTracing) return;
@@ -3524,17 +3540,31 @@ function DialerPageInner() {
                           ))}
                         </div>
                         <div className="grid grid-cols-[1fr_76px_84px] gap-1 pl-5 pr-2 text-xs items-center">
-                          <span
-                            className={cn(
-                              "min-w-0 truncate font-medium",
-                              wf.urgency === "critical" && "text-red-400/95",
-                              wf.urgency === "high" && "text-amber-300/90",
-                              wf.urgency !== "critical" && wf.urgency !== "high" && "text-foreground/85",
-                            )}
-                            title={wf.doNow}
-                          >
-                            {wf.doNow}
-                          </span>
+                          {needsNextStepAction(wf.doNow) ? (
+                            <button
+                              type="button"
+                              onClick={(e) => openLeadNextStepFix(lead, e)}
+                              className={cn(
+                                "min-w-0 truncate font-medium text-left hover:underline",
+                                "text-amber-300 hover:text-amber-200",
+                              )}
+                              title={`${wf.doNow} (click to fix)`}
+                            >
+                              {wf.doNow}
+                            </button>
+                          ) : (
+                            <span
+                              className={cn(
+                                "min-w-0 truncate font-medium",
+                                wf.urgency === "critical" && "text-red-400/95",
+                                wf.urgency === "high" && "text-amber-300/90",
+                                wf.urgency !== "critical" && wf.urgency !== "high" && "text-foreground/85",
+                              )}
+                              title={wf.doNow}
+                            >
+                              {wf.doNow}
+                            </span>
+                          )}
                           <span
                             className={cn(
                               "tabular-nums shrink-0",
@@ -3715,7 +3745,18 @@ function DialerPageInner() {
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                             <span><span className="text-foreground font-medium">{dialerContext.stage}</span></span>
                             <span className="text-muted-foreground/30">·</span>
-                            <span>{dialerContext.nextActionLabel}</span>
+                            {needsNextStepAction(dialerContext.nextActionLabel) ? (
+                              <button
+                                type="button"
+                                onClick={(e) => currentLead && openLeadNextStepFix(currentLead, e)}
+                                className="text-amber-300 hover:text-amber-200 hover:underline"
+                                title={`${dialerContext.nextActionLabel} (click to fix)`}
+                              >
+                                {dialerContext.nextActionLabel}
+                              </button>
+                            ) : (
+                              <span>{dialerContext.nextActionLabel}</span>
+                            )}
                             {dialerContext.qualificationGapNames.length > 0 && (
                               <>
                                 <span className="text-muted-foreground/30">·</span>
@@ -4447,6 +4488,7 @@ function DialerPageInner() {
           open={fileModalOpen}
           onClose={() => setFileModalOpen(false)}
           onRefresh={handleModalRefresh}
+          openCloseoutComposerSignal={openCloseoutSignal}
         />
       )}
 

@@ -127,6 +127,24 @@ describe("applyScoutIngestionPolicy", () => {
     expect(result.failure_reason).toBe("missing_property_for_enrich");
   });
 
+  it("skips Spokane Scout create payloads below the 4-payment tax threshold", async () => {
+    const sb = createMockSb();
+    const result = await applyScoutIngestionPolicy(sb as never, baseContract({
+      source_record_id: "record-below-threshold",
+      tax_signals: {
+        tax_years_owing: [
+          { year: new Date().getFullYear() - 1, owing: 1200 },
+        ],
+      },
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.ingest_status).toBe("skipped");
+    expect(result.failure_reason).toBe("below_tax_threshold_4_payments");
+    expect(sb.tables.properties).toHaveLength(0);
+    expect(sb.tables.leads).toHaveLength(0);
+  });
+
   it("merges owner_flags safely without clobbering existing scout blocks", async () => {
     const sb = createMockSb();
     sb.tables.properties.push({
@@ -167,4 +185,3 @@ describe("applyScoutIngestionPolicy", () => {
     expect((flags.county_data as Record<string, unknown>).assessed).toBe(100000);
   });
 });
-

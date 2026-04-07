@@ -69,6 +69,32 @@ function canCreateProperty(input: ScoutIngestionContract): boolean {
   return hasAddress || hasApn;
 }
 
+function isSpokaneScoutSource(sourceSystem: string): boolean {
+  const normalized = sourceSystem.trim().toLowerCase();
+  return normalized.includes("spokane") && normalized.includes("scout");
+}
+
+function getScoutPriorDelinquentYears(taxSignals: Record<string, unknown> | null | undefined): number | null {
+  if (!taxSignals) return null;
+
+  const directCount = taxSignals.prior_delinquent_years ?? taxSignals.priorDelinquentYears ?? taxSignals.delinquent_years;
+  if (typeof directCount === "number" && Number.isFinite(directCount)) {
+    return Math.max(0, Math.trunc(directCount));
+  }
+
+  const taxYears = taxSignals.tax_years_owing;
+  if (!Array.isArray(taxYears)) return null;
+
+  const currentYear = new Date().getFullYear();
+  return taxYears.filter((entry) => {
+    if (!entry || typeof entry !== "object") return false;
+    const row = entry as { year?: unknown; owing?: unknown };
+    const year = Number(row.year);
+    const owing = Number(row.owing);
+    return Number.isFinite(year) && year < currentYear && Number.isFinite(owing) && owing > 0;
+  }).length;
+}
+
 function mergePhotos(
   existing: unknown,
   incoming: ScoutIngestionContract["photos"] | undefined,
@@ -250,12 +276,31 @@ export async function applyScoutIngestionPolicy(
     return result;
   };
 
+  const skip = async (reason: string, entityIds?: ScoutWriteResultEnvelope["entity_ids"]) => {
+    const result: ScoutWriteResultEnvelope = {
+      ok: true,
+      ingest_status: "skipped",
+      persisted_updates: 0,
+      failure_reason: reason,
+      entity_ids: entityIds ?? { property_id: null, lead_id: null },
+    };
+    await logScoutIngestEvent(sb, contract, result);
+    return result;
+  };
+
   if (!contract.source_system || !contract.source_run_id || !contract.source_record_id) {
     return fail("missing_required_source_metadata");
   }
 
   if (!contract.property?.address && !contract.property?.apn) {
     return fail("missing_property_identity");
+  }
+
+  if (contract.ingest_mode === "create" && isSpokaneScoutSource(contract.source_system)) {
+    const priorDelinquentYears = getScoutPriorDelinquentYears(contract.tax_signals);
+    if (priorDelinquentYears != null && priorDelinquentYears < 2) {
+      return skip("below_tax_threshold_4_payments");
+    }
   }
 
   let property = await findPropertyByIdentity(sb, contract);
@@ -390,4 +435,3 @@ export async function applyScoutIngestionPolicy(
   await logScoutIngestEvent(sb, contract, result);
   return result;
 }
-
