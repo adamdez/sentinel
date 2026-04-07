@@ -58,6 +58,11 @@ const LEAD_QUEUE_SELECT = `
   pinned_by,
   dial_queue_active,
   dial_queue_added_at,
+  intro_sop_active,
+  intro_day_count,
+  intro_last_call_date,
+  intro_completed_at,
+  intro_exit_category,
   properties (
     id,
     apn,
@@ -88,7 +93,7 @@ const LEAD_QUEUE_SELECT = `
   )
 `;
 
-const LEAD_QUEUE_SELECT_FALLBACK = `
+const LEAD_QUEUE_SELECT_LEGACY = `
   id,
   property_id,
   priority,
@@ -132,11 +137,6 @@ const LEAD_QUEUE_SELECT_FALLBACK = `
   pinned_by,
   dial_queue_active,
   dial_queue_added_at,
-  intro_sop_active,
-  intro_day_count,
-  intro_last_call_date,
-  intro_completed_at,
-  intro_exit_category,
   properties (
     id,
     apn,
@@ -173,8 +173,7 @@ async function fetchLeadQueueRows(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let primaryQuery = (sb.from("leads") as any)
     .select(LEAD_QUEUE_SELECT)
-    .neq("status", "prospect")
-    .neq("status", "staging")
+    .in("status", ["lead", "negotiation", "disposition"])
     .order("priority", { ascending: false });
   if (!includeNonIntro) {
     primaryQuery = primaryQuery.eq("intro_sop_active", true);
@@ -189,12 +188,12 @@ async function fetchLeadQueueRows(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let fallbackQuery = (sb.from("leads") as any)
-    .select(LEAD_QUEUE_SELECT_FALLBACK)
-    .neq("status", "prospect")
-    .neq("status", "staging")
+    .select(LEAD_QUEUE_SELECT_LEGACY)
+    .in("status", ["lead", "negotiation", "disposition"])
     .order("priority", { ascending: false });
-  if (!includeNonIntro && !isSchemaDriftError(primaryResult.error)) {
-    fallbackQuery = fallbackQuery.eq("intro_sop_active", true);
+  if (!includeNonIntro) {
+    // Legacy production schemas do not have intro tracking columns.
+    // In that mode, treat active lead-stage records as the visible queue.
   }
   return fallbackQuery;
 }
