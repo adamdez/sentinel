@@ -584,6 +584,12 @@ function recordFromUnknown(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function stringFromUnknown(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function numberFromUnknown(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
@@ -601,12 +607,37 @@ function formatLotSizeCompact(value: number | null): string | null {
   return `${value.toFixed(2)} ac`;
 }
 
+function isUnknownOwnerName(value: string | null | undefined): boolean {
+  if (!value) return true;
+  const normalized = value.trim().toLowerCase();
+  return normalized === "" || normalized === "unknown" || normalized === "unknown owner" || normalized === "n/a";
+}
+
 function deriveDialerPropertyContext(property: QueueLead["properties"] | null | undefined): {
   displayedTaxOwed: number | null;
   displayLotSize: string | null;
+  displayValue: number | null;
+  displayValueLabel: "ARV" | "Assessed";
+  displaySqft: number | null;
+  displayYearBuilt: number | null;
+  displayOwnerName: string;
+  displayParcel: string | null;
+  displayPropertyType: string | null;
+  isPendingEnrichment: boolean;
 } {
   if (!property) {
-    return { displayedTaxOwed: null, displayLotSize: null };
+    return {
+      displayedTaxOwed: null,
+      displayLotSize: null,
+      displayValue: null,
+      displayValueLabel: "ARV",
+      displaySqft: null,
+      displayYearBuilt: null,
+      displayOwnerName: "Owner pending",
+      displayParcel: null,
+      displayPropertyType: null,
+      isPendingEnrichment: false,
+    };
   }
 
   const propertyRecord = property as Record<string, unknown>;
@@ -615,6 +646,49 @@ function deriveDialerPropertyContext(property: QueueLead["properties"] | null | 
   const countyData = recordFromUnknown(ownerFlags?.county_data);
   const scoutTaxSignals = recordFromUnknown(ownerFlags?.scout_tax_signals);
   const prRaw = recordFromUnknown(ownerFlags?.pr_raw);
+  const assessedValue =
+    numberFromUnknown(ownerFlags?.gis_assessed_value) ??
+    numberFromUnknown(countyData?.gis_assessed_value) ??
+    numberFromUnknown(countyData?.assessed_value) ??
+    numberFromUnknown(countyData?.tax_assessed_value);
+  const landValue = numberFromUnknown(ownerFlags?.gis_land_value);
+  const improvementValue = numberFromUnknown(ownerFlags?.gis_improvement_value);
+  const fallbackCountyValue = assessedValue ?? (
+    landValue != null || improvementValue != null
+      ? (landValue ?? 0) + (improvementValue ?? 0)
+      : null
+  );
+  const displayValue = numberFromUnknown(propertyRecord.estimated_value) ?? fallbackCountyValue;
+  const displayValueLabel = numberFromUnknown(propertyRecord.estimated_value) != null ? "ARV" : "Assessed";
+  const displaySqft =
+    numberFromUnknown(propertyRecord.sqft) ??
+    numberFromUnknown(propertyRecord.square_feet) ??
+    numberFromUnknown(countyData?.sqft) ??
+    numberFromUnknown(countyData?.square_feet) ??
+    numberFromUnknown(prRaw?.BuildingAreaTotal);
+  const displayYearBuilt =
+    numberFromUnknown(propertyRecord.year_built) ??
+    numberFromUnknown(countyData?.year_built) ??
+    numberFromUnknown(prRaw?.YearBuilt);
+  const displayParcel =
+    stringFromUnknown(ownerFlags?.gis_parcel_number) ??
+    stringFromUnknown(countyData?.parcel_number) ??
+    stringFromUnknown(countyData?.parcelNumber) ??
+    (() => {
+      const apn = stringFromUnknown(propertyRecord.apn);
+      return apn && !apn.startsWith("MANUAL-") ? apn : null;
+    })();
+  const displayPropertyType =
+    stringFromUnknown(propertyRecord.property_type) ??
+    stringFromUnknown(countyData?.property_type) ??
+    stringFromUnknown(prRaw?.PropertyType);
+  const displayOwnerName = isUnknownOwnerName(property.owner_name) ? "Owner pending" : property.owner_name;
+  const isPendingEnrichment =
+    ownerFlags?.enrichment_pending === true ||
+    stringFromUnknown(ownerFlags?.enrichment_status) === "pending" ||
+    stringFromUnknown(ownerFlags?.enrichment_status) === "county_partial" ||
+    ownerFlags?.manual_entry === true ||
+    (stringFromUnknown(propertyRecord.apn)?.startsWith("MANUAL-") ?? false);
 
   const displayedTaxOwed =
     numberFromUnknown(scoutData?.total_charges_owing) ??
@@ -634,7 +708,18 @@ function deriveDialerPropertyContext(property: QueueLead["properties"] | null | 
     numberFromUnknown(countyData?.county_acreage),
   );
 
-  return { displayedTaxOwed, displayLotSize };
+  return {
+    displayedTaxOwed,
+    displayLotSize,
+    displayValue,
+    displayValueLabel,
+    displaySqft,
+    displayYearBuilt,
+    displayOwnerName,
+    displayParcel,
+    displayPropertyType,
+    isPendingEnrichment,
+  };
 }
 
 function needsNextStepAction(label: string | null | undefined): boolean {
@@ -665,8 +750,17 @@ function LiveAnswerIntelPanel({
   onOpenDetail: () => void;
 }) {
   const ownerFlags = (lead.properties?.owner_flags as Record<string, unknown> | null) ?? null;
-  const { displayedTaxOwed, displayLotSize } = deriveDialerPropertyContext(lead.properties);
-  const estimatedValue = lead.properties?.estimated_value ?? null;
+  const {
+    displayedTaxOwed,
+    displayLotSize,
+    displayValue,
+    displayValueLabel,
+    displayOwnerName,
+    displayParcel,
+    displayPropertyType,
+    isPendingEnrichment,
+  } = deriveDialerPropertyContext(lead.properties);
+  const estimatedValue = displayValue;
   const compArv = typeof ownerFlags?.comp_arv === "number" ? ownerFlags.comp_arv : null;
   const brickedArv = typeof ownerFlags?.bricked_arv === "number" ? ownerFlags.bricked_arv : null;
   const brickedCmv = typeof ownerFlags?.bricked_cmv === "number" ? ownerFlags.bricked_cmv : null;
@@ -706,9 +800,16 @@ function LiveAnswerIntelPanel({
             {lead.properties?.address ?? "No property address"}
           </p>
           <p className="text-xs text-muted-foreground/55 mt-0.5">
-            {lead.properties?.owner_name ?? "Unknown owner"}
+            {displayOwnerName}
             {dialedPhone ? ` · ${formatUsPhone(dialedPhone.replace(/\D/g, "").slice(-10))}` : ""}
           </p>
+          {(displayParcel || displayPropertyType || isPendingEnrichment) && (
+            <p className="text-xs text-muted-foreground/45 mt-1">
+              {[displayParcel ? `Parcel ${displayParcel}` : null, displayPropertyType, isPendingEnrichment ? "pending enrichment" : null]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
           {mailingAddress && (
             <p className="text-xs text-muted-foreground/45 mt-1">
               Mailing: {mailingAddress}
@@ -751,7 +852,7 @@ function LiveAnswerIntelPanel({
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm mb-3">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-muted-foreground/55">AVM</span>
+          <span className="text-muted-foreground/55">{displayValueLabel}</span>
           <span className="font-mono text-foreground">{estimatedValue ? formatMoneyFull(estimatedValue) : "—"}</span>
         </div>
         <div className="flex items-center justify-between gap-3">
@@ -3717,23 +3818,40 @@ function DialerPageInner() {
                   )}
 
                   <div className="space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-bold tracking-tight title-glow">
-                            {currentLead.properties?.owner_name ?? "Unknown Owner"}
-                          </h3>
-                          <RelationshipBadgeCompact data={{ tags: currentLead.tags }} />
-                        </div>
-                        <p className="text-sm text-muted-foreground/70">
-                          {currentLead.properties?.address ?? "No address"}
-                        </p>
-                        <p className="text-xs text-muted-foreground/50 mt-0.5">
-                          {currentLead.properties?.city}, {currentLead.properties?.state} — {currentLead.properties?.county} County
-                        </p>
-                        <p className="text-xs text-muted-foreground/35 mt-0.5">
-                          {buildSourceLabel(currentLead.source, currentLead.source_vendor, currentLead.source_list_name)}
-                        </p>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          {(() => {
+                            const { displayOwnerName } = deriveDialerPropertyContext(currentLead.properties);
+                            return (
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-bold tracking-tight title-glow">
+                              {displayOwnerName}
+                            </h3>
+                            <RelationshipBadgeCompact data={{ tags: currentLead.tags }} />
+                          </div>
+                            );
+                          })()}
+                          <p className="text-sm text-muted-foreground/70">
+                            {currentLead.properties?.address ?? "No address"}
+                          </p>
+                          <p className="text-xs text-muted-foreground/50 mt-0.5">
+                            {currentLead.properties?.city}, {currentLead.properties?.state} — {currentLead.properties?.county} County
+                          </p>
+                          {(() => {
+                            const {
+                              displayParcel,
+                              displayPropertyType,
+                              isPendingEnrichment,
+                            } = deriveDialerPropertyContext(currentLead.properties);
+                            const meta = [displayParcel ? `Parcel ${displayParcel}` : null, displayPropertyType, isPendingEnrichment ? "pending enrichment" : null]
+                              .filter(Boolean)
+                              .join(" · ");
+                            if (!meta) return null;
+                            return <p className="text-xs text-amber-200/75 mt-0.5">{meta}</p>;
+                          })()}
+                          <p className="text-xs text-muted-foreground/35 mt-0.5">
+                            {buildSourceLabel(currentLead.source, currentLead.source_vendor, currentLead.source_list_name)}
+                          </p>
                         <button
                           onClick={() => setFileModalOpen(true)}
                           className="mt-1 inline-flex items-center gap-1 text-sm text-primary hover:text-primary/80 hover:underline transition-colors"
@@ -3845,20 +3963,31 @@ function DialerPageInner() {
                     {/* Compact property vitals — single block instead of 9 tiles */}
                     <div className="rounded-[10px] bg-overlay-3 border border-overlay-6 px-3 py-2">
                       {(() => {
-                        const { displayedTaxOwed, displayLotSize } = deriveDialerPropertyContext(currentLead.properties);
+                        const {
+                          displayedTaxOwed,
+                          displayLotSize,
+                          displayValue,
+                          displayValueLabel,
+                          displaySqft,
+                          displayYearBuilt,
+                          displayParcel,
+                          displayPropertyType,
+                          isPendingEnrichment,
+                        } = deriveDialerPropertyContext(currentLead.properties);
+                        const p = currentLead.properties as Record<string, unknown> | null;
+                        const displayBedrooms = numberFromUnknown(p?.bedrooms);
+                        const displayBathrooms = numberFromUnknown(p?.bathrooms);
                         return (
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                         <span className="font-mono text-foreground">{currentDialedPhone ?? currentLead.properties?.owner_phone ?? "No phone"}</span>
                         <span className="text-muted-foreground/40">|</span>
-                        <span>ARV <span className="text-foreground font-medium">{currentLead.properties?.estimated_value ? `$${currentLead.properties.estimated_value.toLocaleString()}` : "—"}</span></span>
-                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                        <span>{displayValueLabel} <span className="text-foreground font-medium">{displayValue != null ? formatMoneyFull(displayValue) : "—"}</span></span>
                         <span>Equity <span className="text-foreground font-medium">{(() => {
-                          const p = currentLead.properties as any;
                           if (p?.equity_percent != null) return `${p.equity_percent}%`;
-                          const flags = p?.owner_flags as Record<string, unknown> | null;
+                          const flags = recordFromUnknown(p?.owner_flags);
                           const avail = Number(flags?.available_equity);
                           if (avail > 0) return `$${avail.toLocaleString()}`;
-                          const arv = p?.estimated_value;
+                          const arv = displayValue;
                           const loan = Number(flags?.total_loan_balance ?? p?.total_loan_balance);
                           if (arv && loan > 0) {
                             const eq = arv - loan;
@@ -3868,12 +3997,21 @@ function DialerPageInner() {
                           return "—";
                         })()}</span></span>
                         <span className="text-muted-foreground/40">|</span>
-                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                        <span>{(currentLead.properties as any)?.bedrooms ?? "—"}bd/{(currentLead.properties as any)?.bathrooms ?? "—"}ba</span>
-                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                        <span>{(currentLead.properties as any)?.sqft?.toLocaleString() ?? "—"} sqft</span>
-                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                        <span>Built {(currentLead.properties as any)?.year_built ?? "—"}</span>
+                        {displayBedrooms != null || displayBathrooms != null ? (
+                          <span>{displayBedrooms ?? "—"}bd/{displayBathrooms ?? "—"}ba</span>
+                        ) : displayPropertyType ? (
+                          <span>{displayPropertyType}</span>
+                        ) : null}
+                        {displaySqft != null ? (
+                          <span>{displaySqft.toLocaleString()} sqft</span>
+                        ) : displayParcel ? (
+                          <span>Parcel {displayParcel}</span>
+                        ) : null}
+                        {displayYearBuilt != null ? (
+                          <span>Built {displayYearBuilt}</span>
+                        ) : isPendingEnrichment ? (
+                          <span className="text-amber-200/75">County-backed details only</span>
+                        ) : null}
                         {displayLotSize && (
                           <span>Lot <span className="text-foreground font-medium">{displayLotSize}</span></span>
                         )}
