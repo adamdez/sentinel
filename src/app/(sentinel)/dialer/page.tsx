@@ -39,7 +39,7 @@ import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
 import { useLiveCoach } from "@/hooks/use-live-coach";
 import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
 import { useCallHistory, type CallHistoryEntry } from "@/hooks/use-call-history";
-import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
+import { MasterClientFileModal } from "@/components/sentinel/master-client-file-modal";
 import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-workflow-summary";
 import { Eye } from "lucide-react";
 import { useCoachSurface } from "@/providers/coach-provider";
@@ -60,7 +60,13 @@ import {
   type DialerKpiPreset,
   type DialerKpiSnapshot,
 } from "@/lib/dialer-kpis";
-import { sourceDisplayLabel, buildSourceLabel } from "@/components/sentinel/master-client-file-helpers";
+import {
+  sourceDisplayLabel,
+  buildSourceLabel,
+  clientFileFromRaw,
+  deriveSkipTraceUiState,
+  type SkipTraceUiState,
+} from "@/components/sentinel/master-client-file-helpers";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -928,6 +934,28 @@ function toE164(raw: string): string {
 
 type DialerMode = "queue" | "autoCycle";
 
+function getSkipTraceBadgeConfig(status: SkipTraceUiState): {
+  label: string;
+  className: string;
+} {
+  if (status === "skipped") {
+    return {
+      label: "Skipped",
+      className: "border-emerald-500/25 bg-emerald-500/10 text-emerald-300",
+    };
+  }
+  if (status === "skip_failed") {
+    return {
+      label: "Skip Failed",
+      className: "border-red-500/25 bg-red-500/10 text-red-300",
+    };
+  }
+  return {
+    label: "Skip Trace",
+    className: "border-red-500/25 bg-red-500/10 text-red-300",
+  };
+}
+
 function DialerPageInner() {
   const { currentUser, ghostMode } = useSentinelStore();
   const { queue, loading: queueLoading, refetch: refetchQueue } = useDialerQueue(200);
@@ -989,6 +1017,21 @@ function DialerPageInner() {
   const selectedDialPhone = phoneSelection.phone;
   const phonesActiveCount = activeLeadPhones.length;
   const phonesAttempted = activeLeadPhones.filter((phone) => phone.last_called_at).length;
+  const currentLeadClientFile = currentLead?.properties
+    ? clientFileFromRaw(
+      currentLead as unknown as Record<string, any>,
+      currentLead.properties as unknown as Record<string, any>,
+    )
+    : null;
+  const currentLeadSkipTraceState = currentLeadClientFile
+    ? deriveSkipTraceUiState({
+      clientFile: currentLeadClientFile,
+      persistedPhoneCount: activeLeadPhones.length,
+    })
+    : null;
+  const currentLeadSkipTraceBadge = currentLeadSkipTraceState
+    ? getSkipTraceBadgeConfig(currentLeadSkipTraceState.status)
+    : null;
 
   // useCallNotes removed — seller memory preview covers last-call context
   const { brief: preCallBrief } = usePreCallBrief(currentLead?.id ?? null);
@@ -1348,14 +1391,14 @@ function DialerPageInner() {
       });
       const data = await res.json().catch(() => ({} as { error?: string }));
       if (!res.ok) {
-        toast.error(data.error ?? "Could not add lead to Auto Cycle");
+        toast.error(data.error ?? "Could not add lead to Power Dial");
         return;
       }
       await refetchAutoCycle();
       setDialerMode("autoCycle");
-      toast.success("Lead added to Auto Cycle");
+      toast.success("Lead added to Power Dial");
     } catch {
-      toast.error("Could not add lead to Auto Cycle");
+      toast.error("Could not add lead to Power Dial");
     }
   }, [currentLead?.id, refetchAutoCycle]);
 
@@ -1368,16 +1411,16 @@ function DialerPageInner() {
       });
       const data = await res.json().catch(() => ({} as { error?: string }));
       if (!res.ok) {
-        toast.error(data.error ?? "Could not remove lead from Auto Cycle");
+        toast.error(data.error ?? "Could not remove lead from Power Dial");
         return;
       }
       await refetchAutoCycle();
       if (autoCycleMode) {
         setCurrentLead(null);
       }
-      toast.success("Lead removed from Auto Cycle");
+      toast.success("Lead removed from Power Dial");
     } catch {
-      toast.error("Could not remove lead from Auto Cycle");
+      toast.error("Could not remove lead from Power Dial");
     }
   }, [autoCycleMode, currentLead?.id, refetchAutoCycle]);
 
@@ -1540,7 +1583,7 @@ function DialerPageInner() {
       if (!res.ok) throw new Error();
       if (currentLead?.id === leadId) setCurrentLead(null);
       refetchAutoCycle();
-      toast.success("Removed from Auto Cycle");
+      toast.success("Removed from Power Dial");
     } catch {
       toast.error("Could not remove");
     }
@@ -2542,13 +2585,13 @@ function DialerPageInner() {
         setPhoneIndex(0);
         if (nextLead) {
           setPendingAutoDialLeadId(nextLead.id);
-          toast.info("Auto Cycle: next lead dialing…");
+          toast.info("Power Dial: next lead dialing...");
         } else {
-          toast.info("Auto Cycle complete — no leads ready");
+          toast.info("Power Dial complete - no leads ready");
         }
       } else {
         setPendingAutoDialLeadId(currentLead.id);
-        toast.info("Auto Cycle: dialing next number…");
+        toast.info("Power Dial: dialing next number...");
       }
     } else if (!isTerminal && nextPhoneIdx < activePhones.length) {
       // Regular queue: cycle to next phone, stay on same lead
@@ -3542,12 +3585,12 @@ function DialerPageInner() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Users className="h-3.5 w-3.5 text-primary" />
-                {autoCycleMode ? "Auto Cycle" : "Dial Queue"}
+                {autoCycleMode ? "Power Dial" : "Dial Queue"}
                 <CallSequenceGuide />
               </h2>
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 <div className="flex items-center gap-0.5 rounded-[8px] border border-border/20 p-0.5">
-                  {([["queue", "Queue"], ["autoCycle", "Auto Cycle"]] as const).map(([mode, label]) => (
+                  {([["queue", "Queue"], ["autoCycle", "Power Dial"]] as const).map(([mode, label]) => (
                     <button
                       key={mode}
                       onClick={() => setDialerMode(mode)}
@@ -3582,7 +3625,7 @@ function DialerPageInner() {
             </div>
             <p className="text-xs text-muted-foreground/40 mb-2">
               {autoCycleMode
-                ? "Ready-now leads float to the top."
+                ? "Calls the next number automatically after each disposition."
                 : `${displayedQueue.length} queued`}
             </p>
 
@@ -3613,6 +3656,16 @@ function DialerPageInner() {
                 </div>
                 {displayedQueue.map((lead, idx) => {
                   const isActive = currentLead?.id === lead.id;
+                  const skipTraceBadge = lead.properties
+                    ? getSkipTraceBadgeConfig(
+                      deriveSkipTraceUiState({
+                        clientFile: clientFileFromRaw(
+                          lead as unknown as Record<string, any>,
+                          lead.properties as unknown as Record<string, any>,
+                        ),
+                      }).status,
+                    )
+                    : null;
                   const rowDueIso = autoCycleMode && "autoCycle" in lead
                     ? (lead as AutoCycleQueueLead).autoCycle.nextDueAt
                     : lead.next_call_scheduled_at ?? lead.next_follow_up_at ?? lead.follow_up_date ?? null;
@@ -3690,7 +3743,7 @@ function DialerPageInner() {
                             type="button"
                             onClick={(e) => autoCycleMode ? handleRemoveFromAutoCycle(lead.id, e) : handleRemoveFromQueue(lead.id, e)}
                             className="shrink-0 p-0.5 rounded text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                            title={autoCycleMode ? "Remove from Auto Cycle" : "Remove from queue"}
+                            title={autoCycleMode ? "Remove from Power Dial" : "Remove from queue"}
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -3700,6 +3753,14 @@ function DialerPageInner() {
                           {lead.tags?.slice(0, 1).map((tag) => (
                             <span key={tag} className="text-xs px-1.5 py-0 rounded bg-overlay-4 border border-overlay-8 text-muted-foreground/60">{tag}</span>
                           ))}
+                          {skipTraceBadge && (
+                            <span className={cn(
+                              "text-[10px] px-1.5 py-0 rounded border font-semibold uppercase tracking-wider",
+                              skipTraceBadge.className,
+                            )}>
+                              {skipTraceBadge.label}
+                            </span>
+                          )}
                         </div>
                         <div className="grid grid-cols-[1fr_76px_84px] gap-1 pl-5 pr-2 text-xs items-center">
                           {needsNextStepAction(wf.doNow) ? (
@@ -3869,7 +3930,7 @@ function DialerPageInner() {
                           )}
                         >
                           <Zap className="h-3 w-3" />
-                          {currentLeadAutoCycleEntry ? "Remove From Auto Cycle" : "Add To Auto Cycle"}
+                          {currentLeadAutoCycleEntry ? "Remove From Power Dial" : "Add To Power Dial"}
                         </button>
                       </div>
                       <div className="flex flex-col items-end gap-1">
@@ -3887,6 +3948,15 @@ function DialerPageInner() {
                           <Phone className="h-2.5 w-2.5" />
                           {getCadencePosition(currentLead.total_calls ?? 0).label}
                         </Badge>
+                        {currentLeadSkipTraceBadge && (
+                          <Badge
+                            variant="outline"
+                            className={cn("text-xs gap-1", currentLeadSkipTraceBadge.className)}
+                          >
+                            <Search className="h-2.5 w-2.5" />
+                            {currentLeadSkipTraceBadge.label}
+                          </Badge>
+                        )}
                         {currentLeadAutoCycleEntry?.autoCycle.voicemailDropNext && (
                           <Badge variant="outline" className="text-xs gap-1 border-amber-500/20 text-amber-300">
                             <Voicemail className="h-2.5 w-2.5" />
