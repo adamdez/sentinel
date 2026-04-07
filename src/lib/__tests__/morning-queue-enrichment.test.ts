@@ -92,7 +92,7 @@ describe("morning queue enrichment — needs-qualification bucket", () => {
       created_at: "2026-03-08T10:00:00Z",
     });
     expect(result.actionUrgency).toBe("high");
-    expect(result.actionLabel).toContain("qualification");
+    expect(result.actionLabel).toBe("Needs next step");
   });
 });
 

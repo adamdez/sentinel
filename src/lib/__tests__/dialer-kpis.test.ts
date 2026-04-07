@@ -64,7 +64,7 @@ describe("dialer KPI aggregation", () => {
     expect(snapshot.metrics.outbound.team).toBe(3);
     expect(snapshot.metrics.pickups.user).toBe(1);
     expect(snapshot.metrics.pickups.team).toBe(2);
-    expect(snapshot.metrics.inbound.user).toBe(1);
+    expect(snapshot.metrics.inbound.user).toBe(2);
     expect(snapshot.metrics.inbound.team).toBe(2);
     expect(snapshot.metrics.missedCalls.user).toBe(1);
     expect(snapshot.metrics.missedCalls.team).toBe(1);

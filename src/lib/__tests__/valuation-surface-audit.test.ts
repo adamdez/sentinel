@@ -123,8 +123,8 @@ describe("valuation surface audit", () => {
     expect(content).toContain("calculateWholesaleUnderwrite");
   });
 
-  it("calculator-tab imports from valuation kernel", () => {
-    const calcPath = join(SRC_ROOT, "components", "sentinel", "client-file-v2", "tabs", "calculator-tab.tsx");
+  it("score-breakdown modal imports from valuation kernel", () => {
+    const calcPath = join(SRC_ROOT, "components", "sentinel", "score-breakdown-modal.tsx");
     const content = readFileSync(calcPath, "utf-8");
     expect(content).toContain("from \"@/lib/valuation\"");
     expect(content).toContain("calculateWholesaleUnderwrite");
