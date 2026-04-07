@@ -136,6 +136,7 @@ export function LiveCoachWindow({
   const wasActiveRef = useRef(active);
   const popoutRef = useRef<Window | null>(null);
   const broadcastRef = useRef<BroadcastChannel | null>(null);
+  const lastSessionIdRef = useRef<string | null>(sessionId);
 
   useEffect(() => {
     try {
@@ -150,9 +151,17 @@ export function LiveCoachWindow({
   }, []);
 
   useEffect(() => {
+    if (sessionId) {
+      lastSessionIdRef.current = sessionId;
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
     if (active) return;
-    if (!sessionId) return;
-    broadcastRef.current?.postMessage({ type: "call-ended", sessionId });
+    const closingSessionId = sessionId ?? lastSessionIdRef.current;
+    if (closingSessionId) {
+      broadcastRef.current?.postMessage({ type: "call-ended", sessionId: closingSessionId });
+    }
     popoutRef.current = null;
     setPopoutActive(false);
   }, [active, sessionId]);
