@@ -18,7 +18,7 @@ import { isLeadUnclaimed } from "@/lib/lead-ownership";
 import type { LeadQueueResponse } from "@/lib/lead-queue-contract";
 import { sortLeadRows } from "./use-leads-sort";
 
-export type SortField = "score" | "priority" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "status" | "equity";
+export type SortField = "score" | "priority" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "source" | "status" | "equity";
 export type SortDir = "asc" | "desc";
 export type FollowUpFilter = "all" | "overdue" | "today" | "uncontacted" | "urgent_uncontacted";
 export type MarketFilter = "spokane" | "kootenai" | "other";
@@ -70,6 +70,7 @@ const DEFAULT_SORT_DIR_BY_FIELD: Record<SortField, SortDir> = {
   lastTouch: "desc",
   address: "asc",
   owner: "asc",
+  source: "asc",
   status: "asc",
   equity: "desc",
 };
@@ -279,6 +280,8 @@ function matchesSearch(lead: LeadRow, q: string): boolean {
     lead.county.toLowerCase().includes(lower) ||
     lead.state.toLowerCase().includes(lower) ||
     lead.zip.toLowerCase().includes(lower) ||
+    lead.source.toLowerCase().includes(lower) ||
+    (lead.sourceChannel?.toLowerCase().includes(lower) ?? false) ||
     (lead.ownerPhone?.toLowerCase().includes(lower) ?? false) ||
     (lead.ownerEmail?.toLowerCase().includes(lower) ?? false) ||
     (lead.sourceVendor?.toLowerCase().includes(lower) ?? false) ||

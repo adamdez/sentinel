@@ -157,6 +157,7 @@ import { formatDueDateLabel } from "@/lib/due-date-label";
 import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-workflow-summary";
 
 import { formatOwnerName } from "@/lib/format-name";
+import { isPplLeadSource } from "@/lib/lead-source";
 
 import { toast } from "sonner";
 
@@ -8156,6 +8157,11 @@ export function MasterClientFileModal({
   const marketLabel = marketDisplayLabel(clientFile.county);
 
   const sourceLabel = buildSourceLabel(clientFile.source, clientFile.sourceVendor, clientFile.sourceListName);
+  const isPplLead = isPplLeadSource({
+    source: clientFile.source,
+    sourceVendor: clientFile.sourceVendor,
+    sourceListName: clientFile.sourceListName,
+  });
 
   const operatorWf = buildOperatorWorkflowSummary({
 
@@ -8326,13 +8332,20 @@ export function MasterClientFileModal({
 
                   <div className="min-w-0 space-y-1">
 
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
 
                       <h2 className="text-lg font-bold truncate" style={{ textShadow: "0 1px 0 var(--overlay-6)" }}>
 
                         {formatOwnerName(clientFile.ownerName) || "Unknown Seller"}
 
                       </h2>
+
+                      {isPplLead ? (
+                        <Badge className="shrink-0 gap-1.5 border-red-500/35 bg-red-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-red-200 shadow-[0_0_18px_rgba(239,68,68,0.12)]">
+                          <span className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.9)]" />
+                          PPL
+                        </Badge>
+                      ) : null}
 
                       <RelationshipBadge data={{
 
@@ -8357,6 +8370,10 @@ export function MasterClientFileModal({
                       <span className="shrink-0">{marketLabel}</span>
 
                       <span className="shrink-0">·</span>
+
+                      <Badge variant="outline" className="text-xs gap-1 border-overlay-20 text-foreground/90 shrink-0">
+                        <Tag className="h-2.5 w-2.5" />{sourceLabel}
+                      </Badge>
 
                       <Badge variant="outline" className="text-xs gap-1 border-overlay-20 text-foreground shrink-0">
                         <Target className="h-2.5 w-2.5" />{currentStageLabel}

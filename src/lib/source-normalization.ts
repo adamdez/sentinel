@@ -76,6 +76,13 @@ export const SOURCE_MAP: Record<string, string> = {
   web_form: "webform",
   website: "webform",
 
+  // Vendor inbound / PPL
+  vendor_inbound: "vendor_inbound",
+  ppl: "ppl",
+  pay_per_lead: "ppl",
+  lead_house: "lead_house",
+  leadhouse: "lead_house",
+
   // Referral
   referral: "referral",
   ref: "referral",
@@ -116,6 +123,9 @@ export const SOURCE_LABELS: Record<string, string> = {
   fsbo: "FSBO",
   ranger: "Ranger",
   webform: "Web Form",
+  vendor_inbound: "Vendor Inbound",
+  ppl: "PPL",
+  lead_house: "Lead House",
   referral: "Referral",
   manual: "Manual",
   unknown: "Unknown",

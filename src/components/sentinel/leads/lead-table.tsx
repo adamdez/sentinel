@@ -26,6 +26,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { type LeadRow } from "@/lib/leads-data";
+import { buildLeadSourceLabel, isPplLeadSource } from "@/lib/lead-source";
 import type { UrgencyLevel } from "@/lib/action-derivation";
 import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-workflow-summary";
 import type { SortField, SortDir } from "@/hooks/use-leads";
@@ -46,7 +47,7 @@ interface LeadTableProps {
 }
 
 // Grid: select · active · property · do now · due · last touch · actions
-const GRID = "grid-cols-[28px_28px_1.65fr_minmax(120px,1.15fr)_minmax(80px,0.9fr)_minmax(88px,0.95fr)_80px]";
+const GRID = "grid-cols-[28px_28px_minmax(220px,1.55fr)_minmax(148px,0.95fr)_minmax(120px,1.15fr)_minmax(80px,0.9fr)_minmax(88px,0.95fr)_80px]";
 const BULK_ACTION_CONCURRENCY = 6;
 const INITIAL_RENDER_COUNT = 150;
 const RENDER_COUNT_STEP = 150;
@@ -647,6 +648,7 @@ export function LeadTable({
         </div>
         <span />
         <SortHeader label="Property / Owner" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
+        <SortHeader label="Source" field="source" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader
           label="Do Now"
           field="followUp"
@@ -663,6 +665,14 @@ export function LeadTable({
 
       {/* Rows */}
       {renderedLeads.map((lead) => {
+        const sourceLabel = buildLeadSourceLabel(lead.sourceChannel ?? lead.source, lead.sourceVendor, lead.sourceListName);
+        const isPplLead = isPplLeadSource({
+          source: lead.source,
+          sourceChannel: lead.sourceChannel,
+          sourceVendor: lead.sourceVendor,
+          intakeMethod: lead.intakeMethod,
+          sourceListName: lead.sourceListName,
+        });
         const wf = buildOperatorWorkflowSummary({
           status: lead.status,
           qualificationRoute: lead.qualificationRoute,
@@ -820,6 +830,22 @@ export function LeadTable({
                 </TooltipContent>
               )}
             </Tooltip>
+
+            <div className="flex flex-col justify-center min-w-0 gap-1">
+              {isPplLead ? (
+                <span className="inline-flex w-fit items-center gap-1.5 rounded-md border border-red-500/35 bg-red-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-red-200 shadow-[0_0_18px_rgba(239,68,68,0.12)]">
+                  <span className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.9)]" />
+                  PPL
+                </span>
+              ) : null}
+              <span
+                className="truncate text-xs font-medium text-muted-foreground/90"
+                title={sourceLabel}
+                style={{ WebkitFontSmoothing: "antialiased" }}
+              >
+                {sourceLabel}
+              </span>
+            </div>
 
             {/* Do now */}
             <div className="flex flex-col justify-center min-w-0">

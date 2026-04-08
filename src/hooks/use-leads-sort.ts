@@ -1,7 +1,8 @@
 import { deriveLeadActionSummary, type UrgencyLevel } from "@/lib/action-derivation";
+import { leadSourceSortKey } from "@/lib/lead-source";
 import type { LeadStatus, QualificationRoute } from "@/lib/types";
 
-type SortField = "score" | "priority" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "status" | "equity";
+type SortField = "score" | "priority" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "source" | "status" | "equity";
 type SortDir = "asc" | "desc";
 
 export interface SortableLeadRow {
@@ -14,6 +15,10 @@ export interface SortableLeadRow {
   predictivePriority: number;
   address: string;
   ownerName: string;
+  source: string;
+  sourceChannel: string | null;
+  sourceVendor: string | null;
+  sourceListName: string | null;
   equityPercent: number | null;
   status: LeadStatus;
   qualificationRoute: QualificationRoute | null;
@@ -106,6 +111,8 @@ export function sortLeadRows<T extends SortableLeadRow>(
         return a.address.localeCompare(b.address) * dir;
       case "owner":
         return a.ownerName.localeCompare(b.ownerName) * dir;
+      case "source":
+        return leadSourceSortKey(a).localeCompare(leadSourceSortKey(b)) * dir;
       case "equity":
         return ((a.equityPercent ?? 0) - (b.equityPercent ?? 0)) * dir;
       case "status":
