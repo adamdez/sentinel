@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { buildBrowserVoiceStreamLines } from "@/lib/twilio-browser-stream";
 import twilio from "twilio";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 /**
  * POST /api/twilio/voice/browser
  *
- * TwiML Application Voice URL — called by Twilio when the browser SDK
+ * TwiML Application Voice URL - called by Twilio when the browser SDK
  * initiates an outbound call via device.connect().
  *
  * Twilio POSTs form-encoded body with:
@@ -22,15 +23,15 @@ const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
  * Returns TwiML that dials the prospect directly.
  */
 async function handleBrowserVoice(req: NextRequest) {
-  // ── Twilio signature validation (P0 security) ──────────────────────
+  // Twilio signature validation (P0 security)
   const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
   if (!twilioAuthToken) {
-    console.error("[BrowserVoice] TWILIO_AUTH_TOKEN not set — rejecting request");
+    console.error("[BrowserVoice] TWILIO_AUTH_TOKEN not set - rejecting request");
     return NextResponse.json({ error: "Server misconfigured" }, { status: 500 });
   }
   const twilioSignature = req.headers.get("x-twilio-signature") || "";
   // Twilio signs against the URL it was configured to call (the TwiML App Voice URL).
-  // On Vercel, req.url returns the internal deployment hostname, NOT the custom domain,
+  // On Vercel, req.url returns the internal deployment hostname, not the custom domain,
   // so signature validation fails every time. Use NEXT_PUBLIC_SITE_URL instead.
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
     ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
@@ -45,7 +46,7 @@ async function handleBrowserVoice(req: NextRequest) {
     bodyForValidation as Record<string, string>,
   );
   if (!isValidTwilio) {
-    console.warn("[BrowserVoice] Invalid Twilio signature — rejecting. Validated against:", validationUrl);
+    console.warn("[BrowserVoice] Invalid Twilio signature - rejecting. Validated against:", validationUrl);
     return NextResponse.json({ error: "Invalid Twilio signature" }, { status: 403 });
   }
 
@@ -60,14 +61,14 @@ async function handleBrowserVoice(req: NextRequest) {
 
   console.log("[BrowserVoice] Webhook hit:", {
     to: to ? `***${to.slice(-4)}` : null,
-    callLogId: callLogId ? `${callLogId.slice(0, 8)}…` : null,
-    agentId: agentId ? `${agentId.slice(0, 8)}…` : null,
-    callSid: callSid ? `${callSid.slice(0, 10)}…` : null,
+    callLogId: callLogId ? `${callLogId.slice(0, 8)}...` : null,
+    agentId: agentId ? `${agentId.slice(0, 8)}...` : null,
+    callSid: callSid ? `${callSid.slice(0, 10)}...` : null,
   });
 
   // If no To number, return hangup TwiML
   if (!to || to.startsWith("client:")) {
-    console.warn("[BrowserVoice] No valid To number — returning hangup");
+    console.warn("[BrowserVoice] No valid To number - returning hangup");
     const twiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
@@ -107,32 +108,21 @@ async function handleBrowserVoice(req: NextRequest) {
     ? `${siteUrl}/api/twilio/voice/status?callLogId=${encodeURIComponent(callLogId ?? "")}${sessionParam}&amp;type=dial_complete`
     : "";
 
-  // Build TwiML — dial the prospect directly from the browser
+  // Build TwiML - dial the prospect directly from the browser
   // Optionally add <Stream> for real-time transcription via Deepgram (WI-1)
-  // TRANSCRIPTION_WS_URL = WebSocket relay server that bridges Twilio audio → Deepgram
+  // TRANSCRIPTION_WS_URL = WebSocket relay server that bridges Twilio audio to Deepgram
   // Only enabled when both the WS URL is configured and DEEPGRAM_API_KEY is set
-  const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL; // e.g. wss://sentinel-transcription.fly.dev/media-stream
+  const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL;
   const hasDeepgram = !!process.env.DEEPGRAM_API_KEY;
-  const streamParams = new URLSearchParams();
-  if (callLogId) streamParams.set("callLogId", callLogId);
-  if (sessionId) streamParams.set("sessionId", sessionId);
-  if (agentId)   streamParams.set("userId", agentId);
-  // URLSearchParams uses raw & — must be &amp; inside XML attributes
-  const streamQuery = streamParams.toString().replace(/&/g, "&amp;");
-  // <Stream> must be wrapped in <Start> per Twilio TwiML spec
-  const streamLines = transcriptionUrl && hasDeepgram && (callLogId || sessionId)
-    ? [
-        "  <Start>",
-        `    <Stream url="${transcriptionUrl}" track="both_tracks">`,
-        ...(callLogId ? [`      <Parameter name="callLogId" value="${callLogId}" />`] : []),
-        ...(sessionId ? [`      <Parameter name="sessionId" value="${sessionId}" />`] : []),
-        ...(agentId ? [`      <Parameter name="userId" value="${agentId}" />`] : []),
-        "    </Stream>",
-        "  </Start>",
-      ]
-    : [];
+  const streamLines = buildBrowserVoiceStreamLines({
+    transcriptionUrl,
+    hasDeepgram,
+    callLogId,
+    sessionId,
+    agentId,
+  });
 
-  // Normalize the To number — strip any formatting, ensure E.164
+  // Normalize the To number - strip any formatting, ensure E.164
   const toNormalized = (() => {
     if (!to) return "";
     const digits = to.replace(/\D/g, "");
