@@ -153,10 +153,35 @@ describe("planNextQueueTarget", () => {
     });
   });
 
+  it("treats lead-ending outcomes like not interested as terminal", () => {
+    expect(planNextQueueTarget({
+      queueLeadIds,
+      currentLeadId: "lead-1",
+      phoneIndex: 0,
+      activePhoneCount: 3,
+      isTerminalDisposition: true,
+    })).toEqual({
+      action: "next",
+      leadId: "lead-2",
+    });
+  });
+
   it("finishes cleanly at the end of the queue", () => {
     expect(planNextQueueTarget({
       queueLeadIds,
       currentLeadId: "lead-3",
+      phoneIndex: 0,
+      activePhoneCount: 1,
+      isTerminalDisposition: false,
+    })).toEqual({
+      action: "done",
+    });
+  });
+
+  it("does not loop back to the first lead when the current lead is missing", () => {
+    expect(planNextQueueTarget({
+      queueLeadIds,
+      currentLeadId: "missing-lead",
       phoneIndex: 0,
       activePhoneCount: 1,
       isTerminalDisposition: false,

@@ -26,6 +26,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { resolveTerminalDispositionTargetStatus } from "./terminal-disposition-policy";
 import {
   TERMINAL_STATUSES,
   PUBLISH_DISPOSITIONS,
@@ -365,14 +366,16 @@ export async function publishSession(
 
   // ── Step 2.5: auto-disqualify on terminal dispositions ───
   //
-  // "not_interested" / "disqualified" → moves lead to nurture (recyclable, may re-engage)
-  // "dead_lead"                       → moves lead to dead (archived, effectively gone)
+  // "not_interested" / "dead_lead" → move lead to dead (archived, remove from active work)
+  // "disqualified"                 → moves lead to nurture (recyclable, may re-engage)
   //
   // Both are backward moves in the state machine, so next_action is not
   // enforced by guardrails. We set a default next_action for audit purposes.
 
   if (leadId && ["not_interested", "disqualified", "dead_lead"].includes(input.disposition)) {
-    const targetStatus = input.disposition === "dead_lead" ? "dead" : "nurture";
+    const targetStatus = resolveTerminalDispositionTargetStatus(
+      input.disposition as "not_interested" | "disqualified" | "dead_lead",
+    );
     try {
       try {
         const { evictFromDialQueueIfTerminalDisposition } = await import("@/lib/dial-queue");
@@ -397,9 +400,9 @@ export async function publishSession(
               const snap = sessionResult.data.context_snapshot as { ownerName?: string | null; address?: string | null } | null;
               const who = snap?.ownerName ?? snap?.address ?? "";
               const suffix = who ? ` — ${who}` : "";
-              return targetStatus === "nurture"
-                ? `Nurture check-in${suffix}`
-                : `Dead — archived from dialer${suffix}`;
+              return targetStatus === "dead"
+                ? `Dead — archived from dialer${suffix}`
+                : `Nurture check-in${suffix}`;
             })(),
             updated_at: new Date().toISOString(),
           })

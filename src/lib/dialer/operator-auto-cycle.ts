@@ -69,6 +69,8 @@ export function planNextQueueTarget({
   activePhoneCount,
   isTerminalDisposition = false,
 }: QueueAdvancePlanInput): QueueAdvancePlan {
+  // Power Dial is a single-pass worker: exhaust the current lead's active
+  // phones once, then move forward through the queue without looping back.
   const normalizedQueue = queueLeadIds.filter(Boolean);
   if (!currentLeadId) {
     const firstLeadId = normalizedQueue[0] ?? null;
@@ -89,6 +91,5 @@ export function planNextQueueTarget({
     return nextLeadId ? { action: "next", leadId: nextLeadId } : { action: "done" };
   }
 
-  const firstLeadId = normalizedQueue[0] ?? null;
-  return firstLeadId ? { action: "next", leadId: firstLeadId } : { action: "done" };
+  return { action: "done" };
 }

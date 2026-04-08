@@ -11,7 +11,7 @@ import {
   Mic, MicOff, Voicemail, CalendarCheck, FileSignature,
   Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
-  X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight,
+  X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight, Pause, Play,
   AlertTriangle, Wifi, WifiOff, RefreshCw, FileText, ExternalLink, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -994,6 +994,7 @@ function DialerPageInner() {
   const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
   const [phoneIndex, setPhoneIndex] = useState(0);
   const [pendingAutoDialLeadId, setPendingAutoDialLeadId] = useState<string | null>(null);
+  const [powerDialPaused, setPowerDialPaused] = useState(false);
   const displayedQueue = queue;
   const displayedQueueLoading = queueLoading;
   const phoneSelection = useMemo(
@@ -1536,12 +1537,16 @@ function DialerPageInner() {
 
   const advanceQueueAfterDisposition = useCallback((disposition: string, autoDial: boolean) => {
     const activePhoneCount = leadPhones.filter((phone) => phone.status === "active").length;
+    const isLeadTerminalDisposition =
+      disposition === "dead_lead" ||
+      disposition === "disqualified" ||
+      disposition === "not_interested";
     const plan = planNextQueueTarget({
       queueLeadIds: displayedQueue.map((lead) => lead.id),
       currentLeadId: currentLead?.id,
       phoneIndex,
       activePhoneCount,
-      isTerminalDisposition: disposition === "dead_lead" || disposition === "disqualified",
+      isTerminalDisposition: isLeadTerminalDisposition,
     });
 
     if (!autoDial) {
@@ -1551,6 +1556,11 @@ function DialerPageInner() {
     if (plan.action === "stay") {
       setPhoneIndex(plan.nextPhoneIndex);
       refreshCurrentLeadPhones();
+      if (autoDial && powerDialPaused) {
+        setPendingAutoDialLeadId(null);
+        toast.info(`Power Dial paused - phone ${plan.nextPhoneIndex + 1} loaded`);
+        return;
+      }
       if (autoDial && currentLead?.id) {
         setPendingAutoDialLeadId(currentLead.id);
         toast.info("Power Dial: dialing next number...");
@@ -1564,6 +1574,15 @@ function DialerPageInner() {
       const nextLead = displayedQueue.find((lead) => lead.id === plan.leadId) ?? null;
       setCurrentLead(nextLead);
       setPhoneIndex(0);
+      if (autoDial && powerDialPaused && nextLead) {
+        setPendingAutoDialLeadId(null);
+        toast.info(isLeadTerminalDisposition ? "Lead done - Power Dial paused on next lead" : "Power Dial paused on next lead");
+        return;
+      }
+      if (!autoDial && nextLead && isLeadTerminalDisposition) {
+        toast.info("Lead done - next lead loaded");
+        return;
+      }
       if (autoDial && nextLead) {
         setPendingAutoDialLeadId(nextLead.id);
         toast.info("Power Dial: next lead dialing...");
@@ -1577,7 +1596,7 @@ function DialerPageInner() {
 
     setPendingAutoDialLeadId(null);
     toast.info(autoDial ? "Power Dial complete — queue finished" : "Queue complete — all leads attempted");
-  }, [currentLead?.id, displayedQueue, leadPhones, phoneIndex, refreshCurrentLeadPhones]);
+  }, [currentLead?.id, displayedQueue, leadPhones, phoneIndex, powerDialPaused, refreshCurrentLeadPhones]);
 
   // ── Incoming call handler — attached to provider-managed Device ──
   useEffect(() => {
@@ -2578,6 +2597,7 @@ function DialerPageInner() {
   useEffect(() => {
     if (!autoCycleMode) return;
     if (!pendingAutoDialLeadId) return;
+    if (powerDialPaused) return;
     if (callState !== "idle" || dispositionPending) return;
     if (!currentLead || currentLead.id !== pendingAutoDialLeadId) return;
     if (!selectedDialPhone) return;
@@ -2591,12 +2611,20 @@ function DialerPageInner() {
   }, [
     autoCycleMode,
     pendingAutoDialLeadId,
+    powerDialPaused,
     callState,
     dispositionPending,
     currentLead,
     selectedDialPhone,
     handleDial,
   ]);
+
+  useEffect(() => {
+    if (!autoCycleMode) {
+      setPowerDialPaused(false);
+      setPendingAutoDialLeadId(null);
+    }
+  }, [autoCycleMode]);
 
   const handleManualPostCallDone = useCallback(() => {
     setManualStatus("idle");
@@ -3516,6 +3544,32 @@ function DialerPageInner() {
                 >
                   Refresh
                 </button>
+                {autoCycleMode && (
+                  <button
+                    onClick={() => {
+                      if (powerDialPaused) {
+                        setPowerDialPaused(false);
+                        if (callState === "idle" && currentLead?.id && selectedDialPhone) {
+                          setPendingAutoDialLeadId(currentLead.id);
+                        }
+                        toast.info("Power Dial resumed");
+                      } else {
+                        setPowerDialPaused(true);
+                        setPendingAutoDialLeadId(null);
+                        toast.info("Power Dial paused");
+                      }
+                    }}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-[8px] border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors",
+                      powerDialPaused
+                        ? "border-emerald-400/25 bg-emerald-400/8 text-emerald-300 hover:bg-emerald-400/15"
+                        : "border-amber-400/25 bg-amber-400/8 text-amber-300 hover:bg-amber-400/15",
+                    )}
+                  >
+                    {powerDialPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                    {powerDialPaused ? "Resume" : "Pause"}
+                  </button>
+                )}
                 {!autoCycleMode && dialerMode === "queue" && (
                   <button
                     onClick={handleSkipTraceQueue}
@@ -3530,7 +3584,9 @@ function DialerPageInner() {
             </div>
             <p className="text-xs text-muted-foreground/40 mb-2">
               {autoCycleMode
-                ? "Uses the same dial queue and auto-calls the next number after each closeout."
+                ? powerDialPaused
+                  ? "Power Dial is paused. Resume to continue auto-calling through the shared queue."
+                  : "Uses the same dial queue and auto-calls the next number after each closeout."
                 : `${displayedQueue.length} queued`}
             </p>
 
