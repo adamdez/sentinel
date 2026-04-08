@@ -10,7 +10,7 @@ import { runClaimEnrichment } from "@/lib/intake-claim-enrichment";
  * - from_special_intake = true (flags for auto-cycle suppression)
  * - source_category set to the provider name
  * - intake_lead_id linked for traceability
- * - next_action = "review" (requires operator approval before auto-dial)
+ * - next_action = "review" (puts the file straight into the Active workspace)
  *
  * Request body:
  * {
@@ -195,21 +195,21 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 3: Create lead record with special intake markers
-    // Claimed intake records enter the lead-stage intro queue, not Active.
+    // Claimed PPL intake records go straight into Active instead of the bulky lead queue.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: lead, error: leadError } = await (sb.from("leads") as any)
       .insert({
         property_id: property.id,
         contact_id: contact?.id || null,
-        status: "lead",
-        assigned_to: assign_to || null,
+        status: "active",
+        assigned_to: assign_to || user.id,
         source: "special_intake",
         source_category: sourceCategory,
         from_special_intake: true,
         intake_lead_id: intake_lead_id,
         next_action: "review",
         next_action_due_at: new Date().toISOString(),
-        notes: notes ? `[Claimed] ${notes}` : "[Claimed from intake queue]",
+        notes: notes ? `[Claimed into Active] ${notes}` : "[Claimed into Active from intake queue]",
         tags: ["special_intake", sourceCategory.toLowerCase().replace(/\s+/g, "_")],
       })
       .select()
