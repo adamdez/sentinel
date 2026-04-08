@@ -71,18 +71,18 @@ export async function GET(req: NextRequest) {
     // Join lead context for tasks that have lead_id
     const leadIds = [...new Set((tasks ?? []).filter((t: { lead_id: string | null }) => t.lead_id).map((t: { lead_id: string }) => t.lead_id))];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let leadMap: Record<string, any> = {};
+    const leadMap: Record<string, any> = {};
 
     if (leadIds.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: leads } = await (sb.from("leads") as any)
-        .select("id, property_id, status")
+        .select("id, property_id, status, dial_queue_active")
         .in("id", leadIds.slice(0, 100));
 
       const propIds = [...new Set((leads ?? []).filter((l: { property_id: string | null }) => l.property_id).map((l: { property_id: string }) => l.property_id))];
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let propMap: Record<string, any> = {};
+      const propMap: Record<string, any> = {};
       if (propIds.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: props } = await (sb.from("properties") as any)
@@ -102,13 +102,35 @@ export async function GET(req: NextRequest) {
           lead_owner: owner,
           lead_phone: prop.owner_phone ?? null,
           lead_status: l.status ?? null,
+          dial_queue_active: l.dial_queue_active === true,
         };
       });
     }
 
+    const assignedUserIds = [
+      ...new Set(
+        (tasks ?? [])
+          .map((t: { assigned_to: string | null }) => t.assigned_to)
+          .filter((value: string | null): value is string => typeof value === "string" && value.length > 0)
+      ),
+    ];
+    const assigneeNameMap: Record<string, string> = {};
+    if (assignedUserIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: profiles } = await (sb.from("user_profiles") as any)
+        .select("id, full_name")
+        .in("id", assignedUserIds.slice(0, 200));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (profiles ?? []).forEach((profile: any) => {
+        if (typeof profile?.id === "string") {
+          assigneeNameMap[profile.id] = typeof profile?.full_name === "string" ? profile.full_name : "Unknown";
+        }
+      });
+    }
+
     // Fetch last call context for each lead
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let callMap: Record<string, { last_call_date: string; last_call_disposition: string | null; last_call_notes: string | null }> = {};
+    const callMap: Record<string, { last_call_date: string; last_call_disposition: string | null; last_call_notes: string | null }> = {};
     if (leadIds.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: calls } = await (sb.from("calls_log") as any)
@@ -130,13 +152,14 @@ export async function GET(req: NextRequest) {
     }
 
     const noCallContext = { last_call_date: null, last_call_disposition: null, last_call_notes: null };
-    const noLeadContext = { lead_address: null, lead_owner: null, lead_phone: null, lead_status: null };
+    const noLeadContext = { lead_address: null, lead_owner: null, lead_phone: null, lead_status: null, dial_queue_active: false };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const enriched = (tasks ?? []).map((t: any) => ({
       ...t,
       ...(leadMap[t.lead_id] ?? noLeadContext),
       ...(callMap[t.lead_id] ?? noCallContext),
+      assigned_to_name: typeof t.assigned_to === "string" ? (assigneeNameMap[t.assigned_to] ?? null) : null,
     }));
 
     return NextResponse.json({ tasks: enriched });

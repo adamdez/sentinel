@@ -8,6 +8,7 @@ export interface TaskItem {
   title: string;
   description: string | null;
   assigned_to: string | null;
+  assigned_to_name?: string | null;
   lead_id: string | null;
   deal_id: string | null;
   contact_id: string | null;
@@ -28,6 +29,7 @@ export interface TaskItem {
   lead_owner?: string | null;
   lead_phone?: string | null;
   lead_status?: string | null;
+  dial_queue_active?: boolean;
   // Last call context
   last_call_date?: string | null;
   last_call_disposition?: string | null;
