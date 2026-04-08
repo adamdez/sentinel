@@ -1033,6 +1033,7 @@ function DialerPageInner() {
   const [dialerMode, setDialerMode] = useState<DialerMode>("queue");
   const autoCycleMode = dialerMode === "autoCycle";
   const [queueSkipTracing, setQueueSkipTracing] = useState(false);
+  const [leadSkipTracingId, setLeadSkipTracingId] = useState<string | null>(null);
   const [introActionLeadId, setIntroActionLeadId] = useState<string | null>(null);
   const [currentDialedPhone, setCurrentDialedPhone] = useState<string | null>(null);
   const [currentCallLogId, setCurrentCallLogId] = useState<string | null>(null);
@@ -1081,6 +1082,10 @@ function DialerPageInner() {
   const currentLeadSkipTraceBadge = currentLeadSkipTraceState
     ? getSkipTraceBadgeConfig(currentLeadSkipTraceState.status)
     : null;
+  const currentLeadSkipTraceActionable =
+    currentLeadSkipTraceState != null
+    && currentLeadSkipTraceState.status !== "skipped"
+    && currentLeadSkipTraceState.status !== "skip_empty";
 
   // useCallNotes removed — seller memory preview covers last-call context
   const { brief: preCallBrief } = usePreCallBrief(currentLead?.id ?? null);
@@ -1610,6 +1615,83 @@ function DialerPageInner() {
         })
     ).catch(() => {});
   }, [currentLead?.id]);
+
+  const runLeadSkipTrace = useCallback(async (lead: QueueLead, manual = false) => {
+    if (!lead.properties?.id || leadSkipTracingId) return;
+
+    const isCurrentLead = currentLead?.id === lead.id;
+    const isPowerDialCurrentLead = autoCycleMode && isCurrentLead;
+    if (isPowerDialCurrentLead) {
+      setPowerDialPaused(true);
+      setPendingAutoDialLeadId(null);
+      toast.info("Power Dial paused for skip trace");
+    }
+
+    setLeadSkipTracingId(lead.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired - please sign in again");
+        return;
+      }
+
+      const res = await fetch("/api/prospects/skip-trace", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          property_id: lead.properties.id,
+          lead_id: lead.id,
+          manual,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({} as Record<string, unknown>));
+      if (data.success) {
+        await Promise.resolve(refetchQueue());
+        if (isCurrentLead) {
+          authHeaders().then((hdrs) =>
+            fetch(`/api/leads/${lead.id}/phones`, { headers: hdrs })
+              .then((phoneRes) => (phoneRes.ok ? phoneRes.json() : null))
+              .then((phoneData) => {
+                if (phoneData?.phones) setLeadPhones(phoneData.phones);
+              })
+          ).catch(() => {});
+        }
+
+        const parts: string[] = [];
+        if (Array.isArray(data.phones) && data.phones.length > 0) parts.push(`${data.phones.length} phone(s)`);
+        if (Array.isArray(data.emails) && data.emails.length > 0) parts.push(`${data.emails.length} email(s)`);
+        if (Array.isArray(data.persons) && data.persons.length > 0) parts.push(`${data.persons.length} person(s)`);
+
+        toast.success(parts.length > 0 ? `Skip trace complete: ${parts.join(", ")}` : "Skip trace complete - no contact info found");
+        return;
+      }
+
+      const reasonText = typeof data.reason === "string" ? data.reason.toLowerCase() : "";
+      const addressIssues = Array.isArray(data.address_issues)
+        ? data.address_issues.filter((issue: unknown): issue is string => typeof issue === "string" && issue.trim().length > 0)
+        : [];
+      if (reasonText.includes("missing") || reasonText.includes("address") || addressIssues.length > 0) {
+        toast.warning(
+          addressIssues.length > 0
+            ? `Skip trace needs missing address info: ${addressIssues.join(", ")}`
+            : "Skip trace could not run because required property address info is missing.",
+        );
+      } else {
+        toast.error(typeof data.error === "string" ? data.error : "Skip trace failed");
+      }
+
+      await Promise.resolve(refetchQueue());
+    } catch (error) {
+      console.error("[Dialer] Lead skip trace failed:", error);
+      toast.error(error instanceof Error ? error.message : "Network error");
+    } finally {
+      setLeadSkipTracingId(null);
+    }
+  }, [autoCycleMode, currentLead?.id, leadSkipTracingId, refetchQueue]);
 
   const advanceQueueAfterDisposition = useCallback((disposition: string, autoDial: boolean) => {
     const activePhoneCount = leadPhones.filter((phone) => phone.status === "active").length;
@@ -3712,16 +3794,22 @@ function DialerPageInner() {
                 </div>
                 {displayedQueue.map((lead, idx) => {
                   const isActive = currentLead?.id === lead.id;
-                  const skipTraceBadge = lead.properties
-                    ? getSkipTraceBadgeConfig(
-                      deriveSkipTraceUiState({
-                        clientFile: clientFileFromRaw(
-                          lead as unknown as Record<string, any>,
-                          lead.properties as unknown as Record<string, any>,
-                        ),
-                      }).status,
-                    )
+                  const skipTraceState = lead.properties
+                    ? deriveSkipTraceUiState({
+                      clientFile: clientFileFromRaw(
+                        lead as unknown as Record<string, any>,
+                        lead.properties as unknown as Record<string, any>,
+                      ),
+                    }).status
                     : null;
+                  const skipTraceBadge = skipTraceState
+                    ? getSkipTraceBadgeConfig(skipTraceState)
+                    : null;
+                  const skipTraceActionable =
+                    skipTraceState != null
+                    && skipTraceState !== "skipped"
+                    && skipTraceState !== "skip_empty";
+                  const rowSkipTracing = leadSkipTracingId === lead.id;
                   const rowDueIso = lead.next_call_scheduled_at ?? lead.next_follow_up_at ?? lead.follow_up_date ?? null;
                   const wf = buildOperatorWorkflowSummary({
                     status: lead.status,
@@ -3794,12 +3882,30 @@ function DialerPageInner() {
                             <span key={tag} className="text-xs px-1.5 py-0 rounded bg-overlay-4 border border-overlay-8 text-muted-foreground/60">{tag}</span>
                           ))}
                           {skipTraceBadge && (
-                            <span className={cn(
-                              "text-[10px] px-1.5 py-0 rounded border font-semibold uppercase tracking-wider",
-                              skipTraceBadge.className,
-                            )}>
-                              {skipTraceBadge.label}
-                            </span>
+                            skipTraceActionable ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void runLeadSkipTrace(lead);
+                                }}
+                                disabled={rowSkipTracing}
+                                className={cn(
+                                  "inline-flex items-center gap-1 text-[10px] px-1.5 py-0 rounded border font-semibold uppercase tracking-wider transition-colors disabled:opacity-60",
+                                  skipTraceBadge.className,
+                                )}
+                              >
+                                {rowSkipTracing ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
+                                {rowSkipTracing ? "Skipping..." : skipTraceBadge.label}
+                              </button>
+                            ) : (
+                              <span className={cn(
+                                "text-[10px] px-1.5 py-0 rounded border font-semibold uppercase tracking-wider",
+                                skipTraceBadge.className,
+                              )}>
+                                {skipTraceBadge.label}
+                              </span>
+                            )
                           )}
                         </div>
                         <div className="grid grid-cols-[1fr_76px_84px] gap-1 pl-5 pr-2 text-xs items-center">
@@ -3956,13 +4062,33 @@ function DialerPageInner() {
                           {getCadencePosition(currentLead.total_calls ?? 0).label}
                         </Badge>
                         {currentLeadSkipTraceBadge && (
-                          <Badge
-                            variant="outline"
-                            className={cn("text-xs gap-1", currentLeadSkipTraceBadge.className)}
-                          >
-                            <Search className="h-2.5 w-2.5" />
-                            {currentLeadSkipTraceBadge.label}
-                          </Badge>
+                          currentLeadSkipTraceActionable ? (
+                            <button
+                              type="button"
+                              onClick={() => void runLeadSkipTrace(currentLead)}
+                              disabled={leadSkipTracingId === currentLead.id}
+                              className={cn(
+                                "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60",
+                                "gap-1",
+                                currentLeadSkipTraceBadge.className,
+                              )}
+                            >
+                              {leadSkipTracingId === currentLead.id ? (
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                              ) : (
+                                <Search className="h-2.5 w-2.5" />
+                              )}
+                              {leadSkipTracingId === currentLead.id ? "Skipping..." : currentLeadSkipTraceBadge.label}
+                            </button>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className={cn("text-xs gap-1", currentLeadSkipTraceBadge.className)}
+                            >
+                              <Search className="h-2.5 w-2.5" />
+                              {currentLeadSkipTraceBadge.label}
+                            </Badge>
+                          )
                         )}
                         {!currentLead.compliant && !ghostMode && (
                           <Badge variant="destructive" className="text-sm">
