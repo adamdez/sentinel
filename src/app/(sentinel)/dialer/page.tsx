@@ -1672,15 +1672,20 @@ function DialerPageInner() {
     }
 
     const poll = async () => {
-      if (!currentCallLogId && !currentCallSid) return;
+      const trackedSessionId = dialerSessionId ?? manualSessionId ?? activeSessionRef.current;
+      if (!currentCallLogId && !currentCallSid && !trackedSessionId) return;
       try {
         const hdrs = await authHeaders();
         const params = new URLSearchParams();
         if (currentCallLogId) params.set("callLogId", currentCallLogId);
         if (currentCallSid) params.set("callSid", currentCallSid);
+        if (trackedSessionId) params.set("sessionId", trackedSessionId);
         const res = await fetch(`/api/dialer/call-status?${params}`, { headers: hdrs });
         if (!res.ok) return;
         const data = await res.json();
+        if (!currentCallLogId && data.callLogId) {
+          setCurrentCallLogId(data.callLogId);
+        }
 
         const status = data.twilioStatus || data.dbStatus;
         setLiveCallStatus(status);
@@ -1693,19 +1698,34 @@ function DialerPageInner() {
           // Don't auto-reset to idle — let the user see the error and disposition
         }
 
-        // Safety net: if Twilio says the call completed but we still show
-        // "connected", force-disconnect the browser leg so the operator
-        // doesn't sit on dead air thinking the customer is still there.
-        if (status === "completed" && callState === "connected") {
-          console.warn("[Dialer] Twilio reports completed but UI still connected — forcing disconnect");
+        // Safety net: if Twilio/DB says the call reached any terminal state but
+        // the UI still shows a live call, force-disconnect the browser leg so the
+        // operator doesn't get stuck in a dead session.
+        if (
+          (status === "completed" ||
+            status === "failed" ||
+            status === "canceled" ||
+            status === "busy" ||
+            status === "no-answer") &&
+          (callState === "connected" || callState === "dialing")
+        ) {
+          console.warn(`[Dialer] Call reached terminal status (${status}) while UI was still live — forcing teardown`);
           if (activeCallRef.current) {
             try { activeCallRef.current.disconnect(); } catch { /* already dead */ }
           }
           setActiveCall(null);
-          setCallState("ended");
-          setTransferStatus(null);
-          setLiveCallStatus("completed");
-          timer.stop();
+          setIncomingCall(null);
+          setIncomingFrom(null);
+          setIncomingMatch(null);
+          setTransferStatus(status === "completed" ? null : `Call ${status}`);
+          setLiveCallStatus(status);
+          if (status === "canceled" && callState === "dialing") {
+            setCallState("idle");
+            timer.reset();
+          } else {
+            setCallState("ended");
+            timer.stop();
+          }
         }
       } catch {
         // Non-blocking
@@ -1722,7 +1742,7 @@ function DialerPageInner() {
         statusPollRef.current = null;
       }
     };
-  }, [callState, currentCallLogId, currentCallSid]);
+  }, [callState, currentCallLogId, currentCallSid, dialerSessionId, manualSessionId, timer]);
 
   // ── Twilio diagnostics ──────────────────────────────────────────
   const runDiagnostics = useCallback(async () => {
