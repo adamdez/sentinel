@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { isBusinessHours } from "@/providers/voice/vapi-adapter";
+import {
+  parseInboundOperatorStep,
+  resolveInboundRoutePlan,
+} from "@/lib/twilio-inbound-routing";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 15;
 
 const INBOUND_TRANSCRIPTION_STREAM_NAME = "sentinel-inbound-live-notes";
-const DEFAULT_INBOUND_USER_ID = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
-
 /**
  * POST /api/twilio/inbound
  *
@@ -153,13 +155,18 @@ export async function POST(req: NextRequest) {
     const isTransfer = url.searchParams.get("transfer") === "1";
     const transferVsid = url.searchParams.get("vsid") ?? "";
     const originalFrom = url.searchParams.get("originalFrom") ?? "";
+    const originalTo = url.searchParams.get("originalTo") ?? "";
+    const routePlan = resolveInboundRoutePlan({
+      toNumber: originalTo,
+      primaryStepOverride: parseInboundOperatorStep(url.searchParams.get("primary")),
+    });
+    const currentStep = parseInboundOperatorStep(step) ?? routePlan.primaryStep;
     const chainCallLogId = url.searchParams.get("callLogId");
     const formData = await req.formData();
     const dialStatus = formData.get("DialCallStatus")?.toString() ?? "";
     const fromNumber = formData.get("From")?.toString() ?? "";
     const callSid = formData.get("CallSid")?.toString() ?? "";
 
-    const adamIdentity = process.env.ADAM_BROWSER_IDENTITY ?? "adam@dominionhomedeals.com";
     const vapiNumber = (process.env.VAPI_PHONE_NUMBER ?? "").trim();
     const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
 
@@ -170,7 +177,14 @@ export async function POST(req: NextRequest) {
       const dialDuration = formData.get("DialCallDuration")?.toString() ?? null;
       after(async () => {
         try {
-          await handleAnsweredInbound({ fromNumber, callSid, dialDuration });
+          await handleAnsweredInbound({
+            fromNumber,
+            callSid,
+            dialDuration,
+            answeredUserId: currentStep === routePlan.secondaryStep
+              ? routePlan.secondaryUserId
+              : routePlan.primaryUserId,
+          });
         } catch (err) {
           console.error("[inbound] after() handleAnsweredInbound failed:", err);
         }
@@ -192,7 +206,12 @@ export async function POST(req: NextRequest) {
           if (isTransfer) {
             await handleMissedTransfer({ originalFrom: missedFrom, callSid, voiceSessionId: transferVsid, siteUrl });
           } else {
-            await handleMissedInbound({ fromNumber: missedFrom, callSid, siteUrl });
+            await handleMissedInbound({
+              fromNumber: missedFrom,
+              callSid,
+              siteUrl,
+              fallbackUserId: routePlan.primaryUserId,
+            });
           }
         } catch (err) {
           console.error("[inbound] after() canceled handler failed:", err);
@@ -225,6 +244,10 @@ export async function POST(req: NextRequest) {
     const chainParams2 = chainSessionId
       ? `&amp;sessionId=${chainSessionId}&amp;callLogId=${encodeURIComponent(safeChainCallLogId)}`
       : "";
+    const routeParams = [
+      `&amp;primary=${routePlan.primaryStep}`,
+      originalTo ? `&amp;originalTo=${encodeURIComponent(originalTo)}` : "",
+    ].join("");
     // Carry transfer flag through the chain so subsequent steps know not to loop back to Vapi
     const transferParams = isTransfer ? `&amp;transfer=1&amp;vsid=${encodeURIComponent(transferVsid)}&amp;originalFrom=${encodeURIComponent(originalFrom)}` : "";
 
@@ -236,18 +259,18 @@ export async function POST(req: NextRequest) {
     const callerIdForBrowser = originalFrom || twilioNumber;
     const originalFromParam = originalFrom ? `&amp;originalFrom=${encodeURIComponent(originalFrom)}` : "";
 
-    if (step === "logan" && adamIdentity) {
+    if (currentStep === routePlan.primaryStep && routePlan.secondaryIdentity) {
       // Logan's browser didn't answer → try Adam's browser for 20 seconds
       console.log(`[inbound] Logan browser missed → trying Adam browser${isTransfer ? " (transfer cascade)" : ""}`);
       nextTwiml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
-        `  <Dial callerId="${callerIdForBrowser}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=adam${originalFromParam}${chainParams2}${transferParams}" method="POST">`,
-        `    <Client>${adamIdentity}</Client>`,
+        `  <Dial callerId="${callerIdForBrowser}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=${routePlan.secondaryStep}${originalFromParam}${chainParams2}${routeParams}${transferParams}" method="POST">`,
+        `    <Client>${routePlan.secondaryIdentity}</Client>`,
         "  </Dial>",
         "</Response>",
       ].join("\n");
-    } else if ((step === "adam" || (step === "logan" && !adamIdentity)) && vapiNumber && !isTransfer) {
+    } else if (currentStep === routePlan.secondaryStep && vapiNumber && !isTransfer) {
       // Adam's browser didn't answer → forward to Jeff (Vapi AI)
       // ONLY for regular inbound. Vapi transfers skip this step to prevent looping.
       // Preserve the original caller when handing off to Jeff so Vapi can
@@ -259,7 +282,7 @@ export async function POST(req: NextRequest) {
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
         ...stopInboundStreamLines,
-        `  <Dial callerId="${callerIdForJeff}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status&amp;callLogId=${encodeURIComponent(safeChainCallLogId)}" method="POST">`,
+        `  <Dial callerId="${callerIdForJeff}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status&amp;callLogId=${encodeURIComponent(safeChainCallLogId)}${routeParams}" method="POST">`,
         `    <Number>${vapiNumber}</Number>`,
         "  </Dial>",
         "</Response>",
@@ -275,7 +298,12 @@ export async function POST(req: NextRequest) {
           if (isTransfer) {
             await handleMissedTransfer({ originalFrom: missedFrom, callSid, voiceSessionId: transferVsid, siteUrl });
           } else {
-            await handleMissedInbound({ fromNumber: missedFrom, callSid, siteUrl });
+            await handleMissedInbound({
+              fromNumber: missedFrom,
+              callSid,
+              siteUrl,
+              fallbackUserId: routePlan.primaryUserId,
+            });
           }
         } catch (err) {
           console.error("[inbound] after() missed handler failed:", err);
@@ -302,6 +330,10 @@ export async function POST(req: NextRequest) {
     const callSid    = formData.get("CallSid")?.toString()  ?? "";
     const dialStatus = formData.get("DialCallStatus")?.toString() ?? "";
     const callLogId = url.searchParams.get("callLogId");
+    const routePlan = resolveInboundRoutePlan({
+      toNumber: url.searchParams.get("originalTo"),
+      primaryStepOverride: parseInboundOperatorStep(url.searchParams.get("primary")),
+    });
     // DialCallDuration is present when the Dial action fires after the leg ends
     const dialDuration = formData.get("DialCallDuration")?.toString() ?? null;
 
@@ -329,9 +361,19 @@ export async function POST(req: NextRequest) {
     after(async () => {
       try {
         if (wasAnswered) {
-          await handleAnsweredInbound({ fromNumber, callSid, dialDuration });
+          await handleAnsweredInbound({
+            fromNumber,
+            callSid,
+            dialDuration,
+            answeredUserId: routePlan.primaryUserId,
+          });
         } else if (isMissed) {
-          await handleMissedInbound({ fromNumber, callSid, siteUrl });
+          await handleMissedInbound({
+            fromNumber,
+            callSid,
+            siteUrl,
+            fallbackUserId: routePlan.primaryUserId,
+          });
         }
       } catch (err) {
         console.error("[inbound] after() call_status handler failed:", err);
@@ -355,13 +397,14 @@ export async function POST(req: NextRequest) {
   // TRANSFER CASCADE: When Jeff (Vapi) transfers a call back here, From will
   // be the Vapi phone number. We detect this and use a modified chain that
   // skips the Vapi fallback step (would loop). Instead: Logan → Adam → missed.
-  const loganIdentity = process.env.LOGAN_BROWSER_IDENTITY ?? "logan@dominionhomedeals.com";
   const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
 
   // Parse inbound caller info
   const formData = await req.formData();
   const fromNumber = formData.get("From")?.toString() ?? "";
   const callSid = formData.get("CallSid")?.toString() ?? "";
+  const toNumber = formData.get("To")?.toString() ?? "";
+  const routePlan = resolveInboundRoutePlan({ toNumber });
 
   // ── Detect Vapi transfer ──────────────────────────────────────────────
   const vapiNumber = (process.env.VAPI_PHONE_NUMBER ?? "").trim();
@@ -398,7 +441,7 @@ export async function POST(req: NextRequest) {
 
     const originalFrom = transferSession?.from_number ?? fromNumber;
     const vsid = transferSession?.id ?? "";
-    const adamIdentity = process.env.ADAM_BROWSER_IDENTITY ?? "adam@dominionhomedeals.com";
+    const transferRoutePlan = resolveInboundRoutePlan({ primaryStepOverride: "logan" });
 
     console.log("[inbound] Vapi transfer detected:", {
       originalCaller: originalFrom ? `***${originalFrom.slice(-4)}` : "unknown",
@@ -438,8 +481,8 @@ export async function POST(req: NextRequest) {
     const transferTwiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
-      `  <Dial callerId="${originalFrom || twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan&amp;transfer=1&amp;vsid=${encodeURIComponent(vsid)}&amp;originalFrom=${encodeURIComponent(originalFrom)}" method="POST">`,
-      `    <Client>${loganIdentity}</Client>`,
+      `  <Dial callerId="${originalFrom || twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan&amp;transfer=1&amp;vsid=${encodeURIComponent(vsid)}&amp;originalFrom=${encodeURIComponent(originalFrom)}&amp;primary=${transferRoutePlan.primaryStep}" method="POST">`,
+      `    <Client>${transferRoutePlan.primaryIdentity}</Client>`,
       "  </Dial>",
       "</Response>",
     ].join("\n");
@@ -455,7 +498,6 @@ export async function POST(req: NextRequest) {
   // Supabase/Postgres accept client-supplied UUIDs for id columns.
   const sessionId = crypto.randomUUID();
   const callLogId = crypto.randomUUID();
-  const loganUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
 
   // Build <Stream> for Deepgram transcription (same pattern as outbound)
   const transcriptionUrl = process.env.TRANSCRIPTION_WS_URL;
@@ -466,7 +508,7 @@ export async function POST(req: NextRequest) {
         `    <Stream name="${INBOUND_TRANSCRIPTION_STREAM_NAME}" url="${transcriptionUrl}" track="both_tracks">`,
         `      <Parameter name="callLogId" value="${callLogId}" />`,
         `      <Parameter name="sessionId" value="${sessionId}" />`,
-        `      <Parameter name="userId" value="${loganUserId}" />`,
+        `      <Parameter name="userId" value="${routePlan.primaryUserId}" />`,
         "    </Stream>",
         "  </Start>",
       ]
@@ -475,7 +517,12 @@ export async function POST(req: NextRequest) {
   // After-hours: skip browser ring cascade, send directly to Jeff (Vapi AI)
   // During hours: Ring Logan's browser (20s) → chain continues to Adam → Jeff
   const hours = isBusinessHours();
-  const chainParams = `&amp;sessionId=${sessionId}&amp;callLogId=${callLogId}`;
+  const chainParams = [
+    `&amp;sessionId=${sessionId}`,
+    `&amp;callLogId=${callLogId}`,
+    `&amp;primary=${routePlan.primaryStep}`,
+    toNumber ? `&amp;originalTo=${encodeURIComponent(toNumber)}` : "",
+  ].join("");
 
   let twiml: string;
 
@@ -501,8 +548,8 @@ export async function POST(req: NextRequest) {
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
       ...streamLines,
-      `  <Dial callerId="${fromNumber || twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=logan${originalFromParam}${chainParams}" method="POST">`,
-      `    <Client>${loganIdentity}</Client>`,
+      `  <Dial callerId="${fromNumber || twilioNumber}" timeout="20" action="${siteUrl}/api/twilio/inbound?type=chain_step&amp;step=${routePlan.primaryStep}${originalFromParam}${chainParams}" method="POST">`,
+      `    <Client>${routePlan.primaryIdentity}</Client>`,
       "  </Dial>",
       "</Response>",
     ].join("\n");
@@ -510,6 +557,8 @@ export async function POST(req: NextRequest) {
 
   console.log("[inbound] TwiML returned in <50ms, DB work deferred to after():", {
     from: fromNumber ? `***${fromNumber.slice(-4)}` : "none",
+    to: toNumber ? `***${toNumber.slice(-4)}` : "none",
+    primary: routePlan.primaryStep,
     sessionId: sessionId.slice(0, 8),
     callLogId: callLogId.slice(0, 8),
   });
@@ -534,7 +583,7 @@ export async function POST(req: NextRequest) {
         .insert({
           id: sessionId,
           lead_id: matchedLeadId,
-          user_id: loganUserId,
+          user_id: routePlan.primaryUserId,
           twilio_sid: callSid,
           phone_dialed: fromNumber || "unknown",
           status: "ringing",
@@ -547,7 +596,7 @@ export async function POST(req: NextRequest) {
         .insert({
           id: callLogId,
           lead_id: matchedLeadId,
-          user_id: loganUserId,
+          user_id: routePlan.primaryUserId,
           phone_dialed: fromNumber || null,
           twilio_sid: callSid,
           disposition: "in_progress",
@@ -604,10 +653,12 @@ async function handleMissedInbound({
   fromNumber,
   callSid,
   siteUrl: _siteUrl,
+  fallbackUserId,
 }: {
   fromNumber: string;
   callSid: string;
   siteUrl: string;
+  fallbackUserId?: string | null;
 }) {
   const sb = createServerClient();
   const now = new Date();
@@ -624,8 +675,8 @@ async function handleMissedInbound({
 
   let taskId: string | null = null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const fallbackUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
-  const taskAssignee = assignedTo ?? fallbackUserId;
+  const defaultFallbackUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
+  const taskAssignee = assignedTo ?? fallbackUserId ?? defaultFallbackUserId;
   const { data: taskRow, error: taskErr } = await (sb.from("tasks") as any)
     .insert({
       title: taskTitle,
@@ -714,10 +765,12 @@ async function handleAnsweredInbound({
   fromNumber,
   callSid,
   dialDuration,
+  answeredUserId,
 }: {
   fromNumber: string;
   callSid: string;
   dialDuration: string | null;
+  answeredUserId?: string | null;
 }) {
   const sb = createServerClient();
   const now = new Date();
@@ -734,7 +787,7 @@ async function handleAnsweredInbound({
   const { error: eventErr } = await (sb.from("dialer_events") as any)
     .insert({
       event_type: "inbound.answered",
-      user_id: DEFAULT_INBOUND_USER_ID,
+      user_id: answeredUserId ?? (process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811"),
       lead_id: leadId,
       session_id: null,
       task_id: null,
