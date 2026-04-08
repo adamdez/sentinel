@@ -26,7 +26,7 @@ const DRIVE_BY_SELECT = [
   "id",
   "property_id",
   "status",
-  "property:properties!inner(address, city, state, zip, county, owner_name, owner_phone, owner_email, mailing_address)",
+  "property:properties!inner(address, city, state, zip, county, owner_name, owner_phone, owner_email)",
   "next_action",
   "next_action_due_at",
   "next_call_scheduled_at",
