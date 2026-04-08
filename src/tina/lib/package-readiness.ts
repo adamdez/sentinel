@@ -1,6 +1,11 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
+import { buildTinaCurrentFileReviewerReality } from "@/tina/lib/current-file-reviewer-reality";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { buildTinaFinalPackageQualityReport } from "@/tina/lib/final-package-quality";
+import { buildTinaLiveAcceptanceReport } from "@/tina/lib/live-acceptance";
+import { buildTinaPlanningReport } from "@/tina/lib/planning-report";
 import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
+import { buildTinaTransactionReconciliationReport } from "@/tina/lib/transaction-reconciliation";
 import type {
   TinaPackageReadinessItem,
   TinaPackageReadinessLevel,
@@ -70,6 +75,32 @@ function fieldNeedsAttention(field: TinaScheduleCDraftField): boolean {
 
 function noteNeedsAttention(note: TinaScheduleCDraftNote): boolean {
   return note.severity === "needs_attention";
+}
+
+function collectSourceFactValues(
+  draft: TinaWorkspaceDraft,
+  labels: string[]
+): string[] {
+  const allowed = new Set(labels);
+  return draft.sourceFacts
+    .filter((fact) => allowed.has(fact.label))
+    .map((fact) => fact.value);
+}
+
+function hasAdjustmentKind(
+  draft: TinaWorkspaceDraft,
+  kind: TinaWorkspaceDraft["taxAdjustments"]["adjustments"][number]["kind"]
+): boolean {
+  return draft.taxAdjustments.adjustments.some((adjustment) => adjustment.kind === kind);
+}
+
+function planningScenarioNeedsWorkflowAttention(args: {
+  id: string;
+  supportLevel: "strong" | "developing" | "thin";
+  payoffWindow: "current_return" | "next_cycle" | "needs_reviewer_call";
+}): boolean {
+  if (args.payoffWindow === "needs_reviewer_call") return true;
+  return args.id === "continuity" && args.supportLevel !== "strong";
 }
 
 function parseTimestamp(value: string | null): number {
@@ -142,7 +173,26 @@ export function buildTinaPackageReadiness(
   const now = new Date().toISOString();
   const lane = recommendTinaFilingLane(draft.profile);
   const checklist = buildTinaChecklist(draft, lane);
+  const planningReport = buildTinaPlanningReport(draft);
+  const packageQuality = buildTinaFinalPackageQualityReport(draft);
+  const reconciliation = buildTinaTransactionReconciliationReport(draft);
+  const currentFileReality = buildTinaCurrentFileReviewerReality(draft);
+  const liveAcceptance = buildTinaLiveAcceptanceReport(draft);
   const items: TinaPackageReadinessItem[] = [];
+  const ledgerBucketClues = collectSourceFactValues(draft, ["Ledger bucket clue"]);
+  const payrollClues = collectSourceFactValues(draft, ["Payroll clue", "Payroll filing period clue"]);
+  const contractorClues = collectSourceFactValues(draft, ["Contractor clue"]);
+  const salesTaxClues = collectSourceFactValues(draft, ["Sales tax clue"]);
+  const inventoryClues = collectSourceFactValues(draft, ["Inventory clue"]);
+  const ownerFlowClues = collectSourceFactValues(draft, [
+    "Owner draw clue",
+    "Intercompany transfer clue",
+    "Related-party clue",
+  ]);
+  const carryoverAmounts = collectSourceFactValues(draft, ["Carryover amount clue"]);
+  const assetPlacedInServiceDates = collectSourceFactValues(draft, [
+    "Asset placed-in-service clue",
+  ]);
   const evidence = latestEvidenceTimestamp(draft);
   const currentProfileFingerprint = buildTinaProfileFingerprint(draft.profile);
 
@@ -392,6 +442,208 @@ export function buildTinaPackageReadiness(
       );
     });
 
+  const hiddenSpecializedBucket =
+    ledgerBucketClues.length > 0 &&
+    draft.taxAdjustments.adjustments.every(
+      (adjustment) =>
+        adjustment.kind === "carryforward_line" || adjustment.kind === "timing_review"
+    );
+  if (hiddenSpecializedBucket) {
+    items.push(
+      createItem({
+        id: "ledger-bucket-specialization-missing",
+        title: "Ledger buckets still look more specialized than the tax treatment layer",
+        summary: `Tina found ledger-bucket proof like ${ledgerBucketClues
+          .slice(0, 2)
+          .join(" and ")}, but the downstream tax layer still looks generic. Tina should not call this package ready until that treatment is classified explicitly.`,
+        severity: "blocking",
+      })
+    );
+  }
+
+  if (payrollClues.length > 0 && !hasAdjustmentKind(draft, "payroll_classification")) {
+    items.push(
+      createItem({
+        id: "payroll-treatment-path-missing",
+        title: "Payroll clues are present without a governed payroll treatment path",
+        summary: `Tina found payroll support (${payrollClues.slice(0, 2).join(" and ")}), but no payroll-classification adjustment is governing that activity yet.`,
+        severity: "blocking",
+      })
+    );
+  }
+
+  if (contractorClues.length > 0 && !hasAdjustmentKind(draft, "contractor_classification")) {
+    items.push(
+      createItem({
+        id: "contractor-treatment-path-missing",
+        title: "Contractor clues are present without a governed contractor treatment path",
+        summary: `Tina found contractor support (${contractorClues
+          .slice(0, 2)
+          .join(" and ")}), but no contractor-classification adjustment is governing that activity yet.`,
+        severity: "blocking",
+      })
+    );
+  }
+
+  if (salesTaxClues.length > 0 && !hasAdjustmentKind(draft, "sales_tax_exclusion")) {
+    items.push(
+      createItem({
+        id: "sales-tax-treatment-path-missing",
+        title: "Sales-tax clues are present without a governed exclusion path",
+        summary: `Tina found sales-tax support (${salesTaxClues
+          .slice(0, 2)
+          .join(" and ")}), but no sales-tax exclusion adjustment is governing that activity yet.`,
+        severity: "blocking",
+      })
+    );
+  }
+
+  if (inventoryClues.length > 0 && !hasAdjustmentKind(draft, "inventory_treatment")) {
+    items.push(
+      createItem({
+        id: "inventory-treatment-path-missing",
+        title: "Inventory clues are present without a governed inventory treatment path",
+        summary: `Tina found inventory support (${inventoryClues
+          .slice(0, 2)
+          .join(" and ")}), but no inventory-treatment adjustment is governing that activity yet.`,
+        severity: "blocking",
+      })
+    );
+  }
+
+  if (
+    ownerFlowClues.length > 0 &&
+    !draft.taxAdjustments.adjustments.some(
+      (adjustment) => adjustment.kind === "timing_review" && adjustment.risk === "high"
+    )
+  ) {
+    items.push(
+      createItem({
+        id: "owner-flow-treatment-path-missing",
+        title: "Owner-flow clues are present without a governed separation path",
+        summary: `Tina found owner-flow, transfer, or related-party support (${ownerFlowClues
+          .slice(0, 2)
+          .join(" and ")}), but no high-risk timing review is holding that activity out of ordinary business treatment yet.`,
+        severity: "blocking",
+      })
+    );
+  }
+
+  reconciliation.groups
+    .filter((group) => group.status !== "ready")
+    .forEach((group) => {
+      items.push(
+        createItem({
+          id: `transaction-group-${group.id}`,
+          title:
+            group.lineageCount > 0
+              ? "Transaction lineage still needs governed treatment"
+              : "Transaction-group reconciliation still needs governed treatment",
+          summary:
+            group.lineageCount > 0
+              ? `${group.label}. ${group.summary} Tina has row-cluster lineage behind this document, so hidden specialized activity should block readiness until those clusters and their treatment paths line up.`
+              : `${group.label}. ${group.summary}`,
+          severity: group.status === "blocked" ? "blocking" : "needs_attention",
+          relatedFieldIds: group.fieldIds,
+          sourceDocumentIds: group.sourceDocumentIds,
+        })
+      );
+    });
+
+  packageQuality.checks
+    .filter((check) => check.status !== "ready")
+    .forEach((check) => {
+      items.push(
+        createItem({
+          id: `package-quality-${check.id}`,
+          title: check.title,
+          summary: check.summary,
+          severity: check.status === "blocked" ? "blocking" : "needs_attention",
+        })
+      );
+    });
+
+  if (currentFileReality.status === "fragile") {
+    items.push(
+      createItem({
+        id: "current-file-reviewer-reality-fragile",
+        title: "Current-file reviewer reality is still fragile",
+        summary: `${currentFileReality.summary} Tina should not call this package ready until those repeated correction patterns are reflected in the file in front of her.`,
+        severity: "blocking",
+      })
+    );
+  } else if (currentFileReality.status === "mixed" && currentFileReality.patterns.length > 0) {
+    items.push(
+      createItem({
+        id: "current-file-reviewer-reality-mixed",
+        title: "Current-file reviewer reality still needs human caution",
+        summary: `${currentFileReality.summary} Keep the lessons visible while a reviewer checks whether Tina already absorbed them cleanly in this packet.`,
+        severity: "needs_attention",
+      })
+    );
+  }
+
+  const thinCurrentFileCohorts = liveAcceptance.currentFileCohorts.filter(
+    (cohort) => cohort.trustLevel === "insufficient_history"
+  );
+  if (thinCurrentFileCohorts.length > 0 && draft.reviewerOutcomeMemory.outcomes.length > 0) {
+    items.push(
+      createItem({
+        id: "current-file-cohort-history-thin",
+        title: "Current-file reviewer history is still thin",
+        summary: `Tina still has thin reviewer history for ${thinCurrentFileCohorts
+          .map((cohort) => cohort.label)
+          .join(", ")} files, so this package should stay conservative even if no hard blocker remains.`,
+        severity: "needs_attention",
+      })
+    );
+  }
+
+  if (
+    carryoverAmounts.length > 0 &&
+    !draft.scheduleCDraft.notes.some((note) => note.id === "schedule-c-carryover-note")
+  ) {
+    items.push(
+      createItem({
+        id: "continuity-review-missing",
+        title: "Carryover continuity is still not governed in the package",
+        summary: `Tina found carryover support (${carryoverAmounts
+          .slice(0, 2)
+          .join(" and ")}), but the package still needs an explicit continuity review step before a CPA should trust the downstream numbers.`,
+        severity: "needs_attention",
+      })
+    );
+  }
+
+  if (
+    assetPlacedInServiceDates.length > 0 &&
+    !draft.scheduleCDraft.notes.some((note) => note.id === "schedule-c-assets-note")
+  ) {
+    items.push(
+      createItem({
+        id: "depreciation-review-missing",
+        title: "Depreciation timing review is still not governed in the package",
+        summary: `Tina found asset timing support (${assetPlacedInServiceDates
+          .slice(0, 2)
+          .join(" and ")}), but the package still needs an explicit depreciation review step before expense totals should look settled.`,
+        severity: "needs_attention",
+      })
+    );
+  }
+
+  planningReport.scenarios
+    .filter((scenario) => planningScenarioNeedsWorkflowAttention(scenario))
+    .forEach((scenario) => {
+      items.push(
+        createItem({
+          id: `planning-${scenario.id}`,
+          title: scenario.title,
+          summary: `Planning tradeoff still needs reviewer handling. ${scenario.tradeoff}`,
+          severity: "needs_attention",
+        })
+      );
+    });
+
   const blockingCount = items.filter((item) => item.severity === "blocking").length;
   const attentionCount = items.filter((item) => item.severity === "needs_attention").length;
 
@@ -417,6 +669,16 @@ export function buildTinaPackageReadiness(
   } else if (level === "needs_review") {
     nextStep =
       "Clear the review items next so Tina can say the package is ready for CPA handoff with confidence.";
+  }
+
+  const priorityScenario = planningReport.scenarios.find(
+    (scenario) => planningScenarioNeedsWorkflowAttention(scenario)
+  );
+  if (priorityScenario) {
+    nextStep =
+      level === "blocked"
+        ? `${nextStep} After the blockers, prioritize this reviewer call: ${priorityScenario.nextStep}`
+        : `Prioritize this reviewer call next: ${priorityScenario.nextStep}`;
   }
 
   return {

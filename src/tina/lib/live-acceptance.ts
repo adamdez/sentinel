@@ -186,7 +186,7 @@ function buildCohorts(outcomes: TinaReviewerOutcomeRecord[]): TinaLiveAcceptance
   });
 }
 
-function deriveCurrentFileTags(draft: TinaWorkspaceDraft): TinaReviewerOutcomeCaseTag[] {
+export function deriveCurrentFileTags(draft: TinaWorkspaceDraft): TinaReviewerOutcomeCaseTag[] {
   const tags = new Set<TinaReviewerOutcomeCaseTag>();
 
   if (draft.profile.entityType === "sole_prop" || draft.profile.entityType === "single_member_llc") {

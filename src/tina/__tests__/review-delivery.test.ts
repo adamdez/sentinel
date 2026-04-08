@@ -87,6 +87,35 @@ describe("buildTinaReviewDeliveryReport", () => {
           lastReadAt: "2026-04-07T08:01:30.000Z",
         },
       ],
+      sourceFacts: [
+        {
+          id: "group-1",
+          sourceDocumentId: "doc-1",
+          label: "Transaction group clue",
+          value: "Client receipts (inflow): 4 rows, total $18,000.00, dates Apr 1, 2026 to Apr 30, 2026",
+          confidence: "medium" as const,
+          capturedAt: "2026-04-07T08:02:00.000Z",
+        },
+      ],
+      bookTieOut: {
+        ...baseDraft.bookTieOut,
+        status: "complete" as const,
+        entries: [
+          {
+            id: "book-doc-1",
+            documentId: "doc-1",
+            label: "QuickBooks export",
+            status: "ready" as const,
+            moneyIn: 18000,
+            moneyOut: 0,
+            net: 18000,
+            dateCoverage: "2026-04-01 through 2026-04-30",
+            sourceFactIds: ["group-1"],
+            issueIds: [],
+          },
+        ],
+        variances: [],
+      },
       taxAdjustments: {
         ...baseDraft.taxAdjustments,
         status: "complete" as const,
@@ -267,9 +296,174 @@ describe("buildTinaReviewDeliveryReport", () => {
       "cpa_packet:ready",
       "tax_positions:ready",
       "current_file_acceptance:ready",
+      "current_file_reviewer_reality:ready",
+      "final_package_quality:ready",
+      "transaction_lineage:ready",
       "review_mode:ready",
+      "mef_handoff:ready",
+      "continuity_and_depreciation:ready",
     ]);
     expect(report.status).toBe("ready_to_send");
     expect(report.checks.every((check) => check.status === "ready")).toBe(true);
+  });
+
+  it("keeps delivery in needs-review mode when continuity or depreciation review is still open", () => {
+    const baseDraft = createDefaultTinaWorkspaceDraft();
+    const draft = {
+      ...baseDraft,
+      profile: {
+        ...baseDraft.profile,
+        businessName: "Carryover Review LLC",
+        entityType: "single_member_llc" as const,
+      },
+      reviewerFinal: {
+        ...baseDraft.reviewerFinal,
+        status: "complete" as const,
+      },
+      scheduleCDraft: {
+        ...baseDraft.scheduleCDraft,
+        status: "complete" as const,
+      },
+      packageReadiness: {
+        ...baseDraft.packageReadiness,
+        status: "complete" as const,
+        level: "needs_review" as const,
+        items: [
+          {
+            id: "continuity-review-missing",
+            title: "Carryover continuity is still not governed in the package",
+            summary: "Needs continuity review",
+            severity: "needs_attention" as const,
+            relatedFieldIds: [],
+            relatedNoteIds: [],
+            relatedReviewItemIds: [],
+            sourceDocumentIds: ["doc-prior"],
+          },
+        ],
+      },
+      sourceFacts: [
+        {
+          id: "carryover-1",
+          sourceDocumentId: "doc-prior",
+          label: "Carryover amount clue",
+          value: "$1,250.00",
+          confidence: "medium" as const,
+          capturedAt: "2026-04-07T08:00:00.000Z",
+        },
+      ],
+      taxAdjustments: {
+        ...baseDraft.taxAdjustments,
+        status: "complete" as const,
+        adjustments: [],
+      },
+      taxPositionMemory: {
+        ...baseDraft.taxPositionMemory,
+        status: "complete" as const,
+        records: [],
+      },
+      reviewerOutcomeMemory: {
+        ...baseDraft.reviewerOutcomeMemory,
+        scorecard: {
+          ...baseDraft.reviewerOutcomeMemory.scorecard,
+          trustLevel: "mixed" as const,
+        },
+      },
+    };
+
+    const report = buildTinaReviewDeliveryReport(draft);
+    expect(report.status).toBe("needs_review");
+    expect(
+      report.checks.find((check) => check.id === "continuity_and_depreciation")?.status
+    ).toBe("needs_review");
+  });
+
+  it("blocks sending when transaction lineage still shows unresolved specialized activity", () => {
+    const baseDraft = createDefaultTinaWorkspaceDraft();
+    const draft = {
+      ...baseDraft,
+      documents: [
+        {
+          id: "doc-1",
+          name: "qb-export.csv",
+          size: 1200,
+          mimeType: "text/csv",
+          storagePath: "tina/qb-export.csv",
+          category: "supporting_document" as const,
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-04-07T08:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "group-1",
+          sourceDocumentId: "doc-1",
+          label: "Transaction group clue",
+          value:
+            "Payroll register (outflow): 3 rows, total ($3,000.00), dates Jan 1, 2025 to Jan 31, 2025",
+          confidence: "medium" as const,
+          capturedAt: "2026-04-07T08:02:00.000Z",
+        },
+        {
+          id: "lineage-1",
+          sourceDocumentId: "doc-1",
+          label: "Transaction lineage clue",
+          value:
+            "Payroll register | 2025-01 (outflow): 3 rows, total ($3,000.00), dates Jan 1, 2025 to Jan 31, 2025",
+          confidence: "medium" as const,
+          capturedAt: "2026-04-07T08:02:30.000Z",
+        },
+      ],
+      packageReadiness: {
+        ...baseDraft.packageReadiness,
+        lastRunAt: "2026-04-07T08:06:00.000Z",
+        status: "complete" as const,
+        level: "ready_for_cpa" as const,
+        summary: "Looks ready, but not really.",
+      },
+      taxAdjustments: {
+        ...baseDraft.taxAdjustments,
+        status: "complete" as const,
+        adjustments: [
+          {
+            id: "adj-1",
+            kind: "carryforward_line" as const,
+            status: "approved" as const,
+            risk: "low" as const,
+            requiresAuthority: false,
+            title: "Carry payroll",
+            summary: "Approved.",
+            suggestedTreatment: "Carry it.",
+            whyItMatters: "Traceability.",
+            amount: 3000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["group-1", "lineage-1"],
+            reviewerNotes: "Approved for packet.",
+          },
+        ],
+      },
+      reviewerFinal: {
+        ...baseDraft.reviewerFinal,
+        status: "complete" as const,
+      },
+      scheduleCDraft: {
+        ...baseDraft.scheduleCDraft,
+        status: "complete" as const,
+      },
+      taxPositionMemory: {
+        ...baseDraft.taxPositionMemory,
+        status: "complete" as const,
+        records: [],
+      },
+    };
+
+    const report = buildTinaReviewDeliveryReport(draft);
+
+    expect(report.status).toBe("blocked");
+    expect(report.checks.find((check) => check.id === "transaction_lineage")?.status).toBe(
+      "blocked"
+    );
   });
 });

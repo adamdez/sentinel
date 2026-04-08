@@ -342,6 +342,36 @@ export function upsertTinaReviewerOutcomeMemory(
   };
 }
 
+export function ingestTinaReviewerTraffic(
+  current: TinaReviewerOutcomeMemory,
+  input: {
+    overrides?: TinaReviewerOverrideRecord[];
+    outcomes?: TinaReviewerOutcomeRecord[];
+  }
+): TinaReviewerOutcomeMemory {
+  const incomingOverrides = input.overrides ?? [];
+  const incomingOutcomes = input.outcomes ?? [];
+
+  const overrides = [...incomingOverrides, ...current.overrides]
+    .filter(
+      (item, index, all) => all.findIndex((candidate) => candidate.id === item.id) === index
+    )
+    .sort((left, right) => right.decidedAt.localeCompare(left.decidedAt));
+
+  const outcomes = [...incomingOutcomes, ...current.outcomes]
+    .filter(
+      (item, index, all) => all.findIndex((candidate) => candidate.id === item.id) === index
+    )
+    .sort((left, right) => right.decidedAt.localeCompare(left.decidedAt));
+
+  return {
+    ...current,
+    ...buildTinaReviewerOutcomeMemoryState(overrides, outcomes),
+    overrides,
+    outcomes,
+  };
+}
+
 export function findTinaReviewerPatternScore(
   memory: TinaReviewerOutcomeMemory,
   input: {

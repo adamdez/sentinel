@@ -159,6 +159,71 @@ describe("buildTinaResearchIdeas", () => {
     expect(ideas.some((idea) => idea.id === "startup-costs-review")).toBe(true);
   });
 
+  it("turns deeper paper-intelligence clues into concrete research ideas", () => {
+    const draft = {
+      ...createDefaultTinaWorkspaceDraft(),
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Deep Docs LLC",
+        entityType: "single_member_llc" as const,
+      },
+      sourceFacts: [
+        {
+          id: "carryover-fact",
+          sourceDocumentId: "prior-doc",
+          label: "Prior-year carryover clue",
+          value: "This paper mentions carryover loss.",
+          confidence: "medium" as const,
+          capturedAt: "2026-04-07T08:00:00.000Z",
+        },
+        {
+          id: "election-fact",
+          sourceDocumentId: "prior-doc",
+          label: "Tax election clue",
+          value: "This paper mentions an election.",
+          confidence: "medium" as const,
+          capturedAt: "2026-04-07T08:01:00.000Z",
+        },
+        {
+          id: "ownership-fact",
+          sourceDocumentId: "org-doc",
+          label: "Ownership record clue",
+          value: "This paper shows ownership percentages.",
+          confidence: "medium" as const,
+          capturedAt: "2026-04-07T08:02:00.000Z",
+        },
+        {
+          id: "depreciation-fact",
+          sourceDocumentId: "asset-doc",
+          label: "Depreciation clue",
+          value: "This paper includes depreciation schedule detail.",
+          confidence: "medium" as const,
+          capturedAt: "2026-04-07T08:03:00.000Z",
+        },
+        {
+          id: "payroll-form-fact",
+          sourceDocumentId: "payroll-doc",
+          label: "Payroll tax form clue",
+          value: "This paper includes Form 941 details.",
+          confidence: "medium" as const,
+          capturedAt: "2026-04-07T08:04:00.000Z",
+        },
+      ],
+    };
+
+    const ideas = buildTinaResearchIdeas(draft);
+
+    expect(ideas.map((idea) => idea.id)).toEqual(
+      expect.arrayContaining([
+        "prior-year-carryover-proof-review",
+        "tax-election-continuity-review",
+        "ownership-structure-review",
+        "depreciation-rollforward-review",
+        "payroll-tax-form-review",
+      ])
+    );
+  });
+
   it("does not add real-estate-only ideas for unrelated business profiles", () => {
     const draft = {
       ...createDefaultTinaWorkspaceDraft(),

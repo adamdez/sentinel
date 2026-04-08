@@ -1,8 +1,18 @@
+import { buildTinaBenchmarkDashboardReport } from "@/tina/lib/benchmark-dashboard";
+import { buildTinaBenchmarkRescoreReport } from "@/tina/lib/benchmark-rescore";
 import { buildTinaCpaHandoff } from "@/tina/lib/cpa-handoff";
+import { buildTinaCurrentFileReviewerReality } from "@/tina/lib/current-file-reviewer-reality";
+import { buildTinaFinalPackageQualityReport } from "@/tina/lib/final-package-quality";
 import { buildTinaFilingApprovalReport } from "@/tina/lib/filing-approval";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { buildTinaLiveAcceptanceReport } from "@/tina/lib/live-acceptance";
+import { buildTinaMefReadinessReport } from "@/tina/lib/mef-readiness";
+import { buildTinaNumericProofRows } from "@/tina/lib/numeric-proof";
+import { buildTinaPlanningReport } from "@/tina/lib/planning-report";
 import { buildTinaReviewDeliveryReport } from "@/tina/lib/review-delivery";
+import { buildTinaReviewTraceRows } from "@/tina/lib/review-trace";
+import { buildTinaScheduleCExportContract } from "@/tina/lib/schedule-c-export-contract";
+import { buildTinaTransactionReconciliationReport } from "@/tina/lib/transaction-reconciliation";
 import type { TinaWorkspaceDraft } from "@/tina/types";
 
 function formatMoney(value: number | null): string {
@@ -33,8 +43,18 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
   const handoff = buildTinaCpaHandoff(draft);
   const lane = recommendTinaFilingLane(draft.profile);
   const liveAcceptance = buildTinaLiveAcceptanceReport(draft);
+  const mefReadiness = buildTinaMefReadinessReport(draft);
   const filingApproval = buildTinaFilingApprovalReport(draft);
   const reviewDelivery = buildTinaReviewDeliveryReport(draft);
+  const exportContract = buildTinaScheduleCExportContract(draft);
+  const currentFileReality = buildTinaCurrentFileReviewerReality(draft);
+  const packageQuality = buildTinaFinalPackageQualityReport(draft);
+  const reviewTraceRows = buildTinaReviewTraceRows(draft);
+  const numericProofRows = buildTinaNumericProofRows(draft);
+  const reconciliation = buildTinaTransactionReconciliationReport(draft);
+  const planningReport = buildTinaPlanningReport(draft);
+  const benchmarkRescore = buildTinaBenchmarkRescoreReport(draft);
+  const benchmarkDashboard = buildTinaBenchmarkDashboardReport(draft);
   const businessName = draft.profile.businessName || "Unnamed business";
   const taxYear = draft.profile.taxYear || "tax-year";
   const slug = toSlug(businessName) || "tina-business";
@@ -122,6 +142,60 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     lines.push("- No saved tax position records yet.");
   }
 
+  lines.push("", "## Return trace");
+  if (reviewTraceRows.length > 0) {
+    reviewTraceRows.forEach((row) => {
+      lines.push(
+        `- ${row.lineNumber} ${row.label}: ${formatMoney(row.amount)} [${row.fieldStatus}]`
+      );
+      lines.push(`  - ${row.summary}`);
+      if (row.reconciliationStatus !== "unknown") {
+        lines.push(
+          `  - Reconciliation: ${row.reconciliationStatus.replace(/_/g, " ")}; lineage clusters ${row.lineageCount}`
+        );
+      }
+    });
+  } else {
+    lines.push("- Tina does not have any return-trace rows yet.");
+  }
+
+  lines.push("", "## Numeric proof");
+  if (numericProofRows.length > 0) {
+    numericProofRows.forEach((row) => {
+      lines.push(
+        `- ${row.lineNumber} ${row.label}: ${formatMoney(row.amount)} [support: ${row.supportLevel}]`
+      );
+      lines.push(`  - ${row.summary}`);
+      row.bookEntries.forEach((entry) => {
+        lines.push(
+          `  - ${entry.label}: in ${formatMoney(entry.moneyIn)}, out ${formatMoney(entry.moneyOut)}, net ${formatMoney(entry.net)}, coverage ${entry.dateCoverage ?? "unknown"}`
+        );
+      });
+      row.transactionGroups.forEach((group) => {
+        lines.push(`  - Transaction group: ${group}`);
+      });
+      row.transactionAnchors.forEach((anchor) => {
+        lines.push(`  - Anchor: ${anchor}`);
+      });
+    });
+  } else {
+    lines.push("- Tina does not have numeric proof rows for the current return draft yet.");
+  }
+
+  lines.push("", "## Transaction reconciliation");
+  lines.push(`- ${reconciliation.summary}`);
+  lines.push(`- Next step: ${reconciliation.nextStep}`);
+  if (reconciliation.groups.length > 0) {
+    reconciliation.groups.forEach((group) => {
+      lines.push(`- ${group.label} [${group.status}]`);
+      lines.push(
+        `  - ${group.summary} Lineage clusters: ${group.lineageCount}; grouped flows: ${group.transactionGroupCount}; ledger buckets: ${group.bucketCount}; mismatches: ${group.mismatchCount}.`
+      );
+    });
+  } else {
+    lines.push("- Tina does not have transaction-group reconciliation rows yet.");
+  }
+
   lines.push("", "## Live acceptance benchmark");
   lines.push(`- ${liveAcceptance.summary}`);
   lines.push(`- Next step: ${liveAcceptance.nextStep}`);
@@ -156,6 +230,54 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     });
   }
 
+  lines.push("", "## Benchmark rescore");
+  lines.push(`- ${benchmarkRescore.summary}`);
+  lines.push(`- Next step: ${benchmarkRescore.nextStep}`);
+  const cohortProposalLines =
+    benchmarkRescore.cohortProposals.length > 0
+      ? benchmarkRescore.cohortProposals.slice(0, 8)
+      : [];
+  if (cohortProposalLines.length > 0) {
+    lines.push("- Cohort-specific proposals:");
+    cohortProposalLines.forEach((proposal) => {
+      lines.push(
+        `  - ${proposal.cohortLabel}: ${proposal.skillId.replace(/_/g, " ")} [${proposal.recommendation}]`
+      );
+      lines.push(`  - ${proposal.summary}`);
+    });
+  }
+
+  lines.push("", "## Internal benchmark dashboard");
+  lines.push(`- ${benchmarkDashboard.summary}`);
+  lines.push(`- Next step: ${benchmarkDashboard.nextStep}`);
+  benchmarkDashboard.cards.forEach((card) => {
+    lines.push(`- ${card.title} [${card.status}]`);
+    lines.push(`  - ${card.summary}`);
+    card.lines.forEach((line) => {
+      lines.push(`  - ${line}`);
+    });
+  });
+
+  lines.push("", "## Current-file reviewer reality");
+  lines.push(`- ${currentFileReality.summary}`);
+  lines.push(`- Next step: ${currentFileReality.nextStep}`);
+  currentFileReality.lessons.forEach((lesson) => {
+    lines.push(`  - Lesson: ${lesson}`);
+  });
+  currentFileReality.patterns.forEach((pattern) => {
+    lines.push(
+      `  - ${pattern.title}: ${pattern.verdict} via ${pattern.matchType === "cohort" ? "cohort match" : "direct file match"}${pattern.matchedCaseTags.length > 0 ? ` [${pattern.matchedCaseTags.join(", ")}]` : ""}`
+    );
+  });
+
+  lines.push("", "## Final package quality");
+  lines.push(`- ${packageQuality.summary}`);
+  lines.push(`- Next step: ${packageQuality.nextStep}`);
+  packageQuality.checks.forEach((check) => {
+    lines.push(`- ${check.title} [${check.status}]`);
+    lines.push(`  - ${check.summary}`);
+  });
+
   lines.push("", "## Filing approval");
   lines.push(`- Status: ${filingApproval.status.replace(/_/g, " ")}`);
   lines.push(`- ${filingApproval.summary}`);
@@ -165,6 +287,57 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     lines.push(`  - ${check.summary}`);
   });
 
+  lines.push("", "## MeF readiness");
+  lines.push(`- Status: ${mefReadiness.status.replace(/_/g, " ")}`);
+  lines.push(`- Return type: ${mefReadiness.returnType}`);
+  lines.push(`- Schedules: ${mefReadiness.schedules.join(", ")}`);
+  lines.push(`- ${mefReadiness.summary}`);
+  lines.push(`- Next step: ${mefReadiness.nextStep}`);
+  mefReadiness.checks.forEach((check) => {
+    lines.push(`- ${check.title} [${check.status}]`);
+    lines.push(`  - ${check.summary}`);
+  });
+  if (mefReadiness.attachments.length > 0) {
+    lines.push("- Attachment manifest:");
+    mefReadiness.attachments.forEach((attachment) => {
+      lines.push(
+        `  - ${attachment.sourceName}: ${attachment.disposition.replace(/_/g, " ")}`
+      );
+      if (attachment.mefFileName) {
+        lines.push(`  - MeF file name: ${attachment.mefFileName}`);
+      }
+      if (attachment.description) {
+        lines.push(`  - Description: ${attachment.description}`);
+      }
+      lines.push(`  - ${attachment.summary}`);
+    });
+  }
+
+  lines.push("", "## 1040/Schedule C export contract");
+  lines.push(`- Status: ${exportContract.status.replace(/_/g, " ")}`);
+  lines.push(`- ${exportContract.summary}`);
+  lines.push(`- Next step: ${exportContract.nextStep}`);
+  lines.push(`- Contract version: ${exportContract.contractVersion}`);
+  lines.push(`- Return type: ${exportContract.returnType}`);
+  lines.push(`- Schedules: ${exportContract.schedules.join(", ")}`);
+  if (exportContract.fields.length > 0) {
+    exportContract.fields.forEach((field) => {
+      lines.push(
+        `- ${field.lineNumber} ${field.label}: ${formatMoney(field.amount)} [${field.status}; support ${field.supportLevel}]`
+      );
+      lines.push(`  - ${field.summary}`);
+    });
+  } else {
+    lines.push("- Tina does not have any export-contract fields yet.");
+  }
+  if (exportContract.unresolvedIssues.length > 0) {
+    lines.push("- Unresolved export issues:");
+    exportContract.unresolvedIssues.forEach((issue) => {
+      lines.push(`  - ${issue.title} [${issue.severity}]`);
+      lines.push(`  - ${issue.summary}`);
+    });
+  }
+
   lines.push("", "## Review delivery");
   lines.push(`- Status: ${reviewDelivery.status.replace(/_/g, " ")}`);
   lines.push(`- ${reviewDelivery.summary}`);
@@ -173,6 +346,19 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     lines.push(`- ${check.title} [${check.status}]`);
     lines.push(`  - ${check.summary}`);
   });
+
+  lines.push("", "## Planning and tradeoffs");
+  lines.push(`- ${planningReport.summary}`);
+  lines.push(`- Next step: ${planningReport.nextStep}`);
+  if (planningReport.scenarios.length > 0) {
+    planningReport.scenarios.forEach((scenario) => {
+      lines.push(
+        `- ${scenario.title} [support: ${scenario.supportLevel} | payoff: ${scenario.payoffWindow.replace(/_/g, " ")}]`
+      );
+      lines.push(`  - Tradeoff: ${scenario.tradeoff}`);
+      lines.push(`  - Next step: ${scenario.nextStep}`);
+    });
+  }
 
   lines.push("", "## Tina note", "");
   lines.push(

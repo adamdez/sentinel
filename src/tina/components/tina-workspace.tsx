@@ -25,6 +25,11 @@ import { TinaStageCard } from "@/tina/components/tina-stage-card";
 import { TINA_STAGES } from "@/tina/data/foundation";
 import { useTinaDraft } from "@/tina/hooks/use-tina-draft";
 import { buildTinaAuthorityWorkItems, createDefaultTinaAuthorityCitation } from "@/tina/lib/authority-work";
+import { buildTinaBenchmarkDashboardReport } from "@/tina/lib/benchmark-dashboard";
+import {
+  buildTinaBenchmarkProposalDecisionId,
+  buildTinaBenchmarkRescoreReport,
+} from "@/tina/lib/benchmark-rescore";
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import { findTinaDocumentReading } from "@/tina/lib/document-readings";
 import { buildTinaResearchDossiers } from "@/tina/lib/research-dossiers";
@@ -362,6 +367,7 @@ export function TinaWorkspace() {
     addAuthorityCitation,
     updateAuthorityCitation,
     removeAuthorityCitation,
+    saveBenchmarkProposalDecision,
     resetDraft,
   } = useTinaDraft();
   const inputId = useId();
@@ -421,6 +427,8 @@ export function TinaWorkspace() {
   const researchIdeas = useMemo(() => buildTinaResearchIdeas(draft), [draft]);
   const researchDossiers = useMemo(() => buildTinaResearchDossiers(draft), [draft]);
   const authorityWorkItems = useMemo(() => buildTinaAuthorityWorkItems(draft), [draft]);
+  const benchmarkDashboard = useMemo(() => buildTinaBenchmarkDashboardReport(draft), [draft]);
+  const benchmarkRescore = useMemo(() => buildTinaBenchmarkRescoreReport(draft), [draft]);
   const researchPolicyLines = useMemo(() => describeTinaResearchPolicy(), []);
   const authorityWorkMap = useMemo(
     () => new Map(authorityWorkItems.map((item) => [item.ideaId, item])),
@@ -437,6 +445,10 @@ export function TinaWorkspace() {
   const sourceFactMap = useMemo(
     () => new Map(draft.sourceFacts.map((fact) => [fact.id, fact])),
     [draft.sourceFacts]
+  );
+  const benchmarkDecisionMap = useMemo(
+    () => new Map(draft.benchmarkProposalDecisions.map((decision) => [decision.id, decision])),
+    [draft.benchmarkProposalDecisions]
   );
 
   if (!hydrated) {
@@ -3903,6 +3915,167 @@ export function TinaWorkspace() {
               Tina has not built any proof cards yet. As she finds more tax ideas, they will show up here with the proof they still need.
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+        <CardHeader className="space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
+            Benchmark dashboard
+          </p>
+          <CardTitle className="text-2xl font-semibold tracking-tight text-white">
+            Live cohort score movement
+          </CardTitle>
+          <p className="text-sm leading-6 text-zinc-300">{benchmarkDashboard.summary}</p>
+          <p className="text-sm leading-6 text-zinc-400">Next step: {benchmarkDashboard.nextStep}</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 xl:grid-cols-3">
+            {benchmarkDashboard.cards.map((card) => (
+              <div
+                key={card.id}
+                className={cn(
+                  "rounded-2xl border px-4 py-4",
+                  card.status === "positive"
+                    ? "border-emerald-300/18 bg-emerald-300/8"
+                    : card.status === "blocked"
+                      ? "border-rose-300/18 bg-rose-300/8"
+                      : "border-amber-300/18 bg-amber-300/8"
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-white">{card.title}</p>
+                  <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-zinc-200">
+                    {card.status}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm leading-6 text-zinc-200">{card.summary}</p>
+                <div className="mt-3 space-y-2 text-sm leading-6 text-zinc-300">
+                  {card.lines.map((line) => (
+                    <p key={`${card.id}-${line}`}>{line}</p>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-black/15 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-white">Cohort-specific rescore proposals</p>
+                <p className="text-sm leading-6 text-zinc-400">
+                  Tina only flags narrow score movement where measured cohorts actually support it.
+                </p>
+              </div>
+              <span className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-zinc-300">
+                {benchmarkRescore.cohortProposals.length} proposals
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {benchmarkRescore.cohortProposals.slice(0, 8).map((proposal) => {
+                const decisionId = buildTinaBenchmarkProposalDecisionId(
+                  proposal.skillId,
+                  proposal.cohortTag
+                );
+                const savedDecision = benchmarkDecisionMap.get(decisionId);
+
+                return (
+                <div
+                  key={`${proposal.cohortTag}-${proposal.skillId}`}
+                  className={cn(
+                    "rounded-2xl border px-4 py-4",
+                    proposal.recommendation === "consider_raise"
+                      ? "border-emerald-300/18 bg-emerald-300/8"
+                      : proposal.recommendation === "do_not_raise"
+                        ? "border-rose-300/18 bg-rose-300/8"
+                        : "border-white/10 bg-black/15"
+                  )}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-zinc-200">
+                      {proposal.cohortLabel}
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-zinc-200">
+                      {proposal.recommendation.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-white">
+                    {proposal.skillId.replace(/_/g, " ")}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-zinc-300">{proposal.summary}</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-zinc-300">
+                      Reviewer decision: {(savedDecision?.status ?? proposal.decision ?? "open").replace(/_/g, " ")}
+                    </span>
+                    {savedDecision ? (
+                      <span className="text-xs text-zinc-500">
+                        saved {formatSavedAt(savedDecision.decidedAt)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className={cn(
+                        "border border-emerald-300/18 bg-emerald-300/8 text-emerald-50 hover:bg-emerald-300/14",
+                        savedDecision?.status === "accepted" && "ring-1 ring-emerald-200/50"
+                      )}
+                      onClick={() =>
+                        saveBenchmarkProposalDecision({
+                          skillId: proposal.skillId,
+                          cohortTag: proposal.cohortTag,
+                          status: "accepted",
+                          rationale: "Reviewer accepted this narrow cohort raise candidate.",
+                        })
+                      }
+                    >
+                      Accept raise
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className={cn(
+                        "border border-white/10 bg-black/20 text-zinc-200 hover:bg-white/8 hover:text-white",
+                        savedDecision?.status === "deferred" && "ring-1 ring-white/30"
+                      )}
+                      onClick={() =>
+                        saveBenchmarkProposalDecision({
+                          skillId: proposal.skillId,
+                          cohortTag: proposal.cohortTag,
+                          status: "deferred",
+                          rationale: "Reviewer deferred this cohort raise until more evidence accumulates.",
+                        })
+                      }
+                    >
+                      Defer
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className={cn(
+                        "border border-rose-300/18 bg-rose-300/8 text-rose-50 hover:bg-rose-300/14 hover:text-rose-50",
+                        savedDecision?.status === "rejected" && "ring-1 ring-rose-200/50"
+                      )}
+                      onClick={() =>
+                        saveBenchmarkProposalDecision({
+                          skillId: proposal.skillId,
+                          cohortTag: proposal.cohortTag,
+                          status: "rejected",
+                          rationale: "Reviewer rejected this cohort raise proposal for now.",
+                        })
+                      }
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+                );
+              })}
+            </div>
+          </div>
         </CardContent>
       </Card>
 

@@ -1,5 +1,6 @@
 import type {
   TinaAuthorityWorkItem,
+  TinaSourceFact,
   TinaTaxAdjustment,
   TinaTaxPositionMemoryConfidence,
   TinaTaxPositionMemorySnapshot,
@@ -150,10 +151,35 @@ function buildPatternGuidance(args: {
   return parts;
 }
 
-function buildRecord(draft: TinaWorkspaceDraft, adjustment: TinaTaxAdjustment): TinaTaxPositionRecord {
-  const authorityWork = draft.authorityWork.filter((item) =>
-    adjustment.authorityWorkIdeaIds.includes(item.ideaId)
+function getAdjustmentAuthorityWork(
+  draft: TinaWorkspaceDraft,
+  adjustment: TinaTaxAdjustment
+): TinaAuthorityWorkItem[] {
+  return draft.authorityWork.filter((item) => adjustment.authorityWorkIdeaIds.includes(item.ideaId));
+}
+
+function hasAdjustmentReviewerAnchor(
+  draft: TinaWorkspaceDraft,
+  adjustment: TinaTaxAdjustment
+): boolean {
+  const reviewerOutcomes = draft.reviewerOutcomeMemory.outcomes.filter(
+    (outcome) => outcome.targetType === "tax_adjustment" && outcome.targetId === adjustment.id
   );
+  const reviewerOverrides = draft.reviewerOutcomeMemory.overrides.filter(
+    (override) => override.targetType === "tax_adjustment" && override.targetId === adjustment.id
+  );
+
+  return (
+    adjustment.status === "approved" ||
+    adjustment.status === "rejected" ||
+    adjustment.reviewerNotes.trim().length > 0 ||
+    reviewerOutcomes.length > 0 ||
+    reviewerOverrides.length > 0
+  );
+}
+
+function buildRecord(draft: TinaWorkspaceDraft, adjustment: TinaTaxAdjustment): TinaTaxPositionRecord {
+  const authorityWork = getAdjustmentAuthorityWork(draft, adjustment);
   const reviewerOutcomes = draft.reviewerOutcomeMemory.outcomes.filter(
     (outcome) => outcome.targetType === "tax_adjustment" && outcome.targetId === adjustment.id
   );
@@ -178,12 +204,7 @@ function buildRecord(draft: TinaWorkspaceDraft, adjustment: TinaTaxAdjustment): 
   const authoritySupported = adjustment.requiresAuthority
     ? hasAuthoritySupport(authorityWork)
     : true;
-  const hasReviewerAnchor =
-    adjustment.status === "approved" ||
-    adjustment.status === "rejected" ||
-    adjustment.reviewerNotes.trim().length > 0 ||
-    reviewerOutcomes.length > 0 ||
-    reviewerOverrides.length > 0;
+  const hasReviewerAnchor = hasAdjustmentReviewerAnchor(draft, adjustment);
   const status = buildStatus({
     adjustment,
     authoritySupported,
@@ -263,6 +284,293 @@ function buildRecord(draft: TinaWorkspaceDraft, adjustment: TinaTaxAdjustment): 
   };
 }
 
+function buildGovernedPositionGuidance(args: {
+  title: string;
+  treatmentSummary: string;
+  sourceFacts: TinaSourceFact[];
+  relatedAdjustments: TinaTaxAdjustment[];
+  authoritySupported: boolean;
+  reviewerLessons: string[];
+  patternGuidance: string[];
+}): string {
+  const parts: string[] = [
+    `${args.title} should stay governed as a tracked reviewer call until Tina can defend ${args.treatmentSummary.toLowerCase()}.`,
+  ];
+
+  if (args.sourceFacts.length > 0) {
+    parts.push(
+      `Evidence: ${args.sourceFacts
+        .map((fact) => fact.value)
+        .slice(0, 3)
+        .join("; ")}.`
+    );
+  }
+
+  if (args.relatedAdjustments.length > 0) {
+    parts.push(
+      `Linked treatment paths: ${args.relatedAdjustments
+        .map((adjustment) => adjustment.title)
+        .slice(0, 2)
+        .join("; ")}.`
+    );
+  } else {
+    parts.push("Tina still needs a linked tax treatment path for this position.");
+  }
+
+  if (!args.authoritySupported && args.relatedAdjustments.some((adjustment) => adjustment.requiresAuthority)) {
+    parts.push("Authority support is still missing for the linked treatment path.");
+  }
+
+  if (args.reviewerLessons.length > 0) {
+    parts.push(`Lessons: ${args.reviewerLessons.join(" ")}`);
+  }
+
+  if (args.patternGuidance.length > 0) {
+    parts.push(`Pattern signal: ${args.patternGuidance.join(" ")}`);
+  }
+
+  return parts.join(" ").trim();
+}
+
+function buildGovernedPositionRecord(args: {
+  draft: TinaWorkspaceDraft;
+  id: string;
+  adjustmentId: string;
+  title: string;
+  treatmentSummary: string;
+  summaryPrefix: string;
+  facts: TinaSourceFact[];
+  relatedAdjustmentKinds: TinaTaxAdjustment["kind"][];
+}): TinaTaxPositionRecord | null {
+  const { draft, facts, relatedAdjustmentKinds } = args;
+  if (facts.length === 0) return null;
+
+  const factIds = new Set(facts.map((fact) => fact.id));
+  const relatedDocumentIds = new Set(facts.map((fact) => fact.sourceDocumentId));
+  const relatedAdjustments = draft.taxAdjustments.adjustments.filter(
+    (adjustment) =>
+      relatedAdjustmentKinds.includes(adjustment.kind) &&
+      (adjustment.sourceFactIds.some((factId) => factIds.has(factId)) ||
+        adjustment.sourceDocumentIds.some((documentId) => relatedDocumentIds.has(documentId)))
+  );
+  const reviewerOutcomes = draft.reviewerOutcomeMemory.outcomes.filter(
+    (outcome) =>
+      outcome.targetType === "tax_adjustment" &&
+      relatedAdjustments.some((adjustment) => adjustment.id === outcome.targetId)
+  );
+  const reviewerOverrides = draft.reviewerOutcomeMemory.overrides.filter(
+    (override) =>
+      override.targetType === "tax_adjustment" &&
+      relatedAdjustments.some((adjustment) => adjustment.id === override.targetId)
+  );
+  const authorityWork = relatedAdjustments.flatMap((adjustment) => getAdjustmentAuthorityWork(draft, adjustment));
+  const reviewerLessons = reviewerOutcomes.flatMap((outcome) => outcome.lessons);
+  const patternScore = findTinaReviewerPatternScore(draft.reviewerOutcomeMemory, {
+    targetType: "tax_adjustment",
+    phase: "tax_review",
+  });
+  const patternGuidance = buildPatternGuidance({
+    overallNextStep: draft.reviewerOutcomeMemory.scorecard.nextStep,
+    patternLabel: patternScore?.label ?? null,
+    patternScore: patternScore?.acceptanceScore ?? null,
+    patternTrust: patternScore?.trustLevel ?? null,
+    patternNextStep: patternScore?.nextStep ?? null,
+    patternLessons: patternScore?.lessons ?? [],
+  });
+  const authoritySupported = relatedAdjustments.every((adjustment) =>
+    adjustment.requiresAuthority ? hasAuthoritySupport(getAdjustmentAuthorityWork(draft, adjustment)) : true
+  );
+  const hasReviewerAnchor =
+    relatedAdjustments.some((adjustment) => hasAdjustmentReviewerAnchor(draft, adjustment)) ||
+    reviewerOutcomes.length > 0 ||
+    reviewerOverrides.length > 0;
+  const hasAcceptedOutcome = reviewerOutcomes.some((outcome) => outcome.verdict === "accepted");
+  const hasRejectedOutcome = reviewerOutcomes.some((outcome) => outcome.verdict === "rejected");
+  const status: TinaTaxPositionRecordStatus = relatedAdjustments.some(
+    (adjustment) => adjustment.requiresAuthority && !authoritySupported
+  )
+    ? "blocked"
+    : hasReviewerAnchor && relatedAdjustments.some((adjustment) => adjustment.status === "approved")
+      ? "ready"
+      : "needs_review";
+  const confidence = buildConfidence({
+    adjustment: relatedAdjustments[0] ?? {
+      id: args.adjustmentId,
+      kind: relatedAdjustmentKinds[0] ?? "timing_review",
+      status: "ready_for_review",
+      risk: "medium",
+      requiresAuthority: false,
+      title: args.title,
+      summary: args.summaryPrefix,
+      suggestedTreatment: args.treatmentSummary,
+      whyItMatters: args.summaryPrefix,
+      amount: null,
+      authorityWorkIdeaIds: [],
+      aiCleanupLineIds: [],
+      sourceDocumentIds: Array.from(relatedDocumentIds),
+      sourceFactIds: Array.from(factIds),
+      reviewerNotes: "",
+    },
+    authoritySupported,
+    hasReviewerAnchor,
+    hasAcceptedOutcome,
+    hasRejectedOutcome,
+    patternImpact: patternScore?.confidenceImpact ?? null,
+  });
+  const latestFactUpdate = Math.max(
+    0,
+    ...facts.map((fact) => Date.parse(fact.capturedAt ?? "") || 0)
+  );
+  const latestAuthorityUpdate = Math.max(
+    0,
+    ...authorityWork.map((item) => Date.parse(item.updatedAt ?? "") || 0)
+  );
+  const latestOutcomeUpdate = Math.max(
+    0,
+    ...reviewerOutcomes.map((item) => Date.parse(item.decidedAt) || 0),
+    ...reviewerOverrides.map((item) => Date.parse(item.decidedAt) || 0)
+  );
+  const relatedSummaries =
+    relatedAdjustments.length > 0
+      ? ` Linked ${relatedAdjustments.length} treatment path${
+          relatedAdjustments.length === 1 ? "" : "s"
+        }.`
+      : " No linked treatment path yet.";
+
+  return {
+    id: args.id,
+    adjustmentId: args.adjustmentId,
+    title: args.title,
+    status,
+    confidence,
+    summary: `${args.summaryPrefix} Tina found ${facts.length} supporting fact${
+      facts.length === 1 ? "" : "s"
+    }.${relatedSummaries}`,
+    treatmentSummary: args.treatmentSummary,
+    reviewerGuidance: buildGovernedPositionGuidance({
+      title: args.title,
+      treatmentSummary: args.treatmentSummary,
+      sourceFacts: facts,
+      relatedAdjustments,
+      authoritySupported,
+      reviewerLessons,
+      patternGuidance,
+    }),
+    authorityWorkIdeaIds: Array.from(
+      new Set(relatedAdjustments.flatMap((adjustment) => adjustment.authorityWorkIdeaIds))
+    ),
+    sourceDocumentIds: Array.from(relatedDocumentIds),
+    sourceFactIds: Array.from(factIds),
+    reviewerOutcomeIds: reviewerOutcomes.map((outcome) => outcome.id),
+    reviewerOverrideIds: reviewerOverrides.map((override) => override.id),
+    updatedAt:
+      Math.max(latestFactUpdate, latestAuthorityUpdate, latestOutcomeUpdate) > 0
+        ? new Date(
+            Math.max(latestFactUpdate, latestAuthorityUpdate, latestOutcomeUpdate)
+          ).toISOString()
+        : null,
+  };
+}
+
+function buildSyntheticGovernedRecords(draft: TinaWorkspaceDraft): TinaTaxPositionRecord[] {
+  const carryoverFacts = draft.sourceFacts.filter((fact) => fact.label === "Carryover amount clue");
+  const depreciationFacts = draft.sourceFacts.filter(
+    (fact) => fact.label === "Asset placed-in-service clue"
+  );
+  const payrollFacts = draft.sourceFacts.filter(
+    (fact) =>
+      fact.label === "Payroll clue" || fact.label === "Payroll filing period clue"
+  );
+  const contractorFacts = draft.sourceFacts.filter(
+    (fact) => fact.label === "Contractor clue"
+  );
+  const salesTaxFacts = draft.sourceFacts.filter(
+    (fact) => fact.label === "Sales tax clue"
+  );
+  const inventoryFacts = draft.sourceFacts.filter(
+    (fact) => fact.label === "Inventory clue"
+  );
+  const ownerFlowFacts = draft.sourceFacts.filter(
+    (fact) =>
+      fact.label === "Owner draw clue" ||
+      fact.label === "Intercompany transfer clue" ||
+      fact.label === "Related-party clue"
+  );
+
+  return [
+    buildGovernedPositionRecord({
+      draft,
+      id: "tax-position-continuity-review",
+      adjustmentId: "continuity-review",
+      title: "Carryover continuity review",
+      treatmentSummary: "confirm the carryover bridge before current-year numbers are treated as settled",
+      summaryPrefix: "Carryover continuity is now tracked as a governed tax position.",
+      facts: carryoverFacts,
+      relatedAdjustmentKinds: ["carryforward_line", "timing_review"],
+    }),
+    buildGovernedPositionRecord({
+      draft,
+      id: "tax-position-depreciation-review",
+      adjustmentId: "depreciation-review",
+      title: "Depreciation timing review",
+      treatmentSummary: "confirm placed-in-service timing before expense totals are treated as final",
+      summaryPrefix: "Depreciation timing is now tracked as a governed tax position.",
+      facts: depreciationFacts,
+      relatedAdjustmentKinds: ["timing_review", "carryforward_line"],
+    }),
+    buildGovernedPositionRecord({
+      draft,
+      id: "tax-position-payroll-classification-review",
+      adjustmentId: "payroll-classification-review",
+      title: "Payroll classification review",
+      treatmentSummary: "keep payroll-shaped activity out of generic expense treatment until payroll handling is explicit",
+      summaryPrefix: "Payroll activity is now tracked as a governed tax position.",
+      facts: payrollFacts,
+      relatedAdjustmentKinds: ["payroll_classification", "carryforward_line", "timing_review"],
+    }),
+    buildGovernedPositionRecord({
+      draft,
+      id: "tax-position-contractor-classification-review",
+      adjustmentId: "contractor-classification-review",
+      title: "Contractor classification review",
+      treatmentSummary: "keep contractor-shaped activity out of generic expense treatment until contractor handling is explicit",
+      summaryPrefix: "Contractor activity is now tracked as a governed tax position.",
+      facts: contractorFacts,
+      relatedAdjustmentKinds: ["contractor_classification", "carryforward_line", "timing_review"],
+    }),
+    buildGovernedPositionRecord({
+      draft,
+      id: "tax-position-sales-tax-review",
+      adjustmentId: "sales-tax-review",
+      title: "Sales tax exclusion review",
+      treatmentSummary: "keep collected sales tax out of gross receipts when liability facts support it",
+      summaryPrefix: "Sales-tax activity is now tracked as a governed tax position.",
+      facts: salesTaxFacts,
+      relatedAdjustmentKinds: ["sales_tax_exclusion", "carryforward_line", "timing_review"],
+    }),
+    buildGovernedPositionRecord({
+      draft,
+      id: "tax-position-inventory-review",
+      adjustmentId: "inventory-review",
+      title: "Inventory treatment review",
+      treatmentSummary: "keep inventory-shaped activity out of ordinary expense treatment until COGS handling is explicit",
+      summaryPrefix: "Inventory-shaped activity is now tracked as a governed tax position.",
+      facts: inventoryFacts,
+      relatedAdjustmentKinds: ["inventory_treatment", "carryforward_line", "timing_review"],
+    }),
+    buildGovernedPositionRecord({
+      draft,
+      id: "tax-position-owner-flow-review",
+      adjustmentId: "owner-flow-review",
+      title: "Owner-flow and related-party contamination review",
+      treatmentSummary: "separate owner-flow, transfer, and related-party activity from ordinary Schedule C totals before trust",
+      summaryPrefix: "Owner-flow and related-party activity is now tracked as a governed tax position.",
+      facts: ownerFlowFacts,
+      relatedAdjustmentKinds: ["timing_review", "carryforward_line"],
+    }),
+  ].filter((record): record is TinaTaxPositionRecord => record !== null);
+}
+
 export function buildTinaTaxPositionMemory(
   draft: TinaWorkspaceDraft
 ): TinaTaxPositionMemorySnapshot {
@@ -278,7 +586,9 @@ export function buildTinaTaxPositionMemory(
     };
   }
 
-  if (draft.taxAdjustments.adjustments.length === 0) {
+  const syntheticRecords = buildSyntheticGovernedRecords(draft);
+
+  if (draft.taxAdjustments.adjustments.length === 0 && syntheticRecords.length === 0) {
     return {
       ...createDefaultTinaTaxPositionMemorySnapshot(),
       lastRunAt: now,
@@ -288,7 +598,10 @@ export function buildTinaTaxPositionMemory(
     };
   }
 
-  const records = draft.taxAdjustments.adjustments.map((adjustment) => buildRecord(draft, adjustment));
+  const records = [
+    ...draft.taxAdjustments.adjustments.map((adjustment) => buildRecord(draft, adjustment)),
+    ...syntheticRecords,
+  ];
   const blockedCount = records.filter((record) => record.status === "blocked").length;
   const reviewCount = records.filter((record) => record.status === "needs_review").length;
 

@@ -18,6 +18,34 @@ export interface TinaSpreadsheetSignals {
   nextStep: string;
 }
 
+interface TinaTransactionAnchorClue {
+  label: string;
+  value: string;
+  confidence: TinaDocumentFactConfidence;
+}
+
+interface TinaLedgerBucket {
+  name: string;
+  rowCount: number;
+  net: number;
+}
+
+interface TinaTransactionGroup {
+  label: string;
+  rowCount: number;
+  total: number;
+  startDate: Date | null;
+  endDate: Date | null;
+}
+
+interface TinaTransactionLineageCluster {
+  label: string;
+  rowCount: number;
+  total: number;
+  startDate: Date | null;
+  endDate: Date | null;
+}
+
 interface SpreadsheetColumnStats {
   header: string;
   normalizedHeader: string;
@@ -285,6 +313,275 @@ function pickTextHeaders(stats: SpreadsheetColumnStats[]): string[] {
   return fallback ? [fallback.header] : [];
 }
 
+function buildTransactionAnchorClues(
+  rows: Record<string, string>[],
+  textHeaders: string[]
+): TinaTransactionAnchorClue[] {
+  if (textHeaders.length === 0) return [];
+
+  const samples = rows
+    .map((row) =>
+      textHeaders
+        .map((header) => (row[header] ?? "").trim())
+        .filter((value) => value.length > 0)
+        .join(" | ")
+    )
+    .filter((value) => value.length > 0);
+
+  const uniqueSamples = Array.from(new Set(samples)).slice(0, 3);
+  const clues: TinaTransactionAnchorClue[] = [];
+
+  uniqueSamples.forEach((sample) => {
+    clues.push({
+      label: "Transaction sample clue",
+      value: sample.slice(0, 160),
+      confidence: "medium",
+    });
+  });
+
+  textHeaders.slice(0, 2).forEach((header) => {
+    clues.push({
+      label: "Transaction column clue",
+      value: header.slice(0, 160),
+      confidence: "medium",
+    });
+  });
+
+  return clues;
+}
+
+function buildLedgerBucketClues(
+  rows: Record<string, string>[],
+  textHeaders: string[],
+  amountHeaders: ReturnType<typeof pickAmountHeaders>
+): TinaTransactionAnchorClue[] {
+  if (textHeaders.length === 0) return [];
+  const bucketHeader = textHeaders[0];
+  const buckets = new Map<string, TinaLedgerBucket>();
+
+  rows.forEach((row) => {
+    const bucketName = (row[bucketHeader] ?? "").trim();
+    if (!bucketName) return;
+
+    let amount = 0;
+    let sawAmount = false;
+    if (amountHeaders.creditHeader || amountHeaders.debitHeader) {
+      const credit = amountHeaders.creditHeader
+        ? parseMoneyValue(row[amountHeaders.creditHeader] ?? "")
+        : null;
+      const debit = amountHeaders.debitHeader
+        ? parseMoneyValue(row[amountHeaders.debitHeader] ?? "")
+        : null;
+      if (credit !== null) {
+        amount += Math.abs(credit);
+        sawAmount = true;
+      }
+      if (debit !== null) {
+        amount -= Math.abs(debit);
+        sawAmount = true;
+      }
+    } else if (amountHeaders.amountHeader) {
+      const parsed = parseMoneyValue(row[amountHeaders.amountHeader] ?? "");
+      if (parsed !== null) {
+        amount = parsed;
+        sawAmount = true;
+      }
+    }
+
+    if (!sawAmount) return;
+
+    const current = buckets.get(bucketName) ?? {
+      name: bucketName,
+      rowCount: 0,
+      net: 0,
+    };
+    current.rowCount += 1;
+    current.net += amount;
+    buckets.set(bucketName, current);
+  });
+
+  return Array.from(buckets.values())
+    .sort((left, right) => Math.abs(right.net) - Math.abs(left.net))
+    .slice(0, 3)
+    .map((bucket) => ({
+      label: "Ledger bucket clue",
+      value: `${bucket.name}: ${bucket.rowCount} row${bucket.rowCount === 1 ? "" : "s"}, net ${formatMoney(bucket.net)}`,
+      confidence: "medium" as const,
+    }));
+}
+
+function buildTransactionGroupClues(
+  rows: Record<string, string>[],
+  textHeaders: string[],
+  amountHeaders: ReturnType<typeof pickAmountHeaders>,
+  dateHeader: string | null
+): TinaTransactionAnchorClue[] {
+  if (textHeaders.length === 0) return [];
+  const groupHeaders = textHeaders.slice(0, 2);
+  const groups = new Map<string, TinaTransactionGroup>();
+
+  rows.forEach((row) => {
+    const labelParts = groupHeaders
+      .map((header) => (row[header] ?? "").trim())
+      .filter((value) => value.length > 0)
+      .slice(0, 2);
+    if (labelParts.length === 0) return;
+
+    let total = 0;
+    let sawAmount = false;
+    if (amountHeaders.creditHeader || amountHeaders.debitHeader) {
+      const credit = amountHeaders.creditHeader
+        ? parseMoneyValue(row[amountHeaders.creditHeader] ?? "")
+        : null;
+      const debit = amountHeaders.debitHeader
+        ? parseMoneyValue(row[amountHeaders.debitHeader] ?? "")
+        : null;
+      if (credit !== null) {
+        total += Math.abs(credit);
+        sawAmount = true;
+      }
+      if (debit !== null) {
+        total -= Math.abs(debit);
+        sawAmount = true;
+      }
+    } else if (amountHeaders.amountHeader) {
+      const parsed = parseMoneyValue(row[amountHeaders.amountHeader] ?? "");
+      if (parsed !== null) {
+        total = parsed;
+        sawAmount = true;
+      }
+    }
+
+    if (!sawAmount) return;
+
+    const direction = total >= 0 ? "inflow" : "outflow";
+    const label = labelParts.join(" | ").slice(0, 120);
+    const key = `${label.toLowerCase()}::${direction}`;
+    const parsedDate = dateHeader ? parseDateValue(row[dateHeader] ?? "") : null;
+    const current = groups.get(key) ?? {
+      label: `${label} (${direction})`,
+      rowCount: 0,
+      total: 0,
+      startDate: parsedDate,
+      endDate: parsedDate,
+    };
+
+    current.rowCount += 1;
+    current.total += total;
+    if (parsedDate) {
+      current.startDate =
+        !current.startDate || parsedDate.getTime() < current.startDate.getTime()
+          ? parsedDate
+          : current.startDate;
+      current.endDate =
+        !current.endDate || parsedDate.getTime() > current.endDate.getTime()
+          ? parsedDate
+          : current.endDate;
+    }
+    groups.set(key, current);
+  });
+
+  return Array.from(groups.values())
+    .sort((left, right) => Math.abs(right.total) - Math.abs(left.total))
+    .slice(0, 5)
+    .map((group) => {
+      const dateRange =
+        group.startDate && group.endDate
+          ? `, dates ${formatShortDate(group.startDate)} to ${formatShortDate(group.endDate)}`
+          : "";
+      return {
+        label: "Transaction group clue",
+        value: `${group.label}: ${group.rowCount} row${
+          group.rowCount === 1 ? "" : "s"
+        }, total ${formatMoney(group.total)}${dateRange}`,
+        confidence: "medium" as const,
+      };
+    });
+}
+
+function buildTransactionLineageClues(
+  rows: Record<string, string>[],
+  textHeaders: string[],
+  amountHeaders: ReturnType<typeof pickAmountHeaders>,
+  dateHeader: string | null
+): TinaTransactionAnchorClue[] {
+  if (textHeaders.length === 0 || !dateHeader) return [];
+
+  const primaryHeader = textHeaders[0];
+  const clusters = new Map<string, TinaTransactionLineageCluster>();
+
+  rows.forEach((row) => {
+    const primaryValue = (row[primaryHeader] ?? "").trim();
+    const parsedDate = parseDateValue(row[dateHeader] ?? "");
+    if (!primaryValue || !parsedDate) return;
+
+    let total = 0;
+    let sawAmount = false;
+    if (amountHeaders.creditHeader || amountHeaders.debitHeader) {
+      const credit = amountHeaders.creditHeader
+        ? parseMoneyValue(row[amountHeaders.creditHeader] ?? "")
+        : null;
+      const debit = amountHeaders.debitHeader
+        ? parseMoneyValue(row[amountHeaders.debitHeader] ?? "")
+        : null;
+      if (credit !== null) {
+        total += Math.abs(credit);
+        sawAmount = true;
+      }
+      if (debit !== null) {
+        total -= Math.abs(debit);
+        sawAmount = true;
+      }
+    } else if (amountHeaders.amountHeader) {
+      const parsed = parseMoneyValue(row[amountHeaders.amountHeader] ?? "");
+      if (parsed !== null) {
+        total = parsed;
+        sawAmount = true;
+      }
+    }
+
+    if (!sawAmount) return;
+
+    const direction = total >= 0 ? "inflow" : "outflow";
+    const monthBucket = formatFactDate(parsedDate).slice(0, 7);
+    const label = `${primaryValue.slice(0, 80)} | ${monthBucket} (${direction})`;
+    const key = `${label.toLowerCase()}::${direction}`;
+    const current = clusters.get(key) ?? {
+      label,
+      rowCount: 0,
+      total: 0,
+      startDate: parsedDate,
+      endDate: parsedDate,
+    };
+
+    current.rowCount += 1;
+    current.total += total;
+    current.startDate =
+      !current.startDate || parsedDate.getTime() < current.startDate.getTime()
+        ? parsedDate
+        : current.startDate;
+    current.endDate =
+      !current.endDate || parsedDate.getTime() > current.endDate.getTime()
+        ? parsedDate
+        : current.endDate;
+
+    clusters.set(key, current);
+  });
+
+  return Array.from(clusters.values())
+    .sort((left, right) => Math.abs(right.total) - Math.abs(left.total))
+    .slice(0, 6)
+    .map((cluster) => ({
+      label: "Transaction lineage clue",
+      value: `${cluster.label}: ${cluster.rowCount} row${
+        cluster.rowCount === 1 ? "" : "s"
+      }, total ${formatMoney(cluster.total)}, dates ${formatShortDate(
+        cluster.startDate ?? new Date(0)
+      )} to ${formatShortDate(cluster.endDate ?? new Date(0))}`,
+      confidence: "medium" as const,
+    }));
+}
+
 function detectKeywordClues(rows: Record<string, string>[], textHeaders: string[]): Array<{
   label: string;
   value: string;
@@ -437,6 +734,20 @@ export async function analyzeTinaSpreadsheetSignals(
   const amountSnapshot = buildAmountSnapshot(parsedRows.rows, amountHeaders);
   const textHeaders = pickTextHeaders(stats);
   const keywordClues = detectKeywordClues(parsedRows.rows, textHeaders);
+  const transactionAnchorClues = buildTransactionAnchorClues(parsedRows.rows, textHeaders);
+  const ledgerBucketClues = buildLedgerBucketClues(parsedRows.rows, textHeaders, amountHeaders);
+  const transactionGroupClues = buildTransactionGroupClues(
+    parsedRows.rows,
+    textHeaders,
+    amountHeaders,
+    dateHeader
+  );
+  const transactionLineageClues = buildTransactionLineageClues(
+    parsedRows.rows,
+    textHeaders,
+    amountHeaders,
+    dateHeader
+  );
 
   const facts: TinaDocumentReadingFact[] = [];
   const detailLines: string[] = [];
@@ -494,6 +805,80 @@ export async function analyzeTinaSpreadsheetSignals(
     });
     detailLines.push(clue.value);
   });
+
+  transactionAnchorClues.forEach((clue, index) => {
+    facts.push({
+      id: `${clue.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${index + 1}`,
+      label: clue.label,
+      value: clue.value,
+      confidence: clue.confidence,
+    });
+  });
+
+  ledgerBucketClues.forEach((clue, index) => {
+    facts.push({
+      id: `ledger-bucket-clue-${index + 1}`,
+      label: clue.label,
+      value: clue.value,
+      confidence: clue.confidence,
+    });
+  });
+
+  transactionGroupClues.forEach((clue, index) => {
+    facts.push({
+      id: `transaction-group-clue-${index + 1}`,
+      label: clue.label,
+      value: clue.value,
+      confidence: clue.confidence,
+    });
+  });
+
+  transactionLineageClues.forEach((clue, index) => {
+    facts.push({
+      id: `transaction-lineage-clue-${index + 1}`,
+      label: clue.label,
+      value: clue.value,
+      confidence: clue.confidence,
+    });
+  });
+
+  if (transactionAnchorClues.length > 0) {
+    const sampleSummary = transactionAnchorClues
+      .filter((clue) => clue.label === "Transaction sample clue")
+      .map((clue) => clue.value)
+      .slice(0, 2);
+
+    if (sampleSummary.length > 0) {
+      detailLines.push(`Tina found transaction-style anchors like ${sampleSummary.join(" and ")}.`);
+    }
+  }
+
+  if (ledgerBucketClues.length > 0) {
+    detailLines.push(
+      `Tina grouped rows into ledger buckets like ${ledgerBucketClues
+        .map((clue) => clue.value)
+        .slice(0, 2)
+        .join(" and ")}.`
+    );
+  }
+
+  if (transactionGroupClues.length > 0) {
+    detailLines.push(
+      `Tina grouped transaction flows like ${transactionGroupClues
+        .map((clue) => clue.value)
+        .slice(0, 2)
+        .join(" and ")}.`
+    );
+  }
+
+  if (transactionLineageClues.length > 0) {
+    detailLines.push(
+      `Tina traced row clusters like ${transactionLineageClues
+        .map((clue) => clue.value)
+        .slice(0, 2)
+        .join(" and ")}.`
+    );
+  }
 
   let summary = summarizeSpreadsheetPurpose(document);
   if (dateSnapshot && (amountSnapshot.moneyInTotal !== null || amountSnapshot.moneyOutTotal !== null)) {

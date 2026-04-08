@@ -132,6 +132,46 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
     );
   }
 
+  const priorCarryoverFacts = findFactsByLabel(draft.sourceFacts, "Prior-year carryover clue");
+  if (priorCarryoverFacts.length > 0) {
+    const linkedIds = collectLinkedIds(priorCarryoverFacts);
+    ideas.push(
+      buildLead({
+        id: "prior-year-carryover-proof-review",
+        title: "Check carryover proof from prior-year papers",
+        summary:
+          "Tina found a carryover clue in uploaded papers and should verify whether that continuity item affects the current return.",
+        whyItMatters:
+          "Carryovers are easy to miss, and when they are real they can materially change current-year taxable income or continuity schedules.",
+        category: "continuity",
+        sourceLabels: ["A saved paper explicitly hints at a prior-year carryover."],
+        ...linkedIds,
+        searchPrompt:
+          "Review the uploaded prior-year paper for carryovers, continuity items, and how they should flow into the current business return.",
+      })
+    );
+  }
+
+  const electionFacts = findFactsByLabel(draft.sourceFacts, "Tax election clue");
+  if (electionFacts.length > 0) {
+    const linkedIds = collectLinkedIds(electionFacts);
+    ideas.push(
+      buildLead({
+        id: "tax-election-continuity-review",
+        title: "Check tax election continuity",
+        summary:
+          "Tina found an election clue in uploaded papers and should confirm whether that election still governs the current file.",
+        whyItMatters:
+          "Tax elections can change how the return should be prepared, and missing continuity here can create both filing and planning errors.",
+        category: "continuity",
+        sourceLabels: ["A saved paper explicitly hints at a tax election."],
+        ...linkedIds,
+        searchPrompt:
+          "Review the uploaded paper for tax elections, continuity consequences, revocation limits, and how the election affects the current-year business return.",
+      })
+    );
+  }
+
   if (recommendation.laneId === "schedule_c_single_member_llc") {
     ideas.push(
       buildLead({
@@ -253,6 +293,66 @@ export function buildTinaResearchIdeas(draft: TinaWorkspaceDraft): TinaTaxIdeaLe
         })
       );
     }
+  }
+
+  const depreciationFacts = findFactsByLabel(draft.sourceFacts, "Depreciation clue");
+  if (depreciationFacts.length > 0) {
+    const linkedIds = collectLinkedIds(depreciationFacts);
+    ideas.push(
+      buildLead({
+        id: "depreciation-rollforward-review",
+        title: "Check depreciation rollforward and continuity",
+        summary:
+          "Tina found a depreciation clue in the papers and should confirm whether depreciation history or carryforward schedules affect the current return.",
+        whyItMatters:
+          "Depreciation continuity is a common place where current-year numbers drift away from the underlying asset history.",
+        category: "continuity",
+        sourceLabels: ["A saved paper explicitly hints at depreciation history."],
+        ...linkedIds,
+        searchPrompt:
+          "Review depreciation history, prior-year carryforwards, placed-in-service continuity, and how those schedules affect the current-year business return.",
+      })
+    );
+  }
+
+  const ownershipFacts = findFactsByLabel(draft.sourceFacts, "Ownership record clue");
+  if (ownershipFacts.length > 0) {
+    const linkedIds = collectLinkedIds(ownershipFacts);
+    ideas.push(
+      buildLead({
+        id: "ownership-structure-review",
+        title: "Check ownership and filing-structure consequences",
+        summary:
+          "Tina found an ownership-record clue and should confirm whether the legal ownership story changes filing path, authority posture, or continuity assumptions.",
+        whyItMatters:
+          "Ownership structure can affect filing lane, continuity, and which treatments or disclosures are even available.",
+        category: "compliance",
+        sourceLabels: ["A saved paper explicitly hints at ownership structure."],
+        ...linkedIds,
+        searchPrompt:
+          "Review ownership records, entity structure, elections, and continuity consequences for the current business return and reviewer packet.",
+      })
+    );
+  }
+
+  const payrollTaxFormFacts = findFactsByLabel(draft.sourceFacts, "Payroll tax form clue");
+  if (payrollTaxFormFacts.length > 0) {
+    const linkedIds = collectLinkedIds(payrollTaxFormFacts);
+    ideas.push(
+      buildLead({
+        id: "payroll-tax-form-review",
+        title: "Check payroll tax form continuity",
+        summary:
+          "Tina found payroll tax form clues in the papers and should verify whether payroll support is complete enough for deduction and compliance reliance.",
+        whyItMatters:
+          "Payroll forms can change both deduction confidence and compliance posture, especially when wages are material.",
+        category: "compliance",
+        sourceLabels: ["A saved paper explicitly hints at payroll tax forms."],
+        ...linkedIds,
+        searchPrompt:
+          "Review payroll tax forms, payroll support completeness, and whether payroll records support the business return deductions and compliance posture.",
+      })
+    );
   }
 
   const inventoryFacts = findFactsByLabel(draft.sourceFacts, "Inventory clue");

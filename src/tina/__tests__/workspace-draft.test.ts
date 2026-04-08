@@ -507,6 +507,31 @@ describe("workspace draft helpers", () => {
     expect(result.taxPositionMemory.records[0]?.reviewerOutcomeIds).toEqual(["outcome-1"]);
   });
 
+  it("normalizes saved benchmark proposal decisions", () => {
+    const result = parseTinaWorkspaceDraft(
+      JSON.stringify({
+        benchmarkProposalDecisions: [
+          {
+            id: "benchmark-proposal-clean_books-documentation_and_defensibility",
+            skillId: "documentation_and_defensibility",
+            cohortTag: "clean_books",
+            status: "accepted",
+            rationale: "Reviewer agreed this cohort now supports a narrow raise.",
+            decidedAt: "2026-04-07T18:20:00.000Z",
+            decidedBy: "reviewer-1",
+          },
+          {
+            broken: true,
+          },
+        ],
+      })
+    );
+
+    expect(result.benchmarkProposalDecisions).toHaveLength(1);
+    expect(result.benchmarkProposalDecisions[0]?.cohortTag).toBe("clean_books");
+    expect(result.benchmarkProposalDecisions[0]?.status).toBe("accepted");
+  });
+
   it("normalizes saved book tie-out snapshots", () => {
     const result = parseTinaWorkspaceDraft(
       JSON.stringify({

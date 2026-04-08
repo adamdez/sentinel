@@ -98,6 +98,16 @@ function strongestStatus(statuses: TinaWorkpaperLineStatus[]): TinaWorkpaperLine
   return "ready";
 }
 
+function findFactValues(draft: TinaWorkspaceDraft, label: string): string[] {
+  return draft.sourceFacts
+    .filter((fact) => fact.label === label)
+    .map((fact) => fact.value);
+}
+
+function hasFact(draft: TinaWorkspaceDraft, label: string): boolean {
+  return draft.sourceFacts.some((fact) => fact.label === label);
+}
+
 function buildLineSummary(args: {
   hasLines: boolean;
   fallbackIfMissing: string;
@@ -172,20 +182,43 @@ export function buildTinaScheduleCDraft(
   const netCrossCheckLines = draft.reviewerFinal.lines.filter(
     (line) => line.label === "Net business result candidate"
   );
+  const payrollPeriods = findFactValues(draft, "Payroll filing period clue");
+  const carryoverAmounts = findFactValues(draft, "Carryover amount clue");
+  const ownershipPercentages = findFactValues(draft, "Ownership percentage clue");
+  const assetPlacedInServiceDates = findFactValues(draft, "Asset placed-in-service clue");
+  const hiddenPayrollSignal = hasFact(draft, "Payroll clue");
+  const hiddenContractorSignal = hasFact(draft, "Contractor clue");
+  const hiddenInventorySignal = hasFact(draft, "Inventory clue");
+  const hiddenSalesTaxSignal = hasFact(draft, "Sales tax clue");
+  const ownerDrawClues = findFactValues(draft, "Owner draw clue");
+  const intercompanyTransferClues = findFactValues(draft, "Intercompany transfer clue");
+  const relatedPartyClues = findFactValues(draft, "Related-party clue");
+  const hiddenOwnerFlowSignal =
+    ownerDrawClues.length > 0 || intercompanyTransferClues.length > 0 || relatedPartyClues.length > 0;
 
   const grossReceiptsStatus: TinaWorkpaperLineStatus =
     salesTaxLines.length > 0
       ? "needs_attention"
+      : hiddenSalesTaxSignal && grossReceiptsLines.length > 0
+        ? "needs_attention"
       : grossReceiptsLines.length > 0
         ? strongestStatus(grossReceiptsLines.map((line) => line.status))
         : "waiting";
 
   const cogsStatus: TinaWorkpaperLineStatus =
-    inventoryLines.length > 0 ? "needs_attention" : draft.profile.hasInventory ? "waiting" : "ready";
+    inventoryLines.length > 0
+      ? "needs_attention"
+      : hiddenInventorySignal
+        ? "needs_attention"
+        : draft.profile.hasInventory
+          ? "waiting"
+          : "ready";
 
   const wagesStatus: TinaWorkpaperLineStatus =
     payrollLines.length > 0
       ? strongestStatus(payrollLines.map((line) => line.status))
+      : hiddenPayrollSignal
+        ? "needs_attention"
       : draft.profile.hasPayroll
         ? "waiting"
         : "ready";
@@ -193,6 +226,8 @@ export function buildTinaScheduleCDraft(
   const contractLaborStatus: TinaWorkpaperLineStatus =
     contractorLines.length > 0
       ? strongestStatus(contractorLines.map((line) => line.status))
+      : hiddenContractorSignal
+        ? "needs_attention"
       : draft.profile.paysContractors
         ? "waiting"
         : "ready";
@@ -215,7 +250,20 @@ export function buildTinaScheduleCDraft(
   const grossIncomeAmount =
     cogsAmount === null ? grossReceiptsAmount : grossReceiptsAmount - cogsAmount;
   const grossIncomeStatus = strongestStatus([grossReceiptsStatus, cogsStatus]);
-  const tentativeNetStatus = strongestStatus([grossIncomeStatus, totalExpensesStatus]);
+  const depreciationSensitive = assetPlacedInServiceDates.length > 0;
+  const continuitySensitive = carryoverAmounts.length > 0;
+  const adjustedOtherExpensesStatus: TinaWorkpaperLineStatus =
+    depreciationSensitive && otherExpensesStatus === "ready" ? "needs_attention" : otherExpensesStatus;
+  const adjustedTotalExpensesStatus = strongestStatus([
+    wagesStatus,
+    contractLaborStatus,
+    adjustedOtherExpensesStatus,
+  ]);
+  const tentativeNetStatusBase = strongestStatus([grossIncomeStatus, adjustedTotalExpensesStatus]);
+  const tentativeNetStatus: TinaWorkpaperLineStatus =
+    (continuitySensitive || hiddenOwnerFlowSignal) && tentativeNetStatusBase === "ready"
+      ? "needs_attention"
+      : tentativeNetStatusBase;
   const tentativeNetAmount =
     grossIncomeAmount !== null ? grossIncomeAmount - totalExpensesAmount : null;
 
@@ -231,7 +279,9 @@ export function buildTinaScheduleCDraft(
         fallbackIfMissing: "Tina does not have approved gross receipts lines here yet.",
         readyText: "Tina mapped approved income lines into the first gross receipts box.",
         needsAttentionText:
-          "Tina mapped income here, but a sales-tax review note still needs a human before line 1 is trusted.",
+          hiddenSalesTaxSignal && salesTaxLines.length === 0
+            ? "Tina mapped income here, but source papers still mention sales-tax activity, so line 1 should stay in active review until exclusion treatment is confirmed."
+            : "Tina mapped income here, but a sales-tax review note still needs a human before line 1 is trusted.",
         status: grossReceiptsStatus,
       }),
       lines: [...grossReceiptsLines, ...salesTaxLines],
@@ -245,6 +295,8 @@ export function buildTinaScheduleCDraft(
       summary:
         inventoryLines.length > 0
           ? "Inventory still needs careful review, so Tina is not forcing a COGS number yet."
+          : hiddenInventorySignal
+            ? "Source papers still look inventory-shaped, so Tina is not forcing a COGS number yet even though no explicit inventory line was approved."
           : draft.profile.hasInventory
             ? "Inventory is turned on, but Tina does not have an approved COGS line yet."
             : "Tina is carrying 0 here for now because inventory is not turned on in the organizer.",
@@ -259,6 +311,8 @@ export function buildTinaScheduleCDraft(
       summary:
         contractorLines.length > 0
           ? "Tina mapped approved contractor lines into the contract labor box."
+          : hiddenContractorSignal
+            ? "Source papers still mention contractor-style activity, so Tina is keeping this box in active review until contractor treatment is resolved."
           : draft.profile.paysContractors
             ? "Contractors are turned on, but Tina does not have an approved contract labor line here yet."
             : "Tina is carrying 0 here because contractors are not turned on in the organizer.",
@@ -272,7 +326,9 @@ export function buildTinaScheduleCDraft(
       status: wagesStatus,
       summary:
         payrollLines.length > 0
-          ? "Tina mapped approved payroll lines into the wages box."
+          ? `Tina mapped approved payroll lines into the wages box.${payrollPeriods.length > 0 ? ` Payroll support references ${payrollPeriods.slice(0, 2).join(" and ")}.` : ""}`
+          : hiddenPayrollSignal
+            ? "Source papers still mention payroll-style activity, so Tina is keeping the wages box in active review until payroll treatment is resolved."
           : draft.profile.hasPayroll
             ? "Payroll is turned on, but Tina does not have an approved wages line here yet."
             : "Tina is carrying 0 here because payroll is not turned on in the organizer.",
@@ -283,10 +339,14 @@ export function buildTinaScheduleCDraft(
       lineNumber: "Line 27a",
       label: "Other expenses",
       amount: otherExpensesAmount,
-      status: otherExpensesStatus,
+      status: adjustedOtherExpensesStatus,
       summary:
         otherExpenseLines.length > 0
-          ? "Tina mapped approved generic business expenses into the other-expenses box."
+          ? depreciationSensitive
+            ? `Tina mapped approved generic business expenses into the other-expenses box, but asset timing clues (${assetPlacedInServiceDates
+                .slice(0, 2)
+                .join(" and ")}) mean depreciation-sensitive amounts still need a reviewer.`
+            : "Tina mapped approved generic business expenses into the other-expenses box."
           : "Tina does not have approved other-expense lines here yet, so this is only the approved-so-far total.",
       lines: otherExpenseLines,
     }),
@@ -295,11 +355,13 @@ export function buildTinaScheduleCDraft(
       lineNumber: "Line 28",
       label: "Total expenses",
       amount: totalExpensesAmount,
-      status: totalExpensesStatus,
+      status: adjustedTotalExpensesStatus,
       summary:
-        totalExpensesStatus === "ready"
+        adjustedTotalExpensesStatus === "ready"
           ? "Tina totaled the approved expense boxes she can support so far."
-          : "This total only reflects the approved expense boxes Tina can support so far.",
+          : depreciationSensitive
+            ? "This total still needs depreciation review because asset timing clues suggest some expense amounts may belong in depreciation treatment."
+            : "This total only reflects the approved expense boxes Tina can support so far.",
       lines: [...payrollLines, ...contractorLines, ...otherExpenseLines],
     }),
     buildField({
@@ -311,7 +373,9 @@ export function buildTinaScheduleCDraft(
       summary:
         tentativeNetStatus === "ready"
           ? "Tina computed this from the approved gross receipts and expense boxes above."
-          : "This profit number is still only a draft because one or more upstream boxes need more care.",
+          : hiddenOwnerFlowSignal
+            ? "This profit number is still only a draft because owner-flow, transfer, or related-party clues suggest ordinary business totals may still be contaminated."
+            : "This profit number is still only a draft because one or more upstream boxes need more care.",
       lines: [
         ...grossReceiptsLines,
         ...salesTaxLines,
@@ -328,7 +392,13 @@ export function buildTinaScheduleCDraft(
       amount: tentativeNetAmount,
       status: tentativeNetStatus,
       summary:
-        "Tina is carrying the same tentative amount here for now because later Schedule C adjustments are not built yet.",
+        continuitySensitive
+          ? `Tina is carrying the same tentative amount here for now, but continuity clues (${carryoverAmounts
+              .slice(0, 2)
+              .join(" and ")}) mean this number still needs carryover review before trust.`
+          : hiddenOwnerFlowSignal
+            ? "Tina is carrying the same tentative amount here for now, but owner-flow, transfer, or related-party clues mean this net number still needs contamination review before trust."
+          : "Tina is carrying the same tentative amount here for now because later Schedule C adjustments are not built yet.",
       lines: [
         ...grossReceiptsLines,
         ...salesTaxLines,
@@ -351,6 +421,118 @@ export function buildTinaScheduleCDraft(
           "Tina is not subtracting approved sales-tax treatment from line 1 automatically yet. A human still needs to confirm that step.",
         severity: "needs_attention",
         lines: salesTaxLines,
+      })
+    );
+  }
+
+  if (hiddenSalesTaxSignal && salesTaxLines.length === 0) {
+    notes.push(
+      buildNote({
+        id: "schedule-c-sales-tax-signal-note",
+        title: "Sales tax activity still needs explicit exclusion review",
+        summary:
+          "Tina sees sales-tax clues in the source papers even though no dedicated reviewer-final sales-tax line is attached yet. Keep gross receipts in active review until that exclusion path is explicit.",
+        severity: "needs_attention",
+        lines: grossReceiptsLines,
+      })
+    );
+  }
+
+  if (carryoverAmounts.length > 0) {
+    notes.push(
+      buildNote({
+        id: "schedule-c-carryover-note",
+        title: "Prior-year carryover amount still needs continuity handling",
+        summary: `Tina found carryover amounts in the source papers (${carryoverAmounts
+          .slice(0, 2)
+          .join(" and ")}), but she is not flowing them into Schedule C automatically without continuity review.`,
+        severity: "needs_attention",
+        lines: [],
+      })
+    );
+  }
+
+  if (ownershipPercentages.length > 0) {
+    notes.push(
+      buildNote({
+        id: "schedule-c-ownership-note",
+        title: "Ownership records should stay visible during final review",
+        summary: `Tina found ownership-detail clues (${ownershipPercentages
+          .slice(0, 2)
+          .join(" and ")}). Keep them visible so the reviewer can confirm the Schedule C path still matches the legal ownership story.`,
+        severity: "watch",
+        lines: [],
+      })
+    );
+  }
+
+  if (assetPlacedInServiceDates.length > 0) {
+    notes.push(
+      buildNote({
+        id: "schedule-c-assets-note",
+        title: "Placed-in-service asset dates may affect depreciation handling",
+        summary: `Tina found asset timing clues (${assetPlacedInServiceDates
+          .slice(0, 2)
+          .join(" and ")}). Keep depreciation and timing review attached before trusting final deduction treatment.`,
+        severity: "watch",
+        lines: [],
+      })
+    );
+  }
+
+  if (hiddenPayrollSignal && payrollLines.length === 0) {
+    notes.push(
+      buildNote({
+        id: "schedule-c-payroll-signal-note",
+        title: "Payroll activity still needs explicit treatment",
+        summary:
+          "Tina sees payroll clues in the source papers, but wages treatment is not yet governed by an approved payroll line.",
+        severity: "needs_attention",
+        lines: [],
+      })
+    );
+  }
+
+  if (hiddenContractorSignal && contractorLines.length === 0) {
+    notes.push(
+      buildNote({
+        id: "schedule-c-contractor-signal-note",
+        title: "Contractor activity still needs explicit treatment",
+        summary:
+          "Tina sees contractor clues in the source papers, but contract labor treatment is not yet governed by an approved contractor line.",
+        severity: "needs_attention",
+        lines: [],
+      })
+    );
+  }
+
+  if (hiddenInventorySignal && inventoryLines.length === 0) {
+    notes.push(
+      buildNote({
+        id: "schedule-c-inventory-signal-note",
+        title: "Inventory-shaped activity still needs review",
+        summary:
+          "Tina sees inventory clues in the source papers, but no explicit inventory treatment path is attached yet.",
+        severity: "needs_attention",
+        lines: [],
+      })
+    );
+  }
+
+  if (hiddenOwnerFlowSignal) {
+    notes.push(
+      buildNote({
+        id: "schedule-c-owner-flow-note",
+        title: "Owner-flow or related-party activity may contaminate ordinary totals",
+        summary: `Tina found clues like ${[
+          ...ownerDrawClues,
+          ...intercompanyTransferClues,
+          ...relatedPartyClues,
+        ]
+          .slice(0, 2)
+          .join(" and ")}. Keep net business totals in active review until those flows are separated from ordinary activity.`,
+        severity: "needs_attention",
+        lines: [],
       })
     );
   }

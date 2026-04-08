@@ -282,6 +282,141 @@ describe("buildTinaReviewerFinalSnapshot", () => {
     expect(snapshot.lines[0]?.summary).toContain("gross receipts candidates");
     expect(snapshot.nextStep).toContain("Reviewer history is still fragile");
   });
+
+  it("keeps carryforward lines in attention mode when ledger buckets reveal specialized treatment", () => {
+    const draft = buildDraft({
+      sourceFacts: [
+        {
+          id: "bucket-1",
+          sourceDocumentId: "doc-1",
+          label: "Ledger bucket clue",
+          value: "Payroll Expense: 3 rows, net -$3,000.00",
+          confidence: "medium",
+          capturedAt: "2026-04-07T08:00:00.000Z",
+        },
+      ],
+      aiCleanup: {
+        lastRunAt: "2026-03-27T02:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [
+          {
+            id: "ai-cleanup-1",
+            kind: "expense",
+            layer: "ai_cleanup",
+            label: "Clean expense",
+            amount: 3000,
+            status: "ready",
+            summary: "Looks clean",
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            issueIds: [],
+            derivedFromLineIds: ["line-1"],
+            cleanupSuggestionIds: ["cleanup-1"],
+          },
+        ],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T02:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-adjustment-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry expense",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 3000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-cleanup-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaReviewerFinalSnapshot(draft);
+    expect(snapshot.lines[0]?.status).toBe("needs_attention");
+    expect(snapshot.lines[0]?.summary).toContain("Ledger buckets");
+  });
+
+  it("keeps carryforward lines in attention mode when transaction-group totals do not align cleanly", () => {
+    const draft = buildDraft({
+      sourceFacts: [
+        {
+          id: "group-1",
+          sourceDocumentId: "doc-1",
+          label: "Transaction group clue",
+          value:
+            "Client deposit (inflow): 2 rows, total $12,000, dates Jan 1, 2025 to Jan 30, 2025",
+          confidence: "medium",
+          capturedAt: "2026-04-07T08:00:00.000Z",
+        },
+      ],
+      aiCleanup: {
+        lastRunAt: "2026-03-27T02:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [
+          {
+            id: "ai-cleanup-1",
+            kind: "income",
+            layer: "ai_cleanup",
+            label: "Clean income",
+            amount: 18000,
+            status: "ready",
+            summary: "Looks clean",
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            issueIds: [],
+            derivedFromLineIds: ["line-1"],
+            cleanupSuggestionIds: ["cleanup-1"],
+          },
+        ],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T02:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-adjustment-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 18000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-cleanup-1"],
+            sourceDocumentIds: ["doc-1"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaReviewerFinalSnapshot(draft);
+
+    expect(snapshot.lines[0]?.status).toBe("needs_attention");
+    expect(snapshot.lines[0]?.summary).toContain("Transaction groups behind this line");
+    expect(snapshot.lines[0]?.summary).toContain("do not align cleanly");
+  });
 });
 
 describe("markTinaReviewerFinalStale", () => {

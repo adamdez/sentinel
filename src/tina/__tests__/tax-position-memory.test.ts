@@ -274,4 +274,90 @@ describe("buildTinaTaxPositionMemory", () => {
       "Owner-flow treatment is still being rejected without tie-out proof."
     );
   });
+
+  it("turns continuity and depreciation clues into governed positions even before packet export", () => {
+    const draft = buildDraft({
+      taxAdjustments: {
+        lastRunAt: "2026-04-07T17:00:00.000Z",
+        status: "complete",
+        summary: "No direct adjustments yet.",
+        nextStep: "Keep going.",
+        adjustments: [],
+      },
+      sourceFacts: [
+        {
+          id: "fact-carryover",
+          sourceDocumentId: "doc-prior",
+          label: "Carryover amount clue",
+          value: "$4,200",
+          confidence: "medium",
+          capturedAt: "2026-04-07T16:55:00.000Z",
+        },
+        {
+          id: "fact-asset-date",
+          sourceDocumentId: "doc-assets",
+          label: "Asset placed-in-service clue",
+          value: "2025-03-01",
+          confidence: "medium",
+          capturedAt: "2026-04-07T16:56:00.000Z",
+        },
+      ],
+    });
+
+    const snapshot = buildTinaTaxPositionMemory(draft);
+
+    expect(snapshot.status).toBe("complete");
+    expect(snapshot.records.map((record) => record.id)).toEqual([
+      "tax-position-continuity-review",
+      "tax-position-depreciation-review",
+    ]);
+    expect(snapshot.records[0]?.status).toBe("needs_review");
+    expect(snapshot.records[0]?.summary).toContain("governed tax position");
+    expect(snapshot.records[1]?.reviewerGuidance).toContain("placed-in-service timing");
+  });
+
+  it("turns broader messy Schedule C signals into governed tax positions", () => {
+    const draft = buildDraft({
+      taxAdjustments: {
+        lastRunAt: "2026-04-07T17:00:00.000Z",
+        status: "complete",
+        summary: "No direct adjustments yet.",
+        nextStep: "Keep going.",
+        adjustments: [],
+      },
+      sourceFacts: [
+        {
+          id: "fact-payroll",
+          sourceDocumentId: "doc-payroll",
+          label: "Payroll clue",
+          value: "This paper mentions payroll, wages, or employees.",
+          confidence: "medium",
+          capturedAt: "2026-04-07T16:55:00.000Z",
+        },
+        {
+          id: "fact-contractor",
+          sourceDocumentId: "doc-1099",
+          label: "Contractor clue",
+          value: "This paper mentions contractors or 1099-style payments.",
+          confidence: "medium",
+          capturedAt: "2026-04-07T16:56:00.000Z",
+        },
+        {
+          id: "fact-owner",
+          sourceDocumentId: "doc-ledger",
+          label: "Owner draw clue",
+          value: "This paper mentions owner draws, owner withdrawals, or owner distributions.",
+          confidence: "medium",
+          capturedAt: "2026-04-07T16:57:00.000Z",
+        },
+      ],
+    });
+
+    const snapshot = buildTinaTaxPositionMemory(draft);
+    const ids = snapshot.records.map((record) => record.id);
+
+    expect(ids).toContain("tax-position-payroll-classification-review");
+    expect(ids).toContain("tax-position-contractor-classification-review");
+    expect(ids).toContain("tax-position-owner-flow-review");
+  });
 });

@@ -7,6 +7,10 @@ import type {
   TinaWorkspaceDraft,
 } from "@/tina/types";
 import { findTinaReviewerPatternScore } from "@/tina/lib/reviewer-outcomes";
+import {
+  collectTinaAnalyzedTransactionGroups,
+  summarizeTinaTransactionGroups,
+} from "@/tina/lib/transaction-group-analysis";
 
 interface TinaAdjustmentSeed {
   kind: TinaTaxAdjustmentKind;
@@ -175,6 +179,244 @@ function buildCarryforwardSeed(line: TinaWorkpaperLine): TinaAdjustmentSeed {
   };
 }
 
+function collectSourceFactValues(
+  draft: TinaWorkspaceDraft,
+  sourceDocumentIds: string[],
+  labels: string[]
+): string[] {
+  const allowed = new Set(labels);
+  return draft.sourceFacts
+    .filter(
+      (fact) => sourceDocumentIds.includes(fact.sourceDocumentId) && allowed.has(fact.label)
+    )
+    .map((fact) => fact.value);
+}
+
+function hasSourceFact(
+  draft: TinaWorkspaceDraft,
+  sourceDocumentIds: string[],
+  labels: string[]
+): boolean {
+  return collectSourceFactValues(draft, sourceDocumentIds, labels).length > 0;
+}
+
+function inferSourceFactDrivenSeed(
+  line: TinaWorkpaperLine,
+  draft: TinaWorkspaceDraft
+): TinaAdjustmentSeed | null {
+  const sourceDocumentIds = line.sourceDocumentIds;
+
+  if (hasSourceFact(draft, sourceDocumentIds, ["Payroll clue", "Payroll filing period clue"])) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Payroll clue"],
+      summary:
+        "Tina found direct payroll clues behind this line, so she should not leave it as a generic carryforward amount.",
+    };
+  }
+
+  if (hasSourceFact(draft, sourceDocumentIds, ["Contractor clue"])) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Contractor clue"],
+      summary:
+        "Tina found direct contractor clues behind this line, so she should keep the treatment separate from generic expenses.",
+    };
+  }
+
+  if (hasSourceFact(draft, sourceDocumentIds, ["Sales tax clue"])) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Sales tax clue"],
+      summary:
+        "Tina found direct sales-tax clues behind this line, so she should test exclusion treatment before carrying it forward.",
+    };
+  }
+
+  if (hasSourceFact(draft, sourceDocumentIds, ["Inventory clue"])) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Inventory clue"],
+      summary:
+        "Tina found direct inventory clues behind this line, so she should pause for inventory treatment instead of using generic expense handling.",
+    };
+  }
+
+  const ownerFlowClues = collectSourceFactValues(draft, sourceDocumentIds, [
+    "Owner draw clue",
+    "Intercompany transfer clue",
+    "Related-party clue",
+  ]);
+  if (ownerFlowClues.length > 0) {
+    return {
+      kind: "timing_review",
+      risk: "high",
+      requiresAuthority: false,
+      title: `Do not auto-carry ${line.label.toLowerCase()} until owner-flow facts are resolved`,
+      summary:
+        "Tina found direct owner-flow, transfer, or related-party clues behind this line, so she should keep it in explicit review instead of treating it as ordinary business activity.",
+      suggestedTreatment:
+        "Hold this line in reviewer review until owner-flow, transfer, or related-party facts are classified out of ordinary business treatment.",
+      whyItMatters:
+        "Owner-flow contamination and related-party activity can make a clean-looking line numerically wrong for tax treatment.",
+      authorityWorkIdeaIds: [],
+    };
+  }
+
+  if (hasSourceFact(draft, sourceDocumentIds, ["Carryover amount clue"])) {
+    return {
+      kind: "timing_review",
+      risk: "medium",
+      requiresAuthority: false,
+      title: `Keep continuity visible for ${line.label.toLowerCase()}`,
+      summary:
+        "Tina found direct carryover support behind this line, so she should keep continuity review visible instead of treating the amount as fully settled.",
+      suggestedTreatment:
+        "Hold this line in reviewer review until the carryover and current-year treatment are reconciled together.",
+      whyItMatters:
+        "Carryover amounts can make a clean-looking current-year line incomplete if continuity is not governed.",
+      authorityWorkIdeaIds: [],
+    };
+  }
+
+  if (hasSourceFact(draft, sourceDocumentIds, ["Asset placed-in-service clue"])) {
+    return {
+      kind: "timing_review",
+      risk: "high",
+      requiresAuthority: false,
+      title: `Hold ${line.label.toLowerCase()} until depreciation timing is reviewed`,
+      summary:
+        "Tina found asset timing support behind this line, so she should not let a depreciation-sensitive amount look fully settled yet.",
+      suggestedTreatment:
+        "Keep this line in reviewer review until the asset timing and depreciation path are confirmed.",
+      whyItMatters:
+        "Placed-in-service timing can materially change how much belongs in the current-year expense picture.",
+      authorityWorkIdeaIds: [],
+    };
+  }
+
+  return null;
+}
+
+function inferBucketDrivenSeed(
+  line: TinaWorkpaperLine,
+  bucketClues: string[]
+): TinaAdjustmentSeed | null {
+  const haystack = bucketClues.join(" ").toLowerCase();
+
+  if (/\bpayroll|wages|941|w-2\b/.test(haystack)) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Payroll clue"],
+      summary:
+        "Tina found payroll-shaped ledger buckets behind this line, so she should not leave it as a generic carryforward amount.",
+    };
+  }
+
+  if (/\bcontractor|1099|subcontractor\b/.test(haystack)) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Contractor clue"],
+      summary:
+        "Tina found contractor-shaped ledger buckets behind this line, so she should keep the treatment separate from generic expenses.",
+    };
+  }
+
+  if (/\bsales tax\b/.test(haystack)) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Sales tax clue"],
+      summary:
+        "Tina found sales-tax-shaped ledger buckets behind this line, so she should test exclusion treatment before carrying it forward.",
+    };
+  }
+
+  if (/\binventory|cogs|cost of goods\b/.test(haystack)) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Inventory clue"],
+      summary:
+        "Tina found inventory-shaped ledger buckets behind this line, so she should pause for inventory treatment instead of using generic expense handling.",
+    };
+  }
+
+  if (/\bowner\b|\bdraw\b|\bdistribution\b|\bdue from\b|\bdue to\b|\btransfer\b/.test(haystack)) {
+    return {
+      kind: "timing_review",
+      risk: "high",
+      requiresAuthority: false,
+      title: `Do not auto-carry ${line.label.toLowerCase()} until owner-flow buckets are resolved`,
+      summary:
+        "Tina found owner-flow or transfer-style ledger buckets behind this line, so she should keep it in explicit review instead of treating it as ordinary tax activity.",
+      suggestedTreatment:
+        "Hold this line in reviewer review until the owner-flow or transfer buckets are classified out of ordinary business treatment.",
+      whyItMatters:
+        "Owner-flow contamination and transfer activity can make a clean-looking line numerically wrong for tax treatment.",
+      authorityWorkIdeaIds: [],
+    };
+  }
+
+  return null;
+}
+
+function inferTransactionGroupDrivenSeed(
+  line: TinaWorkpaperLine,
+  draft: TinaWorkspaceDraft
+): TinaAdjustmentSeed | null {
+  const groups = collectTinaAnalyzedTransactionGroups(draft, line.sourceDocumentIds);
+  if (groups.length === 0) return null;
+
+  const classifications = Array.from(new Set(groups.map((group) => group.classification))).filter(
+    (classification) => classification !== "gross_receipts" && classification !== "unknown"
+  );
+
+  if (classifications.includes("payroll")) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Payroll clue"],
+      summary:
+        "Tina found payroll-shaped transaction groups behind this line, so she should not leave it as a generic carryforward amount.",
+    };
+  }
+
+  if (classifications.includes("contractor")) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Contractor clue"],
+      summary:
+        "Tina found contractor-shaped transaction groups behind this line, so she should keep the treatment separate from generic expenses.",
+    };
+  }
+
+  if (classifications.includes("sales_tax")) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Sales tax clue"],
+      summary:
+        "Tina found sales-tax-shaped transaction groups behind this line, so she should test exclusion treatment before carrying it forward.",
+    };
+  }
+
+  if (classifications.includes("inventory")) {
+    return {
+      ...SIGNAL_ADJUSTMENT_MAP["Inventory clue"],
+      summary:
+        "Tina found inventory-shaped transaction groups behind this line, so she should pause for inventory treatment instead of using generic expense handling.",
+    };
+  }
+
+  if (
+    classifications.includes("owner_flow") ||
+    classifications.includes("transfer") ||
+    classifications.includes("related_party")
+  ) {
+    return {
+      kind: "timing_review",
+      risk: "high",
+      requiresAuthority: false,
+      title: `Do not auto-carry ${line.label.toLowerCase()} until transaction groups are separated`,
+      summary:
+        "Tina found owner-flow, transfer, or related-party transaction groups behind this line, so she should keep it in explicit review instead of treating it as ordinary business activity.",
+      suggestedTreatment:
+        "Hold this line in reviewer review until owner-flow, transfer, or related-party groups are classified out of ordinary business treatment.",
+      whyItMatters:
+        "Mixed transaction-group evidence can make a clean-looking line numerically wrong for tax treatment.",
+      authorityWorkIdeaIds: [],
+    };
+  }
+
+  return null;
+}
+
 function raiseRisk(risk: TinaTaxAdjustmentRisk): TinaTaxAdjustmentRisk {
   if (risk === "low") return "medium";
   if (risk === "medium") return "high";
@@ -208,6 +450,22 @@ function buildAdjustmentFromLine(
   draft: TinaWorkspaceDraft,
   line: TinaWorkpaperLine
 ): TinaTaxAdjustment {
+  const ledgerBucketClues = collectSourceFactValues(draft, line.sourceDocumentIds, [
+    "Ledger bucket clue",
+  ]);
+  const directScenarioFacts = collectSourceFactValues(draft, line.sourceDocumentIds, [
+    "Payroll clue",
+    "Payroll filing period clue",
+    "Contractor clue",
+    "Sales tax clue",
+    "Inventory clue",
+    "Owner draw clue",
+    "Intercompany transfer clue",
+    "Related-party clue",
+    "Carryover amount clue",
+    "Asset placed-in-service clue",
+  ]);
+  const transactionGroups = collectTinaAnalyzedTransactionGroups(draft, line.sourceDocumentIds);
   const rawSeed =
     line.kind === "signal"
       ? SIGNAL_ADJUSTMENT_MAP[line.label] ?? {
@@ -223,10 +481,25 @@ function buildAdjustmentFromLine(
             "Signals often reveal special treatment that should not be hidden during tax prep.",
           authorityWorkIdeaIds: [],
         }
-      : buildCarryforwardSeed(line);
+      : inferTransactionGroupDrivenSeed(line, draft) ??
+        inferBucketDrivenSeed(line, ledgerBucketClues) ??
+        inferSourceFactDrivenSeed(line, draft) ??
+        buildCarryforwardSeed(line);
   const seed = applyReviewerLearningToSeed(draft, rawSeed);
 
   const authorityReady = authorityAllowsAdjustment(draft, seed.authorityWorkIdeaIds);
+  const bucketSummary =
+    ledgerBucketClues.length > 0
+      ? ` Bucket proof: ${ledgerBucketClues.slice(0, 2).join("; ")}.`
+      : "";
+  const directFactSummary =
+    directScenarioFacts.length > 0
+      ? ` Source-fact proof: ${directScenarioFacts.slice(0, 2).join("; ")}.`
+      : "";
+  const transactionGroupSummary =
+    transactionGroups.length > 0
+      ? ` Transaction-group proof: ${summarizeTinaTransactionGroups(transactionGroups)}.`
+      : "";
 
   return {
     id: `tax-adjustment-${line.id}`,
@@ -236,14 +509,19 @@ function buildAdjustmentFromLine(
     risk: seed.risk,
     requiresAuthority: seed.requiresAuthority,
     title: seed.title,
-    summary: seed.summary,
-    suggestedTreatment: seed.suggestedTreatment,
-    whyItMatters: seed.whyItMatters,
+    summary: `${seed.summary}${directFactSummary}${bucketSummary}${transactionGroupSummary}`,
+    suggestedTreatment:
+      ledgerBucketClues.length > 0 || transactionGroups.length > 0 || directScenarioFacts.length > 0
+        ? `${seed.suggestedTreatment} Keep the source facts, ledger buckets, and transaction groups visible during review.`
+        : seed.suggestedTreatment,
+    whyItMatters: `${seed.whyItMatters}${directFactSummary}${bucketSummary}${transactionGroupSummary}`,
     amount: line.amount,
     authorityWorkIdeaIds: seed.authorityWorkIdeaIds,
     aiCleanupLineIds: [line.id],
     sourceDocumentIds: line.sourceDocumentIds,
-    sourceFactIds: line.sourceFactIds,
+    sourceFactIds: Array.from(
+      new Set([...line.sourceFactIds, ...transactionGroups.map((group) => group.factId)])
+    ),
     reviewerNotes: "",
   };
 }

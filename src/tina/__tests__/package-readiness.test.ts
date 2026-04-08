@@ -73,18 +73,47 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
+            sourceDocumentIds: ["doc-qb"],
             sourceFactIds: ["fact-1"],
             reviewerNotes: "",
           },
         ],
+      },
+      bookTieOut: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "entry-1",
+            documentId: "doc-qb",
+            label: "Gross receipts",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2025-01-01 to 2025-12-31",
+            status: "ready",
+          },
+        ],
+        variances: [],
       },
       reviewerFinal: {
         lastRunAt: "2026-03-27T04:01:00.000Z",
         status: "complete",
         summary: "Ready",
         nextStep: "Keep going",
-        lines: [],
+        lines: [
+          {
+            id: "rf-1",
+            label: "Gross receipts",
+            amount: 20000,
+            status: "approved",
+            summary: "Matches approved treatment.",
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-qb"],
+          },
+        ],
       },
       scheduleCDraft: {
         lastRunAt: "2026-03-27T04:02:00.000Z",
@@ -101,7 +130,7 @@ describe("buildTinaPackageReadiness", () => {
             summary: "Still waiting on approved expense lines.",
             reviewerFinalLineIds: [],
             taxAdjustmentIds: [],
-            sourceDocumentIds: ["doc-1"],
+            sourceDocumentIds: ["doc-qb"],
           },
         ],
         notes: [],
@@ -140,6 +169,170 @@ describe("buildTinaPackageReadiness", () => {
         items: [],
         records: [],
       },
+      bookTieOut: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "entry-1",
+            documentId: "doc-qb",
+            label: "Gross receipts",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2025-01-01 to 2025-12-31",
+            status: "ready",
+          },
+        ],
+        variances: [],
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [
+          {
+            id: "rf-1",
+            label: "Gross receipts",
+            amount: 20000,
+            status: "approved",
+            summary: "Matches approved treatment.",
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-qb"],
+          },
+        ],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
+            reviewerNotes: "Approved by reviewer.",
+          },
+        ],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-03-27T04:00:30.000Z",
+        status: "stale",
+        summary: "Needs rebuild",
+        nextStep: "Rebuild",
+        records: [
+          {
+            id: "tax-position-tax-1",
+            adjustmentId: "tax-1",
+            title: "Carry income",
+            status: "needs_review",
+            confidence: "medium",
+            summary: "Still needs reviewer anchoring.",
+            treatmentSummary: "Carry it",
+            reviewerGuidance: "Still needs reviewer confirmation.",
+            authorityWorkIdeaIds: [],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
+            reviewerOutcomeIds: [],
+            reviewerOverrideIds: [],
+            updatedAt: "2026-03-27T04:00:30.000Z",
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+
+    expect(snapshot.level).toBe("blocked");
+    expect(snapshot.items.some((item) => item.id === "tax-position-memory-not-current")).toBe(true);
+    expect(
+      snapshot.items.some((item) => item.id === "tax-position-review-tax-position-tax-1")
+    ).toBe(true);
+  });
+
+  it("blocks when direct scenario-family clues exist without governed treatment paths", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Sole Prop",
+        entityType: "sole_prop",
+      },
+      bootstrapReview: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+      sourceFacts: [
+        {
+          id: "payroll-1",
+          sourceDocumentId: "doc-qb",
+          label: "Payroll filing period clue",
+          value: "Q1 2025",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "owner-1",
+          sourceDocumentId: "doc-qb",
+          label: "Owner draw clue",
+          value: "Owner draws posted in ledger.",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      bookTieOut: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "entry-1",
+            documentId: "doc-qb",
+            label: "Gross receipts",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2025-01-01 to 2025-12-31",
+            status: "ready",
+          },
+        ],
+        variances: [],
+      },
       reviewerFinal: {
         lastRunAt: "2026-03-27T04:01:00.000Z",
         status: "complete",
@@ -174,45 +367,28 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
-            reviewerNotes: "Approved by reviewer.",
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
+            reviewerNotes: "",
           },
         ],
       },
       taxPositionMemory: {
         lastRunAt: "2026-03-27T04:00:30.000Z",
-        status: "stale",
-        summary: "Needs rebuild",
-        nextStep: "Rebuild",
-        records: [
-          {
-            id: "tax-position-tax-1",
-            adjustmentId: "tax-1",
-            title: "Carry income",
-            status: "needs_review",
-            confidence: "medium",
-            summary: "Still needs reviewer anchoring.",
-            treatmentSummary: "Carry it",
-            reviewerGuidance: "Still needs reviewer confirmation.",
-            authorityWorkIdeaIds: [],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
-            reviewerOutcomeIds: [],
-            reviewerOverrideIds: [],
-            updatedAt: "2026-03-27T04:00:30.000Z",
-          },
-        ],
+        status: "complete",
+        summary: "Current",
+        nextStep: "Keep going",
+        records: [],
       },
     });
 
     const snapshot = buildTinaPackageReadiness(draft);
 
     expect(snapshot.level).toBe("blocked");
-    expect(snapshot.items.some((item) => item.id === "tax-position-memory-not-current")).toBe(true);
-    expect(
-      snapshot.items.some((item) => item.id === "tax-position-review-tax-position-tax-1")
-    ).toBe(true);
+    expect(snapshot.items.some((item) => item.id === "payroll-treatment-path-missing")).toBe(true);
+    expect(snapshot.items.some((item) => item.id === "owner-flow-treatment-path-missing")).toBe(
+      true
+    );
   });
 
   it("drops to needs review when only attention items remain", () => {
@@ -269,12 +445,41 @@ describe("buildTinaPackageReadiness", () => {
           uploadedAt: "2026-03-27T04:00:00.000Z",
         },
       ],
+      bookTieOut: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "entry-1",
+            documentId: "doc-qb",
+            label: "Gross receipts",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2025-01-01 to 2025-12-31",
+            status: "ready",
+          },
+        ],
+        variances: [],
+      },
       reviewerFinal: {
         lastRunAt: "2026-03-27T04:01:00.000Z",
         status: "complete",
         summary: "Ready",
         nextStep: "Keep going",
-        lines: [],
+        lines: [
+          {
+            id: "rf-1",
+            label: "Gross receipts",
+            amount: 20000,
+            status: "approved",
+            summary: "Matches approved treatment.",
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-qb"],
+          },
+        ],
       },
       scheduleCDraft: {
         lastRunAt: "2026-03-27T04:02:00.000Z",
@@ -291,7 +496,7 @@ describe("buildTinaPackageReadiness", () => {
             summary: "Needs a human look.",
             reviewerFinalLineIds: ["rf-1"],
             taxAdjustmentIds: ["tax-1"],
-            sourceDocumentIds: ["doc-1"],
+            sourceDocumentIds: ["doc-qb"],
           },
         ],
         notes: [],
@@ -315,8 +520,8 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerNotes: "",
           },
         ],
@@ -337,8 +542,8 @@ describe("buildTinaPackageReadiness", () => {
             treatmentSummary: "Carry it",
             reviewerGuidance: "Approved by reviewer.",
             authorityWorkIdeaIds: [],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerOutcomeIds: ["outcome-1"],
             reviewerOverrideIds: [],
             updatedAt: "2026-03-27T04:00:30.000Z",
@@ -350,8 +555,11 @@ describe("buildTinaPackageReadiness", () => {
     const snapshot = buildTinaPackageReadiness(draft);
 
     expect(snapshot.level).toBe("needs_review");
-    expect(snapshot.items).toHaveLength(1);
-    expect(snapshot.items[0]?.severity).toBe("needs_attention");
+    expect(snapshot.items.length).toBeGreaterThan(0);
+    expect(snapshot.items.every((item) => item.severity === "needs_attention")).toBe(true);
+    expect(snapshot.items.some((item) => item.id === "field-review-line-1-gross-receipts")).toBe(
+      true
+    );
   });
 
   it("blocks when bootstrap review or issue queue are not current", () => {
@@ -408,12 +616,59 @@ describe("buildTinaPackageReadiness", () => {
           uploadedAt: "2026-03-27T04:00:00.000Z",
         },
       ],
+      sourceFacts: [
+        {
+          id: "late-fact",
+          sourceDocumentId: "doc-qb",
+          label: "State clue",
+          value: "Idaho reference found.",
+          confidence: "medium",
+          capturedAt: "2026-03-27T04:10:00.000Z",
+        },
+        {
+          id: "fact-group-1",
+          sourceDocumentId: "doc-qb",
+          label: "Transaction group clue",
+          value: "Gross receipts deposits grouped by month",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      bookTieOut: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "entry-1",
+            documentId: "doc-qb",
+            label: "Gross receipts",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2025-01-01 to 2025-12-31",
+            status: "ready",
+          },
+        ],
+        variances: [],
+      },
       reviewerFinal: {
         lastRunAt: "2026-03-27T04:01:00.000Z",
         status: "complete",
         summary: "Ready",
         nextStep: "Keep going",
-        lines: [],
+        lines: [
+          {
+            id: "rf-1",
+            label: "Gross receipts",
+            amount: 20000,
+            status: "approved",
+            summary: "Matches approved treatment.",
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-qb"],
+          },
+        ],
       },
       scheduleCDraft: {
         lastRunAt: "2026-03-27T04:02:00.000Z",
@@ -454,8 +709,8 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerNotes: "",
           },
         ],
@@ -522,12 +777,51 @@ describe("buildTinaPackageReadiness", () => {
         items: [],
         records: [],
       },
+      sourceFacts: [
+        {
+          id: "fact-group-1",
+          sourceDocumentId: "doc-qb",
+          label: "Transaction group clue",
+          value: "Gross receipts deposits grouped by month",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      bookTieOut: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "entry-1",
+            documentId: "doc-qb",
+            label: "Gross receipts",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2025-01-01 to 2025-12-31",
+            status: "ready",
+          },
+        ],
+        variances: [],
+      },
       reviewerFinal: {
         lastRunAt: "2026-03-27T04:01:00.000Z",
         status: "complete",
         summary: "Ready",
         nextStep: "Keep going",
-        lines: [],
+        lines: [
+          {
+            id: "rf-1",
+            label: "Gross receipts",
+            amount: 20000,
+            status: "approved",
+            summary: "Matches approved treatment.",
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-qb"],
+          },
+        ],
       },
       scheduleCDraft: {
         lastRunAt: "2026-03-27T04:02:00.000Z",
@@ -544,7 +838,7 @@ describe("buildTinaPackageReadiness", () => {
             summary: "Looks good.",
             reviewerFinalLineIds: ["rf-1"],
             taxAdjustmentIds: ["tax-1"],
-            sourceDocumentIds: ["doc-1"],
+            sourceDocumentIds: ["doc-qb"],
           },
         ],
         notes: [],
@@ -568,8 +862,8 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerNotes: "",
           },
         ],
@@ -636,12 +930,51 @@ describe("buildTinaPackageReadiness", () => {
         items: [],
         records: [],
       },
+      sourceFacts: [
+        {
+          id: "fact-group-1",
+          sourceDocumentId: "doc-qb",
+          label: "Transaction group clue",
+          value: "Gross receipts deposits grouped by month",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      bookTieOut: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "entry-1",
+            documentId: "doc-qb",
+            label: "Gross receipts",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2025-01-01 to 2025-12-31",
+            status: "ready",
+          },
+        ],
+        variances: [],
+      },
       reviewerFinal: {
         lastRunAt: "2026-03-27T04:01:00.000Z",
         status: "complete",
         summary: "Ready",
         nextStep: "Keep going",
-        lines: [],
+        lines: [
+          {
+            id: "rf-1",
+            label: "Gross receipts",
+            amount: 20000,
+            status: "approved",
+            summary: "Matches approved treatment.",
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-qb"],
+          },
+        ],
       },
       scheduleCDraft: {
         lastRunAt: "2026-03-27T04:02:00.000Z",
@@ -658,7 +991,7 @@ describe("buildTinaPackageReadiness", () => {
             summary: "Looks good.",
             reviewerFinalLineIds: ["rf-1"],
             taxAdjustmentIds: ["tax-1"],
-            sourceDocumentIds: ["doc-1"],
+            sourceDocumentIds: ["doc-qb"],
           },
         ],
         notes: [],
@@ -682,8 +1015,8 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerNotes: "",
           },
         ],
@@ -743,6 +1076,14 @@ describe("buildTinaPackageReadiness", () => {
           confidence: "medium",
           capturedAt: "2026-03-27T04:10:00.000Z",
         },
+        {
+          id: "fact-group-1",
+          sourceDocumentId: "doc-qb",
+          label: "Transaction group clue",
+          value: "Gross receipts deposits grouped by month",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
       ],
       bootstrapReview: {
         lastRunAt: "2026-03-27T04:05:00.000Z",
@@ -760,12 +1101,41 @@ describe("buildTinaPackageReadiness", () => {
         items: [],
         records: [],
       },
+      bookTieOut: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "entry-1",
+            documentId: "doc-qb",
+            label: "Gross receipts",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2025-01-01 to 2025-12-31",
+            status: "ready",
+          },
+        ],
+        variances: [],
+      },
       reviewerFinal: {
         lastRunAt: "2026-03-27T04:01:00.000Z",
         status: "complete",
         summary: "Ready",
         nextStep: "Keep going",
-        lines: [],
+        lines: [
+          {
+            id: "rf-1",
+            label: "Gross receipts",
+            amount: 20000,
+            status: "approved",
+            summary: "Matches approved treatment.",
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-qb"],
+          },
+        ],
       },
       scheduleCDraft: {
         lastRunAt: "2026-03-27T04:02:00.000Z",
@@ -782,7 +1152,7 @@ describe("buildTinaPackageReadiness", () => {
             summary: "Looks good.",
             reviewerFinalLineIds: ["rf-1"],
             taxAdjustmentIds: ["tax-1"],
-            sourceDocumentIds: ["doc-1"],
+            sourceDocumentIds: ["doc-qb"],
           },
         ],
         notes: [],
@@ -806,8 +1176,8 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerNotes: "",
           },
         ],
@@ -874,12 +1244,51 @@ describe("buildTinaPackageReadiness", () => {
         items: [],
         records: [],
       },
+      sourceFacts: [
+        {
+          id: "fact-group-1",
+          sourceDocumentId: "doc-qb",
+          label: "Transaction group clue",
+          value: "Gross receipts deposits grouped by month",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      bookTieOut: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "entry-1",
+            documentId: "doc-qb",
+            label: "Gross receipts",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2025-01-01 to 2025-12-31",
+            status: "ready",
+          },
+        ],
+        variances: [],
+      },
       reviewerFinal: {
         lastRunAt: "2026-03-27T04:01:00.000Z",
         status: "complete",
         summary: "Ready",
         nextStep: "Keep going",
-        lines: [],
+        lines: [
+          {
+            id: "rf-1",
+            label: "Gross receipts",
+            amount: 20000,
+            status: "approved",
+            summary: "Matches approved treatment.",
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-qb"],
+          },
+        ],
       },
       scheduleCDraft: {
         lastRunAt: "2026-03-27T04:02:00.000Z",
@@ -896,7 +1305,7 @@ describe("buildTinaPackageReadiness", () => {
             summary: "Looks good.",
             reviewerFinalLineIds: ["rf-1"],
             taxAdjustmentIds: ["tax-1"],
-            sourceDocumentIds: ["doc-1"],
+            sourceDocumentIds: ["doc-qb"],
           },
         ],
         notes: [],
@@ -920,8 +1329,8 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerNotes: "",
           },
         ],
@@ -1046,8 +1455,8 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerNotes: "",
           },
         ],
@@ -1176,8 +1585,8 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerNotes: "",
           },
         ],
@@ -1279,8 +1688,8 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerNotes: "",
           },
         ],
@@ -1334,12 +1743,51 @@ describe("buildTinaPackageReadiness", () => {
           uploadedAt: "2026-03-27T04:00:00.000Z",
         },
       ],
+      sourceFacts: [
+        {
+          id: "fact-group-1",
+          sourceDocumentId: "doc-qb",
+          label: "Transaction group clue",
+          value: "Gross receipts deposits grouped by month",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      bookTieOut: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "entry-1",
+            documentId: "doc-qb",
+            label: "Gross receipts",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2025-01-01 to 2025-12-31",
+            status: "ready",
+          },
+        ],
+        variances: [],
+      },
       reviewerFinal: {
         lastRunAt: "2026-03-27T04:01:00.000Z",
         status: "complete",
         summary: "Ready",
         nextStep: "Keep going",
-        lines: [],
+        lines: [
+          {
+            id: "rf-1",
+            label: "Gross receipts",
+            amount: 20000,
+            status: "approved",
+            summary: "Matches approved treatment.",
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-qb"],
+          },
+        ],
       },
       scheduleCDraft: {
         lastRunAt: "2026-03-27T04:02:00.000Z",
@@ -1356,7 +1804,7 @@ describe("buildTinaPackageReadiness", () => {
             summary: "Looks good.",
             reviewerFinalLineIds: ["rf-1"],
             taxAdjustmentIds: ["tax-1"],
-            sourceDocumentIds: ["doc-1"],
+            sourceDocumentIds: ["doc-qb"],
           },
         ],
         notes: [],
@@ -1380,8 +1828,8 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerNotes: "",
           },
         ],
@@ -1402,8 +1850,8 @@ describe("buildTinaPackageReadiness", () => {
             treatmentSummary: "Carry it",
             reviewerGuidance: "Approved by reviewer.",
             authorityWorkIdeaIds: [],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerOutcomeIds: ["outcome-1"],
             reviewerOverrideIds: [],
             updatedAt: "2026-03-27T04:00:30.000Z",
@@ -1472,6 +1920,35 @@ describe("buildTinaPackageReadiness", () => {
           uploadedAt: "2026-03-27T04:00:00.000Z",
         },
       ],
+      sourceFacts: [
+        {
+          id: "fact-group-1",
+          sourceDocumentId: "doc-qb",
+          label: "Transaction group clue",
+          value: "Gross receipts deposits grouped by month",
+          confidence: "high",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      bookTieOut: {
+        lastRunAt: "2026-03-27T04:00:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "entry-1",
+            documentId: "doc-qb",
+            label: "Gross receipts",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2025-01-01 to 2025-12-31",
+            status: "ready",
+          },
+        ],
+        variances: [],
+      },
       bootstrapReview: {
         lastRunAt: "2026-03-27T04:03:00.000Z",
         status: "complete",
@@ -1505,7 +1982,17 @@ describe("buildTinaPackageReadiness", () => {
         status: "complete",
         summary: "Ready",
         nextStep: "Keep going",
-        lines: [],
+        lines: [
+          {
+            id: "rf-1",
+            label: "Gross receipts",
+            amount: 20000,
+            status: "approved",
+            summary: "Matches approved treatment.",
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-qb"],
+          },
+        ],
       },
       scheduleCDraft: {
         lastRunAt: "2026-03-27T04:02:00.000Z",
@@ -1522,7 +2009,7 @@ describe("buildTinaPackageReadiness", () => {
             summary: "Looks good.",
             reviewerFinalLineIds: ["rf-1"],
             taxAdjustmentIds: ["tax-1"],
-            sourceDocumentIds: ["doc-1"],
+            sourceDocumentIds: ["doc-qb"],
           },
         ],
         notes: [],
@@ -1546,8 +2033,8 @@ describe("buildTinaPackageReadiness", () => {
             amount: 20000,
             authorityWorkIdeaIds: [],
             aiCleanupLineIds: ["ai-1"],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerNotes: "",
           },
         ],
@@ -1568,8 +2055,8 @@ describe("buildTinaPackageReadiness", () => {
             treatmentSummary: "Carry it",
             reviewerGuidance: "Approved by reviewer.",
             authorityWorkIdeaIds: [],
-            sourceDocumentIds: ["doc-1"],
-            sourceFactIds: ["fact-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-group-1"],
             reviewerOutcomeIds: ["outcome-1"],
             reviewerOverrideIds: [],
             updatedAt: "2026-03-27T04:00:30.000Z",
@@ -1581,6 +2068,577 @@ describe("buildTinaPackageReadiness", () => {
     const snapshot = buildTinaPackageReadiness(draft);
     expect(snapshot.level).toBe("ready_for_cpa");
     expect(snapshot.items.some((item) => item.id === "issue-watch-only")).toBe(false);
+  });
+
+  it("turns thin current-year planning scenarios into review items and prioritizes them", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Payroll LLC",
+        entityType: "single_member_llc",
+        hasPayroll: true,
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "doc-bank",
+          name: "bank.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/bank.pdf",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Bank support",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "doc-payroll",
+          name: "payroll.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/payroll.pdf",
+          category: "supporting_document",
+          requestId: "payroll",
+          requestLabel: "Payroll reports",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "group-1",
+          sourceDocumentId: "doc-qb",
+          label: "Transaction group clue",
+          value: "Client receipts (inflow): 4 rows, total $20,000.00, dates Apr 1, 2026 to Apr 30, 2026",
+          confidence: "medium",
+          capturedAt: "2026-04-07T08:04:00.000Z",
+        },
+        {
+          id: "payroll-form-fact",
+          sourceDocumentId: "doc-qb",
+          label: "Payroll tax form clue",
+          value: "This paper includes Form 941 details.",
+          confidence: "medium",
+          capturedAt: "2026-04-07T08:04:00.000Z",
+        },
+      ],
+      bookTieOut: {
+        ...createDefaultTinaWorkspaceDraft().bookTieOut,
+        status: "complete",
+        summary: "Tie-out complete",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "book-doc-qb",
+            documentId: "doc-qb",
+            label: "QuickBooks export",
+            status: "ready",
+            moneyIn: 20000,
+            moneyOut: 0,
+            net: 20000,
+            dateCoverage: "2026-04-01 through 2026-04-30",
+            sourceFactIds: ["group-1"],
+            issueIds: [],
+          },
+        ],
+        variances: [],
+      },
+      bootstrapReview: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [
+          {
+            id: "rf-1",
+            kind: "income",
+            layer: "reviewer_final",
+            label: "Gross receipts candidate",
+            amount: 20000,
+            status: "ready",
+            summary: "Ready.",
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["group-1"],
+            issueIds: [],
+            derivedFromLineIds: ["ai-1"],
+            cleanupSuggestionIds: [],
+            taxAdjustmentIds: ["tax-1"],
+          },
+        ],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [
+          {
+            id: "line-1-gross-receipts",
+            lineNumber: "Line 1",
+            label: "Gross receipts or sales",
+            amount: 20000,
+            status: "ready",
+            summary: "Looks good.",
+            reviewerFinalLineIds: ["rf-1"],
+            taxAdjustmentIds: ["tax-1"],
+            sourceDocumentIds: ["doc-qb"],
+          },
+        ],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry income",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 20000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["group-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Current",
+        nextStep: "Keep going",
+        records: [
+          {
+            id: "tax-position-tax-1",
+            adjustmentId: "tax-1",
+            title: "Carry income",
+            status: "ready",
+            confidence: "high",
+            summary: "Reviewer anchored.",
+            treatmentSummary: "Carry it",
+            reviewerGuidance: "Approved by reviewer.",
+            authorityWorkIdeaIds: [],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["group-1"],
+            reviewerOutcomeIds: [],
+            reviewerOverrideIds: [],
+            updatedAt: "2026-04-07T08:05:00.000Z",
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+    expect(snapshot.level).toBe("needs_review");
+    expect(snapshot.items.some((item) => item.id === "planning-payroll")).toBe(true);
+    expect(snapshot.nextStep).toContain("reviewer call");
+  });
+
+  it("blocks false-ready packages when ledger buckets reveal hidden specialized treatment", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Hidden Payroll LLC",
+        entityType: "single_member_llc",
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "doc-bank",
+          name: "bank.pdf",
+          size: 100,
+          mimeType: "application/pdf",
+          storagePath: "tina/bank.pdf",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Bank support",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "bucket-1",
+          sourceDocumentId: "doc-qb",
+          label: "Ledger bucket clue",
+          value: "Payroll Expense: 3 rows, net -$3,000.00",
+          confidence: "medium",
+          capturedAt: "2026-04-07T08:00:00.000Z",
+        },
+      ],
+      bootstrapReview: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry expense",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 3000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["fact-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Current",
+        nextStep: "Keep going",
+        records: [],
+      },
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+    expect(snapshot.level).toBe("blocked");
+    expect(snapshot.items.some((item) => item.id === "ledger-bucket-specialization-missing")).toBe(
+      true
+    );
+  });
+
+  it("blocks false-ready packages when transaction lineage still shows unresolved specialized activity", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Lineage Payroll LLC",
+        entityType: "single_member_llc",
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "group-1",
+          sourceDocumentId: "doc-qb",
+          label: "Transaction group clue",
+          value:
+            "Payroll register (outflow): 3 rows, total ($3,000.00), dates Jan 1, 2025 to Jan 31, 2025",
+          confidence: "medium",
+          capturedAt: "2026-04-07T08:00:00.000Z",
+        },
+        {
+          id: "lineage-1",
+          sourceDocumentId: "doc-qb",
+          label: "Transaction lineage clue",
+          value:
+            "Payroll register | 2025-01 (outflow): 3 rows, total ($3,000.00), dates Jan 1, 2025 to Jan 31, 2025",
+          confidence: "medium",
+          capturedAt: "2026-04-07T08:00:00.000Z",
+        },
+      ],
+      bootstrapReview: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [
+          {
+            id: "tax-1",
+            kind: "carryforward_line",
+            status: "approved",
+            risk: "low",
+            requiresAuthority: false,
+            title: "Carry payroll",
+            summary: "Approved",
+            suggestedTreatment: "Carry it",
+            whyItMatters: "Matters",
+            amount: 3000,
+            authorityWorkIdeaIds: [],
+            aiCleanupLineIds: ["ai-1"],
+            sourceDocumentIds: ["doc-qb"],
+            sourceFactIds: ["group-1", "lineage-1"],
+            reviewerNotes: "",
+          },
+        ],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Current",
+        nextStep: "Keep going",
+        records: [],
+      },
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+    expect(snapshot.level).toBe("blocked");
+    expect(
+      snapshot.items.some(
+        (item) =>
+          item.title === "Transaction lineage still needs governed treatment" &&
+          item.summary.includes("row-cluster lineage")
+      )
+    ).toBe(true);
+  });
+
+  it("blocks readiness when current-file reviewer reality is still fragile", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Fragile Review LLC",
+        entityType: "single_member_llc",
+      },
+      priorReturn: {
+        fileName: "2025-return.pdf",
+        fileSize: 1200,
+        fileType: "application/pdf",
+        lastModified: 1,
+        capturedAt: "2026-03-27T04:00:00.000Z",
+      },
+      documents: [
+        {
+          id: "doc-qb",
+          name: "qb.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "tina/qb.csv",
+          category: "supporting_document",
+          requestId: "quickbooks",
+          requestLabel: "QuickBooks export",
+          uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "fact-group-1",
+          sourceDocumentId: "doc-qb",
+          label: "Transaction group clue",
+          value:
+            "Client receipts (inflow): 2 rows, total $20,000.00, dates Jan 1, 2025 to Jan 31, 2025",
+          confidence: "medium",
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      bootstrapReview: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        facts: [],
+        items: [],
+      },
+      issueQueue: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Clear",
+        nextStep: "Keep going",
+        items: [],
+        records: [],
+      },
+      reviewerFinal: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Check",
+        fields: [],
+        notes: [],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-04-07T08:05:00.000Z",
+        status: "complete",
+        summary: "Current",
+        nextStep: "Keep going",
+        records: [],
+      },
+      reviewerOutcomeMemory: {
+        ...createDefaultTinaWorkspaceDraft().reviewerOutcomeMemory,
+        outcomes: [
+          {
+            id: "outcome-1",
+            title: "Schedule C messy books rejection",
+            phase: "package",
+            verdict: "rejected",
+            targetType: "reviewer_final_line",
+            targetId: "missing-local-target",
+            summary: "Rejected.",
+            lessons: ["Do not overstate readiness when Schedule C messy books patterns repeat."],
+            caseTags: ["schedule_c", "messy_books"],
+            overrideIds: [],
+            decidedAt: "2026-04-06T08:00:00.000Z",
+            decidedBy: "CPA",
+          },
+        ],
+      },
+      bookTieOut: {
+        ...createDefaultTinaWorkspaceDraft().bookTieOut,
+        variances: [
+          {
+            id: "conflicting-money-story",
+            title: "Conflicting money story",
+            summary: "Money story conflicts.",
+            severity: "blocking",
+            documentIds: ["doc-qb"],
+          },
+        ],
+      },
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+    expect(snapshot.level).toBe("blocked");
+    expect(
+      snapshot.items.some((item) => item.id === "current-file-reviewer-reality-fragile")
+    ).toBe(true);
   });
 });
 
@@ -1599,3 +2657,5 @@ describe("markTinaPackageReadinessStale", () => {
     expect(stale.summary).toContain("changed");
   });
 });
+
+

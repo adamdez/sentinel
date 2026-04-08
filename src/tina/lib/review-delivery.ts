@@ -1,6 +1,10 @@
 import { buildTinaCpaHandoff } from "@/tina/lib/cpa-handoff";
+import { buildTinaCurrentFileReviewerReality } from "@/tina/lib/current-file-reviewer-reality";
+import { buildTinaFinalPackageQualityReport } from "@/tina/lib/final-package-quality";
 import { buildTinaFilingApprovalReport } from "@/tina/lib/filing-approval";
 import { buildTinaLiveAcceptanceReport } from "@/tina/lib/live-acceptance";
+import { buildTinaMefReadinessReport } from "@/tina/lib/mef-readiness";
+import { buildTinaTransactionReconciliationReport } from "@/tina/lib/transaction-reconciliation";
 import type { TinaWorkspaceDraft } from "@/tina/types";
 
 export type TinaReviewDeliveryStatus = "blocked" | "needs_review" | "ready_to_send";
@@ -34,6 +38,10 @@ export function buildTinaReviewDeliveryReport(
   const handoff = buildTinaCpaHandoff(draft);
   const filingApproval = buildTinaFilingApprovalReport(draft);
   const liveAcceptance = buildTinaLiveAcceptanceReport(draft);
+  const currentFileReality = buildTinaCurrentFileReviewerReality(draft);
+  const packageQuality = buildTinaFinalPackageQualityReport(draft);
+  const reconciliation = buildTinaTransactionReconciliationReport(draft);
+  const mefReadiness = buildTinaMefReadinessReport(draft);
 
   const currentFileFragile = liveAcceptance.currentFileCohorts.filter(
     (cohort) => cohort.trustLevel === "fragile"
@@ -100,12 +108,84 @@ export function buildTinaReviewDeliveryReport(
           : "The current file does not fall into a measured fragile reviewer cohort.",
     ),
     buildCheck(
+      "current_file_reviewer_reality",
+      "Current-file reviewer reality",
+      currentFileReality.status === "fragile"
+        ? "blocked"
+        : currentFileReality.status === "mixed"
+          ? "needs_review"
+          : "ready",
+      currentFileReality.summary
+    ),
+    buildCheck(
+      "final_package_quality",
+      "Final package quality",
+      packageQuality.status === "blocked"
+        ? "blocked"
+        : packageQuality.status === "needs_review"
+          ? "needs_review"
+          : "ready",
+      packageQuality.summary
+    ),
+    buildCheck(
+      "transaction_lineage",
+      "Transaction-lineage reconciliation",
+      reconciliation.groups.some((group) => group.status === "blocked")
+        ? "blocked"
+        : reconciliation.groups.some((group) => group.status === "needs_review")
+          ? "needs_review"
+          : reconciliation.groups.length > 0
+            ? "ready"
+            : "needs_review",
+      reconciliation.groups.some((group) => group.status === "blocked")
+        ? `Tina still has blocked transaction lineage or grouped transaction evidence in ${reconciliation.groups
+            .filter((group) => group.status === "blocked")
+            .map((group) => group.label)
+            .join(", ")}.`
+        : reconciliation.groups.some((group) => group.status === "needs_review")
+          ? `Tina still has transaction lineage or grouped transaction evidence that needs a final review pass in ${reconciliation.groups
+              .filter((group) => group.status === "needs_review")
+              .map((group) => group.label)
+              .join(", ")}.`
+          : reconciliation.groups.length > 0
+            ? "Transaction lineage and grouped ledger evidence are reconciled into the send-ready packet."
+            : "Tina still wants richer imported ledger lineage before this send-ready gate should look fully settled.",
+    ),
+    buildCheck(
       "review_mode",
       "Review-mode delivery",
       filingApproval.status === "blocked" ? "needs_review" : "ready",
       filingApproval.status === "blocked"
         ? "Tina is still review-only for this file, which is acceptable for CPA delivery but should be stated clearly."
         : "Tina is in a strong review-delivery posture for CPA handoff.",
+    ),
+    buildCheck(
+      "mef_handoff",
+      "MeF-aligned handoff",
+      mefReadiness.status === "blocked"
+        ? "blocked"
+        : mefReadiness.status === "needs_review"
+          ? "needs_review"
+          : "ready",
+      mefReadiness.summary
+    ),
+    buildCheck(
+      "continuity_and_depreciation",
+      "Continuity and depreciation review",
+      handoff.status !== "complete"
+        ? "needs_review"
+        : handoff.artifacts.some(
+              (artifact) =>
+                artifact.id === "continuity-and-depreciation" && artifact.status === "waiting"
+            )
+          ? "needs_review"
+          : "ready",
+      handoff.status !== "complete"
+        ? "Tina still needs a current CPA handoff packet before continuity and depreciation review posture can be trusted."
+        : handoff.artifacts.find(
+              (artifact) => artifact.id === "continuity-and-depreciation"
+            )?.summary ??
+          "Tina does not see continuity or depreciation review blockers in the handoff packet.",
     ),
   ];
 

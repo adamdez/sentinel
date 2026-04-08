@@ -1,6 +1,8 @@
 import type {
   TinaAiCleanupSnapshot,
   TinaAuthorityCitation,
+  TinaBenchmarkProposalDecision,
+  TinaBenchmarkProposalDecisionStatus,
   TinaCpaHandoffArtifact,
   TinaCpaHandoffSnapshot,
   TinaCleanupPlan,
@@ -104,6 +106,7 @@ export function createDefaultTinaWorkspaceDraft(): TinaWorkspaceDraft {
     authorityWork: [],
     reviewerOutcomeMemory: createDefaultTinaReviewerOutcomeMemory(),
     taxPositionMemory: createDefaultTinaTaxPositionMemorySnapshot(),
+    benchmarkProposalDecisions: [],
     profile: createDefaultTinaProfile(),
   };
 }
@@ -300,6 +303,40 @@ function normalizeReviewerOutcomeCaseTag(value: unknown): TinaReviewerOutcomeCas
     value === "state_scope"
     ? value
     : null;
+}
+
+function normalizeBenchmarkProposalDecisionStatus(
+  value: unknown
+): TinaBenchmarkProposalDecisionStatus {
+  return value === "accepted" || value === "rejected" ? value : "deferred";
+}
+
+function normalizeBenchmarkProposalDecision(
+  value: unknown
+): TinaBenchmarkProposalDecision | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const raw = value as Partial<TinaBenchmarkProposalDecision>;
+  if (
+    typeof raw.id !== "string" ||
+    typeof raw.skillId !== "string" ||
+    typeof raw.decidedAt !== "string"
+  ) {
+    return null;
+  }
+
+  const cohortTag = normalizeReviewerOutcomeCaseTag(raw.cohortTag);
+  if (!cohortTag) return null;
+
+  return {
+    id: raw.id,
+    skillId: raw.skillId,
+    cohortTag,
+    status: normalizeBenchmarkProposalDecisionStatus(raw.status),
+    rationale: typeof raw.rationale === "string" ? raw.rationale : "",
+    decidedAt: raw.decidedAt,
+    decidedBy: typeof raw.decidedBy === "string" ? raw.decidedBy : null,
+  };
 }
 
 function normalizeReviewerOverrideRecord(value: unknown): TinaReviewerOverrideRecord | null {
@@ -1219,6 +1256,11 @@ export function parseTinaWorkspaceDraft(raw: string | null): TinaWorkspaceDraft 
           .map((item) => normalizeAuthorityWorkItem(item))
           .filter((item): item is TinaAuthorityWorkItem => item !== null)
       : [];
+    const normalizedBenchmarkProposalDecisions = Array.isArray(parsed.benchmarkProposalDecisions)
+      ? parsed.benchmarkProposalDecisions
+          .map((item) => normalizeBenchmarkProposalDecision(item))
+          .filter((item): item is TinaBenchmarkProposalDecision => item !== null)
+      : [];
 
     return {
       ...createDefaultTinaWorkspaceDraft(),
@@ -1242,6 +1284,7 @@ export function parseTinaWorkspaceDraft(raw: string | null): TinaWorkspaceDraft 
       authorityWork: normalizedAuthorityWork,
       reviewerOutcomeMemory: normalizeReviewerOutcomeMemory(parsed.reviewerOutcomeMemory),
       taxPositionMemory: normalizeTaxPositionMemory(parsed.taxPositionMemory),
+      benchmarkProposalDecisions: normalizedBenchmarkProposalDecisions,
       profile: {
         ...createDefaultTinaProfile(),
         ...(parsed.profile ?? {}),

@@ -574,6 +574,18 @@ export interface TinaTaxPositionMemorySnapshot {
   records: TinaTaxPositionRecord[];
 }
 
+export type TinaBenchmarkProposalDecisionStatus = "accepted" | "deferred" | "rejected";
+
+export interface TinaBenchmarkProposalDecision {
+  id: string;
+  skillId: string;
+  cohortTag: TinaReviewerOutcomeCaseTag;
+  status: TinaBenchmarkProposalDecisionStatus;
+  rationale: string;
+  decidedAt: string;
+  decidedBy: string | null;
+}
+
 export interface TinaWorkspaceDraft {
   version: number;
   savedAt: string | null;
@@ -596,6 +608,7 @@ export interface TinaWorkspaceDraft {
   authorityWork: TinaAuthorityWorkItem[];
   reviewerOutcomeMemory: TinaReviewerOutcomeMemory;
   taxPositionMemory: TinaTaxPositionMemorySnapshot;
+  benchmarkProposalDecisions: TinaBenchmarkProposalDecision[];
   profile: TinaBusinessTaxProfile;
 }
 

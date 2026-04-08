@@ -53,6 +53,26 @@ describe("readTinaDocument", () => {
         expect.objectContaining({
           label: "Sales tax clue",
         }),
+        expect.objectContaining({
+          label: "Transaction sample clue",
+          value: "Income",
+        }),
+        expect.objectContaining({
+          label: "Transaction column clue",
+          value: "Account",
+        }),
+        expect.objectContaining({
+          label: "Ledger bucket clue",
+          value: "Income: 1 row, net $1,200.00",
+        }),
+        expect.objectContaining({
+          label: "Transaction group clue",
+          value: "Income (inflow): 1 row, total $1,200.00, dates Jan 1, 2025 to Jan 1, 2025",
+        }),
+        expect.objectContaining({
+          label: "Transaction lineage clue",
+          value: "Income | 2025-01 (inflow): 1 row, total $1,200.00, dates Jan 1, 2025 to Jan 1, 2025",
+        }),
       ])
     );
   });

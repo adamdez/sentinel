@@ -6,6 +6,11 @@ import type {
   TinaWorkspaceDraft,
 } from "@/tina/types";
 import { findTinaReviewerPatternScore } from "@/tina/lib/reviewer-outcomes";
+import {
+  collectTinaAnalyzedTransactionGroups,
+  measureTinaTransactionGroupAlignment,
+  summarizeTinaTransactionGroups,
+} from "@/tina/lib/transaction-group-analysis";
 
 function createEmptySnapshot(): TinaWorkpaperSnapshot {
   return {
@@ -104,6 +109,93 @@ function buildReviewerLearningNote(draft: TinaWorkspaceDraft): string {
   return note;
 }
 
+function collectSourceFactValues(
+  draft: TinaWorkspaceDraft,
+  sourceDocumentIds: string[],
+  labels: string[]
+): string[] {
+  const allowed = new Set(labels);
+  return draft.sourceFacts
+    .filter(
+      (fact) => sourceDocumentIds.includes(fact.sourceDocumentId) && allowed.has(fact.label)
+    )
+    .map((fact) => fact.value);
+}
+
+function resolveBucketAwareStatus(
+  draft: TinaWorkspaceDraft,
+  adjustment: TinaTaxAdjustment,
+  baseStatus: TinaWorkpaperLineStatus
+): TinaWorkpaperLineStatus {
+  const learnedStatus = resolveLineStatusWithReviewerLearning(draft, baseStatus);
+  if (learnedStatus !== "ready") return learnedStatus;
+
+  const bucketClues = collectSourceFactValues(draft, adjustment.sourceDocumentIds, [
+    "Ledger bucket clue",
+  ]);
+  const transactionGroups = collectTinaAnalyzedTransactionGroups(draft, adjustment.sourceDocumentIds);
+  if (bucketClues.length === 0 && transactionGroups.length === 0) return learnedStatus;
+
+  const haystack = bucketClues.join(" ").toLowerCase();
+  if (
+    adjustment.kind === "carryforward_line" &&
+    /\bpayroll|wages|contractor|1099|sales tax|inventory|cogs|owner|draw|distribution|transfer\b/.test(
+      haystack
+    )
+  ) {
+    return "needs_attention";
+  }
+
+  if (adjustment.kind === "carryforward_line") {
+    const groupHaystack = transactionGroups.map((group) => group.classification).join(" ");
+    if (
+      /\bpayroll|contractor|sales_tax|inventory|owner_flow|transfer|related_party\b/.test(
+        groupHaystack
+      )
+    ) {
+      return "needs_attention";
+    }
+  }
+
+  const alignment = measureTinaTransactionGroupAlignment({
+    groups: transactionGroups,
+    amount: adjustment.amount,
+    fieldLabel: adjustment.title,
+  });
+  if (alignment === "mismatch") {
+    return "needs_attention";
+  }
+
+  return learnedStatus;
+}
+
+function buildBucketProofNote(draft: TinaWorkspaceDraft, adjustment: TinaTaxAdjustment): string {
+  const bucketClues = collectSourceFactValues(draft, adjustment.sourceDocumentIds, [
+    "Ledger bucket clue",
+  ]);
+  if (bucketClues.length === 0) return "";
+  return ` Ledger buckets behind this line: ${bucketClues.slice(0, 2).join("; ")}.`;
+}
+
+function buildTransactionGroupNote(draft: TinaWorkspaceDraft, adjustment: TinaTaxAdjustment): string {
+  const groups = collectTinaAnalyzedTransactionGroups(draft, adjustment.sourceDocumentIds);
+  if (groups.length === 0) return "";
+
+  const alignment = measureTinaTransactionGroupAlignment({
+    groups,
+    amount: adjustment.amount,
+    fieldLabel: adjustment.title,
+  });
+  const alignmentNote =
+    alignment === "aligned"
+      ? " Transaction-group totals align with the current amount."
+      : alignment === "mismatch"
+        ? " Transaction-group totals still do not align cleanly with the current amount."
+        : "";
+
+  return ` Transaction groups behind this line: ${summarizeTinaTransactionGroups(groups)}.${alignmentNote}`;
+}
+
 function buildLineFromAdjustment(
   draft: TinaWorkspaceDraft,
   adjustment: TinaTaxAdjustment
@@ -118,6 +210,8 @@ function buildLineFromAdjustment(
     taxAdjustmentIds: [adjustment.id],
   };
   const reviewerLearningNote = buildReviewerLearningNote(draft);
+  const bucketProofNote = buildBucketProofNote(draft, adjustment);
+  const transactionGroupNote = buildTransactionGroupNote(draft, adjustment);
 
   switch (adjustment.kind) {
     case "carryforward_line":
@@ -136,10 +230,10 @@ function buildLineFromAdjustment(
                 ? "Net business result candidate"
                 : adjustment.title,
         amount: adjustment.amount,
-        status: resolveLineStatusWithReviewerLearning(draft, "ready"),
+        status: resolveBucketAwareStatus(draft, adjustment, "ready"),
         summary: buildSummary(
           adjustment,
-          `Tina can now carry this approved amount into her return-facing review layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}`
+          `Tina can now carry this approved amount into her return-facing review layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}${bucketProofNote}${transactionGroupNote}`
         ),
         ...shared,
       };
@@ -178,10 +272,10 @@ function buildLineFromAdjustment(
         layer: "reviewer_final",
         label: "Payroll expense candidate",
         amount: adjustment.amount,
-        status: resolveLineStatusWithReviewerLearning(draft, "ready"),
+        status: resolveBucketAwareStatus(draft, adjustment, "ready"),
         summary: buildSummary(
           adjustment,
-          `Tina can keep this approved payroll treatment visible in the return-facing layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}`
+          `Tina can keep this approved payroll treatment visible in the return-facing layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}${bucketProofNote}${transactionGroupNote}`
         ),
         ...shared,
       };
@@ -192,10 +286,10 @@ function buildLineFromAdjustment(
         layer: "reviewer_final",
         label: "Contract labor candidate",
         amount: adjustment.amount,
-        status: resolveLineStatusWithReviewerLearning(draft, "ready"),
+        status: resolveBucketAwareStatus(draft, adjustment, "ready"),
         summary: buildSummary(
           adjustment,
-          `Tina can keep this approved contractor treatment visible in the return-facing layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}`
+          `Tina can keep this approved contractor treatment visible in the return-facing layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}${bucketProofNote}${transactionGroupNote}`
         ),
         ...shared,
       };

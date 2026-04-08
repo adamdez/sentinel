@@ -1,5 +1,10 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
+import { buildTinaFinalPackageQualityReport } from "@/tina/lib/final-package-quality";
+import { buildTinaMefReadinessReport } from "@/tina/lib/mef-readiness";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { buildTinaPlanningReport } from "@/tina/lib/planning-report";
+import { buildTinaScheduleCExportContract } from "@/tina/lib/schedule-c-export-contract";
+import { buildTinaTransactionReconciliationReport } from "@/tina/lib/transaction-reconciliation";
 import type {
   TinaCpaHandoffArtifact,
   TinaCpaHandoffArtifactStatus,
@@ -74,10 +79,41 @@ function isFieldOrNoteItem(item: TinaPackageReadinessItem): boolean {
   return item.relatedFieldIds.length > 0 || item.relatedNoteIds.length > 0;
 }
 
+function buildContinuityAndDepreciationIncludes(draft: TinaWorkspaceDraft): string[] {
+  const carryoverFacts = draft.sourceFacts
+    .filter((fact) => fact.label === "Carryover amount clue")
+    .map((fact) => fact.value);
+  const assetFacts = draft.sourceFacts
+    .filter((fact) => fact.label === "Asset placed-in-service clue")
+    .map((fact) => fact.value);
+  const includes: string[] = [];
+
+  if (carryoverFacts.length > 0) {
+    includes.push(`Carryover support: ${carryoverFacts.slice(0, 2).join(" and ")}`);
+  }
+  if (assetFacts.length > 0) {
+    includes.push(`Asset timing support: ${assetFacts.slice(0, 2).join(" and ")}`);
+  }
+
+  return includes;
+}
+
+function planningScenarioNeedsWorkflowAttention(args: {
+  id: string;
+  supportLevel: "strong" | "developing" | "thin";
+  payoffWindow: "current_return" | "next_cycle" | "needs_reviewer_call";
+}): boolean {
+  if (args.payoffWindow === "needs_reviewer_call") return true;
+  return args.id === "continuity" && args.supportLevel !== "strong";
+}
+
 export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSnapshot {
   const now = new Date().toISOString();
   const lane = recommendTinaFilingLane(draft.profile);
   const checklist = buildTinaChecklist(draft, lane);
+  const planningReport = buildTinaPlanningReport(draft);
+  const packageQuality = buildTinaFinalPackageQualityReport(draft);
+  const reconciliation = buildTinaTransactionReconciliationReport(draft);
 
   if (draft.reviewerFinal.status !== "complete") {
     return {
@@ -195,6 +231,54 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
     blockingReadinessItems.length > 0
       ? "blocked"
       : attentionReadinessItems.length > 0
+        ? "waiting"
+        : "ready";
+  const actionablePlanningScenarios = planningReport.scenarios.filter(
+    (scenario) => planningScenarioNeedsWorkflowAttention(scenario)
+  );
+  const planningStatus: TinaCpaHandoffArtifactStatus =
+    planningReport.scenarios.length === 0
+      ? "ready"
+      : actionablePlanningScenarios.length > 0
+        ? "waiting"
+        : "ready";
+  const continuityAndDepreciationIncludes = buildContinuityAndDepreciationIncludes(draft);
+  const continuityAndDepreciationStatus: TinaCpaHandoffArtifactStatus =
+    continuityAndDepreciationIncludes.length === 0
+      ? "ready"
+      : draft.packageReadiness.items.some(
+            (item) =>
+              item.id === "continuity-review-missing" ||
+              item.id === "depreciation-review-missing"
+          )
+        ? "waiting"
+        : "ready";
+  const reconciliationStatus: TinaCpaHandoffArtifactStatus =
+    reconciliation.groups.some((group) => group.status === "blocked")
+      ? "blocked"
+      : reconciliation.groups.some((group) => group.status === "needs_review")
+        ? "waiting"
+        : reconciliation.groups.length > 0
+          ? "ready"
+          : "waiting";
+  const packageQualityStatus: TinaCpaHandoffArtifactStatus =
+    packageQuality.status === "blocked"
+      ? "blocked"
+      : packageQuality.status === "needs_review"
+        ? "waiting"
+        : "ready";
+  const mefReadiness = buildTinaMefReadinessReport(draft);
+  const exportContract = buildTinaScheduleCExportContract(draft);
+  const mefReadinessStatus: TinaCpaHandoffArtifactStatus =
+    mefReadiness.status === "blocked"
+      ? "blocked"
+      : mefReadiness.status === "needs_review"
+        ? "waiting"
+        : "ready";
+  const exportContractStatus: TinaCpaHandoffArtifactStatus =
+    exportContract.status === "blocked"
+      ? "blocked"
+      : exportContract.status === "needs_review"
         ? "waiting"
         : "ready";
 
@@ -323,6 +407,117 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       relatedReadinessItemIds: draft.packageReadiness.items.map((item) => item.id),
       sourceDocumentIds: readinessDocumentIds,
     }),
+    buildArtifact({
+      id: "planning-and-tradeoffs",
+      title: "Planning and tradeoffs",
+      status: planningStatus,
+      summary:
+        planningReport.scenarios.length === 0
+          ? "Tina does not see supported planning paths that belong in the handoff yet."
+          : planningStatus === "ready"
+            ? "Tina framed the planning tradeoffs clearly enough for a reviewer to scan quickly."
+            : "Tina found planning tradeoffs that should be surfaced explicitly in the CPA handoff and reviewer queue.",
+      includes:
+        planningReport.scenarios.length === 0
+          ? ["No supported planning scenarios yet"]
+          : planningReport.scenarios.map(
+              (scenario) =>
+                `${scenario.title} [support: ${scenario.supportLevel}; payoff: ${scenario.payoffWindow.replace(/_/g, " ")}]`
+            ),
+      sourceDocumentIds: uniqueIds(
+        planningReport.scenarios.flatMap((scenario) => {
+          const matchingReadinessItem = draft.packageReadiness.items.find(
+            (item) => item.id === `planning-${scenario.id}`
+          );
+          return matchingReadinessItem?.sourceDocumentIds ?? [];
+        })
+      ),
+    }),
+    buildArtifact({
+      id: "transaction-reconciliation",
+      title: "Transaction reconciliation",
+      status: reconciliationStatus,
+      summary:
+        reconciliation.groups.length === 0
+          ? "Tina still wants richer imported transaction groups before this packet has a transaction-grade reconciliation section."
+          : reconciliation.summary,
+      includes:
+        reconciliation.groups.length > 0
+          ? reconciliation.groups
+              .slice(0, 5)
+              .map(
+                (group) =>
+                  `${group.label} [${group.status}; lineage ${group.lineageCount}; mismatches ${group.mismatchCount}]`
+              )
+          : ["No imported transaction-group reconciliation yet"],
+      relatedFieldIds: uniqueIds(reconciliation.groups.flatMap((group) => group.fieldIds)),
+      sourceDocumentIds: uniqueIds(
+        reconciliation.groups.flatMap((group) => group.sourceDocumentIds)
+      ),
+    }),
+    buildArtifact({
+      id: "final-package-quality",
+      title: "Final package quality",
+      status: packageQualityStatus,
+      summary: packageQuality.summary,
+      includes: packageQuality.checks.map(
+        (check) => `${check.title}: ${check.status.replace(/_/g, " ")}`
+      ),
+    }),
+    buildArtifact({
+      id: "mef-readiness",
+      title: "MeF-aligned handoff",
+      status: mefReadinessStatus,
+      summary: mefReadiness.summary,
+      includes: [
+        `Return type: ${mefReadiness.returnType}`,
+        `Schedules: ${mefReadiness.schedules.join(", ")}`,
+        ...mefReadiness.checks.map(
+          (check) => `${check.title}: ${check.status.replace(/_/g, " ")}`
+        ),
+      ],
+      sourceDocumentIds: mefReadiness.attachments.map((attachment) => attachment.documentId),
+    }),
+    buildArtifact({
+      id: "schedule-c-export-contract",
+      title: "1040/Schedule C export contract",
+      status: exportContractStatus,
+      summary: exportContract.summary,
+      includes: [
+        `Contract version: ${exportContract.contractVersion}`,
+        `Return type: ${exportContract.returnType}`,
+        `Schedules: ${exportContract.schedules.join(", ")}`,
+        `${exportContract.fields.length} mapped field${exportContract.fields.length === 1 ? "" : "s"}`,
+        `${exportContract.unresolvedIssues.length} unresolved issue${exportContract.unresolvedIssues.length === 1 ? "" : "s"}`,
+      ],
+      relatedFieldIds: exportContract.fields.map((field) => field.fieldId),
+      relatedReadinessItemIds: exportContract.unresolvedIssues.map((issue) => issue.id),
+      sourceDocumentIds: exportContract.attachmentManifest.map((attachment) => attachment.documentId),
+    }),
+    buildArtifact({
+      id: "continuity-and-depreciation",
+      title: "Continuity and depreciation review",
+      status: continuityAndDepreciationStatus,
+      summary:
+        continuityAndDepreciationIncludes.length === 0
+          ? "Tina does not see continuity or depreciation-specific review support that needs a separate packet section yet."
+          : continuityAndDepreciationStatus === "waiting"
+            ? "Tina found continuity or depreciation support that should travel with the packet as an explicit review section."
+            : "Tina framed the continuity and depreciation support clearly in the packet.",
+      includes:
+        continuityAndDepreciationIncludes.length > 0
+          ? continuityAndDepreciationIncludes
+          : ["No continuity or depreciation-specific support attached"],
+      sourceDocumentIds: uniqueIds(
+        draft.sourceFacts
+          .filter(
+            (fact) =>
+              fact.label === "Carryover amount clue" ||
+              fact.label === "Asset placed-in-service clue"
+          )
+          .map((fact) => fact.sourceDocumentId)
+      ),
+    }),
   ];
 
   const readyCount = artifacts.filter((artifact) => artifact.status === "ready").length;
@@ -350,6 +545,11 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
   } else if (waitingCount > 0) {
     nextStep =
       "Clear the waiting packet sections next so Tina can hand over a cleaner first review packet.";
+  }
+
+  const priorityScenario = actionablePlanningScenarios[0];
+  if (priorityScenario) {
+    nextStep = `${nextStep} Put this reviewer call near the front of the packet: ${priorityScenario.nextStep}`;
   }
 
   return {

@@ -452,6 +452,37 @@ describe("buildTinaCpaHandoff", () => {
           uploadedAt: "2026-03-27T04:02:00.000Z",
         },
       ],
+      sourceFacts: [
+        {
+          id: "group-1",
+          sourceDocumentId: "doc-1",
+          label: "Transaction group clue",
+          value: "Client receipts (inflow): 4 rows, total $18,000.00, dates Mar 1, 2026 to Mar 27, 2026",
+          confidence: "medium",
+          capturedAt: "2026-03-27T04:02:30.000Z",
+        },
+      ],
+      bookTieOut: {
+        ...createDefaultTinaWorkspaceDraft().bookTieOut,
+        status: "complete",
+        summary: "Tie-out complete",
+        nextStep: "Keep going",
+        entries: [
+          {
+            id: "book-doc-1",
+            documentId: "doc-1",
+            label: "Main ledger",
+            status: "ready",
+            moneyIn: 18000,
+            moneyOut: 0,
+            net: 18000,
+            dateCoverage: "2026-03-01 through 2026-03-27",
+            sourceFactIds: ["group-1"],
+            issueIds: [],
+          },
+        ],
+        variances: [],
+      },
       documentReadings: [
         {
           documentId: "doc-1",
@@ -600,6 +631,168 @@ describe("buildTinaCpaHandoff", () => {
     expect(snapshot.status).toBe("complete");
     expect(snapshot.summary).toContain("full first CPA handoff packet");
     expect(snapshot.artifacts.every((artifact) => artifact.status === "ready")).toBe(true);
+  });
+
+  it("adds planning tradeoffs as a waiting packet section when reviewer calls remain", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Planning Payroll LLC",
+        entityType: "single_member_llc",
+        hasPayroll: true,
+      },
+      sourceFacts: [
+        {
+          id: "payroll-form-fact",
+          sourceDocumentId: "doc-1",
+          label: "Payroll tax form clue",
+          value: "This paper includes Form 941 details.",
+          confidence: "medium",
+          capturedAt: "2026-04-07T08:04:00.000Z",
+        },
+      ],
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review it",
+        fields: [],
+        notes: [],
+      },
+      packageReadiness: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        level: "needs_review",
+        summary: "Needs review",
+        nextStep: "Finish review",
+        items: [
+          {
+            id: "planning-payroll",
+            title: "Payroll deduction and compliance posture",
+            summary: "Planning tradeoff still needs reviewer handling.",
+            severity: "needs_attention",
+            relatedFieldIds: [],
+            relatedNoteIds: [],
+            relatedReviewItemIds: [],
+            sourceDocumentIds: [],
+          },
+        ],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:03:30.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-03-27T04:03:31.000Z",
+        status: "complete",
+        summary: "Current",
+        nextStep: "Hand it off",
+        records: [],
+      },
+    });
+
+    const snapshot = buildTinaCpaHandoff(draft);
+    const planningArtifact = snapshot.artifacts.find(
+      (artifact) => artifact.id === "planning-and-tradeoffs"
+    );
+
+    expect(planningArtifact?.status).toBe("waiting");
+    expect(snapshot.nextStep).toContain("reviewer call");
+  });
+
+  it("adds a continuity and depreciation packet section when those review paths exist", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Continuity Assets LLC",
+        entityType: "single_member_llc",
+      },
+      sourceFacts: [
+        {
+          id: "carryover-1",
+          sourceDocumentId: "doc-prior",
+          label: "Carryover amount clue",
+          value: "$1,250.00",
+          confidence: "medium",
+          capturedAt: "2026-04-07T08:00:00.000Z",
+        },
+        {
+          id: "asset-1",
+          sourceDocumentId: "doc-asset",
+          label: "Asset placed-in-service clue",
+          value: "2025-03-03",
+          confidence: "medium",
+          capturedAt: "2026-04-07T08:00:00.000Z",
+        },
+      ],
+      reviewerFinal: {
+        lastRunAt: "2026-03-27T04:01:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Keep going",
+        lines: [],
+      },
+      scheduleCDraft: {
+        lastRunAt: "2026-03-27T04:02:00.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review it",
+        fields: [],
+        notes: [],
+      },
+      packageReadiness: {
+        lastRunAt: "2026-03-27T04:03:00.000Z",
+        status: "complete",
+        level: "needs_review",
+        summary: "Needs review",
+        nextStep: "Finish review",
+        items: [
+          {
+            id: "continuity-review-missing",
+            title: "Carryover continuity is still not governed in the package",
+            summary: "Needs continuity review",
+            severity: "needs_attention",
+            relatedFieldIds: [],
+            relatedNoteIds: [],
+            relatedReviewItemIds: [],
+            sourceDocumentIds: ["doc-prior"],
+          },
+        ],
+      },
+      taxAdjustments: {
+        lastRunAt: "2026-03-27T04:03:30.000Z",
+        status: "complete",
+        summary: "Ready",
+        nextStep: "Review",
+        adjustments: [],
+      },
+      taxPositionMemory: {
+        lastRunAt: "2026-03-27T04:03:31.000Z",
+        status: "complete",
+        summary: "Current",
+        nextStep: "Hand it off",
+        records: [],
+      },
+    });
+
+    const snapshot = buildTinaCpaHandoff(draft);
+    const artifact = snapshot.artifacts.find(
+      (item) => item.id === "continuity-and-depreciation"
+    );
+
+    expect(artifact?.status).toBe("waiting");
+    expect(artifact?.includes.join(" ")).toContain("$1,250.00");
+    expect(artifact?.includes.join(" ")).toContain("2025-03-03");
   });
 });
 

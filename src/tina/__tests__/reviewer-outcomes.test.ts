@@ -5,6 +5,7 @@ import {
   createTinaReviewerOutcomeRecord,
   createTinaReviewerOverrideRecord,
   findTinaReviewerPatternScore,
+  ingestTinaReviewerTraffic,
   upsertTinaReviewerOutcomeMemory,
 } from "@/tina/lib/reviewer-outcomes";
 
@@ -155,5 +156,62 @@ describe("reviewer outcome memory", () => {
       "Do not mark gross receipts ready before final tie-out.",
       "Final-form trust depends on reviewer-visible numeric proof.",
     ]);
+  });
+
+  it("ingests higher-volume reviewer traffic in one batch without duplicating saved records", () => {
+    const override = createTinaReviewerOverrideRecord({
+      targetType: "tax_adjustment",
+      targetId: "tax-adjustment-1",
+      severity: "material",
+      reason: "Reviewer changed owner draw treatment.",
+      beforeState: "Treated as deductible expense",
+      afterState: "Moved to owner distribution bucket",
+      lesson: "Owner draws must never flow into deductible expense totals.",
+      sourceDocumentIds: ["doc-1"],
+      decidedAt: "2026-04-06T20:15:00.000Z",
+      decidedBy: "reviewer-1",
+    });
+    const outcomes = [
+      createTinaReviewerOutcomeRecord({
+        title: "Owner draw treatment review",
+        phase: "tax_review",
+        verdict: "revised",
+        targetType: "tax_adjustment",
+        targetId: "tax-adjustment-1",
+        summary: "Reviewer revised Tina's treatment for owner draws.",
+        lessons: ["Owner-flow characterization needs stronger numeric support."],
+        caseTags: ["messy_books", "schedule_c"],
+        overrideIds: [override.id],
+        decidedAt: "2026-04-06T20:16:00.000Z",
+        decidedBy: "reviewer-1",
+      }),
+      createTinaReviewerOutcomeRecord({
+        title: "Payroll treatment review",
+        phase: "tax_review",
+        verdict: "accepted",
+        targetType: "tax_adjustment",
+        targetId: "tax-adjustment-2",
+        summary: "Accepted.",
+        lessons: ["Keep payroll flows explicit."],
+        caseTags: ["schedule_c"],
+        overrideIds: [],
+        decidedAt: "2026-04-06T20:17:00.000Z",
+        decidedBy: "reviewer-1",
+      }),
+    ];
+
+    const memory = ingestTinaReviewerTraffic(createDefaultTinaReviewerOutcomeMemory(), {
+      overrides: [override],
+      outcomes,
+    });
+    const deduped = ingestTinaReviewerTraffic(memory, {
+      overrides: [override],
+      outcomes: [outcomes[0]],
+    });
+
+    expect(deduped.overrides).toHaveLength(1);
+    expect(deduped.outcomes).toHaveLength(2);
+    expect(deduped.updatedAt).toBe("2026-04-06T20:17:00.000Z");
+    expect(deduped.scorecard.totalOutcomes).toBe(2);
   });
 });

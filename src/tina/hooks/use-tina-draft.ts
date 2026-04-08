@@ -5,6 +5,7 @@ import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
 import type {
   TinaAiCleanupSnapshot,
   TinaAuthorityCitation,
+  TinaBenchmarkProposalDecisionStatus,
   TinaCpaHandoffSnapshot,
   TinaAuthorityWorkItem,
   TinaBookTieOutSnapshot,
@@ -39,9 +40,14 @@ import { markTinaCleanupPlanStale } from "@/tina/lib/cleanup-plan";
 import { markTinaIssueQueueStale } from "@/tina/lib/issue-queue";
 import { markTinaPackageReadinessStale } from "@/tina/lib/package-readiness";
 import { markTinaReviewerFinalStale } from "@/tina/lib/reviewer-final";
-import { upsertTinaReviewerOutcomeMemory } from "@/tina/lib/reviewer-outcomes";
+import {
+  ingestTinaReviewerTraffic,
+  upsertTinaReviewerOutcomeMemory,
+} from "@/tina/lib/reviewer-outcomes";
+import { importTinaReviewerTraffic } from "@/tina/lib/reviewer-traffic-import";
 import { markTinaScheduleCDraftStale } from "@/tina/lib/schedule-c-draft";
 import { deriveTinaSourceFactsFromReading } from "@/tina/lib/source-facts";
+import { buildTinaBenchmarkProposalDecisionId } from "@/tina/lib/benchmark-rescore";
 import { markTinaTaxAdjustmentsStale } from "@/tina/lib/tax-adjustments";
 import { markTinaTaxPositionMemoryStale } from "@/tina/lib/tax-position-memory";
 import { markTinaWorkpapersStale } from "@/tina/lib/workpapers";
@@ -450,6 +456,69 @@ export function useTinaDraft() {
     );
   }
 
+  function ingestReviewerTraffic(input: {
+    overrides?: TinaReviewerOverrideRecord[];
+    outcomes?: TinaReviewerOutcomeRecord[];
+  }) {
+    setDraft((current) =>
+      stampDraft({
+        ...current,
+        reviewerOutcomeMemory: ingestTinaReviewerTraffic(current.reviewerOutcomeMemory, input),
+        taxPositionMemory: markTinaTaxPositionMemoryStale(current.taxPositionMemory),
+      })
+    );
+  }
+
+  function importReviewerTrafficBatch(input: {
+    content: string;
+    format?: "json" | "csv";
+    defaultDecidedBy?: string | null;
+  }) {
+    const imported = importTinaReviewerTraffic(input);
+
+    setDraft((current) =>
+      stampDraft({
+        ...current,
+        reviewerOutcomeMemory: ingestTinaReviewerTraffic(current.reviewerOutcomeMemory, {
+          overrides: imported.overrides,
+          outcomes: imported.outcomes,
+        }),
+        taxPositionMemory: markTinaTaxPositionMemoryStale(current.taxPositionMemory),
+      })
+    );
+
+    return imported;
+  }
+
+  function saveBenchmarkProposalDecision(args: {
+    skillId: string;
+    cohortTag: TinaWorkspaceDraft["benchmarkProposalDecisions"][number]["cohortTag"];
+    status: TinaBenchmarkProposalDecisionStatus;
+    rationale?: string;
+    decidedBy?: string | null;
+  }) {
+    setDraft((current) => {
+      const id = buildTinaBenchmarkProposalDecisionId(args.skillId, args.cohortTag);
+      const decision = {
+        id,
+        skillId: args.skillId,
+        cohortTag: args.cohortTag,
+        status: args.status,
+        rationale: args.rationale?.trim() ?? "",
+        decidedAt: new Date().toISOString(),
+        decidedBy: args.decidedBy ?? null,
+      };
+
+      return stampDraft({
+        ...current,
+        benchmarkProposalDecisions: [
+          decision,
+          ...current.benchmarkProposalDecisions.filter((item) => item.id !== id),
+        ],
+      });
+    });
+  }
+
   function updateCleanupSuggestion(
     suggestionId: string,
     updater: (current: TinaCleanupSuggestion) => TinaCleanupSuggestion
@@ -593,6 +662,9 @@ export function useTinaDraft() {
     removeAuthorityCitation,
     addReviewerOverride,
     addReviewerOutcome,
+    ingestReviewerTraffic,
+    importReviewerTrafficBatch,
+    saveBenchmarkProposalDecision,
     resetDraft,
   };
 }
