@@ -17,10 +17,13 @@ describe("validateStatusTransition", () => {
     ["staging", "prospect"],
     ["staging", "dead"],
     ["prospect", "lead"],
-    ["prospect", "negotiation"],
+    ["prospect", "active"],
     ["prospect", "nurture"],
     ["prospect", "dead"],
-    ["lead", "negotiation"],
+    ["lead", "active"],
+    ["active", "negotiation"],
+    ["active", "nurture"],
+    ["active", "dead"],
     ["lead", "nurture"],
     ["lead", "dead"],
     ["negotiation", "disposition"],
@@ -47,7 +50,10 @@ describe("validateStatusTransition", () => {
     ["closed", "dead"],
     ["prospect", "closed"],
     ["prospect", "disposition"],
+    ["prospect", "negotiation"],
     ["lead", "staging"],
+    ["lead", "negotiation"],
+    ["active", "lead"],
     ["dead", "prospect"],
   ];
 
@@ -66,6 +72,10 @@ describe("validateStatusTransition", () => {
   it("allows nurture → lead (re-engagement)", () => {
     expect(validateStatusTransition("nurture", "lead")).toBe(true);
   });
+
+  it("allows nurture → active (re-engagement with seller progress)", () => {
+    expect(validateStatusTransition("nurture", "active")).toBe(true);
+  });
 });
 
 /* ------------------------------------------------------------------ */
@@ -75,11 +85,12 @@ describe("validateStatusTransition", () => {
 describe("getAllowedTransitions", () => {
   const expected: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
     staging: ["prospect", "dead"],
-    prospect: ["lead", "negotiation", "nurture", "dead"],
-    lead: ["negotiation", "nurture", "dead"],
+    prospect: ["lead", "active", "nurture", "dead"],
+    lead: ["active", "nurture", "dead"],
+    active: ["negotiation", "nurture", "dead"],
     negotiation: ["disposition", "nurture", "dead"],
     disposition: ["closed", "nurture", "dead"],
-    nurture: ["lead", "dead"],
+    nurture: ["lead", "active", "dead"],
     dead: ["nurture"],
     closed: [],
   };
@@ -122,6 +133,26 @@ describe("evaluateStageEntryPrerequisites", () => {
   };
 
   /* ---- negotiation guards ---- */
+
+  it("blocks active without a short note", () => {
+    const err = evaluateStageEntryPrerequisites({
+      ...base,
+      targetStatus: "active",
+      noteAppendText: "",
+      existingNotes: null,
+    });
+    expect(err).toBeTruthy();
+    expect(err).toContain("Active");
+  });
+
+  it("allows active with a short progress note", () => {
+    const err = evaluateStageEntryPrerequisites({
+      ...base,
+      targetStatus: "active",
+      noteAppendText: "Seller discussed timeline and condition details.",
+    });
+    expect(err).toBeNull();
+  });
 
   it("blocks negotiation without assigned_to", () => {
     const err = evaluateStageEntryPrerequisites({

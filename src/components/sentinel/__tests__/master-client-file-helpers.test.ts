@@ -3,7 +3,10 @@ import {
   clientFileFromLead,
   clientFileFromProspect,
   clientFileFromRaw,
+  closeoutSuccessMessage,
   deriveSkipTraceUiState,
+  OUTCOME_PRESET_DEFAULTS,
+  routeForCloseoutAction,
 } from "@/components/sentinel/master-client-file-helpers";
 
 describe("client file pin state adapters", () => {
@@ -331,5 +334,22 @@ describe("client file pin state adapters", () => {
     });
 
     expect(result.status).toBe("skipped");
+  });
+
+  it("defaults not interested to mark dead instead of nurture", () => {
+    expect(OUTCOME_PRESET_DEFAULTS.not_interested).toBe("mark_dead");
+    expect(OUTCOME_PRESET_DEFAULTS.do_not_call).toBe("mark_dead");
+    expect(OUTCOME_PRESET_DEFAULTS.wrong_number).toBe("mark_dead");
+    expect(OUTCOME_PRESET_DEFAULTS.disconnected).toBe("mark_dead");
+  });
+
+  it("maps closeout actions to explicit dead and active routes", () => {
+    expect(routeForCloseoutAction("mark_dead")).toBe("dead");
+    expect(routeForCloseoutAction("move_active")).toBe("follow_up");
+  });
+
+  it("uses explicit success labels for terminal and active closeouts", () => {
+    expect(closeoutSuccessMessage("mark_dead")).toBe("Marked Dead");
+    expect(closeoutSuccessMessage("move_active")).toBe("Moved to Active");
   });
 });

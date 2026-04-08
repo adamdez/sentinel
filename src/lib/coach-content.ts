@@ -16,7 +16,8 @@ const STAGE_LABELS: Record<string, string> = {
   staging:
     "Staging — being enriched by the system. Will auto-promote to Prospect.",
   prospect: "Prospect — awaiting first contact. Call this seller.",
-  lead: "Lead — active seller conversation. Keep qualifying and moving toward an offer.",
+  lead: "Lead — active contact-attempt stage. Keep calling, qualifying, and setting the next step.",
+  active: "Active — confirmed seller progress. Work the file intentionally toward negotiation.",
   negotiation:
     "Negotiation — under active offer discussion. Work toward agreement.",
   disposition:
@@ -53,7 +54,7 @@ export const COACH_ITEMS: CoachItem[] = [
     body: "Assign this lead to yourself or a team member before moving to Negotiation. The system needs to know who owns the deal.",
     surfaces: ["lead_detail"],
     condition: (ctx) =>
-      (ctx.lead?.status === "prospect" || ctx.lead?.status === "lead") &&
+      (ctx.lead?.status === "prospect" || ctx.lead?.status === "lead" || ctx.lead?.status === "active") &&
       !ctx.lead?.assigned_to,
     priority: 1,
   },
@@ -183,7 +184,7 @@ export const COACH_ITEMS: CoachItem[] = [
     body: "Active leads need a next step. Schedule a call or follow-up to keep this moving.",
     surfaces: ["lead_detail"],
     condition: (ctx) =>
-      ["lead", "negotiation"].includes(ctx.lead?.status ?? "") &&
+      ["lead", "active", "negotiation"].includes(ctx.lead?.status ?? "") &&
       !ctx.lead?.next_action_at,
     priority: 30,
   },

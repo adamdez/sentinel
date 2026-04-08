@@ -14,4 +14,10 @@ describe("resolveTerminalDispositionTargetStatus", () => {
   it("archives explicit dead leads as dead", () => {
     expect(resolveTerminalDispositionTargetStatus("dead_lead")).toBe("dead");
   });
+
+  it("archives wrong number, disconnected, and do not call as dead", () => {
+    expect(resolveTerminalDispositionTargetStatus("wrong_number")).toBe("dead");
+    expect(resolveTerminalDispositionTargetStatus("disconnected")).toBe("dead");
+    expect(resolveTerminalDispositionTargetStatus("do_not_call")).toBe("dead");
+  });
 });

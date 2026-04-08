@@ -68,6 +68,9 @@ function createServiceClient() {
 
 const LIVE_ANSWER_DISPOSITIONS = new Set<PublishDisposition>([
   "completed",
+  "not_interested",
+  "wrong_number",
+  "do_not_call",
   "follow_up",
   "appointment",
   "offer_made",
@@ -152,7 +155,15 @@ export async function processAutoCycleOutcome(
     ?? activePhones[0]
     ?? null;
 
-  if (!targetPhone && disposition !== "dead_lead" && disposition !== "disqualified" && disposition !== "not_interested") {
+  if (
+    !targetPhone
+    && disposition !== "dead_lead"
+    && disposition !== "disqualified"
+    && disposition !== "not_interested"
+    && disposition !== "wrong_number"
+    && disposition !== "disconnected"
+    && disposition !== "do_not_call"
+  ) {
     return { ok: true, skipped: true, reason: "no_active_phone" };
   }
 

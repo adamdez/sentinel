@@ -15,6 +15,7 @@ const STAGE_LABELS: Record<LeadStatus, string> = {
   staging: "Staging",
   prospect: "Prospect",
   lead: "Lead",
+  active: "Active",
   negotiation: "Negotiation",
   disposition: "Disposition",
   nurture: "Nurture",
@@ -88,6 +89,14 @@ export function precheckWorkflowStageChange(input: WorkflowStagePrecheckInput): 
   const hasNoteContext = hasMeaningfulText(input.noteDraft) || hasMeaningfulText(input.notes);
   const hasDispositionContext = hasMeaningfulText(input.dispositionCode, 1);
   const dispositionCode = (input.dispositionCode ?? "").toLowerCase();
+
+  if (input.targetStatus === "active") {
+    if (!hasNoteContext) {
+      return buildResult([
+        "Add a short seller progress note before moving to Active.",
+      ]);
+    }
+  }
 
   if (input.targetStatus === "negotiation") {
     const actions: string[] = [];

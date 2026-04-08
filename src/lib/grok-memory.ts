@@ -27,7 +27,7 @@ export interface GrokFullContext {
   crawlerStatus: string;
 }
 
-const STAGES = ["prospect", "lead", "negotiation", "disposition", "closed", "dead"] as const;
+const STAGES = ["prospect", "lead", "active", "negotiation", "disposition", "closed", "dead"] as const;
 
 const CONTEXT_TIMEOUT_MS = 8_000;
 
@@ -137,7 +137,7 @@ async function buildContextInner(): Promise<GrokFullContext> {
     safe(
       tbl("leads")
         .select("priority, last_contact_at, properties(owner_name, address)")
-        .in("status", ["lead", "negotiation"])
+        .in("status", ["lead", "active", "negotiation"])
         .gte("priority", 85)
         .order("priority", { ascending: false })
         .limit(5),
@@ -148,7 +148,7 @@ async function buildContextInner(): Promise<GrokFullContext> {
     safe(
       tbl("leads")
         .select("priority, last_contact_at, properties(owner_name, address)")
-        .in("status", ["lead", "negotiation"])
+        .in("status", ["lead", "active", "negotiation"])
         .gte("priority", 65)
         .lte("last_contact_at", threeDaysAgo)
         .order("priority", { ascending: false })
@@ -187,7 +187,7 @@ async function buildContextInner(): Promise<GrokFullContext> {
     safe(
       tbl("leads")
         .select("id", { count: "exact", head: true })
-        .in("status", ["lead", "negotiation", "disposition", "closed"])
+        .in("status", ["lead", "active", "negotiation", "disposition", "closed"])
         .gte("created_at", sevenDaysAgo),
       { count: 0 },
       "leads-7d",
@@ -244,6 +244,7 @@ async function buildContextInner(): Promise<GrokFullContext> {
 
   const activeLeads = (pipelineByStage["prospect"] ?? 0) +
     (pipelineByStage["lead"] ?? 0) +
+    (pipelineByStage["active"] ?? 0) +
     (pipelineByStage["negotiation"] ?? 0);
 
   return {

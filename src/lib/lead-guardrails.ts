@@ -16,11 +16,12 @@ import type { LeadStatus } from "@/lib/types";
 
 const ALLOWED_TRANSITIONS: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
   staging: ["prospect", "dead"],
-  prospect: ["lead", "negotiation", "nurture", "dead"],
-  lead: ["negotiation", "nurture", "dead"],
+  prospect: ["lead", "active", "nurture", "dead"],
+  lead: ["active", "nurture", "dead"],
+  active: ["negotiation", "nurture", "dead"],
   negotiation: ["disposition", "nurture", "dead"],
   disposition: ["closed", "nurture", "dead"],
-  nurture: ["lead", "dead"],
+  nurture: ["lead", "active", "dead"],
   dead: ["nurture"],
   closed: [],
 };
@@ -31,7 +32,7 @@ const ALLOWED_TRANSITIONS: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
  * Backward moves (→ nurture, → dead) do not require it, but still accept it.
  */
 const REQUIRES_NEXT_ACTION: ReadonlySet<LeadStatus> = new Set([
-  "prospect", "lead", "negotiation", "disposition",
+  "prospect", "lead", "active", "negotiation", "disposition",
 ]);
 
 /**

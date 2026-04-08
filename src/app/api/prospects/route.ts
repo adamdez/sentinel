@@ -54,7 +54,7 @@ const US_STATES: Record<string, string> = {
 
 const SELLER_TIMELINES = new Set<SellerTimeline>(["immediate", "30_days", "60_days", "flexible", "unknown"]);
 const QUALIFICATION_ROUTES = new Set<QualificationRoute>(["offer_ready", "follow_up", "nurture", "dead", "escalate"]);
-const LEAD_STATUSES = new Set<LeadStatus>(["staging", "prospect", "lead", "negotiation", "disposition", "nurture", "dead", "closed"]);
+const LEAD_STATUSES = new Set<LeadStatus>(["staging", "prospect", "lead", "active", "negotiation", "disposition", "nurture", "dead", "closed"]);
 const DEAD_DISPOSITION_SIGNALS = new Set([
   "dead",
   "do_not_call",
@@ -495,7 +495,7 @@ export async function PATCH(req: NextRequest) {
 
     if (qualificationRouteChanged && nextQualificationRoute) {
       if (nextQualificationRoute === "offer_ready") {
-        if (currentStatus === "lead") {
+        if (currentStatus === "lead" || currentStatus === "active") {
           if (targetStatus && targetStatus !== "negotiation") {
             return NextResponse.json(
               { error: "Invalid route/status combination", detail: "offer_ready requires stage negotiation when current status is lead" },
@@ -523,7 +523,7 @@ export async function PATCH(req: NextRequest) {
       }
 
       if (nextQualificationRoute === "nurture") {
-        if (currentStatus === "lead") {
+        if (currentStatus === "lead" || currentStatus === "active") {
           if (targetStatus && targetStatus !== "nurture") {
             return NextResponse.json(
               { error: "Invalid route/status combination", detail: "nurture route requires stage nurture when current status is lead" },
@@ -542,7 +542,7 @@ export async function PATCH(req: NextRequest) {
       }
 
       if (nextQualificationRoute === "dead") {
-        if (currentStatus === "lead") {
+        if (currentStatus === "lead" || currentStatus === "active") {
           if (targetStatus && targetStatus !== "dead") {
             return NextResponse.json(
               { error: "Invalid route/status combination", detail: "dead route requires stage dead when current status is lead" },
@@ -686,7 +686,7 @@ export async function PATCH(req: NextRequest) {
     const hasUpdate = (key: string) => Object.prototype.hasOwnProperty.call(updateData, key);
 
     // Charter VIII: compliance gating before dial eligibility or claim.
-    const requiresScrub = Boolean(assigned_to) || finalStatus === "lead" || finalStatus === "negotiation";
+    const requiresScrub = Boolean(assigned_to) || finalStatus === "lead" || finalStatus === "active" || finalStatus === "negotiation";
     const ghostMode = req.headers.get("x-ghost-mode") === "true";
 
     if (requiresScrub && currentLead.property_id) {

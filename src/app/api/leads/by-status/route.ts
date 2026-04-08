@@ -11,7 +11,7 @@ const VALID_STATUSES = ["staging", "prospect", "lead", "active", "negotiation", 
 export async function GET(req: NextRequest) {
   try {
     const requestedStatus = req.nextUrl.searchParams.get("status");
-    const status = requestedStatus === "active" ? "lead" : requestedStatus;
+    const status = requestedStatus;
 
     if (!requestedStatus || !VALID_STATUSES.includes(requestedStatus)) {
       return NextResponse.json(

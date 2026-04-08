@@ -428,6 +428,9 @@ export type PublishDisposition =
   | "voicemail"       // left or attempted voicemail
   | "no_answer"       // no pickup, no voicemail left
   | "dead_phone"      // phone is disconnected/wrong number — mark phone dead, try another
+  | "wrong_number"    // reached wrong party — terminal lead outcome
+  | "disconnected"    // disconnected line — terminal lead outcome
+  | "do_not_call"     // seller asked not to be contacted again
   | "not_interested"  // seller declined
   | "follow_up"       // needs callback / follow-up
   | "appointment"     // set appointment on this call
@@ -436,8 +439,9 @@ export type PublishDisposition =
   | "dead_lead";      // disqualify → dead (archived, gone)
 
 export const PUBLISH_DISPOSITIONS: readonly PublishDisposition[] = [
-  "completed", "voicemail", "no_answer", "dead_phone", "not_interested",
-  "follow_up", "appointment", "offer_made", "disqualified", "dead_lead",
+  "completed", "voicemail", "no_answer", "dead_phone", "wrong_number",
+  "disconnected", "do_not_call", "not_interested", "follow_up",
+  "appointment", "offer_made", "disqualified", "dead_lead",
 ] as const;
 
 export type SellerTimeline = "immediate" | "30_days" | "60_days" | "flexible" | "unknown";

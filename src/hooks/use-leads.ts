@@ -671,7 +671,7 @@ export function useLeads() {
 
   const segmentedLeads = useMemo(() => {
     // Drive By leads belong in their own bucket, not Lead Queue.
-    const base = leadsWithAssigneeNames.filter((l) => !isDriveByLead(l));
+    const base = leadsWithAssigneeNames.filter((l) => !isDriveByLead(l) && (l.status === "prospect" || l.status === "lead"));
     if (segment === "all") return base.filter((l) => isLeadUnclaimed(l.assignedTo));
     if (segment === "mine") return base.filter((l) => l.assignedTo === currentUser.id);
     return base.filter((l) => l.assignedTo === segment);

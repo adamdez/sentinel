@@ -37,6 +37,9 @@ export interface AutoCyclePhoneRowLike {
 const LEAD_EXIT_DISPOSITIONS = new Set<PublishDisposition>([
   "completed",
   "not_interested",
+  "wrong_number",
+  "disconnected",
+  "do_not_call",
   "follow_up",
   "appointment",
   "offer_made",
@@ -162,4 +165,3 @@ export function deriveLeadCycleState(
     remainingPhones: activePhones.length,
   };
 }
-

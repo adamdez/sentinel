@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const ACTIVE_STATUSES = ["lead", "negotiation", "prospect", "nurture"];
+    const ACTIVE_STATUSES = ["prospect", "lead", "active", "negotiation", "nurture"];
 
   // ── 1. Active leads with no next_action ──
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: staleContact, error: e3 } = await (sb.from("leads") as any)
     .select("id, status, assigned_to, last_contact_at, next_action")
-    .in("status", ["lead", "negotiation"])
+    .in("status", ["prospect", "lead", "active", "negotiation"])
     .not("last_contact_at", "is", null)
     .lt("last_contact_at", sevenDaysAgo)
     .order("last_contact_at", { ascending: true })
@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: speedViolations, error: e4 } = await (sb.from("leads") as any)
     .select("id, status, assigned_to, created_at, promoted_at")
-    .in("status", ["lead", "negotiation"])
+    .in("status", ["prospect", "lead", "active", "negotiation"])
     .is("last_contact_at", null)
     .lt("created_at", twentyFourHoursAgo)
     .order("created_at", { ascending: true })

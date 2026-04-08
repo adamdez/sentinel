@@ -1,127 +1,127 @@
 [
   {
-    "hash": "b523f19a",
-    "date": "2026-04-06",
-    "message": "Remove Deep Intelligence Crawl — kill Anthropic spend on unused feature"
+    "hash": "1b248508",
+    "date": "2026-04-08",
+    "message": "[codex] Fix hidden default lead queue stage filter"
   },
   {
-    "hash": "0c67a7d1",
-    "date": "2026-04-06",
-    "message": "feat: vendor · list name combined source label across all three surfaces"
+    "hash": "071074d1",
+    "date": "2026-04-08",
+    "message": "[codex] Repair active stage typecheck regressions"
   },
   {
-    "hash": "3f26bda4",
-    "date": "2026-04-06",
-    "message": "fix: consistent lead source labels across all surfaces"
+    "hash": "bdce443b",
+    "date": "2026-04-08",
+    "message": "[codex] Route direct inbound calls by operator line"
   },
   {
-    "hash": "713bc4c8",
-    "date": "2026-04-06",
-    "message": "fix: raise skip trace phone cap from 5 to 10"
+    "hash": "34febcb8",
+    "date": "2026-04-08",
+    "message": "[codex] Make dialer skip trace actions live"
   },
   {
-    "hash": "2c5738fd",
-    "date": "2026-04-06",
-    "message": "fix: remove last_sale_date from core writes — column not in Supabase schema cache"
+    "hash": "aef413a8",
+    "date": "2026-04-08",
+    "message": "[codex] Ship Tina IRS-aligned handoff and export contract"
   },
   {
-    "hash": "7776b6f6",
-    "date": "2026-04-06",
-    "message": "feat: county-data-backfill endpoint + fix push-sentinel lot size/owner name"
+    "hash": "bb6907c7",
+    "date": "2026-04-08",
+    "message": "[codex] Replace pipeline kanban with stage lists"
   },
   {
-    "hash": "be1a4fce",
-    "date": "2026-04-06",
-    "message": "fix: patch audit findings — fingerprint collision + WA Courts session check"
+    "hash": "4b436d2e",
+    "date": "2026-04-08",
+    "message": "[codex] Align client file skip trace state"
   },
   {
-    "hash": "278f9ff2",
-    "date": "2026-04-06",
-    "message": "chore: remove craigslist scraper and EliteSeed import pipeline"
+    "hash": "5c8a26ef",
+    "date": "2026-04-08",
+    "message": "[codex] Add in-call dialer keypad"
   },
   {
-    "hash": "e063ae9f",
-    "date": "2026-04-06",
-    "message": "feat: county legal search pipeline — free scraping, auto-trigger on manual leads"
+    "hash": "9f1f8a15",
+    "date": "2026-04-08",
+    "message": "[codex] Prioritize lead identity in recent call tiles"
   },
   {
-    "hash": "9d535053",
-    "date": "2026-04-06",
-    "message": "fix: repair bricked photo key mismatch and add preview modal photo persistence"
+    "hash": "b1c4c682",
+    "date": "2026-04-08",
+    "message": "[codex] Uncram dialer recent call tiles"
   },
   {
-    "hash": "91f605a0",
-    "date": "2026-04-05",
-    "message": "fix: route SMS notifications through A2P-compliant Messaging Service"
+    "hash": "8775f40c",
+    "date": "2026-04-08",
+    "message": "[codex] Tighten power dial lead advancement"
   },
   {
-    "hash": "0c84a6e2",
-    "date": "2026-04-02",
-    "message": "Fix Missed tab crash: use MissedInboundQueueAutoLoad (self-loading) variant"
+    "hash": "3afad358",
+    "date": "2026-04-08",
+    "message": "[codex] Save compact seller memory from call notes"
   },
   {
-    "hash": "3c6649c8",
-    "date": "2026-04-02",
-    "message": "Fix inbound call visibility: writeback, history, scoreboard, briefs, missed tab"
+    "hash": "2e5c5047",
+    "date": "2026-04-08",
+    "message": "[codex] Remove unlinked calls from today dashboard"
   },
   {
-    "hash": "22e734bb",
-    "date": "2026-04-02",
-    "message": "Add outbound SMS compose and fix dead-code false positives"
+    "hash": "449a90c6",
+    "date": "2026-04-08",
+    "message": "[codex] Normalize intake cities from address tails"
   },
   {
-    "hash": "72e6badf",
-    "date": "2026-04-02",
-    "message": "Delete 16 dead files and add cleanup discipline to CLAUDE.md"
+    "hash": "4c767033",
+    "date": "2026-04-07",
+    "message": "[codex] Surface PPL lead source tags in queue and file"
   },
   {
-    "hash": "88ad0b43",
-    "date": "2026-04-02",
-    "message": "[codex] Restore lead queue on remote schema"
+    "hash": "1d3c70f6",
+    "date": "2026-04-07",
+    "message": "[codex] Harden inbound dialer teardown"
   },
   {
-    "hash": "0d5545e6",
-    "date": "2026-04-02",
-    "message": "Fix missed call notifications for early hangups (canceled status)"
+    "hash": "6a104ac9",
+    "date": "2026-04-07",
+    "message": "[codex] Fix inbound claim ownership update"
   },
   {
-    "hash": "6b9c9401",
-    "date": "2026-04-02",
-    "message": "[codex] Speed up lead queue load and bulk deletes"
+    "hash": "8a978fc2",
+    "date": "2026-04-07",
+    "message": "[codex] Close live coach when session clears"
   },
   {
-    "hash": "dfa22d45",
-    "date": "2026-04-02",
-    "message": "[codex] Surface Scout and county intel in client file"
+    "hash": "d5bfc32e",
+    "date": "2026-04-07",
+    "message": "[codex] Fix dialer CI typecheck fallout"
   },
   {
-    "hash": "9cd7ce3c",
-    "date": "2026-04-02",
-    "message": "[codex] Fix Spokane Scout artifact writes"
+    "hash": "836b94e3",
+    "date": "2026-04-07",
+    "message": "[codex] Tighten dialer pickup counting"
   },
   {
-    "hash": "e34aef86",
-    "date": "2026-04-02",
-    "message": "[codex] Add Spokane Scout backfill pipeline"
+    "hash": "376ef74d",
+    "date": "2026-04-07",
+    "message": "[codex] Simplify power dial to use the shared queue"
   },
   {
-    "hash": "c70c70e4",
-    "date": "2026-04-02",
-    "message": "[codex] Speed up imports and expand workbook mapping"
+    "hash": "90faa50c",
+    "date": "2026-04-07",
+    "message": "[codex] Refresh intake badge after local claim"
   },
   {
-    "hash": "e6ace628",
-    "date": "2026-04-02",
-    "message": "Fix intake claim: generate unique APN instead of shared TBD placeholder"
+    "hash": "47539fe8",
+    "date": "2026-04-07",
+    "message": "[codex] Fix PPL claim hydration and Bricked reopen cache"
   },
   {
-    "hash": "294dac34",
-    "date": "2026-04-02",
-    "message": "Fix CSV import: set market from county via resolveMarket"
+    "hash": "179d3cff",
+    "date": "2026-04-07",
+    "message": "[codex] flatten sentinel user authority"
   },
   {
-    "hash": "d078f6c0",
-    "date": "2026-04-02",
-    "message": "Fix global search to show contacts without linked leads"
+    "hash": "92cdeb15",
+    "date": "2026-04-07",
+    "message": "[codex] Harden Lead House embedded payload parsing"
   }
 ]

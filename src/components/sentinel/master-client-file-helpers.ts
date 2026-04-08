@@ -364,7 +364,7 @@ export function clientFileFromRaw(lead: Record<string, any>, prop: Record<string
 // ═══════════════════════════════════════════════════════════════════════
 
 export type TabId = "overview" | "contact" | "dossier" | "comps" | "calculator" | "documents" | "legal";
-export type WorkflowStageId = "prospect" | "lead" | "negotiation" | "disposition" | "nurture" | "dead" | "closed";
+export type WorkflowStageId = "prospect" | "lead" | "active" | "negotiation" | "disposition" | "nurture" | "dead" | "closed";
 export type ScoreType = "composite" | "motivation" | "deal";
 
 export type QualificationDraft = {
@@ -404,7 +404,13 @@ export type BuyerDispoTruthDraft = {
   nextStep: string;
   dispoNote: string;
 };
-export type CloseoutNextAction = "follow_up_call" | "nurture_check_in" | "escalation_review" | "drive_by";
+export type CloseoutNextAction =
+  | "follow_up_call"
+  | "nurture_check_in"
+  | "escalation_review"
+  | "drive_by"
+  | "move_active"
+  | "mark_dead";
 export type CloseoutPresetId =
   | "call_tomorrow"
   | "call_3_days"
@@ -412,7 +418,9 @@ export type CloseoutPresetId =
   | "nurture_14_days"
   | "escalate_review"
   | "drive_by_tomorrow"
-  | "drive_by_3_days";
+  | "drive_by_3_days"
+  | "move_active"
+  | "mark_dead";
 
 export type SkipTraceUiState = "skipped" | "skip_empty" | "skip_failed" | "not_run";
 
@@ -466,11 +474,9 @@ export function deriveSkipTraceUiState(input: {
 // ═══════════════════════════════════════════════════════════════════════
 
 export const CALL_OUTCOME_OPTIONS = [
-  { id: "interested", label: "Interested" },
+  { id: "interested", label: "Talked / Interested" },
   { id: "callback", label: "Callback" },
   { id: "appointment", label: "Appointment" },
-  { id: "appointment_set", label: "Appointment Set" },
-  { id: "contract", label: "Contract Discussed" },
   { id: "voicemail", label: "Voicemail" },
   { id: "no_answer", label: "No Answer" },
   { id: "not_interested", label: "Not Interested" },
@@ -490,21 +496,24 @@ export const CLOSEOUT_PRESETS: Array<{
   { id: "call_next_week", label: "Call next week", daysFromNow: 7, action: "follow_up_call" },
   { id: "drive_by_tomorrow", label: "Drive by tomorrow", daysFromNow: 1, action: "drive_by" },
   { id: "drive_by_3_days", label: "Drive by in 3 days", daysFromNow: 3, action: "drive_by" },
+  { id: "move_active", label: "Move to Active", daysFromNow: null, action: "move_active" },
   { id: "nurture_14_days", label: "Nurture 14 days", daysFromNow: 14, action: "nurture_check_in" },
+  { id: "mark_dead", label: "Mark Dead", daysFromNow: null, action: "mark_dead" },
   { id: "escalate_review", label: "Escalate review", daysFromNow: null, action: "escalation_review" },
 ];
 
 export const OUTCOME_PRESET_DEFAULTS: Partial<Record<string, CloseoutPresetId>> = {
   no_answer:      "call_tomorrow",
   voicemail:      "call_3_days",
-  disconnected:   "drive_by_tomorrow",
-  wrong_number:   "call_tomorrow",
+  disconnected:   "mark_dead",
+  wrong_number:   "mark_dead",
   callback:       "call_3_days",
-  interested:     "call_3_days",
-  appointment:    "call_3_days",
-  appointment_set:"call_3_days",
-  contract:       "call_3_days",
-  not_interested: "nurture_14_days",
+  interested:     "move_active",
+  appointment:    "move_active",
+  appointment_set:"move_active",
+  contract:       "move_active",
+  do_not_call:    "mark_dead",
+  not_interested: "mark_dead",
 };
 
 export const SELLER_TIMELINE_OPTIONS: Array<{ id: SellerTimeline; label: string }> = [
@@ -545,6 +554,7 @@ export const ADVANCED_TAB_IDS = new Set<TabId>(["comps", "calculator", "document
 export const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
   { id: "prospect", label: "New" },
   { id: "lead", label: "Lead" },
+  { id: "active", label: "Active" },
   { id: "negotiation", label: "Negotiation" },
   { id: "disposition", label: "Disposition" },
   { id: "nurture", label: "Nurture" },
@@ -724,12 +734,16 @@ export function presetDateTimeLocal(daysFromNow: number): string {
 
 export function routeForCloseoutAction(action: CloseoutNextAction): QualificationRoute | null {
   if (action === "nurture_check_in") return "nurture";
+  if (action === "move_active") return "follow_up";
+  if (action === "mark_dead") return "dead";
   if (action === "escalation_review") return "escalate";
   return null;
 }
 
 export function closeoutActionLabel(action: CloseoutNextAction): string {
   if (action === "drive_by") return "Drive By";
+  if (action === "move_active") return "Move to Active";
+  if (action === "mark_dead") return "Mark Dead";
   if (action === "nurture_check_in") return "Nurture Check-In";
   if (action === "escalation_review") return "Escalation Review";
   return "Follow-Up Call";
@@ -738,7 +752,37 @@ export function closeoutActionLabel(action: CloseoutNextAction): string {
 /** Structured next_action text for closeout actions that are not phone calls */
 export function closeoutNextActionText(action: CloseoutNextAction): string | null {
   if (action === "drive_by") return "Drive by";
+  if (action === "move_active") return "Active seller follow-up";
+  if (action === "mark_dead") return "Marked dead - no further follow-up";
   return null;
+}
+
+export function closeoutActionRequiresDueDate(action: CloseoutNextAction): boolean {
+  return action === "follow_up_call" || action === "nurture_check_in" || action === "drive_by";
+}
+
+function closeoutDuePhrase(dueAtIso: string | null | undefined): string | null {
+  if (!dueAtIso) return null;
+  const due = new Date(dueAtIso);
+  if (Number.isNaN(due.getTime())) return null;
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDue = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+  const dayDiff = Math.round((startOfDue.getTime() - startOfToday.getTime()) / 86_400_000);
+  if (dayDiff <= 0) return "today";
+  if (dayDiff === 1) return "tomorrow";
+  if (dayDiff < 7) return `in ${dayDiff} days`;
+  return formatDateTimeShort(dueAtIso);
+}
+
+export function closeoutSuccessMessage(action: CloseoutNextAction, dueAtIso?: string | null): string {
+  const dueLabel = closeoutDuePhrase(dueAtIso);
+  if (action === "move_active") return "Moved to Active";
+  if (action === "mark_dead") return "Marked Dead";
+  if (action === "escalation_review") return "Requested Escalation Review";
+  if (action === "drive_by") return dueLabel ? `Set Drive By for ${dueLabel}` : "Set Drive By";
+  if (action === "nurture_check_in") return dueLabel ? `Moved to Nurture for ${dueLabel}` : "Moved to Nurture";
+  return dueLabel ? `Scheduled callback for ${dueLabel}` : "Scheduled callback";
 }
 
 export function formatRelativeFromNow(iso: string | null | undefined): string {

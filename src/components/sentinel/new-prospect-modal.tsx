@@ -504,7 +504,7 @@ export function NewProspectModal() {
       if (!res.ok || !data.success) {
         toast.error("Claim failed: " + (data.error ?? "Unknown error"));
       } else {
-        toast.success("Claimed — assigned to you. Check Active board.");
+        toast.success("Claimed — assigned to you. Check Lead Queue.");
       }
     } catch (err) {
       console.error("[NewProspect] Claim error:", err);
@@ -981,4 +981,3 @@ export function NewProspectModal() {
     </Dialog>
   );
 }
-

@@ -228,6 +228,8 @@ import {
   closeoutActionLabel,
 
   closeoutNextActionText,
+  closeoutActionRequiresDueDate,
+  closeoutSuccessMessage,
   deriveSkipTraceUiState,
 
   getQualificationDraft,
@@ -4459,7 +4461,7 @@ export function MasterClientFileModal({
   const [reassigning, setReassigning] = useState(false);
 
   const [activeUpdating, setActiveUpdating] = useState(false);
-  const [moveTarget, setMoveTarget] = useState<"" | "active" | "drive_by" | "dead">("");
+  const [moveTarget, setMoveTarget] = useState<"" | "active" | "drive_by">("");
 
 
 
@@ -7050,6 +7052,10 @@ export function MasterClientFileModal({
 
       setCloseoutAt(presetDateTimeLocal(preset.daysFromNow));
 
+    } else {
+
+      setCloseoutAt("");
+
     }
 
   }, []);
@@ -7074,7 +7080,7 @@ export function MasterClientFileModal({
 
 
 
-    if (closeoutAction !== "escalation_review" && !nextIso) {
+    if (closeoutActionRequiresDueDate(closeoutAction) && !nextIso) {
 
       toast.error("Select a follow-up date for this closeout.");
 
@@ -7084,6 +7090,7 @@ export function MasterClientFileModal({
 
 
 
+    const currentStatus = normalizeWorkflowStage(clientFile.status);
     const routeToApply = routeForCloseoutAction(closeoutAction);
 
     const existingNextIso = clientFile.nextCallScheduledAt ?? clientFile.nextActionDueAt ?? clientFile.followUpDate ?? null;
@@ -7099,14 +7106,15 @@ export function MasterClientFileModal({
     const noteText = closeoutNote.trim();
 
     const routeChanged = routeToApply != null && routeToApply !== (clientFile.qualificationRoute ?? null);
-
+    const shouldForceDeadStatus = closeoutAction === "mark_dead" && currentStatus !== "dead";
+    const shouldForceActiveStatus = closeoutAction === "move_active" && currentStatus !== "active";
     const shouldSendDueDates = explicitDueIntent && nextChanged;
 
 
 
     const hasNextActionWrite = closeoutNextActionText(closeoutAction) != null;
 
-    if (!outcomeChanged && !shouldSendDueDates && noteText.length === 0 && !routeChanged && !hasNextActionWrite) {
+    if (!outcomeChanged && !shouldSendDueDates && noteText.length === 0 && !routeChanged && !hasNextActionWrite && !shouldForceDeadStatus && !shouldForceActiveStatus) {
 
       toast.message("No closeout changes to save.");
 
@@ -7176,6 +7184,27 @@ export function MasterClientFileModal({
 
       }
 
+      if (closeoutAction === "mark_dead") {
+
+        payload.status = "dead";
+
+        payload.next_call_scheduled_at = null;
+
+        payload.next_follow_up_at = null;
+
+        payload.next_action_due_at = null;
+
+      } else if (shouldForceActiveStatus) {
+
+        if (noteText.length < 12) {
+          toast.error("Add a short seller progress note before moving to Active.");
+          return;
+        }
+
+        payload.status = "active";
+
+      }
+
       if (routeChanged && routeToApply) {
 
         payload.qualification_route = routeToApply;
@@ -7188,7 +7217,15 @@ export function MasterClientFileModal({
 
         payload.next_action = nextActionText;
 
-        if (nextIso) payload.next_action_due_at = nextIso;
+        if (closeoutAction === "mark_dead") {
+
+          payload.next_action_due_at = null;
+
+        } else if (nextIso) {
+
+          payload.next_action_due_at = nextIso;
+
+        }
 
       }
 
@@ -7250,8 +7287,7 @@ export function MasterClientFileModal({
 
       setActivityRefreshToken((v) => v + 1);
 
-      const presetObj = CLOSEOUT_PRESETS.find((p) => p.id === closeoutPreset);
-      toast.success(presetObj ? `Saved \u2014 ${presetObj.label}` : "Saved");
+      toast.success(closeoutSuccessMessage(closeoutAction, nextIso));
 
       onRefresh?.();
 
@@ -8054,12 +8090,21 @@ export function MasterClientFileModal({
   const handleToggleActive = useCallback(async () => {
     if (!clientFile?.id || activeUpdating) return;
     const currentStage = normalizeWorkflowStage(clientFile.status);
-    if (currentStage === "lead") {
+    if (currentStage === "active") {
       toast.message("Already in Active");
       return;
     }
-    if (currentStage !== "prospect" && currentStage !== "nurture") {
+    if (currentStage !== "prospect" && currentStage !== "lead" && currentStage !== "nurture") {
       toast.error("Move this file with the stage controls instead.");
+      return;
+    }
+
+    const activeSummary = window.prompt("Add a short seller progress note for Active:");
+    if (activeSummary == null) {
+      return;
+    }
+    if (activeSummary.trim().length < 12) {
+      toast.error("Add a short seller progress note before moving to Active.");
       return;
     }
 
@@ -8071,7 +8116,8 @@ export function MasterClientFileModal({
         headers,
         body: JSON.stringify({
           lead_id: clientFile.id,
-          status: "lead",
+          status: "active",
+          note_append: activeSummary.trim(),
           next_action: clientFile.nextAction?.trim() || "Initial seller outreach",
           next_action_due_at: clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate ?? null,
         }),
@@ -8092,7 +8138,7 @@ export function MasterClientFileModal({
 
       setClientFilePatch((prev) => ({
         ...(prev ?? {}),
-        status: data?.new_status ?? "lead",
+        status: data?.new_status ?? "active",
         nextAction: data?.next_action ?? clientFile.nextAction ?? "Initial seller outreach",
         nextActionDueAt: data?.next_action_due_at ?? clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate ?? null,
         lockVersion: data?.lock_version ?? clientFile.lockVersion,
@@ -8132,32 +8178,11 @@ export function MasterClientFileModal({
       setMoveTarget("");
       return;
     }
-
-    const currentStatus = normalizeWorkflowStage(clientFile.status);
-    if (currentStatus === "dead") {
-      toast.message("Already Dead");
-      setMoveTarget("");
-      return;
-    }
-
-    const deadTransition = allowedTransitions.find((t) => t.status === "dead");
-    if (!deadTransition) {
-      toast.error("Cannot move to Dead from current stage");
-      setMoveTarget("");
-      return;
-    }
-
-    setSelectedStage("dead");
-    if (deadTransition.requires_next_action && !stageNextAction.trim()) {
-      setStageNextAction("Marked dead - no further follow-up");
-    }
     setMoveTarget("");
   }, [
-    allowedTransitions,
     clientFile,
     handleToggleActive,
     moveTarget,
-    stageNextAction,
   ]);
 
   if (!clientFile) return null;
@@ -8496,14 +8521,15 @@ export function MasterClientFileModal({
                   <div className="flex items-center gap-1">
                     <select
                       value={moveTarget}
-                      onChange={(e) => setMoveTarget(e.target.value as "" | "active" | "drive_by" | "dead")}
+                      onChange={(e) => setMoveTarget(e.target.value as "" | "active" | "drive_by")}
                       className="h-7 rounded-md border border-overlay-15 bg-overlay-4 px-2 text-xs text-foreground focus:outline-none focus:border-primary/30"
                       aria-label="Move file"
                     >
                       <option value="">Move…</option>
-                      <option value="active">Active</option>
+                      {(currentStage === "prospect" || currentStage === "nurture") && (
+                        <option value="active">Active</option>
+                      )}
                       <option value="drive_by">Drive By</option>
-                      <option value="dead">Dead</option>
                     </select>
                     <Button
                       size="sm"

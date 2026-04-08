@@ -13,6 +13,7 @@ const LEAD_STATUS_SET = new Set<LeadStatus>([
   "staging",
   "prospect",
   "lead",
+  "active",
   "negotiation",
   "disposition",
   "nurture",
@@ -34,7 +35,7 @@ function normalizeLeadStatus(raw: string | null | undefined): LeadStatus {
 
 function resolveDialerNoContactStatusTarget(currentStatus: LeadStatus): LeadStatus | null {
   if (
-    (currentStatus === "lead" || currentStatus === "negotiation" || currentStatus === "disposition")
+    (currentStatus === "lead" || currentStatus === "active" || currentStatus === "negotiation" || currentStatus === "disposition")
     && validateStatusTransition(currentStatus, "nurture")
   ) {
     return "nurture";

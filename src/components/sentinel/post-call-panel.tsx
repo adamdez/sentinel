@@ -19,16 +19,16 @@
  * publish-manager is the sole dialer write path back to CRM tables.
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   CheckCircle2, Loader2, SkipForward,
   Phone, PhoneOff, Voicemail, CalendarCheck,
-  DollarSign, Skull, X, ArrowRight, ChevronLeft, ChevronRight, Flag,
+  X, ArrowRight, ChevronLeft, ChevronRight, Flag,
   AlertTriangle, Sparkles, PhoneMissed,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { QuickTaskSetter, type QuickTaskResult } from "@/components/sentinel/quick-task-setter";
+import { QuickTaskSetter } from "@/components/sentinel/quick-task-setter";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { supabase } from "@/lib/supabase";
 import type { PublishDisposition } from "@/lib/dialer/types";
@@ -116,14 +116,13 @@ interface DispoMeta {
 const DISPO_OPTIONS: DispoMeta[] = [
   { key: "no_answer",      label: "No Answer",      icon: PhoneOff,      color: "text-foreground",    bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "voicemail",      label: "Voicemail",      icon: Voicemail,     color: "text-foreground",    bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "dead_phone",     label: "Dead Phone",     icon: PhoneMissed,   color: "text-red-400",       bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
-  { key: "completed",      label: "Talked",         icon: Phone,         color: "text-primary",        bg: "bg-primary/8 hover:bg-primary/15 border-primary/15" },
+  { key: "completed",      label: "Talked / Interested", icon: Phone,    color: "text-primary",        bg: "bg-primary/8 hover:bg-primary/15 border-primary/15" },
+  { key: "follow_up",      label: "Callback",       icon: ArrowRight,    color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
+  { key: "appointment",    label: "Appointment",    icon: CalendarCheck, color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "not_interested", label: "Not Interested", icon: X,             color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "follow_up",      label: "Follow Up",      icon: ArrowRight,    color: "text-foreground",  bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "appointment",    label: "Appointment",    icon: CalendarCheck, color: "text-foreground", bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "offer_made",     label: "Offer Made",     icon: DollarSign,    color: "text-foreground",  bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "disqualified",   label: "Disqualified",   icon: Skull,         color: "text-foreground/70",  bg: "bg-muted/8 hover:bg-muted/15 border-border/15" },
-  { key: "dead_lead",      label: "Dead Lead",      icon: Skull,         color: "text-red-400/70",     bg: "bg-red-500/6 hover:bg-red-500/12 border-red-500/10" },
+  { key: "wrong_number",   label: "Wrong Number",   icon: PhoneMissed,   color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
+  { key: "disconnected",   label: "Disconnected",   icon: PhoneMissed,   color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
+  { key: "do_not_call",    label: "Do Not Call",    icon: Flag,          color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
 ];
 
 // Dispositions that include a callback date capture step (Step 2)
@@ -131,14 +130,53 @@ const NEXT_STEP_DISPOS = new Set<PublishDisposition>(["follow_up", "appointment"
 
 // Dispositions that are likely live-answer and warrant a qual confirm step (Step 3)
 const QUAL_CONFIRM_DISPOS = new Set<PublishDisposition>([
-  "completed", "not_interested", "offer_made", "follow_up", "appointment",
+  "completed", "not_interested", "follow_up", "appointment",
 ]);
 
 const AUTO_ADVANCE_DISPOS = new Set<PublishDisposition>([
-  "no_answer", "voicemail", "dead_phone", "disqualified", "dead_lead",
+  "no_answer", "voicemail", "dead_phone", "not_interested", "wrong_number", "disconnected", "do_not_call", "dead_lead",
 ]);
 
 const AUTO_ADVANCE_DELAY_MS = 1200;
+
+function successLabelForDisposition(
+  disposition: PublishDisposition,
+  persistedStatus?: unknown,
+): string {
+  if (persistedStatus === "dead") return "Marked Dead";
+  if (persistedStatus === "nurture") return "Moved to Nurture";
+
+  switch (disposition) {
+    case "completed":
+      return "Talked / Interested";
+    case "follow_up":
+      return "Callback Scheduled";
+    case "appointment":
+      return "Appointment Saved";
+    case "not_interested":
+      return "Marked Dead";
+    case "wrong_number":
+      return "Marked Dead · Wrong Number";
+    case "disconnected":
+      return "Marked Dead · Disconnected";
+    case "do_not_call":
+      return "Marked Dead · Do Not Call";
+    case "no_answer":
+      return "No Answer Saved";
+    case "voicemail":
+      return "Voicemail Saved";
+    case "dead_phone":
+      return "Dead Phone Saved";
+    case "dead_lead":
+      return "Marked Dead";
+    case "disqualified":
+      return "Moved to Nurture";
+    case "offer_made":
+      return "Offer Saved";
+    default:
+      return "Saved";
+  }
+}
 
 const TIMELINE_CHIPS: { value: string; label: string }[] = [
   { value: "immediate", label: "Immediate" },
@@ -569,8 +607,8 @@ export function PostCallPanel({
       toast.warning(`QA found ${summaryBits.join(" and ")} for this call`);
     }
 
-    // Auto-mark phone dead when dead_phone dispo is selected
-    if (dispo === "dead_phone" && leadId && phoneNumber) {
+    // Auto-mark phone dead when the number itself is unusable
+    if ((dispo === "dead_phone" || dispo === "wrong_number" || dispo === "disconnected") && leadId && phoneNumber) {
       try {
         const phonesRes = await fetch(`/api/leads/${leadId}/phones`, { headers: hdrs });
         if (phonesRes.ok) {
@@ -583,7 +621,7 @@ export function PostCallPanel({
             await fetch(`/api/leads/${leadId}/phones/${match.id}`, {
               method: "PATCH",
               headers: hdrs,
-              body: JSON.stringify({ status: "dead", dead_reason: "disconnected" }),
+              body: JSON.stringify({ status: "dead", dead_reason: dispo === "wrong_number" ? "wrong_number" : "disconnected" }),
             });
           }
         }
@@ -627,7 +665,7 @@ export function PostCallPanel({
     }
 
     // Brief success confirmation before advancing to next lead
-    const label = DISPO_OPTIONS.find((d) => d.key === dispo)?.label ?? dispo;
+    const label = successLabelForDisposition(dispo, publishData?.status);
     const dueLine =
       nextCallScheduledAt
         ? formatDueDateLabel(nextCallScheduledAt).text

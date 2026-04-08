@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 3: Create lead record with special intake markers
-    // Status = "lead" so it appears in the Lead Queue (not "prospect" which is invisible)
+    // Claimed intake records enter the lead-stage intro queue, not Active.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: lead, error: leadError } = await (sb.from("leads") as any)
       .insert({

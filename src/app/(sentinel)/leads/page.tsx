@@ -136,8 +136,17 @@ function LeadsPageInner() {
         return;
       }
 
-      if (current.status === "lead") {
+      if (current.status === "active") {
         toast.message("Already in Active");
+        return;
+      }
+
+      const activeSummary = window.prompt("Add a short seller progress note for Active:");
+      if (activeSummary == null) {
+        return;
+      }
+      if (activeSummary.trim().length < 12) {
+        toast.error("Add a short seller progress note before moving to Active.");
         return;
       }
 
@@ -158,7 +167,8 @@ function LeadsPageInner() {
         headers,
         body: JSON.stringify({
           lead_id: leadId,
-          status: "lead",
+          status: "active",
+          note_append: activeSummary.trim(),
           next_action: nextAction,
           next_action_due_at: nextActionDueAt,
         }),

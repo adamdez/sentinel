@@ -383,7 +383,7 @@ export async function GET(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count, error } = await (sb.from("leads") as any)
         .select("id", { count: "exact", head: true })
-        .in("status", ["lead", "negotiation", "disposition"])
+        .in("status", ["active", "negotiation", "disposition"])
         .is("next_action", null);
       if (error) return { ok: false, detail: error.message };
       const orphaned = count ?? 0;

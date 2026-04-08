@@ -65,8 +65,8 @@ export interface ActionDerivationInput {
 /** Statuses where the lead is dead/closed and needs no operator action */
 const TERMINAL_STATUSES = new Set(["dead", "closed"]);
 
-/** Statuses where the lead is actively being worked (call/qualify/offer) */
-const ACTIVE_CALL_STATUSES = new Set(["lead", "negotiation"]);
+/** Statuses where speed-to-lead style call action still matters */
+const ACTIVE_CALL_STATUSES = new Set(["prospect", "lead"]);
 
 /** Speed-to-lead threshold: uncontacted leads older than this trigger CRITICAL */
 const SPEED_TO_LEAD_THRESHOLD_HOURS = 24;
@@ -230,10 +230,10 @@ export function deriveLeadActionSummary(input: ActionDerivationInput): ActionSum
   }
 
   // ── Rule 4: HIGH — Needs qualification ──
-  if (status === "lead" && contacted && !route) {
+  if ((status === "lead" || status === "active") && contacted && !route) {
     return {
       action: "Needs next step",
-      reason: "Lead has been contacted but no next-step category is set. Choose: call later, call tomorrow, move to active, drive by, or nurture.",
+      reason: "Lead has been contacted but no next-step category is set. Choose: call later, call tomorrow, move to Active, drive by, or nurture.",
       urgency: "high",
       actionType: "review",
       isActionable: true,

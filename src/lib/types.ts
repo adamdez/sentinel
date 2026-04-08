@@ -4,6 +4,7 @@ export type LeadStatus =
   | "staging"
   | "prospect"
   | "lead"
+  | "active"
   | "negotiation"
   | "disposition"
   | "nurture"

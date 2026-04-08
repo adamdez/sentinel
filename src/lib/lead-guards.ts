@@ -38,6 +38,12 @@ export function evaluateStageEntryPrerequisites(input: StageEntryPrereqInput): s
   const dispositionCode = (input.dispositionCode ?? "").toLowerCase();
   const hasDispositionSignal = dispositionCode.length > 0;
 
+  if (input.targetStatus === "active") {
+    if (!hasNoteContext) {
+      return "Move to Active requires a short seller progress note.";
+    }
+  }
+
   if (input.targetStatus === "negotiation") {
     if (!input.effectiveAssignedTo) {
       return "Move to Negotiation requires an owner assignment. Claim or assign the lead first.";

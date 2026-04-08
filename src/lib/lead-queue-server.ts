@@ -164,7 +164,7 @@ export function buildLeadQueueRow(raw: RawLeadRecord, predictiveScore?: number |
     ownerEmail: typeof property.owner_email === "string" ? property.owner_email : null,
     ownerBadge: toBool(ownerFlags.absentee) ? "absentee" : null,
     distressSignals: Array.isArray(raw.tags) ? raw.tags.filter((tag): tag is string => typeof tag === "string") : [],
-    status: (raw.status as LeadRow["status"] | null) ?? "lead",
+    status: (raw.status as LeadRow["status"] | null) ?? "prospect",
     assignedTo: typeof raw.assigned_to === "string" ? raw.assigned_to : null,
     assignedName: null,
     score: {
@@ -208,12 +208,12 @@ export function buildLeadQueueRow(raw: RawLeadRecord, predictiveScore?: number |
     equityFlexibilityScore: toNumber(raw.equity_flexibility_score),
     qualificationScoreTotal: toNumber(raw.qualification_score_total),
     offerStatus: deriveOfferVisibilityStatus({
-      status: ((raw.status as LeadRow["status"] | null) ?? "lead"),
+      status: ((raw.status as LeadRow["status"] | null) ?? "prospect"),
       qualificationRoute: (raw.qualification_route as LeadRow["qualificationRoute"] | null) ?? null,
     }),
     offerPrepSnapshot,
     offerPrepHealth: deriveOfferPrepHealth({
-      status: ((raw.status as LeadRow["status"] | null) ?? "lead"),
+      status: ((raw.status as LeadRow["status"] | null) ?? "prospect"),
       qualificationRoute: (raw.qualification_route as LeadRow["qualificationRoute"] | null) ?? null,
       snapshot: offerPrepSnapshot,
       nextCallScheduledAt: (typeof raw.next_call_scheduled_at === "string" ? raw.next_call_scheduled_at : null),

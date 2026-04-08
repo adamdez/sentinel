@@ -120,14 +120,14 @@ describe("Rule 2: uncontacted active lead >24h", () => {
     expect(result.action).toContain("New");
   });
 
-  it("uncontacted lead in negotiation status — still critical if >24h", () => {
+  it("uncontacted lead in negotiation status — not treated as speed-to-lead", () => {
     const result = derive({
       status: "negotiation",
       totalCalls: 0,
       lastContactAt: null,
       promotedAt: "2026-03-10T10:00:00Z",
     });
-    expect(result.urgency).toBe("critical");
+    expect(result.urgency).not.toBe("critical");
   });
 
   it("uncontacted lead in nurture — NOT critical (not an active call status)", () => {

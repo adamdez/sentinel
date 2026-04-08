@@ -133,7 +133,7 @@ interface UseLeadsByStatusOptions {
 
 export function useLeadsByStatus(status: string, opts: UseLeadsByStatusOptions = {}) {
   const { search = "", sortField = "composite_score", sortDir = "desc" } = opts;
-  const resolvedStatus = status === "active" ? "lead" : status;
+  const resolvedStatus = status;
 
   const [allRows, setAllRows] = useState<ProspectRow[]>([]);
   const [loading, setLoading] = useState(true);

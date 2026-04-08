@@ -88,7 +88,7 @@ const TERMINAL_QUEUE_DISPOSITIONS = new Set([
 
 function shouldRenderInDialQueue(lead: QueueLead): boolean {
   const status = (lead.status ?? "").toLowerCase();
-  if (status !== "lead" && status !== "negotiation") return false;
+  if (status !== "prospect" && status !== "lead") return false;
   if (lead.dial_queue_active === false) return false;
   if (lead.intro_sop_active === false) return false;
   if (lead.intro_exit_category) return false;
@@ -112,7 +112,7 @@ async function fetchQueueRowsForUser(userId: string, limit: number) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase.from("leads") as any)
       .select("*, properties(*)")
-      .in("status", ["lead", "negotiation"])
+      .in("status", ["prospect", "lead"])
       .eq("assigned_to", userId)
       .eq("dial_queue_active", true)
       .eq("intro_sop_active", true)

@@ -722,13 +722,13 @@ export function LeadTable({
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    aria-label={lead.status === "lead" ? "Already Active" : "Move to Active"}
-                    aria-pressed={lead.status === "lead"}
-                    disabled={lead.status === "lead"}
+                    aria-label={lead.status === "active" ? "Already Active" : "Move to Active"}
+                    aria-pressed={lead.status === "active"}
+                    disabled={lead.status === "active"}
                     onClick={() => void onMoveToActive(lead.id)}
                     className={cn(
                       "h-6 w-6 flex items-center justify-center rounded-md transition-colors disabled:cursor-default",
-                      lead.status === "lead"
+                      lead.status === "active"
                         ? "text-primary bg-primary/10"
                         : "text-muted-foreground/35 hover:text-primary hover:bg-primary/10",
                     )}
@@ -737,7 +737,7 @@ export function LeadTable({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent className="text-sm">
-                  {lead.status === "lead" ? "Already Active" : "Move to Active"}
+                  {lead.status === "active" ? "Already Active" : "Move to Active"}
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -753,7 +753,7 @@ export function LeadTable({
                     >
                       {lead.address}{lead.city ? `, ${lead.city}` : ""}
                     </span>
-                    {lead.status === "lead" && (
+                    {lead.status === "active" && (
                       <span className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-400 font-bold border border-blue-500/25">
                         Active
                       </span>

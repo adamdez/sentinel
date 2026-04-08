@@ -173,7 +173,7 @@ async function fetchLeadQueueRows(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let primaryQuery = (sb.from("leads") as any)
     .select(LEAD_QUEUE_SELECT)
-    .in("status", ["lead", "negotiation", "disposition"])
+    .in("status", ["prospect", "lead"])
     .order("priority", { ascending: false });
   if (!includeNonIntro) {
     primaryQuery = primaryQuery.eq("intro_sop_active", true);
@@ -189,7 +189,7 @@ async function fetchLeadQueueRows(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let fallbackQuery = (sb.from("leads") as any)
     .select(LEAD_QUEUE_SELECT_LEGACY)
-    .in("status", ["lead", "negotiation", "disposition"])
+    .in("status", ["prospect", "lead"])
     .order("priority", { ascending: false });
   if (!includeNonIntro) {
     // Legacy production schemas do not have intro tracking columns.

@@ -10,10 +10,10 @@ import { computeFounderHoursFromWorkLogs } from "@/lib/founder-worklog";
 
 export type TimePeriod = "today" | "week" | "month" | "all";
 export type MarketKey = "spokane" | "kootenai" | "other";
-export type PipelineStage = "prospect" | "lead" | "negotiation" | "disposition" | "nurture" | "closed" | "dead";
+export type PipelineStage = "prospect" | "lead" | "active" | "negotiation" | "disposition" | "nurture" | "closed" | "dead";
 
 const MARKET_ORDER: MarketKey[] = ["spokane", "kootenai", "other"];
-const PIPELINE_STAGE_ORDER: PipelineStage[] = ["prospect", "lead", "negotiation", "disposition", "nurture", "closed", "dead"];
+const PIPELINE_STAGE_ORDER: PipelineStage[] = ["prospect", "lead", "active", "negotiation", "disposition", "nurture", "closed", "dead"];
 const SPEED_TO_LEAD_SLA_MS = 15 * 60 * 1000;
 const APPOINTMENT_DISPOSITIONS = new Set(["appointment", "appointment_set"]);
 
@@ -101,9 +101,10 @@ export interface SourceOutcomeRow {
 export interface PipelineHealthRow {
   market: MarketKey;
   label: string;
-  active: number;
+  activePipeline: number;
   prospect: number;
   lead: number;
+  active: number;
   negotiation: number;
   disposition: number;
   nurture: number;
@@ -283,9 +284,10 @@ function emptyPipelineRow(market: MarketKey): PipelineHealthRow {
   return {
     market,
     label: marketLabel(market),
-    active: 0,
+    activePipeline: 0,
     prospect: 0,
     lead: 0,
+    active: 0,
     negotiation: 0,
     disposition: 0,
     nurture: 0,
@@ -700,12 +702,12 @@ export async function fetchDominionAnalytics(periodStart: string | null, userId?
   for (const lead of enrichedLeads) {
     const row = pipelineHealthByMarket.get(lead.market) ?? emptyPipelineRow(lead.market);
     row[lead.stage] += 1;
-    row.active = row.prospect + row.lead + row.negotiation + row.disposition + row.nurture;
+    row.activePipeline = row.prospect + row.lead + row.active + row.negotiation + row.disposition + row.nurture;
     pipelineHealthByMarket.set(lead.market, row);
   }
   const pipelineHealth = Array.from(pipelineHealthByMarket.values()).filter((row) => {
     if (row.market !== "other") return true;
-    const total = row.active + row.closed + row.dead;
+    const total = row.activePipeline + row.closed + row.dead;
     return total > 0;
   });
 
