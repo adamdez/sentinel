@@ -96,7 +96,7 @@ export interface LeadFilters {
 
 const DEFAULT_FILTERS: LeadFilters = {
   search: "",
-  statuses: ["lead", "negotiation", "disposition"],
+  statuses: ["prospect"],
   markets: [],
   sources: [],
   nicheTags: [],
@@ -168,6 +168,9 @@ const LEAD_LIST_SELECT = [
   "intro_last_call_date",
   "intro_completed_at",
   "intro_exit_category",
+  "skip_trace_status",
+  "skip_trace_completed_at",
+  "skip_trace_last_error",
 ].join(", ");
 
 const PROPERTY_LIST_SELECT = [
@@ -484,7 +487,9 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null,
     importBatchId: prospecting.importBatchId,
     outreachType: prospecting.outreachType,
     assignedAt: prospecting.assignedAt,
-    skipTraceStatus: prospecting.skipTraceStatus,
+    skipTraceStatus: raw.skip_trace_status ?? prospecting.skipTraceStatus,
+    skipTraceCompletedAt: raw.skip_trace_completed_at ?? null,
+    skipTraceLastError: raw.skip_trace_last_error ?? null,
     outboundStatus: prospecting.outboundStatus,
     outboundAttemptCount: prospecting.attemptCount,
     outboundFirstCallAt: prospecting.firstCallAt,
@@ -665,8 +670,8 @@ export function useLeads() {
   // Segment filter
 
   const segmentedLeads = useMemo(() => {
-    // Active (pinned) and Drive By leads belong in their own buckets, not Lead Queue
-    const base = leadsWithAssigneeNames.filter((l) => !l.pinned && !isDriveByLead(l));
+    // Drive By leads belong in their own bucket, not Lead Queue.
+    const base = leadsWithAssigneeNames.filter((l) => !isDriveByLead(l));
     if (segment === "all") return base.filter((l) => isLeadUnclaimed(l.assignedTo));
     if (segment === "mine") return base.filter((l) => l.assignedTo === currentUser.id);
     return base.filter((l) => l.assignedTo === segment);
@@ -870,7 +875,7 @@ export function useLeads() {
     const base = (filters.includeClosed
       ? leadsWithAssigneeNames
       : leadsWithAssigneeNames.filter((l) => l.status !== "closed")
-    ).filter((l) => !l.pinned && !isDriveByLead(l));
+    ).filter((l) => !isDriveByLead(l));
     const all = base.filter((l) => isLeadUnclaimed(l.assignedTo)).length;
     const mine = base.filter((l) => l.assignedTo === currentUser.id).length;
     const byMember: Record<string, number> = {};

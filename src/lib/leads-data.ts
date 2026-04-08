@@ -577,6 +577,8 @@ export interface LeadRow {
   outreachType: string | null;
   assignedAt: string | null;
   skipTraceStatus: string | null;
+  skipTraceCompletedAt: string | null;
+  skipTraceLastError: string | null;
   outboundStatus: string | null;
   outboundAttemptCount: number | null;
   outboundFirstCallAt: string | null;

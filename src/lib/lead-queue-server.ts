@@ -59,6 +59,9 @@ type RawLeadRecord = Record<string, unknown> & {
   intro_last_call_date?: string | null;
   intro_completed_at?: string | null;
   intro_exit_category?: string | null;
+  skip_trace_status?: string | null;
+  skip_trace_completed_at?: string | null;
+  skip_trace_last_error?: string | null;
   properties?: RawPropertyRecord | RawPropertyRecord[] | null;
 };
 
@@ -233,7 +236,9 @@ export function buildLeadQueueRow(raw: RawLeadRecord, predictiveScore?: number |
     importBatchId: prospecting.importBatchId,
     outreachType: prospecting.outreachType,
     assignedAt: prospecting.assignedAt,
-    skipTraceStatus: prospecting.skipTraceStatus,
+    skipTraceStatus: (typeof raw.skip_trace_status === "string" ? raw.skip_trace_status : prospecting.skipTraceStatus),
+    skipTraceCompletedAt: typeof raw.skip_trace_completed_at === "string" ? raw.skip_trace_completed_at : null,
+    skipTraceLastError: typeof raw.skip_trace_last_error === "string" ? raw.skip_trace_last_error : null,
     outboundStatus: prospecting.outboundStatus,
     outboundAttemptCount: prospecting.attemptCount,
     outboundFirstCallAt: prospecting.firstCallAt,
