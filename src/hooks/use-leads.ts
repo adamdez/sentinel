@@ -96,7 +96,7 @@ export interface LeadFilters {
 
 const DEFAULT_FILTERS: LeadFilters = {
   search: "",
-  statuses: ["prospect"],
+  statuses: [],
   markets: [],
   sources: [],
   nicheTags: [],
