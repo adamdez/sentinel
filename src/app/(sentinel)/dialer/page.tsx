@@ -935,6 +935,13 @@ function toE164(raw: string): string {
 
 type DialerMode = "queue" | "autoCycle";
 
+const DTMF_KEYPAD_ROWS = [
+  ["1", "2", "3"],
+  ["4", "5", "6"],
+  ["7", "8", "9"],
+  ["*", "0", "#"],
+] as const;
+
 function getSkipTraceBadgeConfig(status: SkipTraceUiState): {
   label: string;
   className: string;
@@ -955,6 +962,52 @@ function getSkipTraceBadgeConfig(status: SkipTraceUiState): {
     label: "Skip Trace",
     className: "border-red-500/25 bg-red-500/10 text-red-300",
   };
+}
+
+function DtmfKeypadPanel({
+  digitsSent,
+  onDigit,
+}: {
+  digitsSent: string;
+  onDigit: (digit: string) => void;
+}) {
+  return (
+    <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-3 shadow-[0_10px_28px_var(--shadow-soft)]">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/55">
+            In-Call Keypad
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground/45">
+            Send IVR digits during a live call
+          </p>
+        </div>
+        <div className="min-w-[92px] rounded-[10px] border border-overlay-8 bg-panel-solid px-2.5 py-2 text-right">
+          <p className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground/40">Sent</p>
+          <p className="mt-1 font-mono text-sm text-foreground">
+            {digitsSent || "—"}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        {DTMF_KEYPAD_ROWS.flat().map((digit) => (
+          <button
+            key={digit}
+            type="button"
+            onClick={() => onDigit(digit)}
+            className={cn(
+              "flex h-11 items-center justify-center rounded-[11px] border border-primary/18 bg-primary/[0.07]",
+              "text-base font-semibold text-primary shadow-[0_8px_18px_var(--shadow-soft)] transition-all",
+              "hover:border-primary/35 hover:bg-primary/[0.14] hover:text-primary active:scale-[0.98]",
+            )}
+            aria-label={`Send ${digit}`}
+          >
+            {digit}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function DialerPageInner() {
@@ -1309,6 +1362,7 @@ function DialerPageInner() {
   // Twilio VoIP Device — lifecycle managed by TwilioProvider
   const { deviceStatus, deviceRef, voipCallerId, initDevice, setSuppressIncoming } = useTwilio();
   const [activeCall, setActiveCall] = useState<Call | null>(null);
+  const [dtmfDigitsSent, setDtmfDigitsSent] = useState("");
 
   // Tell the provider to skip its own incoming-call handler —
   // this page registers a richer handler with phone lookup, transfer brief, audio, etc.
@@ -1353,6 +1407,28 @@ function DialerPageInner() {
 
   // Keep activeCallRef in sync for polling callback closures
   useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
+
+  useEffect(() => {
+    if (callState !== "connected" && manualStatus !== "connected") {
+      setDtmfDigitsSent("");
+    }
+  }, [callState, manualStatus]);
+
+  const sendDtmfDigit = useCallback((digit: string) => {
+    const liveCall = activeCallRef.current;
+    const callIsLive = callState === "connected" || manualStatus === "connected";
+    if (!callIsLive || !liveCall) {
+      toast.error("No live call available for keypad input");
+      return;
+    }
+    try {
+      liveCall.sendDigits(digit);
+      setDtmfDigitsSent((previous) => `${previous}${digit}`.slice(-12));
+    } catch (error) {
+      console.error("[Dialer] Failed to send DTMF digit:", error);
+      toast.error("Could not send keypad input");
+    }
+  }, [callState, manualStatus]);
 
   // Sync currentLead with refreshed queue data when the queue updates.
   // Deps intentionally use currentLead?.id (not currentLead) to avoid an
@@ -1798,6 +1874,7 @@ function DialerPageInner() {
     incomingCall.accept();
     const acceptedCall = incomingCall;
     setActiveCall(acceptedCall);
+    setDtmfDigitsSent("");
     setCallState("connected");
     timer.start();
     setIncomingCall(null);
@@ -2096,6 +2173,7 @@ function DialerPageInner() {
       });
 
       setActiveCall(call);
+      setDtmfDigitsSent("");
       setTransferStatus("Connecting via VoIP…");
       setCallState("connected");
 
@@ -2329,6 +2407,7 @@ function DialerPageInner() {
       });
 
       setActiveCall(call);
+      setDtmfDigitsSent("");
       setManualStatus("connected");
 
       call.on("ringing", () => {
@@ -3094,8 +3173,14 @@ function DialerPageInner() {
 
         {manualDialOpen && (
           <div className="mt-3 border-t border-overlay-6 pt-3">
-        <div className="flex items-center gap-3">
-          <div className="flex-1 relative">
+        <div className={cn(
+          "flex gap-3",
+          manualStatus === "connected" ? "flex-col xl:flex-row xl:items-start" : "items-center",
+        )}>
+          <div className={cn(
+            "relative",
+            manualStatus === "connected" ? "xl:w-[32%] xl:min-w-[250px]" : "flex-1",
+          )}>
             <Input
               value={formatUsPhone(manualPhone)}
               onChange={(e) => {
@@ -3121,6 +3206,10 @@ function DialerPageInner() {
             )}
           </div>
 
+          <div className={cn(
+            "flex items-center gap-3",
+            manualStatus === "connected" ? "xl:w-[68%]" : "",
+          )}>
           {manualStatus === "idle" ? (
             <>
               <Button
@@ -3148,15 +3237,21 @@ function DialerPageInner() {
               </Button>
             </>
           ) : (
-            <Button
-              onClick={handleManualHangup}
-              variant="destructive"
-              className="gap-1.5 h-9 px-4 text-xs font-semibold"
-            >
-              <PhoneOff className="h-3.5 w-3.5" />
-              End
-            </Button>
+            <div className="flex w-full flex-col gap-3 xl:flex-row xl:items-start">
+              <Button
+                onClick={handleManualHangup}
+                variant="destructive"
+                className="gap-1.5 h-9 px-4 text-xs font-semibold xl:w-[140px] xl:shrink-0"
+              >
+                <PhoneOff className="h-3.5 w-3.5" />
+                End
+              </Button>
+              <div className="flex-1">
+                <DtmfKeypadPanel digitsSent={dtmfDigitsSent} onDigit={sendDtmfDigit} />
+              </div>
+            </div>
           )}
+          </div>
         </div>
         </div>
         )}
@@ -4131,6 +4226,12 @@ function DialerPageInner() {
                         </div>
                       )}
                     </div>
+
+                    {callState === "connected" && (
+                      <div className="mt-3">
+                        <DtmfKeypadPanel digitsSent={dtmfDigitsSent} onDigit={sendDtmfDigit} />
+                      </div>
+                    )}
 
                     {false /* VoIP hint removed — shown in header badge instead */}
 
