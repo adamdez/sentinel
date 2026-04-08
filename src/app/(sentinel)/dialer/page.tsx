@@ -12,7 +12,7 @@ import {
   Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
   X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight, Pause, Play,
-  AlertTriangle, Wifi, WifiOff, RefreshCw, FileText, ExternalLink, MapPin,
+  AlertTriangle, Wifi, WifiOff, RefreshCw, FileText, ExternalLink, MapPin, MoreHorizontal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -4468,11 +4468,11 @@ function DialerPageInner() {
                           <p className="text-xs text-muted-foreground/40">No calls yet</p>
                         </div>
                       ) : (
-                        <div className={cn("overflow-y-auto scrollbar-thin space-y-1", currentLead ? "max-h-[calc(100vh-520px)]" : "max-h-[280px]")}>
+                        <div className={cn("overflow-y-auto scrollbar-thin space-y-2 pr-0.5", currentLead ? "max-h-[calc(100vh-520px)]" : "max-h-[280px]")}>
                           {callHistory
                             .filter((c) => historyFilter === "all" || c.direction === historyFilter)
                             .map((entry) => (
-                              <CallHistoryRow
+                              <CompactCallHistoryRow
                                 key={entry.id}
                                 entry={entry}
                                 allHistory={callHistory}
@@ -4747,6 +4747,193 @@ function CallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry
             </div>
           )}
           {/* Prior calls to the same phone number */}
+          {priorCalls.map((prior) => (
+            <div key={prior.id} className="border-t border-overlay-4 pt-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 mb-0.5">
+                {prior.direction === "inbound" ? "Inbound" : "Outbound"} &middot; {timeAgo(prior.started_at)}
+                {prior.duration_sec > 0 && <span className="font-mono ml-1">{formatDuration(prior.duration_sec)}</span>}
+              </p>
+              {prior.notes && (
+                <p className="text-foreground/70 whitespace-pre-wrap text-sm leading-relaxed">{prior.notes}</p>
+              )}
+              {prior.ai_summary && (
+                <div className="mt-1">
+                  <p className="text-xs text-muted-foreground/40 flex items-center gap-1 mb-0.5">
+                    <Sparkles className="h-2.5 w-2.5" /> AI Summary
+                  </p>
+                  <p className="text-foreground/60 whitespace-pre-wrap text-sm leading-relaxed">{prior.ai_summary}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompactCallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry; allHistory: CallHistoryEntry[]; onDial: (phone: string) => void }) {
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const style = DISPO_STYLES[entry.disposition] ?? { color: "text-muted-foreground", bg: "bg-overlay-3 border-overlay-6" };
+  const isInbound = entry.direction === "inbound";
+  const isSms = entry.disposition === "sms_outbound";
+  const phoneDigits = (entry.phone_dialed ?? "").replace(/\D/g, "").slice(-10);
+  const hasLead = Boolean(entry.lead_id);
+  const hasNotes = Boolean(entry.notes?.trim() || entry.ai_summary?.trim());
+  const phoneLabel = formatUsPhone(phoneDigits);
+  const displayDisposition = (() => {
+    switch (entry.disposition) {
+      case "agent_no_answer":
+        return "Agent No Answer";
+      case "sms_outbound":
+        return "SMS Sent";
+      case "no_answer":
+        return "No Answer";
+      case "dead_phone":
+        return "Dead Phone";
+      default:
+        return entry.disposition.replace(/_/g, " ");
+    }
+  })();
+  const directionLabel = isSms ? "SMS" : isInbound ? "Inbound" : "Outbound";
+  const directionAccent = isSms ? "bg-muted" : isInbound ? "bg-sky-300/80" : "bg-primary";
+
+  const priorCalls = useMemo(() => {
+    if (!phoneDigits) return [];
+    return allHistory.filter((c) => {
+      const digits = (c.phone_dialed ?? "").replace(/\D/g, "").slice(-10);
+      return digits === phoneDigits && c.id !== entry.id && (c.notes?.trim() || c.ai_summary?.trim());
+    });
+  }, [allHistory, phoneDigits, entry.id]);
+
+  const hasAnyNotes = hasNotes || priorCalls.length > 0;
+
+  return (
+    <div className="rounded-[14px] border border-overlay-6 bg-overlay-1/70 px-3 py-3 transition-all hover:bg-overlay-2 hover:border-overlay-8">
+      <div className="flex items-start gap-2.5">
+        <span className={cn("mt-1 h-2 w-2 rounded-full shrink-0", directionAccent)} title={directionLabel} />
+
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="truncate text-sm font-medium text-foreground/90">
+                  {entry.owner_name ?? phoneLabel}
+                </p>
+                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/35">
+                  {directionLabel}
+                </span>
+              </div>
+              {entry.owner_name && (
+                <p className="mt-0.5 truncate text-xs font-mono text-muted-foreground/45">
+                  {phoneLabel}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              {phoneDigits && (
+                <button
+                  onClick={() => onDial(entry.phone_dialed)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-[9px] border border-primary/20 bg-primary/8 px-2.5 text-xs font-semibold text-primary/80 transition-all hover:border-primary/30 hover:bg-primary/18 hover:text-primary"
+                  title={`Call back ${phoneLabel}`}
+                >
+                  <Phone className="h-3 w-3" />
+                  <span>Call</span>
+                </button>
+              )}
+              {(hasAnyNotes || hasLead) && (
+                <button
+                  type="button"
+                  onClick={() => setActionsOpen((open) => !open)}
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-[9px] border text-muted-foreground/55 transition-all hover:text-foreground",
+                    actionsOpen
+                      ? "border-overlay-12 bg-overlay-4"
+                      : "border-overlay-8 bg-overlay-3 hover:bg-overlay-5",
+                  )}
+                  title="More actions"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className={`text-[11px] px-1.5 py-0.5 rounded-[6px] border font-semibold uppercase tracking-wider ${style.color} ${style.bg}`}>
+              {displayDisposition}
+            </span>
+            {entry.duration_sec > 0 && (
+              <span className="text-xs font-mono text-muted-foreground/45">{formatDuration(entry.duration_sec)}</span>
+            )}
+            <span className="text-xs text-muted-foreground/35">{timeAgo(entry.started_at)}</span>
+          </div>
+
+          {actionsOpen && (
+            <div className="flex flex-wrap items-center gap-1.5 rounded-[10px] border border-overlay-6 bg-overlay-2 px-2 py-2">
+              {hasAnyNotes && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotesOpen((open) => !open);
+                    setActionsOpen(false);
+                  }}
+                  className={cn(
+                    "relative inline-flex items-center gap-1.5 rounded-[8px] border px-2 py-1 text-[11px] font-medium transition-all",
+                    notesOpen
+                      ? "border-primary/30 bg-primary/15 text-primary"
+                      : "border-overlay-8 bg-overlay-3 text-muted-foreground/70 hover:text-foreground hover:bg-overlay-4",
+                  )}
+                  title={`View notes${priorCalls.length > 0 ? ` (${priorCalls.length + (hasNotes ? 1 : 0)} calls)` : ""}`}
+                >
+                  <FileText className="h-3 w-3" />
+                  <span>Notes</span>
+                  {priorCalls.length > 0 && (
+                    <span className="rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                      {priorCalls.length + (hasNotes ? 1 : 0)}
+                    </span>
+                  )}
+                </button>
+              )}
+              {hasLead && (
+                <a
+                  href={`/leads?open=${entry.lead_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-[8px] border border-overlay-8 bg-overlay-3 px-2 py-1 text-[11px] font-medium text-muted-foreground/70 transition-all hover:bg-overlay-4 hover:text-foreground"
+                  title="Open lead detail"
+                >
+                  <ArrowUpRight className="h-3 w-3" />
+                  <span>Open Lead</span>
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {notesOpen && hasAnyNotes && (
+        <div className="mt-2 rounded-[10px] border border-overlay-6 bg-overlay-2 px-3 py-2 text-sm space-y-2 max-h-64 overflow-y-auto">
+          {hasNotes && (
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 mb-0.5">
+                This call &middot; {timeAgo(entry.started_at)}
+              </p>
+              {entry.notes && (
+                <p className="text-foreground/70 whitespace-pre-wrap text-sm leading-relaxed">{entry.notes}</p>
+              )}
+              {entry.ai_summary && (
+                <div className="mt-1">
+                  <p className="text-xs text-muted-foreground/40 flex items-center gap-1 mb-0.5">
+                    <Sparkles className="h-2.5 w-2.5" /> AI Summary
+                  </p>
+                  <p className="text-foreground/60 whitespace-pre-wrap text-sm leading-relaxed">{entry.ai_summary}</p>
+                </div>
+              )}
+            </div>
+          )}
           {priorCalls.map((prior) => (
             <div key={prior.id} className="border-t border-overlay-4 pt-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/50 mb-0.5">
