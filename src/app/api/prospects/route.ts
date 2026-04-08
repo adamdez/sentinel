@@ -145,6 +145,71 @@ function buildCountyDataFromGis(gisData: Record<string, unknown>): Record<string
   });
 }
 
+const BAD_OWNER_NAMES = new Set([
+  "",
+  "unknown",
+  "unknown owner",
+  "n/a",
+  "na",
+  "none",
+  "null",
+  "-",
+]);
+
+function ownerNameIsBlank(name: string | null | undefined): boolean {
+  if (!name) return true;
+  return BAD_OWNER_NAMES.has(name.trim().toLowerCase());
+}
+
+function buildCoreUpdatesFromScout(input: {
+  currentOwnerName: string | null | undefined;
+  currentEstimatedValue: unknown;
+  currentBedrooms: unknown;
+  currentBathrooms: unknown;
+  currentSqft: unknown;
+  currentYearBuilt: unknown;
+  scoutSummary: {
+    ownerName: string | null;
+    taxpayerName: string | null;
+    assessedValue: number | null;
+    bedrooms: number | null;
+    fullBaths: number | null;
+    halfBaths: number | null;
+    grossLivingAreaSqft: number | null;
+    yearBuilt: number | null;
+  };
+}): Record<string, unknown> {
+  const updates: Record<string, unknown> = {};
+  const scout = input.scoutSummary;
+
+  if (ownerNameIsBlank(input.currentOwnerName)) {
+    const bestOwnerName = scout.taxpayerName?.trim() || scout.ownerName?.trim() || null;
+    if (bestOwnerName && !ownerNameIsBlank(bestOwnerName)) {
+      updates.owner_name = bestOwnerName;
+    }
+  }
+
+  if (!input.currentEstimatedValue && scout.assessedValue != null) {
+    updates.estimated_value = scout.assessedValue;
+  }
+  if (!input.currentBedrooms && scout.bedrooms != null) {
+    updates.bedrooms = scout.bedrooms;
+  }
+  if (!input.currentSqft && scout.grossLivingAreaSqft != null) {
+    updates.sqft = scout.grossLivingAreaSqft;
+  }
+  if (!input.currentYearBuilt && scout.yearBuilt != null) {
+    updates.year_built = scout.yearBuilt;
+  }
+  if (!input.currentBathrooms && (scout.fullBaths != null || scout.halfBaths != null)) {
+    const fullBaths = scout.fullBaths ?? 0;
+    const halfBaths = scout.halfBaths ?? 0;
+    updates.bathrooms = fullBaths + (halfBaths * 0.5);
+  }
+
+  return updates;
+}
+
 export async function GET() {
   try {
     const sb = createServerClient();
@@ -1894,20 +1959,49 @@ export async function POST(req: NextRequest) {
                 // Re-read owner_flags fresh to avoid clobbering concurrent writes
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { data: currentProp3 } = await (sb.from("properties") as any)
-                  .select("owner_flags")
+                  .select("owner_flags, owner_name, estimated_value, bedrooms, bathrooms, sqft, year_built")
                   .eq("id", property.id)
                   .single();
                 const flags3 = (currentProp3?.owner_flags ?? {}) as Record<
                   string,
                   unknown
                 >;
+                const scoutCoreUpdates = scoutSummary
+                  ? buildCoreUpdatesFromScout({
+                      currentOwnerName: typeof currentProp3?.owner_name === "string" ? currentProp3.owner_name : null,
+                      currentEstimatedValue: currentProp3?.estimated_value,
+                      currentBedrooms: currentProp3?.bedrooms,
+                      currentBathrooms: currentProp3?.bathrooms,
+                      currentSqft: currentProp3?.sqft,
+                      currentYearBuilt: currentProp3?.year_built,
+                      scoutSummary: {
+                        ownerName: scoutSummary.ownerName,
+                        taxpayerName: scoutSummary.taxpayerName,
+                        assessedValue: scoutSummary.assessedValue,
+                        bedrooms: scoutSummary.bedrooms,
+                        fullBaths: scoutSummary.fullBaths,
+                        halfBaths: scoutSummary.halfBaths,
+                        grossLivingAreaSqft: scoutSummary.grossLivingAreaSqft,
+                        yearBuilt: scoutSummary.yearBuilt,
+                      },
+                    })
+                  : {};
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 await (sb.from("properties") as any)
                   .update({
+                    ...scoutCoreUpdates,
                     owner_flags: {
                       ...flags3,
                       scout_data: scoutData,
                       scout_data_at: scoutSummary?.fetchedAt ?? scoutNow,
+                      tax_assessed_value: scoutSummary?.assessedValue ?? flags3.tax_assessed_value,
+                      scout_tax_signals: compactObject({
+                        total_charges_owing: scoutSummary?.totalChargesOwing,
+                        current_annual_taxes: scoutSummary?.currentAnnualTaxes,
+                        current_remaining_charges_owing: scoutSummary?.currentRemainingChargesOwing,
+                        assessed_value: scoutSummary?.assessedValue,
+                        assessed_tax_year: scoutSummary?.assessedTaxYear,
+                      }),
                       ...(scoutParcelMismatch
                         ? { scout_parcel_mismatch: true }
                         : {}),
