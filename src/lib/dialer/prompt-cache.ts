@@ -460,6 +460,7 @@ function buildLeadContextBlock(lead: LeadContextSnapshot): string {
     mem?.promises_made ||
     mem?.objection ||
     mem?.next_task_suggestion ||
+    mem?.callback_timing_hint ||
     mem?.deal_temperature
   );
 

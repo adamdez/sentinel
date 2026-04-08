@@ -20,7 +20,13 @@ import {
   OBJECTION_TAGS,
 } from "@/lib/dialer/publish-manager";
 import { updateAiTraceReview } from "@/lib/dialer/ai-trace-writer";
-import { assemblePostCallStructure, type PostCallStructureInput } from "@/lib/dialer/post-call-structure";
+import {
+  assemblePostCallStructure,
+  buildFallbackPostCallStructureInput,
+  hasPostCallStructureContent,
+  mergePostCallStructureFields,
+  type PostCallStructureInput,
+} from "@/lib/dialer/post-call-structure";
 import { runPostCallAnalysis } from "@/lib/dialer/post-call-analysis";
 import type { WriteEvalRatingInput } from "@/lib/eval-ratings";
 import type { PublishDisposition, SellerTimeline, QualificationRoute, ObjectionTag, PublishInput } from "@/lib/dialer/types";
@@ -245,9 +251,16 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   // so the operator knows seller memory won't be populated.
   const warnings: string[] = [];
   const pcsInput = body.post_call_structure as PostCallStructureInput | undefined;
+  const fallbackStructure = buildFallbackPostCallStructureInput({
+    disposition,
+    summary: typeof summary === "string" ? summary : null,
+    nextAction: typeof nextAction === "string" ? nextAction : null,
+    callbackAt: typeof callbackAt === "string" ? callbackAt : null,
+  });
   if (pcsInput && typeof pcsInput === "object") {
     // Operator provided explicit post-call structure — write it directly
     try {
+      const mergedInput = mergePostCallStructureFields(pcsInput, fallbackStructure);
       const row = assemblePostCallStructure({
         sessionId,
         callsLogId:       result.calls_log_id,
@@ -255,7 +268,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         publishedBy:      user.id,
         draftNoteRunId:   typeof draftNoteRunId === "string" ? draftNoteRunId : null,
         draftWasFlagged:  draftFlagged === true,
-        input:            pcsInput,
+        input:            mergedInput,
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -270,6 +283,22 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // Awaited with warning: extracts promises, objections, deal temperature,
     // callback timing from transcript and writes to post_call_structures.
     try {
+      if (hasPostCallStructureContent(fallbackStructure)) {
+        const fallbackRow = assemblePostCallStructure({
+          sessionId,
+          callsLogId:       result.calls_log_id,
+          leadId:           result.lead_id,
+          publishedBy:      user.id,
+          draftNoteRunId:   null,
+          draftWasFlagged:  false,
+          input:            fallbackStructure,
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("post_call_structures") as any)
+          .upsert(fallbackRow, { onConflict: "session_id" });
+      }
+
       await runPostCallAnalysis(sb, {
         sessionId,
         callsLogId:  result.calls_log_id,

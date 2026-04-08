@@ -37,6 +37,7 @@ export interface LeadContext {
     promises_made?: string | null;
     objection?: string | null;
     next_task_suggestion?: string | null;
+    callback_timing_hint?: string | null;
     deal_temperature?: string | null;
   } | null;
 
@@ -93,6 +94,7 @@ export function buildCallCoPilotPrompt(lead: LeadContext): string {
     memory?.promises_made ||
     memory?.objection ||
     memory?.next_task_suggestion ||
+    memory?.callback_timing_hint ||
     memory?.deal_temperature
   );
   const latestStructuredBlock = hasStructuredMemory
@@ -102,6 +104,7 @@ export function buildCallCoPilotPrompt(lead: LeadContext): string {
         memory?.promises_made ? `- Promises made: ${memory.promises_made}` : "- Promises made: none recorded",
         memory?.objection ? `- Objection: ${memory.objection}` : "- Objection: none recorded",
         memory?.next_task_suggestion ? `- Suggested next step: ${memory.next_task_suggestion}` : "- Suggested next step: none recorded",
+        memory?.callback_timing_hint ? `- Callback timing: ${memory.callback_timing_hint}` : "",
         memory?.deal_temperature ? `- Deal temperature: ${memory.deal_temperature}` : "- Deal temperature: unknown",
       ].join("\n")
     : "### Latest Reviewed Seller Takeaway (assistive, not authoritative)\n  No structured post-call takeaway available yet.";

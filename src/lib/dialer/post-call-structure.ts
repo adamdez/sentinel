@@ -79,6 +79,123 @@ function trimOrNull(v: unknown, maxLen: number): string | null {
   return v.trim().slice(0, maxLen);
 }
 
+function titleCase(value: string): string {
+  return value
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function formatCallbackHint(callbackAt: string | null | undefined): string | null {
+  if (typeof callbackAt !== "string" || !callbackAt.trim()) return null;
+  const parsed = new Date(callbackAt);
+  if (Number.isNaN(parsed.getTime())) return trimOrNull(callbackAt, 120);
+
+  try {
+    const pretty = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Los_Angeles",
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(parsed);
+    return `Callback set for ${pretty}`;
+  } catch {
+    return "Callback scheduled";
+  }
+}
+
+function fallbackSummaryFromDisposition(disposition: string | null | undefined): string | null {
+  if (typeof disposition !== "string" || !disposition.trim()) return null;
+  return `${titleCase(disposition)} call outcome recorded.`;
+}
+
+export function hasPostCallStructureContent(input: PostCallStructureInput | null | undefined): boolean {
+  if (!input) return false;
+  return Boolean(
+    trimOrNull(input.summary_line, 200) ||
+    trimOrNull(input.promises_made, 200) ||
+    trimOrNull(input.objection, 200) ||
+    trimOrNull(input.next_task_suggestion, 200) ||
+    trimOrNull(input.callback_timing_hint, 120) ||
+    (typeof input.deal_temperature === "string" && VALID_TEMPS.has(input.deal_temperature)),
+  );
+}
+
+export function mergePostCallStructureFields(
+  primary: PostCallStructureInput | null | undefined,
+  fallback: PostCallStructureInput | null | undefined,
+): PostCallStructureInput {
+  const dealTemperature =
+    typeof primary?.deal_temperature === "string" && VALID_TEMPS.has(primary.deal_temperature)
+      ? primary.deal_temperature
+      : typeof fallback?.deal_temperature === "string" && VALID_TEMPS.has(fallback.deal_temperature)
+        ? fallback.deal_temperature
+        : null;
+
+  return {
+    summary_line: trimOrNull(primary?.summary_line, 200) ?? trimOrNull(fallback?.summary_line, 200),
+    promises_made: trimOrNull(primary?.promises_made, 200) ?? trimOrNull(fallback?.promises_made, 200),
+    objection: trimOrNull(primary?.objection, 200) ?? trimOrNull(fallback?.objection, 200),
+    next_task_suggestion:
+      trimOrNull(primary?.next_task_suggestion, 200) ?? trimOrNull(fallback?.next_task_suggestion, 200),
+    callback_timing_hint:
+      trimOrNull(primary?.callback_timing_hint, 120) ?? trimOrNull(fallback?.callback_timing_hint, 120),
+    deal_temperature: dealTemperature,
+  };
+}
+
+export function buildFallbackPostCallStructureInput(args: {
+  disposition?: string | null;
+  summary?: string | null;
+  nextAction?: string | null;
+  callbackAt?: string | null;
+}): PostCallStructureInput {
+  return {
+    summary_line: trimOrNull(args.summary, 200) ?? fallbackSummaryFromDisposition(args.disposition),
+    next_task_suggestion: trimOrNull(args.nextAction, 200),
+    callback_timing_hint: formatCallbackHint(args.callbackAt),
+  };
+}
+
+export function buildSellerMemoryBullets(input: {
+  summaryLine?: string | null;
+  promisesMade?: string | null;
+  objection?: string | null;
+  nextTaskSuggestion?: string | null;
+  callbackTimingHint?: string | null;
+  dealTemperature?: string | null;
+  fallbackText?: string | null;
+}): string[] {
+  const bullets: string[] = [];
+
+  const pushBullet = (label: string | null, value: string | null, maxLen: number) => {
+    if (!value) return;
+    const text = label ? `${label}: ${value}` : value;
+    const trimmed = text.trim().slice(0, maxLen);
+    if (!trimmed || bullets.includes(trimmed)) return;
+    bullets.push(trimmed);
+  };
+
+  pushBullet(null, trimOrNull(input.summaryLine, 200) ?? trimOrNull(input.fallbackText, 200), 140);
+  pushBullet("Promise", trimOrNull(input.promisesMade, 200), 140);
+  pushBullet("Blocker", trimOrNull(input.objection, 200), 140);
+  pushBullet("Next", trimOrNull(input.nextTaskSuggestion, 200), 140);
+  pushBullet("Callback", trimOrNull(input.callbackTimingHint, 120), 140);
+
+  if (bullets.length < 4) {
+    const temp =
+      typeof input.dealTemperature === "string" && VALID_TEMPS.has(input.dealTemperature)
+        ? titleCase(input.dealTemperature)
+        : null;
+    pushBullet("Temperature", temp, 80);
+  }
+
+  return bullets.slice(0, 4);
+}
+
 /**
  * Assembles a post_call_structures insert row from publish-time context.
  * Pure function — no side effects, no DB calls.

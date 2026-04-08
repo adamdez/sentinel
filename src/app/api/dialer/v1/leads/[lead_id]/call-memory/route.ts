@@ -22,6 +22,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import type { RepeatCallMemory, CallMemoryEntry, MemorySource } from "@/lib/dialer/types";
+import { buildSellerMemoryBullets } from "@/lib/dialer/post-call-structure";
 
 type RouteContext = { params: Promise<{ lead_id: string }> };
 
@@ -60,7 +61,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   // ── 2b. Most recent structured post-call data ─────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: pcs } = await (sb.from("post_call_structures") as any)
-    .select("promises_made, objection, next_task_suggestion, callback_timing_hint, deal_temperature")
+    .select("summary_line, promises_made, objection, next_task_suggestion, callback_timing_hint, deal_temperature")
     .eq("lead_id", lead_id)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -116,6 +117,17 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
   const dmSource: MemorySource | null = dmNote
     ? dmConfirmed ? "operator" : "ai"
     : null;
+  const fallbackSummary = recentCalls[0]?.notes ?? recentCalls[0]?.aiSummary ?? null;
+  const lastCallSummary = (pcs?.summary_line as string | null) ?? fallbackSummary;
+  const lastCallBullets = buildSellerMemoryBullets({
+    summaryLine: (pcs?.summary_line as string | null) ?? null,
+    promisesMade: (pcs?.promises_made as string | null) ?? null,
+    objection: (pcs?.objection as string | null) ?? null,
+    nextTaskSuggestion: (pcs?.next_task_suggestion as string | null) ?? null,
+    callbackTimingHint: (pcs?.callback_timing_hint as string | null) ?? null,
+    dealTemperature: (pcs?.deal_temperature as string | null) ?? null,
+    fallbackText: fallbackSummary,
+  });
 
   const memory: RepeatCallMemory = {
     leadId:                  lead_id,
@@ -125,6 +137,8 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     recentCalls,
     daysSinceLastLiveAnswer,
     daysSinceLastContact,
+    lastCallSummary,
+    lastCallBullets,
     lastCallPromises:        (pcs?.promises_made as string) ?? null,
     lastCallObjection:       (pcs?.objection as string) ?? null,
     lastCallNextAction:      (pcs?.next_task_suggestion as string) ?? null,

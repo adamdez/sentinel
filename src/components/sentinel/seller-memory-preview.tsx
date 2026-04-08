@@ -13,8 +13,8 @@
 
 import { useState, useEffect } from "react";
 import {
-  Handshake, AlertTriangle, CalendarClock,
-  MessageSquare, Loader2, User,
+  AlertTriangle, CalendarClock,
+  Loader2, User,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { RepeatCallMemory } from "@/lib/dialer/types";
@@ -119,6 +119,7 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
   const staleWarn = staleDays !== null && staleDays > 21;
 
   const hasStructuredFields = !!(
+    memory.lastCallSummary || memory.lastCallBullets.length > 0 ||
     memory.lastCallPromises || memory.lastCallObjection ||
     memory.lastCallNextAction || memory.lastCallCallbackTiming ||
     memory.lastCallDealTemperature
@@ -158,22 +159,20 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
         </div>
       )}
 
-      {/* Promises / next action - seller expectations */}
-      {memory.lastCallPromises && (
-        <div className="flex items-start gap-1.5 text-xs">
-          <Handshake className="h-3 w-3 text-foreground/50 shrink-0 mt-0.5" />
-          <span className="text-foreground/70 line-clamp-2">{memory.lastCallPromises}</span>
-        </div>
-      )}
-      {memory.lastCallNextAction && (
-        <div className="flex items-start gap-1.5 text-xs">
-          <MessageSquare className="h-3 w-3 text-foreground/50 shrink-0 mt-0.5" />
-          <span className="text-foreground/70 line-clamp-2">{memory.lastCallNextAction}</span>
+      {/* High-signal recap bullets */}
+      {memory.lastCallBullets.length > 0 && (
+        <div className="space-y-1 border-b border-border/10 pb-1.5">
+          {memory.lastCallBullets.map((bullet, index) => (
+            <div key={`${index}-${bullet}`} className="flex items-start gap-2 text-xs">
+              <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-primary/70" />
+              <span className="text-foreground/75 leading-snug">{bullet}</span>
+            </div>
+          ))}
         </div>
       )}
 
       {/* Last objection */}
-      {memory.lastCallObjection && (
+      {memory.lastCallObjection && !memory.lastCallBullets.some((bullet) => bullet.includes(memory.lastCallObjection ?? "")) && (
         <div className="flex items-start gap-1.5 text-xs">
           <AlertTriangle className="h-3 w-3 text-amber-400/60 shrink-0 mt-0.5" />
           <span className="text-foreground/70 line-clamp-2">{memory.lastCallObjection}</span>
@@ -195,7 +194,7 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
       )}
 
       {/* Last call note / AI summary - compact, truncated */}
-      {lastNote && (
+      {lastNote && memory.lastCallBullets.length === 0 && (
         <p className="text-xs text-muted-foreground/50 leading-snug line-clamp-2 border-t border-border/10 pt-1.5">
           {lastNote}
         </p>

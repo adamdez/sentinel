@@ -241,6 +241,10 @@ export interface RepeatCallMemory {
   daysSinceLastContact: number | null;
 
   // ── Structured post-call data (from most recent call) ────
+  /** One-line summary of what happened on the most recent call. */
+  lastCallSummary:         string | null;
+  /** Compact 2-4 bullet recap for the next call. */
+  lastCallBullets:         string[];
   /** Promises made during the most recent call (from post_call_structures). */
   lastCallPromises:        string | null;
   /** Primary unresolved objection from the most recent call. */

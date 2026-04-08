@@ -17,7 +17,12 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { analyzeWithClaude, extractJsonObject } from "@/lib/claude-client";
-import { assemblePostCallStructure, DEAL_TEMPERATURES, type DealTemperature } from "./post-call-structure";
+import {
+  assemblePostCallStructure,
+  DEAL_TEMPERATURES,
+  mergePostCallStructureFields,
+  type DealTemperature,
+} from "./post-call-structure";
 import { writeAiTrace } from "./ai-trace-writer";
 import { randomUUID } from "crypto";
 
@@ -209,14 +214,14 @@ export async function runPostCallAnalysis(
 
   // ── 5. Write to post_call_structures (upsert) ─────────────────────
   try {
-    const row = assemblePostCallStructure({
-      sessionId,
-      callsLogId: callsLogId ?? null,
-      leadId: leadId ?? null,
-      publishedBy,
-      draftNoteRunId: runId,
-      draftWasFlagged: false,
-      input: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existing } = await (sb.from("post_call_structures") as any)
+      .select("summary_line, promises_made, objection, next_task_suggestion, callback_timing_hint, deal_temperature")
+      .eq("session_id", sessionId)
+      .maybeSingle();
+
+    const mergedInput = mergePostCallStructureFields(
+      {
         summary_line,
         promises_made,
         objection,
@@ -224,6 +229,17 @@ export async function runPostCallAnalysis(
         callback_timing_hint,
         deal_temperature,
       },
+      existing ?? null,
+    );
+
+    const row = assemblePostCallStructure({
+      sessionId,
+      callsLogId: callsLogId ?? null,
+      leadId: leadId ?? null,
+      publishedBy,
+      draftNoteRunId: runId,
+      draftWasFlagged: false,
+      input: mergedInput,
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -56,6 +56,7 @@ function deriveRiskSeed(args: {
     promises_made?: string | null;
     objection?: string | null;
     next_task_suggestion?: string | null;
+    callback_timing_hint?: string | null;
     deal_temperature?: string | null;
   } | null;
   inboundSignals?: { type: string; value: string; source: string; date: string }[];
@@ -142,6 +143,7 @@ function inferStageAndGoal(args: {
     promises_made?: string | null;
     objection?: string | null;
     next_task_suggestion?: string | null;
+    callback_timing_hint?: string | null;
     deal_temperature?: string | null;
   } | null;
   lead: Record<string, unknown>;
@@ -308,7 +310,7 @@ export async function POST(req: NextRequest) {
       .limit(5);
 
     const { data: latestStructured } = await tbl("post_call_structures")
-      .select("summary_line, promises_made, objection, next_task_suggestion, deal_temperature")
+      .select("summary_line, promises_made, objection, next_task_suggestion, callback_timing_hint, deal_temperature")
       .eq("lead_id", lead.id)
       .order("created_at", { ascending: false })
       .limit(1)
@@ -364,6 +366,7 @@ export async function POST(req: NextRequest) {
             promises_made: latestStructured.promises_made ?? null,
             objection: latestStructured.objection ?? null,
             next_task_suggestion: latestStructured.next_task_suggestion ?? null,
+            callback_timing_hint: latestStructured.callback_timing_hint ?? null,
             deal_temperature: latestStructured.deal_temperature ?? null,
           }
         : null,
