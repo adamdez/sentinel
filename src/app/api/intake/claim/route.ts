@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Provider not found" }, { status: 404 });
     }
 
-    const sourceCategory = provider.name;
+    const sourceCategory = /^(lead[\s_]?house)$/i.test(provider.name) ? "LeadHouse" : provider.name;
     const resolvedOwnerName = owner_name || intakeLead.owner_name || "Unknown";
     const resolvedPhoneDigits = String(owner_phone || intakeLead.owner_phone || "").replace(/\D/g, "").slice(-10);
     const resolvedOwnerPhone = resolvedPhoneDigits.length === 10 ? resolvedPhoneDigits : null;

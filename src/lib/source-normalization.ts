@@ -125,7 +125,7 @@ export const SOURCE_LABELS: Record<string, string> = {
   webform: "Web Form",
   vendor_inbound: "Vendor Inbound",
   ppl: "PPL",
-  lead_house: "Lead House",
+  lead_house: "LeadHouse",
   referral: "Referral",
   manual: "Manual",
   unknown: "Unknown",

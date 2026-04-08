@@ -74,7 +74,7 @@ function createClaimClient() {
               eq() {
                 return {
                   single: vi.fn().mockResolvedValue({
-                    data: { name: "Lead House" },
+                    data: { name: "LeadHouse" },
                     error: null,
                   }),
                 };
@@ -186,7 +186,7 @@ describe("POST /api/intake/claim", () => {
     expect(payload).toMatchObject({
       success: true,
       lead_id: "lead-1",
-      source_category: "Lead House",
+      source_category: "LeadHouse",
     });
 
     expect(client.__spies.leadsInsert).toHaveBeenCalledTimes(1);

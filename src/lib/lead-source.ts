@@ -17,7 +17,7 @@ export function vendorSourceLabel(vendor: string | null | undefined): string | n
   const normalized = normalizeText(vendor);
   if (!normalized || normalized === "manual" || normalized === "manual_resume") return null;
   if (normalized === "propertyradar" || normalized === "propradar") return "PropRadar";
-  if (normalized === "lead_house" || normalized === "leadhouse") return "Lead House";
+  if (normalized === "lead_house" || normalized === "leadhouse") return "LeadHouse";
   return titleCase(vendor.trim());
 }
 

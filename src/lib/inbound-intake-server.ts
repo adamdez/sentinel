@@ -16,8 +16,8 @@ function mapSourceVendorToProvider(sourceVendor: string | null | undefined): str
   if (!sourceVendor) return null;
 
   const vendorMap: Record<string, string> = {
-    "lead_house": "Lead House",
-    "leadhouse": "Lead House",
+    "lead_house": "LeadHouse",
+    "leadhouse": "LeadHouse",
     "ppl_partner_a": "PPL Partner A",
     "ppl_partner_b": "Other PPL",
     "gmail": "Gmail Intake",
