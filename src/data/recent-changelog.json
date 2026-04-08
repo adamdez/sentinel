@@ -1,5 +1,15 @@
 [
   {
+    "hash": "fd5f3f22",
+    "date": "2026-04-08",
+    "message": "[codex] Split true active stage from lead queue"
+  },
+  {
+    "hash": "b3607702",
+    "date": "2026-04-08",
+    "message": "[codex] Unify dossier and legal research runs"
+  },
+  {
     "hash": "1b248508",
     "date": "2026-04-08",
     "message": "[codex] Fix hidden default lead queue stage filter"
@@ -113,15 +123,5 @@
     "hash": "47539fe8",
     "date": "2026-04-07",
     "message": "[codex] Fix PPL claim hydration and Bricked reopen cache"
-  },
-  {
-    "hash": "179d3cff",
-    "date": "2026-04-07",
-    "message": "[codex] flatten sentinel user authority"
-  },
-  {
-    "hash": "92cdeb15",
-    "date": "2026-04-07",
-    "message": "[codex] Harden Lead House embedded payload parsing"
   }
 ]

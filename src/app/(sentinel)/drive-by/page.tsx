@@ -26,7 +26,7 @@ const DRIVE_BY_SELECT = [
   "id",
   "property_id",
   "status",
-  "property:properties!inner(full_address, city, state, zip, county, owner_name, owner_phone, owner_email, mailing_address)",
+  "property:properties!inner(address, city, state, zip, county, owner_name, owner_phone, owner_email, mailing_address)",
   "next_action",
   "next_action_due_at",
   "next_call_scheduled_at",
@@ -58,11 +58,14 @@ type ViewFilter = "all" | "overdue" | "today" | "upcoming";
 export default function DriveByPage() {
   const [leads, setLeads] = useState<DriveByLead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
 
   const fetchDriveByLeads = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.from("leads") as any)
       .select(DRIVE_BY_SELECT)
@@ -72,6 +75,9 @@ export default function DriveByPage() {
 
     if (error) {
       console.error("[DriveBy] fetch failed:", error);
+      setLeads([]);
+      setLoadError(error.message ?? "Could not load drive-by leads");
+      setLoading(false);
       return;
     }
 
@@ -81,7 +87,7 @@ export default function DriveByPage() {
       return {
         id: row.id as string,
         status: (row.status as string) ?? "unknown",
-        address: prop?.full_address ?? "Unknown",
+        address: prop?.address ?? "Unknown",
         city: prop?.city ?? null,
         ownerName: formatSellerName(prop?.owner_name) ?? prop?.owner_name ?? null,
         nextActionDueAt: (row.next_action_due_at as string) ?? null,
@@ -199,6 +205,10 @@ export default function DriveByPage() {
       {/* List */}
       {loading ? (
         <div className="text-sm text-muted-foreground py-12 text-center">Loading drive-by leads...</div>
+      ) : loadError ? (
+        <div className="text-sm text-red-400 py-12 text-center">
+          Could not load drive-by leads. Refresh and try again.
+        </div>
       ) : filtered.length === 0 ? (
         <div className="text-sm text-muted-foreground py-12 text-center">
           {viewFilter === "all" ? "No leads in drive-by queue" : `No ${viewFilter} drive-by leads`}
