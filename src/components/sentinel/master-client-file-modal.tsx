@@ -8325,43 +8325,44 @@ export function MasterClientFileModal({
     moveLeadToStage,
   ]);
 
-  if (!clientFile) return null;
-
-
-
   const overviewClientFile = clientFile;
+  const currentStage = normalizeWorkflowStage(clientFile?.status ?? "lead");
+  const currentStageLabel = workflowStageLabel(clientFile?.status ?? "lead");
 
+  const allowedMoveStatuses = useMemo(() => {
+    if (!clientFile) return new Set<WorkflowStageId>();
 
+    return new Set<WorkflowStageId>([
+      ...getAllowedTransitions(currentStage as LeadStatus).filter((status): status is WorkflowStageId => VISIBLE_WORKFLOW_STAGE_IDS.has(status as WorkflowStageId)),
+      ...allowedTransitions
+        .map((transition) => transition.status as WorkflowStageId)
+        .filter((status) => VISIBLE_WORKFLOW_STAGE_IDS.has(status)),
+    ]);
+  }, [allowedTransitions, clientFile, currentStage]);
 
+  const moveMenuOptions = useMemo(() => {
+    if (!clientFile) return [];
 
-  const currentStage = normalizeWorkflowStage(clientFile.status);
+    return [
+      ...WORKFLOW_STAGE_OPTIONS.map((stage) => ({
+        id: stage.id,
+        label:
+          stage.id === currentStage
+            ? `${stage.label} (Current)`
+            : allowedMoveStatuses.has(stage.id)
+              ? stage.label
+              : `${stage.label} (Unavailable)`,
+        disabled: stage.id === currentStage || !allowedMoveStatuses.has(stage.id),
+      })),
+      {
+        id: "drive_by" as const,
+        label: "Drive By",
+        disabled: false,
+      },
+    ];
+  }, [allowedMoveStatuses, clientFile, currentStage]);
 
-  const currentStageLabel = workflowStageLabel(clientFile.status);
-
-  const allowedMoveStatuses = useMemo(() => new Set<WorkflowStageId>([
-    ...getAllowedTransitions(currentStage as LeadStatus).filter((status): status is WorkflowStageId => VISIBLE_WORKFLOW_STAGE_IDS.has(status as WorkflowStageId)),
-    ...allowedTransitions
-      .map((transition) => transition.status as WorkflowStageId)
-      .filter((status) => VISIBLE_WORKFLOW_STAGE_IDS.has(status)),
-  ]), [allowedTransitions, currentStage]);
-
-  const moveMenuOptions = useMemo(() => ([
-    ...WORKFLOW_STAGE_OPTIONS.map((stage) => ({
-      id: stage.id,
-      label:
-        stage.id === currentStage
-          ? `${stage.label} (Current)`
-          : allowedMoveStatuses.has(stage.id)
-            ? stage.label
-            : `${stage.label} (Unavailable)`,
-      disabled: stage.id === currentStage || !allowedMoveStatuses.has(stage.id),
-    })),
-    {
-      id: "drive_by" as const,
-      label: "Drive By",
-      disabled: false,
-    },
-  ]), [allowedMoveStatuses, currentStage]);
+  if (!clientFile) return null;
 
   const marketLabel = marketDisplayLabel(clientFile.county);
 
