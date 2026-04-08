@@ -161,8 +161,6 @@ function TodayView() {
   const [stalledError, setStalledError] = useState<SectionError>(null);
   const [reviewBlockers, setReviewBlockers] = useState<ReviewBlocker[]>([]);
   const [reviewError, setReviewError] = useState<SectionError>(null);
-  const [unlinkedCalls, setUnlinkedCalls] = useState<UnlinkedCall[]>([]);
-  const [unlinkedError, setUnlinkedError] = useState<SectionError>(null);
   const [driveByLeads, setDriveByLeads] = useState<PriorityLead[]>([]);
   const [driveByError, setDriveByError] = useState<SectionError>(null);
 
@@ -327,23 +325,6 @@ function TodayView() {
     } catch (err) {
       console.error("[Today] review error:", err);
       setReviewError("Failed to load review queue");
-    }
-
-    // Unlinked calls
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase.from("call_sessions") as any)
-        .select("id, phone_dialed, started_at, duration_sec, ai_summary")
-        .is("lead_id", null)
-        .eq("status", "ended")
-        .order("started_at", { ascending: false })
-        .limit(10);
-      if (error) throw error;
-      setUnlinkedCalls(data ?? []);
-      setUnlinkedError(null);
-    } catch (err) {
-      console.error("[Today] unlinked calls error:", err);
-      setUnlinkedError("Failed to load unlinked calls");
     }
 
     // Drive By due today or overdue
@@ -841,23 +822,6 @@ function TodayView() {
                 Review
               </Button>
             </div>
-          ))}
-        </BriefSection>
-      )}
-
-      {/* 8. Unlinked Calls — housekeeping */}
-      {(unlinkedCalls.length > 0 || unlinkedError) && (
-        <BriefSection
-          icon={PhoneIncoming}
-          iconColor="text-muted-foreground"
-          title="Unlinked Calls"
-          error={unlinkedError}
-          count={unlinkedCalls.length}
-          emptyMessage="No unlinked calls"
-          emptyIcon={CheckCircle2}
-        >
-          {unlinkedCalls.map((call) => (
-            <UnlinkedCallRow key={call.id} call={call} onAction={fetchAll} />
           ))}
         </BriefSection>
       )}
