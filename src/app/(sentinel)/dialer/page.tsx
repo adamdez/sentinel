@@ -448,6 +448,26 @@ function formatCurrency(n: number): string {
   return `$${n}`;
 }
 
+function buildZillowSearchUrl(property: {
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+} | null | undefined): string | null {
+  if (!property?.address) return null;
+
+  const parts = [
+    property.address,
+    property.city,
+    property.state,
+    property.zip,
+  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
+
+  if (parts.length === 0) return null;
+
+  return `https://www.zillow.com/homes/${encodeURIComponent(parts.join(", "))}_rb/`;
+}
+
 function getScoreLabel(score: number): { label: string; variant: "platinum" | "gold" | "silver" | "bronze" } {
   if (score >= 85) return { label: "TOP", variant: "platinum" };
   if (score >= 70) return { label: "HIGH", variant: "gold" };
@@ -4008,14 +4028,28 @@ function DialerPageInner() {
                       <div className="flex items-start justify-between">
                         <div>
                           {(() => {
+                            const zillowUrl = buildZillowSearchUrl(currentLead.properties);
                             const { displayOwnerName } = deriveDialerPropertyContext(currentLead.properties);
                             return (
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-lg font-bold tracking-tight title-glow">
-                              {displayOwnerName}
-                            </h3>
-                            <RelationshipBadgeCompact data={{ tags: currentLead.tags }} />
-                          </div>
+                              <>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="text-lg font-bold tracking-tight title-glow">
+                                    {displayOwnerName}
+                                  </h3>
+                                  <RelationshipBadgeCompact data={{ tags: currentLead.tags }} />
+                                </div>
+                                {zillowUrl && (
+                                  <a
+                                    href={zillowUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-1 inline-flex items-center gap-1 text-xs text-primary/80 hover:text-primary hover:underline transition-colors"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    Zillow
+                                  </a>
+                                )}
+                              </>
                             );
                           })()}
                           <p className="text-sm text-muted-foreground/70">
