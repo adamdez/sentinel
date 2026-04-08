@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { didInboundDialLegAnswer } from "@/lib/twilio-inbound-classification";
 import { isBusinessHours } from "@/providers/voice/vapi-adapter";
 import {
   parseInboundOperatorStep,
@@ -172,9 +173,10 @@ export async function POST(req: NextRequest) {
 
     console.log(`[inbound] chain_step=${step} dialStatus=${dialStatus} from=${fromNumber} sid=${callSid}${isTransfer ? " (vapi-transfer)" : ""}`);
 
-    // If someone answered in their browser, log it and we're done
-    if (dialStatus === "completed" || dialStatus === "in-progress") {
-      const dialDuration = formData.get("DialCallDuration")?.toString() ?? null;
+    const dialDuration = formData.get("DialCallDuration")?.toString() ?? null;
+
+    // Only treat the browser leg as answered when Twilio shows a real connected duration.
+    if (didInboundDialLegAnswer(dialStatus, dialDuration)) {
       after(async () => {
         try {
           await handleAnsweredInbound({
@@ -340,9 +342,7 @@ export async function POST(req: NextRequest) {
     // Determine if the operator answered (dial leg reached in-progress / completed with duration)
     // Twilio Dial action fires with DialCallStatus=completed when the forwarded call ends.
     // We treat a completed dial with any duration as "was answered".
-    const wasAnswered =
-      dialStatus === "in-progress" ||
-      (dialStatus === "completed" && dialDuration !== null && parseInt(dialDuration) > 0);
+    const wasAnswered = didInboundDialLegAnswer(dialStatus, dialDuration);
 
     // Determine if this is a missed call:
     // - call_status=no-answer on the initial inbound leg means caller hung up before we answered
