@@ -135,6 +135,95 @@ const ZIP_TO_CITY: Record<string, string> = {
   "83864": "Sandpoint", "83869": "Spirit Lake", "83871": "Tensed", "83876": "Worley",
 };
 
+const STREET_SUFFIX_TOKENS = new Set([
+  "st", "street", "ave", "avenue", "rd", "road", "dr", "drive", "ln", "lane", "ct", "court",
+  "cir", "circle", "blvd", "boulevard", "pl", "place", "way", "ter", "terrace", "trl", "trail",
+  "hwy", "highway",
+]);
+
+const STREET_CONTINUATION_TOKENS = new Set([
+  "n", "s", "e", "w", "ne", "nw", "se", "sw",
+  "apt", "unit", "ste", "suite", "trlr", "lot",
+]);
+
+function splitStreetAndCityPrefix(value: string): { streetAddress: string | null; city: string | null } {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) return { streetAddress: null, city: null };
+
+  const colonParts = normalized.split(":");
+  if (colonParts.length === 2) {
+    return {
+      streetAddress: cleanString(colonParts[0]),
+      city: normalizeCityString(colonParts[1]),
+    };
+  }
+
+  const tokens = normalized.split(" ");
+  let boundaryIndex = -1;
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = tokens[i].replace(/[.,]/g, "").toLowerCase();
+    if (!STREET_SUFFIX_TOKENS.has(token)) continue;
+    boundaryIndex = i;
+    while (boundaryIndex + 1 < tokens.length) {
+      const nextToken = tokens[boundaryIndex + 1].replace(/[.,]/g, "").toLowerCase();
+      if (STREET_CONTINUATION_TOKENS.has(nextToken) || /^\d+[a-z]?$/i.test(nextToken)) {
+        boundaryIndex += 1;
+        continue;
+      }
+      break;
+    }
+  }
+
+  if (boundaryIndex === -1 || boundaryIndex >= tokens.length - 1) {
+    return { streetAddress: cleanString(normalized), city: null };
+  }
+
+  return {
+    streetAddress: cleanString(tokens.slice(0, boundaryIndex + 1).join(" ")),
+    city: normalizeCityString(tokens.slice(boundaryIndex + 1).join(" ")),
+  };
+}
+
+function parseAddressTail(
+  address: string | null | undefined,
+  fallbackZip?: string | null,
+): {
+  streetAddress: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
+} {
+  const cleaned = cleanString(address);
+  if (!cleaned) {
+    return { streetAddress: null, city: null, state: null, zip: null };
+  }
+
+  const normalized = cleaned.replace(/\s+/g, " ").trim();
+  const withZipMatch = normalized.match(/^(.*)\s+([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/);
+  if (withZipMatch) {
+    const prefix = splitStreetAndCityPrefix(withZipMatch[1] ?? "");
+    const streetAddress = prefix.streetAddress ?? cleanString(withZipMatch[1]?.replace(/[:;,]\s*$/, "")) ?? normalized;
+    const city = prefix.city ?? null;
+    const state = cleanString(withZipMatch[2])?.toUpperCase() ?? null;
+    const zip = cleanString(withZipMatch[3]) ?? null;
+
+    return { streetAddress, city, state, zip };
+  }
+
+  const withoutZipMatch = normalized.match(/^(.*)\s+([A-Za-z]{2})$/);
+  if (!withoutZipMatch) {
+    return { streetAddress: normalized, city: null, state: null, zip: cleanString(fallbackZip) };
+  }
+
+  const prefix = splitStreetAndCityPrefix(withoutZipMatch[1] ?? "");
+  const streetAddress = prefix.streetAddress ?? cleanString(withoutZipMatch[1]?.replace(/[:;,]\s*$/, "")) ?? normalized;
+  const city = prefix.city ?? null;
+  const state = cleanString(withoutZipMatch[2])?.toUpperCase() ?? null;
+  const zip = cleanString(fallbackZip) ?? null;
+
+  return { streetAddress, city, state, zip };
+}
+
 function inferCountyFromCityOrZip(city: string | null, zip: string | null): string | null {
   if (zip) {
     const z = zip.trim().slice(0, 5);
@@ -160,6 +249,7 @@ function normalizeCityString(city: string | null | undefined): string | null {
   if (!cleaned) return null;
   return cleaned
     .replace(/\s+/g, " ")
+    .replace(/,\s*$/, "")
     .replace(/\s*,\s*[A-Z]{2}$/i, "")
     .trim();
 }
@@ -214,12 +304,16 @@ function confidenceLabel(score: number): "high" | "medium" | "low" {
 export function normalizeInboundCandidate(input: InboundIntakeInput): NormalizedInboundCandidate {
   const rawText = cleanString(input.rawText) ?? null;
   const ownerName = cleanString(input.ownerName) ?? inferName(rawText);
-  const propertyAddress = cleanString(input.propertyAddress) ?? inferAddress(rawText);
+  const rawPropertyAddress = cleanString(input.propertyAddress) ?? inferAddress(rawText);
+  const parsedAddressTail = parseAddressTail(rawPropertyAddress, cleanString(input.propertyZip));
+  const normalizedZip = cleanString(input.propertyZip) ?? parsedAddressTail.zip;
+  const normalizedState = cleanString(input.propertyState)?.toUpperCase() ?? parsedAddressTail.state;
+  const propertyAddress = parsedAddressTail.streetAddress ?? rawPropertyAddress;
   const phone = cleanPhone(cleanString(input.phone) ?? inferPhone(rawText));
   const email = cleanEmail(cleanString(input.email) ?? inferEmail(rawText));
-  const propertyCityResolution = resolveMarketCity(input.propertyCity ?? null, input.propertyZip ?? null);
+  const propertyCityResolution = resolveMarketCity(parsedAddressTail.city ?? input.propertyCity ?? null, normalizedZip);
   const county = cleanString(input.county)?.toLowerCase()
-    ?? inferCountyFromCityOrZip(propertyCityResolution.city, input.propertyZip ?? null)
+    ?? inferCountyFromCityOrZip(propertyCityResolution.city, normalizedZip)
     ?? inferCounty(rawText);
   const warnings: string[] = [];
 
@@ -248,8 +342,8 @@ export function normalizeInboundCandidate(input: InboundIntakeInput): Normalized
     email,
     propertyAddress,
     propertyCity: propertyCityResolution.city,
-    propertyState: cleanString(input.propertyState)?.toUpperCase() ?? null,
-    propertyZip: cleanString(input.propertyZip),
+    propertyState: normalizedState,
+    propertyZip: normalizedZip,
     mailingAddress: cleanString(input.mailingAddress),
     mailingCity: cleanString(input.mailingCity),
     mailingState: cleanString(input.mailingState)?.toUpperCase() ?? null,

@@ -152,7 +152,7 @@ describe("buildNormalizedVendorCandidate", () => {
 
     expect(candidate.ownerName).toBe("Renae Banks");
     expect(candidate.phone).toBe("5093893805");
-    expect(candidate.propertyAddress).toBe("34124 N Newport hwy trlr 29: Chattaroy, WA 99003");
+    expect(candidate.propertyAddress).toBe("34124 N Newport hwy trlr 29");
     expect(candidate.propertyCity).toBe("Chattaroy");
     expect(candidate.propertyState).toBe("WA");
     expect(candidate.propertyZip).toBe("99003");
@@ -173,5 +173,28 @@ describe("buildNormalizedVendorCandidate", () => {
     expect(candidate.propertyCity).toBe("Deer Park");
     expect(candidate.propertyState).toBe("WA");
     expect(candidate.propertyZip).toBe("99006");
+  });
+
+  it("prefers the city embedded in the address line over a generic vendor city", () => {
+    const candidate = buildNormalizedVendorCandidate({
+      "": JSON.stringify({
+        name: "Crystal Adams",
+        phone: "++1 509 771 6782",
+        address: "2285 Basin St Sw Ephrata WA",
+        city: "Spokane",
+        state: "WA",
+        zip: "98823",
+        message: "Mobile / Manufactured Home Reason for Selling: Relocating",
+      }),
+    }, {
+      sourceVendor: "lead_house",
+      sourceChannel: "vendor_inbound",
+      intakeMethod: "lead_house_webhook",
+    });
+
+    expect(candidate.propertyAddress).toBe("2285 Basin St Sw");
+    expect(candidate.propertyCity).toBe("Ephrata");
+    expect(candidate.propertyState).toBe("WA");
+    expect(candidate.propertyZip).toBe("98823");
   });
 });
