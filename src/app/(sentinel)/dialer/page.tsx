@@ -4782,6 +4782,7 @@ function CompactCallHistoryRow({ entry, allHistory, onDial }: { entry: CallHisto
   const hasLead = Boolean(entry.lead_id);
   const hasNotes = Boolean(entry.notes?.trim() || entry.ai_summary?.trim());
   const phoneLabel = formatUsPhone(phoneDigits);
+  const streetLabel = entry.address?.split(",")[0]?.trim() || null;
   const displayDisposition = (() => {
     switch (entry.disposition) {
       case "agent_no_answer":
@@ -4817,19 +4818,17 @@ function CompactCallHistoryRow({ entry, allHistory, onDial }: { entry: CallHisto
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 min-w-0">
-                <p className="truncate text-sm font-medium text-foreground/90">
-                  {entry.owner_name ?? phoneLabel}
-                </p>
-                <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/35">
-                  {directionLabel}
-                </span>
-              </div>
-              {entry.owner_name && (
-                <p className="mt-0.5 truncate text-xs font-mono text-muted-foreground/45">
-                  {phoneLabel}
+              <p className="text-sm font-semibold leading-tight text-foreground/92 break-words">
+                {entry.owner_name ?? streetLabel ?? phoneLabel}
+              </p>
+              {streetLabel && (
+                <p className="mt-0.5 truncate text-xs text-foreground/62">
+                  {streetLabel}
                 </p>
               )}
+              <p className="mt-0.5 truncate text-[11px] font-mono text-muted-foreground/45">
+                {phoneLabel}
+              </p>
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
@@ -4862,6 +4861,9 @@ function CompactCallHistoryRow({ entry, allHistory, onDial }: { entry: CallHisto
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/35">
+              {directionLabel}
+            </span>
             <span className={`text-[11px] px-1.5 py-0.5 rounded-[6px] border font-semibold uppercase tracking-wider ${style.color} ${style.bg}`}>
               {displayDisposition}
             </span>
