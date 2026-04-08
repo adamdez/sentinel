@@ -21,6 +21,7 @@ import {
   Inbox,
   Heart,
   CircleCheckBig,
+  Skull,
   type LucideIcon,
 } from "lucide-react";
 
@@ -46,6 +47,7 @@ export const primaryItems: NavItem[] = [
   { label: "Negotiation", href: "/sales-funnel/negotiation", icon: Handshake },
   { label: "Disposition", href: "/sales-funnel/disposition", icon: ShieldCheck },
   { label: "Nurture", href: "/sales-funnel/nurture", icon: Heart },
+  { label: "Dead", href: "/sales-funnel/dead", icon: Skull },
   { label: "Closed", href: "/sales-funnel/closed", icon: CircleCheckBig },
   { label: "Drive By", href: "/drive-by", icon: Car },
 ];

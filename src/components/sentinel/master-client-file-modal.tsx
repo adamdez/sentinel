@@ -138,7 +138,7 @@ import { supabase } from "@/lib/supabase";
 
 import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
 
-import { getAllowedTransitions } from "@/lib/lead-guardrails";
+import { getAllowedTransitions, requiresNextAction } from "@/lib/lead-guardrails";
 
 import { LeadDossierPanel } from "@/components/sentinel/lead-dossier-panel";
 
@@ -253,6 +253,8 @@ import {
   CLOSEOUT_PRESETS,
 
   OUTCOME_PRESET_DEFAULTS,
+
+  WORKFLOW_STAGE_OPTIONS,
 
   SELLER_TIMELINE_OPTIONS,
 
@@ -843,26 +845,7 @@ function selectCallAssistCards(cf: ClientFile): { defaultCards: CallAssistCard[]
 
 
 const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "comps", "dossier", "legal"]);
-
-
-
-const WORKFLOW_STAGE_OPTIONS: Array<{ id: WorkflowStageId; label: string }> = [
-
-  { id: "prospect", label: "New" },
-
-  { id: "lead", label: "Lead" },
-
-  { id: "negotiation", label: "Negotiation" },
-
-  { id: "disposition", label: "Disposition" },
-
-  { id: "nurture", label: "Nurture" },
-
-  { id: "dead", label: "Dead" },
-
-  { id: "closed", label: "Closed" },
-
-];
+const VISIBLE_WORKFLOW_STAGE_IDS = new Set<WorkflowStageId>(WORKFLOW_STAGE_OPTIONS.map((stage) => stage.id));
 
 function recordFromUnknown(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -4461,7 +4444,7 @@ export function MasterClientFileModal({
   const [reassigning, setReassigning] = useState(false);
 
   const [activeUpdating, setActiveUpdating] = useState(false);
-  const [moveTarget, setMoveTarget] = useState<"" | "active" | "drive_by">("");
+  const [moveTarget, setMoveTarget] = useState<"" | WorkflowStageId | "drive_by">("");
 
 
 
@@ -8087,6 +8070,122 @@ export function MasterClientFileModal({
     return headers;
   }, []);
 
+  const moveLeadToStage = useCallback(async (
+    targetStage: WorkflowStageId,
+    options?: {
+      nextAction?: string | null;
+      nextActionDueAt?: string | null;
+    },
+  ) => {
+    if (!clientFile) return false;
+
+    const currentStatus = normalizeWorkflowStage(clientFile.status);
+    if (targetStage === currentStatus) {
+      toast.message(`Already in ${workflowStageLabel(currentStatus)}`);
+      return false;
+    }
+
+    const precheck = precheckWorkflowStageChange({
+      currentStatus: currentStatus as LeadStatus,
+      targetStatus: targetStage as LeadStatus,
+      assignedTo: clientFile.assignedTo,
+      lastContactAt: clientFile.lastContactAt,
+      totalCalls: clientFile.totalCalls,
+      dispositionCode: clientFile.dispositionCode,
+      nextCallScheduledAt: clientFile.nextCallScheduledAt,
+      nextFollowUpAt: clientFile.followUpDate,
+      qualificationRoute: clientFile.qualificationRoute,
+      notes: clientFile.notes,
+      noteDraft,
+    });
+
+    if (!precheck.ok) {
+      toast.error(precheck.blockingReason ?? "Stage move is missing required context.");
+      return false;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      toast.error("Session expired - cannot move stage");
+      return false;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      toast.error("Not logged in - cannot move stage");
+      return false;
+    }
+
+    setStageUpdating(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("status, lock_version")
+        .eq("id", clientFile.id)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Stage update failed: Could not fetch current lead state.");
+        return false;
+      }
+
+      const nextAction = options?.nextAction ?? (stageNextAction.trim() || null);
+      const nextActionDueAt = options?.nextActionDueAt ?? (stageNextActionDueAt || null);
+
+      const res = await fetch(`/api/leads/${clientFile.id}/stage`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          to: targetStage,
+          lock_version: current.lock_version ?? 0,
+          next_action: nextAction,
+          next_action_due_at: nextActionDueAt,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 409) {
+          toast.error("Lead was updated by someone else - refresh and try again");
+        } else if (res.status === 422) {
+          toast.error(`Invalid stage transition: ${data.detail ?? data.error ?? "not allowed"}`);
+        } else {
+          toast.error(`Stage update failed: ${data.error ?? `HTTP ${res.status}`}`);
+        }
+        return false;
+      }
+
+      if (data.lock_version != null) setStageLockVersion(data.lock_version);
+      setStageNextAction("");
+      setStageNextActionDueAt("");
+      setSelectedStage(targetStage);
+
+      applyLeadPatchFromResponse(data);
+
+      toast.success(`Moved to ${workflowStageLabel(targetStage)}`);
+      onRefresh?.();
+      return true;
+    } catch (err) {
+      console.error("[MCF] Move stage error:", err);
+      toast.error("Stage update failed: Network error");
+      return false;
+    } finally {
+      setStageUpdating(false);
+    }
+  }, [
+    applyLeadPatchFromResponse,
+    clientFile,
+    noteDraft,
+    onRefresh,
+    stageNextAction,
+    stageNextActionDueAt,
+  ]);
+
   const handleToggleActive = useCallback(async () => {
     if (!clientFile?.id || activeUpdating) return;
     const currentStage = normalizeWorkflowStage(clientFile.status);
@@ -8153,7 +8252,7 @@ export function MasterClientFileModal({
     }
   }, [activeUpdating, clientFile, onRefresh, stageLockVersion]);
 
-  const handleApplyMove = useCallback(() => {
+  const handleApplyMove = useCallback(async () => {
     if (!clientFile || !moveTarget) return;
 
     if (moveTarget === "active") {
@@ -8178,11 +8277,52 @@ export function MasterClientFileModal({
       setMoveTarget("");
       return;
     }
+
+    const targetStage = moveTarget as WorkflowStageId;
+    const currentStatus = normalizeWorkflowStage(clientFile.status);
+    const allowedByStateMachine = new Set<WorkflowStageId>([
+      ...getAllowedTransitions(currentStatus as LeadStatus).filter((status): status is WorkflowStageId => VISIBLE_WORKFLOW_STAGE_IDS.has(status as WorkflowStageId)),
+      ...allowedTransitions
+        .map((transition) => transition.status as WorkflowStageId)
+        .filter((status) => VISIBLE_WORKFLOW_STAGE_IDS.has(status)),
+    ]);
+
+    if (!allowedByStateMachine.has(targetStage)) {
+      toast.error(`Cannot move from ${workflowStageLabel(currentStatus)} to ${workflowStageLabel(targetStage)}.`);
+      setMoveTarget("");
+      return;
+    }
+
+    const transition =
+      allowedTransitions.find((candidate) => candidate.status === targetStage)
+      ?? {
+        status: targetStage,
+        requires_next_action: requiresNextAction(targetStage as LeadStatus),
+      };
+
+    setSelectedStage(targetStage);
+    setCloseoutOpen(false);
+    setNextActionEditorOpen(false);
+    setNoteEditorOpen(false);
+
+    if (transition.requires_next_action) {
+      setStageNextAction(clientFile.nextAction?.trim() ?? "");
+      setStageNextActionDueAt(clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate ?? "");
+      setMoveTarget("");
+      return;
+    }
+
+    await moveLeadToStage(targetStage, {
+      nextAction: null,
+      nextActionDueAt: null,
+    });
     setMoveTarget("");
   }, [
+    allowedTransitions,
     clientFile,
     handleToggleActive,
     moveTarget,
+    moveLeadToStage,
   ]);
 
   if (!clientFile) return null;
@@ -8197,6 +8337,31 @@ export function MasterClientFileModal({
   const currentStage = normalizeWorkflowStage(clientFile.status);
 
   const currentStageLabel = workflowStageLabel(clientFile.status);
+
+  const allowedMoveStatuses = useMemo(() => new Set<WorkflowStageId>([
+    ...getAllowedTransitions(currentStage as LeadStatus).filter((status): status is WorkflowStageId => VISIBLE_WORKFLOW_STAGE_IDS.has(status as WorkflowStageId)),
+    ...allowedTransitions
+      .map((transition) => transition.status as WorkflowStageId)
+      .filter((status) => VISIBLE_WORKFLOW_STAGE_IDS.has(status)),
+  ]), [allowedTransitions, currentStage]);
+
+  const moveMenuOptions = useMemo(() => ([
+    ...WORKFLOW_STAGE_OPTIONS.map((stage) => ({
+      id: stage.id,
+      label:
+        stage.id === currentStage
+          ? `${stage.label} (Current)`
+          : allowedMoveStatuses.has(stage.id)
+            ? stage.label
+            : `${stage.label} (Unavailable)`,
+      disabled: stage.id === currentStage || !allowedMoveStatuses.has(stage.id),
+    })),
+    {
+      id: "drive_by" as const,
+      label: "Drive By",
+      disabled: false,
+    },
+  ]), [allowedMoveStatuses, currentStage]);
 
   const marketLabel = marketDisplayLabel(clientFile.county);
 
@@ -8518,20 +8683,22 @@ export function MasterClientFileModal({
                     <CheckCircle2 className="h-3 w-3 text-foreground" />Log Outcome
 
                   </Button>
-                  <div className="flex items-center gap-1">
-                    <select
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1">
+                      <select
                       value={moveTarget}
-                      onChange={(e) => setMoveTarget(e.target.value as "" | "active" | "drive_by")}
+                      onChange={(e) => setMoveTarget(e.target.value as "" | WorkflowStageId | "drive_by")}
                       className="h-7 rounded-md border border-overlay-15 bg-overlay-4 px-2 text-xs text-foreground focus:outline-none focus:border-primary/30"
                       aria-label="Move file"
                     >
-                      <option value="">Move…</option>
-                      {(currentStage === "prospect" || currentStage === "nurture") && (
-                        <option value="active">Active</option>
-                      )}
-                      <option value="drive_by">Drive By</option>
-                    </select>
-                    <Button
+                      <option value="">Move...</option>
+                      {moveMenuOptions.map((option) => (
+                        <option key={option.id} value={option.id} disabled={option.disabled}>
+                          {option.label}
+                        </option>
+                      ))}
+                      </select>
+                      <Button
                       size="sm"
                       variant="outline"
                       className="h-7 px-2 text-xs border-overlay-15"
@@ -8539,7 +8706,11 @@ export function MasterClientFileModal({
                       onClick={handleApplyMove}
                     >
                       Go
-                    </Button>
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      All folders are shown. Unavailable moves stay disabled.
+                    </p>
                   </div>
 
                   <details className="relative ml-auto">
