@@ -8325,7 +8325,6 @@ export function MasterClientFileModal({
     moveLeadToStage,
   ]);
 
-  const overviewClientFile = clientFile;
   const currentStage = normalizeWorkflowStage(clientFile?.status ?? "lead");
   const currentStageLabel = workflowStageLabel(clientFile?.status ?? "lead");
 
@@ -9233,7 +9232,7 @@ export function MasterClientFileModal({
                         </div>
 
                         <OverviewTab
-                          cf={overviewClientFile}
+                          cf={clientFile}
                           computedArv={computedArv}
                           activityRefreshToken={activityRefreshToken}
                           onDial={handleDial}
