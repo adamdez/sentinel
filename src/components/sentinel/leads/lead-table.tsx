@@ -7,7 +7,6 @@ import {
   ArrowUp,
   ArrowDown,
   Phone,
-  Star,
   AlertTriangle,
   Trash2,
   Loader2,
@@ -40,7 +39,7 @@ interface LeadTableProps {
   sortDir: SortDir;
   onSort: (field: SortField) => void;
   onSelect: (id: string) => void;
-  onToggleActive: (id: string, active: boolean) => void | Promise<void>;
+  onMoveToActive: (id: string) => void | Promise<void>;
   onRemoveMany?: (leadIds: string[]) => void;
   onRefresh?: () => void;
   currentUserId: string;
@@ -120,7 +119,7 @@ export function LeadTable({
   sortDir,
   onSort,
   onSelect,
-  onToggleActive,
+  onMoveToActive,
   onRemoveMany,
   onRefresh,
   currentUserId,
@@ -723,21 +722,22 @@ export function LeadTable({
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    aria-label={lead.pinned ? "Remove Active" : "Mark Active"}
-                    aria-pressed={lead.pinned}
-                    onClick={() => onToggleActive(lead.id, !lead.pinned)}
+                    aria-label={lead.status === "lead" ? "Already Active" : "Move to Active"}
+                    aria-pressed={lead.status === "lead"}
+                    disabled={lead.status === "lead"}
+                    onClick={() => void onMoveToActive(lead.id)}
                     className={cn(
-                      "h-6 w-6 flex items-center justify-center rounded-md transition-colors",
-                      lead.pinned
-                        ? "text-primary hover:bg-primary/10"
-                        : "text-muted-foreground/35 hover:text-muted-foreground hover:bg-muted/10",
+                      "h-6 w-6 flex items-center justify-center rounded-md transition-colors disabled:cursor-default",
+                      lead.status === "lead"
+                        ? "text-primary bg-primary/10"
+                        : "text-muted-foreground/35 hover:text-primary hover:bg-primary/10",
                     )}
                   >
-                    <Star className={cn("h-3.5 w-3.5", lead.pinned && "fill-current")} />
+                    <UserCheck className="h-3.5 w-3.5" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent className="text-sm">
-                  {lead.pinned ? "Remove Active" : "Mark Active"}
+                  {lead.status === "lead" ? "Already Active" : "Move to Active"}
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -753,7 +753,7 @@ export function LeadTable({
                     >
                       {lead.address}{lead.city ? `, ${lead.city}` : ""}
                     </span>
-                    {lead.pinned && (
+                    {lead.status === "lead" && (
                       <span className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-400 font-bold border border-blue-500/25">
                         Active
                       </span>

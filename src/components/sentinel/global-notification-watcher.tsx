@@ -96,8 +96,8 @@ export function GlobalNotificationWatcher() {
             icon: <UserPlus className="h-4 w-4 text-emerald-400" />,
             duration: 15_000,
             action: {
-              label: "View Active",
-              onClick: () => router.push("/pipeline"),
+              label: "View Lead Queue",
+              onClick: () => router.push("/leads"),
             },
           },
         );

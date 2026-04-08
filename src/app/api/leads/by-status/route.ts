@@ -4,15 +4,16 @@ import { createServerClient } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const VALID_STATUSES = ["staging", "prospect", "lead", "negotiation", "disposition", "nurture", "dead", "closed"];
+const VALID_STATUSES = ["staging", "prospect", "lead", "active", "negotiation", "disposition", "nurture", "dead", "closed"];
 
 // ── GET /api/leads/by-status?status=X — Shared handler for funnel pages ──
 
 export async function GET(req: NextRequest) {
   try {
-    const status = req.nextUrl.searchParams.get("status");
+    const requestedStatus = req.nextUrl.searchParams.get("status");
+    const status = requestedStatus === "active" ? "lead" : requestedStatus;
 
-    if (!status || !VALID_STATUSES.includes(status)) {
+    if (!requestedStatus || !VALID_STATUSES.includes(requestedStatus)) {
       return NextResponse.json(
         { error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}`, leads: [], properties: {}, predictions: {} },
         { status: 400 },

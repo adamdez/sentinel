@@ -18,6 +18,7 @@ import { useLeads } from "@/hooks/use-leads";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { filterChip } from "@/lib/sentinel-ui";
+import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 
 type InboundFilter = "overdue" | "new_inbound" | "due_today" | "callbacks_today";
 
@@ -122,29 +123,58 @@ function LeadsPageInner() {
     },
   });
 
-  const handleToggleActive = useCallback(async (leadId: string, active: boolean) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      toast.error("Session expired");
-      return;
+  const handleMoveToActive = useCallback(async (leadId: string) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("status, lock_version, next_action, next_action_due_at, next_call_scheduled_at, next_follow_up_at, follow_up_date")
+        .eq("id", leadId)
+        .single();
+
+      if (fetchErr || !current) {
+        toast.error("Could not load lead. Refresh and try again.");
+        return;
+      }
+
+      if (current.status === "lead") {
+        toast.message("Already in Active");
+        return;
+      }
+
+      const headers = await getAuthenticatedProspectPatchHeaders(current.lock_version ?? 0);
+      const nextAction =
+        typeof current.next_action === "string" && current.next_action.trim()
+          ? current.next_action.trim()
+          : "Initial seller outreach";
+      const nextActionDueAt =
+        current.next_action_due_at
+        ?? current.next_call_scheduled_at
+        ?? current.next_follow_up_at
+        ?? current.follow_up_date
+        ?? null;
+
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          lead_id: leadId,
+          status: "lead",
+          next_action: nextAction,
+          next_action_due_at: nextActionDueAt,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.detail ?? data.error ?? "Could not move lead to Active");
+        return;
+      }
+
+      toast.success("Moved to Active");
+      await refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not move lead to Active");
     }
-
-    const res = await fetch(`/api/leads/${leadId}/pin`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ pinned: active }),
-    });
-
-    if (!res.ok) {
-      toast.error("Failed to update");
-      return;
-    }
-
-    toast.success(active ? "Marked Active" : "Removed from Active");
-    await refetch();
   }, [refetch]);
 
   return (
@@ -349,7 +379,7 @@ function LeadsPageInner() {
           sortDir={sortDir}
           onSort={toggleSort}
           onSelect={setSelectedId}
-          onToggleActive={handleToggleActive}
+          onMoveToActive={handleMoveToActive}
           onRemoveMany={removeLeadsByIds}
           onRefresh={refetch}
           currentUserId={currentUser.id}

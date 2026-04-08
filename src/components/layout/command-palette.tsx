@@ -21,6 +21,9 @@ import {
   Flame,
   User,
   Upload,
+  Heart,
+  CircleCheckBig,
+  Handshake,
   type LucideIcon,
 } from "lucide-react";
 import { useSentinelStore } from "@/lib/store";
@@ -82,8 +85,11 @@ const NAV_COMMANDS: NavCommand[] = [
   { kind: "nav", label: "Today", href: "/dashboard", icon: LayoutDashboard, group: "Core" },
   { kind: "nav", label: "Lead Queue", href: "/leads", icon: Users, group: "Core" },
   { kind: "nav", label: "Dialer", href: "/dialer", icon: Phone, group: "Core" },
-  { kind: "nav", label: "Dispo", href: "/dispo", icon: FileSignature, group: "Core" },
-  { kind: "nav", label: "Active", href: "/pipeline", icon: Zap, group: "Core" },
+  { kind: "nav", label: "Active", href: "/sales-funnel/active", icon: Zap, group: "Core" },
+  { kind: "nav", label: "Negotiation", href: "/sales-funnel/negotiation", icon: Handshake, group: "Core" },
+  { kind: "nav", label: "Disposition", href: "/sales-funnel/disposition", icon: FileSignature, group: "Core" },
+  { kind: "nav", label: "Nurture", href: "/sales-funnel/nurture", icon: Heart, group: "Core" },
+  { kind: "nav", label: "Closed", href: "/sales-funnel/closed", icon: CircleCheckBig, group: "Core" },
   { kind: "nav", label: "Property Research", href: "/properties/lookup", icon: MapPin, group: "Tools" },
   { kind: "nav", label: "Buyers", href: "/buyers", icon: Contact, group: "Tools" },
   { kind: "nav", label: "Ads", href: "/ads", icon: Home, group: "Tools" },

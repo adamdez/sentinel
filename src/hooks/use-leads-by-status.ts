@@ -126,6 +126,7 @@ interface UseLeadsByStatusOptions {
 
 export function useLeadsByStatus(status: string, opts: UseLeadsByStatusOptions = {}) {
   const { search = "", sortField = "composite_score", sortDir = "desc" } = opts;
+  const resolvedStatus = status === "active" ? "lead" : status;
 
   const [allRows, setAllRows] = useState<ProspectRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,10 +176,10 @@ export function useLeadsByStatus(status: string, opts: UseLeadsByStatusOptions =
   // Real-time: refetch on DB changes for this status
   useEffect(() => {
     const channel = supabase
-      .channel(`leads_${status}_realtime`)
+      .channel(`leads_${resolvedStatus}_realtime`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "leads", filter: `status=eq.${status}` },
+        { event: "*", schema: "public", table: "leads" },
         () => { fetchFromApi(); }
       )
       .on(
@@ -193,7 +194,7 @@ export function useLeadsByStatus(status: string, opts: UseLeadsByStatusOptions =
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [resolvedStatus]);
 
   // Client-side filter + sort
   const { rows, totalCount } = useMemo(() => {
@@ -214,7 +215,7 @@ export function useLeadsByStatus(status: string, opts: UseLeadsByStatusOptions =
         case "composite_score":
           return (b.composite_score - a.composite_score) * dir;
         case "updated_at":
-          return ((a.created_at ?? "").localeCompare(b.created_at ?? "")) * dir;
+          return ((a.updated_at ?? a.created_at ?? "").localeCompare(b.updated_at ?? b.created_at ?? "")) * dir;
         case "owner_name":
           return a.owner_name.localeCompare(b.owner_name) * dir;
         case "address":

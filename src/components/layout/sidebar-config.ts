@@ -19,6 +19,8 @@ import {
   Car,
   Contact,
   Inbox,
+  Heart,
+  CircleCheckBig,
   type LucideIcon,
 } from "lucide-react";
 
@@ -40,9 +42,12 @@ export const primaryItems: NavItem[] = [
   { label: "Lead Queue", href: "/leads", icon: Users },
   { label: "PPL Inbox", href: "/intake", icon: Inbox, badge: "intake-pending" },
   { label: "Dialer", href: "/dialer", icon: Phone },
-  { label: "Active", href: "/pipeline", icon: KanbanSquare },
+  { label: "Active", href: "/sales-funnel/active", icon: KanbanSquare },
+  { label: "Negotiation", href: "/sales-funnel/negotiation", icon: Handshake },
+  { label: "Disposition", href: "/sales-funnel/disposition", icon: ShieldCheck },
+  { label: "Nurture", href: "/sales-funnel/nurture", icon: Heart },
+  { label: "Closed", href: "/sales-funnel/closed", icon: CircleCheckBig },
   { label: "Drive By", href: "/drive-by", icon: Car },
-  { label: "Dispo", href: "/dispo", icon: Handshake },
 ];
 
 export const toolsSection: NavSection = {

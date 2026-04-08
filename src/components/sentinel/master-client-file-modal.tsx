@@ -8041,58 +8041,65 @@ export function MasterClientFileModal({
 
   const handleToggleActive = useCallback(async () => {
     if (!clientFile?.id || activeUpdating) return;
+    const currentStage = normalizeWorkflowStage(clientFile.status);
+    if (currentStage === "lead") {
+      toast.message("Already in Active");
+      return;
+    }
+    if (currentStage !== "prospect" && currentStage !== "nurture") {
+      toast.error("Move this file with the stage controls instead.");
+      return;
+    }
 
-    const nextActive = !clientFile.pinned;
     setActiveUpdating(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast.error("Session expired");
-        return;
-      }
-
-      const res = await fetch(`/api/leads/${clientFile.id}/pin`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ pinned: nextActive }),
+      const headers = await getAuthenticatedProspectPatchHeaders(stageLockVersion || clientFile.lockVersion || 0);
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          lead_id: clientFile.id,
+          status: "lead",
+          next_action: clientFile.nextAction?.trim() || "Initial seller outreach",
+          next_action_due_at: clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate ?? null,
+        }),
       });
 
       if (!res.ok) {
-        toast.error("Failed to update");
+        const data = await res.json().catch(() => ({})) as { error?: string; detail?: string };
+        toast.error(data.detail ?? data.error ?? "Failed to move to Active");
         return;
       }
 
       const data = await res.json().catch(() => null) as {
-        pinned?: boolean;
-        pinned_at?: string | null;
-        pinned_by?: string | null;
+        new_status?: string;
+        lock_version?: number;
+        next_action?: string | null;
+        next_action_due_at?: string | null;
       } | null;
 
       setClientFilePatch((prev) => ({
         ...(prev ?? {}),
-        pinned: data?.pinned ?? nextActive,
-        pinnedAt: data?.pinned_at ?? null,
-        pinnedBy: data?.pinned_by ?? null,
+        status: data?.new_status ?? "lead",
+        nextAction: data?.next_action ?? clientFile.nextAction ?? "Initial seller outreach",
+        nextActionDueAt: data?.next_action_due_at ?? clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate ?? null,
+        lockVersion: data?.lock_version ?? clientFile.lockVersion,
       }));
-      toast.success(nextActive ? "Marked Active" : "Removed from Active");
+      if (typeof data?.lock_version === "number") {
+        setStageLockVersion(data.lock_version);
+      }
+      toast.success("Moved to Active");
       onRefresh?.();
     } finally {
       setActiveUpdating(false);
     }
-  }, [clientFile?.id, clientFile?.pinned, onRefresh, activeUpdating]);
+  }, [activeUpdating, clientFile, onRefresh, stageLockVersion]);
 
   const handleApplyMove = useCallback(() => {
     if (!clientFile || !moveTarget) return;
 
     if (moveTarget === "active") {
-      if (clientFile.pinned) {
-        toast.message("Already Active");
-      } else {
-        void handleToggleActive();
-      }
+      void handleToggleActive();
       setMoveTarget("");
       return;
     }

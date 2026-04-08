@@ -104,8 +104,8 @@ const WEEKLY_EXCEPTION_ACTIONS: Record<string, WeeklyExceptionAction> = {
     href: "/dialer/review",
   },
   offers_down: {
-    label: "Open pipeline",
-    href: "/pipeline",
+    label: "Open Active",
+    href: "/sales-funnel/active",
   },
   zero_contracts_with_high_effort: {
     label: "Open tasks",

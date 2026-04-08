@@ -65,7 +65,7 @@ export function verseForRoute(pathname: string): string {
     "/leads": "and in the name of our God set up our banners!",
     "/dialer": "but we rise and stand upright.",
     "/dispo": "May he grant you your heart\u2019s desire",
-    "/pipeline": "May the LORD fulfill all your petitions!",
+    "/sales-funnel/active": "May the LORD fulfill all your petitions!",
     "/analytics": "May he remember all your offerings",
     "/settings": "May he send you help from the sanctuary",
     "/buyers": "but we trust in the name of the LORD our God.",

@@ -11,6 +11,7 @@ export interface ProspectRow {
   id: string;
   property_id: string;
   status: string;
+  updated_at: string | null;
   pinned: boolean;
   pinned_at: string | null;
   pinned_by: string | null;
@@ -22,6 +23,12 @@ export interface ProspectRow {
   notes: string | null;
   promoted_at: string | null;
   assigned_to: string | null;
+  next_action: string | null;
+  next_action_due_at: string | null;
+  next_call_scheduled_at: string | null;
+  next_follow_up_at: string | null;
+  last_contact_at: string | null;
+  total_calls: number;
   motivation_level: number | null;
   seller_timeline: SellerTimeline | null;
   condition_level: number | null;
@@ -123,6 +130,7 @@ function buildRows(leadsData: any[], propertiesMap: Record<string, any>, predict
       id: lead.id,
       property_id: lead.property_id,
       status: lead.status,
+      updated_at: lead.updated_at ?? null,
       pinned: lead.pinned === true,
       pinned_at: lead.pinned_at ?? null,
       pinned_by: lead.pinned_by ?? null,
@@ -134,6 +142,12 @@ function buildRows(leadsData: any[], propertiesMap: Record<string, any>, predict
       notes: lead.notes ?? null,
       promoted_at: lead.promoted_at ?? null,
       assigned_to: lead.assigned_to ?? null,
+      next_action: lead.next_action ?? null,
+      next_action_due_at: lead.next_action_due_at ?? null,
+      next_call_scheduled_at: lead.next_call_scheduled_at ?? null,
+      next_follow_up_at: lead.next_follow_up_at ?? null,
+      last_contact_at: lead.last_contact_at ?? null,
+      total_calls: lead.total_calls ?? 0,
       motivation_level: lead.motivation_level != null ? Number(lead.motivation_level) : null,
       seller_timeline: (lead.seller_timeline as SellerTimeline | null) ?? null,
       condition_level: lead.condition_level != null ? Number(lead.condition_level) : null,
