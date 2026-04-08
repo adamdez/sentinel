@@ -82,6 +82,7 @@ export const SOURCE_MAP: Record<string, string> = {
   pay_per_lead: "ppl",
   lead_house: "lead_house",
   leadhouse: "lead_house",
+  special_intake: "lead_house",
 
   // Referral
   referral: "referral",

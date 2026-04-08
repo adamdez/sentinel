@@ -6,7 +6,6 @@ import { AlertTriangle, ArrowUpDown, Briefcase, Clock, ExternalLink, Loader2, Se
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
-import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { Button } from "@/components/ui/button";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
@@ -14,7 +13,7 @@ import { supabase } from "@/lib/supabase";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 import type { ProspectRow } from "@/hooks/use-prospects";
 
-type ActiveSortField = "composite_score" | "owner_name" | "address" | "source" | "assigned_to" | "next_action" | "next_action_due_at" | "last_contact_at";
+type ActiveSortField = "owner_name" | "address" | "source" | "assigned_to" | "next_action" | "next_action_due_at" | "last_contact_at";
 type SortDir = "asc" | "desc";
 
 function labelOrDash(value: string | null | undefined): string {
@@ -92,8 +91,6 @@ export default function ActivePage() {
     const dir = sortDir === "asc" ? 1 : -1;
     return [...rawRows].sort((a, b) => {
       switch (sortField) {
-        case "composite_score":
-          return (a.composite_score - b.composite_score) * dir;
         case "owner_name":
           return a.owner_name.localeCompare(b.owner_name) * dir;
         case "address":
@@ -116,8 +113,7 @@ export default function ActivePage() {
   const stats = useMemo(() => {
     const overdue = rows.filter((row) => dueValue(row) < Date.now()).length;
     const unassigned = rows.filter((row) => !row.assigned_to).length;
-    const avgScore = rows.length ? Math.round(rows.reduce((sum, row) => sum + (row.composite_score ?? 0), 0) / rows.length) : 0;
-    return { active: rows.length, overdue, unassigned, avgScore };
+    return { active: rows.length, overdue, unassigned };
   }, [rows]);
 
   const toggleSort = (field: ActiveSortField) => {
@@ -126,7 +122,7 @@ export default function ActivePage() {
       return;
     }
     setSortField(field);
-    setSortDir(field === "composite_score" ? "desc" : "asc");
+    setSortDir("asc");
   };
 
   const handleMoveToNegotiation = async (row: ProspectRow, event: React.MouseEvent) => {
@@ -180,11 +176,10 @@ export default function ActivePage() {
           </Button>
         }
       >
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-3">
           <GlassCard glow><div className="flex items-center gap-3 p-4"><Briefcase className="h-5 w-5 text-primary" /><div><div className="text-2xl font-bold tabular-nums">{stats.active}</div><div className="text-xs text-muted-foreground">Active Files</div></div></div></GlassCard>
           <GlassCard glow><div className="flex items-center gap-3 p-4"><Clock className="h-5 w-5 text-foreground" /><div><div className="text-2xl font-bold tabular-nums">{stats.overdue}</div><div className="text-xs text-muted-foreground">Overdue Tasks</div></div></div></GlassCard>
           <GlassCard glow><div className="flex items-center gap-3 p-4"><UserRoundCheck className="h-5 w-5 text-foreground" /><div><div className="text-2xl font-bold tabular-nums">{stats.unassigned}</div><div className="text-xs text-muted-foreground">Unassigned</div></div></div></GlassCard>
-          <GlassCard glow><div className="flex items-center gap-3 p-4"><ArrowUpDown className="h-5 w-5 text-foreground" /><div><div className="text-2xl font-bold tabular-nums">{stats.avgScore}</div><div className="text-xs text-muted-foreground">Avg Score</div></div></div></GlassCard>
         </div>
 
         <div className="flex items-center gap-3 mb-4">
@@ -217,7 +212,6 @@ export default function ActivePage() {
                     <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("next_action_due_at")}>Due {sortField === "next_action_due_at" && (sortDir === "desc" ? "↓" : "↑")}</th>
                     <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("last_contact_at")}>Last Touch {sortField === "last_contact_at" && (sortDir === "desc" ? "↓" : "↑")}</th>
                     <th className="text-left px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("assigned_to")}>Assigned {sortField === "assigned_to" && (sortDir === "desc" ? "↓" : "↑")}</th>
-                    <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("composite_score")}>Score {sortField === "composite_score" && (sortDir === "desc" ? "↓" : "↑")}</th>
                     <th className="text-right px-4 py-3">Actions</th>
                   </tr>
                 </thead>
@@ -231,7 +225,6 @@ export default function ActivePage() {
                         <td className="px-3 py-3 text-center"><span className="text-xs text-muted-foreground">{dueLabel(row)}</span></td>
                         <td className="px-3 py-3 text-center"><span className="text-xs text-muted-foreground">{lastTouchLabel(row.last_contact_at)}</span></td>
                         <td className="px-3 py-3"><span className="text-xs text-muted-foreground truncate">{row.assigned_to ? (assignedNames[row.assigned_to] ?? "Assigned") : "Unassigned"}</span></td>
-                        <td className="px-3 py-3 text-center"><AIScoreBadge score={{ composite: row.composite_score, motivation: row.motivation_score, equityVelocity: 0, urgency: 0, historicalConversion: 0, aiBoost: row.ai_boost, label: row.score_label }} size="sm" /></td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-sm text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]" onClick={(event) => void handleMoveToNegotiation(row, event)} disabled={movingId === row.id}>

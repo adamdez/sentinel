@@ -4,11 +4,10 @@ import { useState, useMemo, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Clock, Search, Loader2, ArrowUpDown, AlertTriangle,
-  RefreshCw, ExternalLink, CheckCircle2, XCircle, Zap,
+  RefreshCw, ExternalLink, CheckCircle2, XCircle,
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
-import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -17,8 +16,6 @@ import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import type { ProspectRow } from "@/hooks/use-prospects";
-
-// ── Constants ─────────────────────────────────────────────────────────
 
 const DISTRESS_LABELS: Record<string, string> = {
   probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
@@ -69,17 +66,14 @@ function enrichmentBadge(flags: Record<string, unknown>): { label: string; color
   return { label: "Queued", color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25" };
 }
 
-// ── Page ──────────────────────────────────────────────────────────────
-
 export default function StagingPage() {
   const [search, setSearch] = useState("");
-  const [sortField, setSortField] = useState<"composite_score" | "updated_at" | "owner_name" | "address">("updated_at");
+  const [sortField, setSortField] = useState<"updated_at" | "owner_name" | "address">("updated_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const { rows: rawRows, loading, error, totalCount, refetch } = useLeadsByStatus("staging", { search, sortField, sortDir });
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Default sort by created_at ascending (FIFO)
   const rows = useMemo(() => {
     if (sortField !== "updated_at") return rawRows;
     return [...rawRows].sort((a, b) => {
@@ -92,14 +86,8 @@ export default function StagingPage() {
   const stats = useMemo(() => {
     const total = rows.length;
     const enriched = rows.filter((r) => (r.owner_flags?.enrichment_status as string) === "enriched").length;
-    const stuck = rows.filter((r) => {
-      const attempts = Number(r.owner_flags?.enrichment_attempts ?? 0);
-      return attempts >= 3;
-    }).length;
-    const avgScore = total > 0
-      ? Math.round(rows.reduce((s, r) => s + r.composite_score, 0) / total)
-      : 0;
-    return { total, enriched, stuck, avgScore };
+    const stuck = rows.filter((r) => Number(r.owner_flags?.enrichment_attempts ?? 0) >= 3).length;
+    return { total, enriched, stuck };
   }, [rows]);
 
   const toggleSort = (field: typeof sortField) => {
@@ -114,7 +102,6 @@ export default function StagingPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error("Not logged in"); return; }
 
-      // Fetch current lock_version for optimistic locking
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: current } = await (supabase.from("leads") as any)
         .select("lock_version")
@@ -140,11 +127,7 @@ export default function StagingPage() {
         return;
       }
 
-      toast.success(
-        newStatus === "prospect"
-          ? `${row.owner_name} promoted to Prospects`
-          : `${row.owner_name} moved to Dead`
-      );
+      toast.success(newStatus === "prospect" ? `${row.owner_name} promoted to Prospects` : `${row.owner_name} moved to Dead`);
       refetch();
     } catch {
       toast.error("Network error");
@@ -165,8 +148,7 @@ export default function StagingPage() {
           </Button>
         }
       >
-        {/* Summary stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-3">
           <GlassCard glow>
             <div className="flex items-center gap-3 p-4">
               <Clock className="h-5 w-5 text-primary" />
@@ -194,18 +176,8 @@ export default function StagingPage() {
               </div>
             </div>
           </GlassCard>
-          <GlassCard glow>
-            <div className="flex items-center gap-3 p-4">
-              <Zap className="h-5 w-5 text-foreground" />
-              <div>
-                <div className="text-2xl font-bold tabular-nums">{stats.avgScore}</div>
-                <div className="text-xs text-muted-foreground">Avg Score</div>
-              </div>
-            </div>
-          </GlassCard>
         </div>
 
-        {/* Search */}
         <div className="flex items-center gap-3 mb-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
@@ -223,7 +195,6 @@ export default function StagingPage() {
           </div>
         </div>
 
-        {/* Table */}
         <GlassCard hover={false}>
           {error && (
             <div className="p-6 text-center text-foreground text-sm flex items-center justify-center gap-2">
@@ -250,9 +221,6 @@ export default function StagingPage() {
                     </th>
                     <th className="text-center px-3 py-3">Status</th>
                     <th className="text-center px-3 py-3">Signals</th>
-                    <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("composite_score")}>
-                      Score {sortField === "composite_score" && (sortDir === "desc" ? "↓" : "↑")}
-                    </th>
                     <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("updated_at")}>
                       Days In Queue {sortField === "updated_at" && (sortDir === "desc" ? "↓" : "↑")}
                     </th>
@@ -298,13 +266,7 @@ export default function StagingPage() {
                             )}
                           </td>
                           <td className="px-3 py-3 text-center">
-                            <AIScoreBadge score={{ composite: row.composite_score, motivation: row.motivation_score, equityVelocity: 0, urgency: 0, historicalConversion: 0, aiBoost: row.ai_boost, label: row.score_label }} size="sm" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <span className={cn(
-                              "text-xs tabular-nums",
-                              days >= 7 ? "text-foreground" : days >= 3 ? "text-foreground" : "text-muted-foreground"
-                            )}>
+                            <span className={cn("text-xs tabular-nums", days >= 7 ? "text-foreground" : days >= 3 ? "text-foreground" : "text-muted-foreground")}>
                               {days}d
                             </span>
                           </td>

@@ -5,14 +5,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, ArrowUpDown, CircleCheckBig, DollarSign, ExternalLink, Loader2, Search } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
-import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import type { ProspectRow } from "@/hooks/use-prospects";
 
-type ClosedSortField = "updated_at" | "owner_name" | "address" | "composite_score";
+type ClosedSortField = "updated_at" | "owner_name" | "address";
 type SortDir = "asc" | "desc";
 
 function timeAgo(iso: string | null | undefined): string {
@@ -42,8 +41,6 @@ export default function ClosedPage() {
           return a.owner_name.localeCompare(b.owner_name) * dir;
         case "address":
           return a.address.localeCompare(b.address) * dir;
-        case "composite_score":
-          return (a.composite_score - b.composite_score) * dir;
         case "updated_at":
         default:
           return ((a.updated_at ?? a.created_at ?? "").localeCompare(b.updated_at ?? b.created_at ?? "")) * dir;
@@ -53,8 +50,7 @@ export default function ClosedPage() {
 
   const stats = useMemo(() => {
     const totalValue = rows.reduce((sum, row) => sum + (row.estimated_value ?? 0), 0);
-    const avgScore = rows.length ? Math.round(rows.reduce((sum, row) => sum + (row.composite_score ?? 0), 0) / rows.length) : 0;
-    return { total: rows.length, totalValue, avgScore };
+    return { total: rows.length, totalValue };
   }, [rows]);
 
   const toggleSort = (field: ClosedSortField) => {
@@ -63,7 +59,7 @@ export default function ClosedPage() {
       return;
     }
     setSortField(field);
-    setSortDir(field === "composite_score" ? "desc" : "asc");
+    setSortDir("asc");
   };
 
   return (
@@ -73,10 +69,9 @@ export default function ClosedPage() {
         description="Closed files and completed outcomes."
         actions={<Button size="sm" variant="outline" onClick={() => refetch()} className="gap-2">{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowUpDown className="h-3.5 w-3.5" />}Refresh</Button>}
       >
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2">
           <GlassCard glow><div className="flex items-center gap-3 p-4"><CircleCheckBig className="h-5 w-5 text-primary" /><div><div className="text-2xl font-bold tabular-nums">{stats.total}</div><div className="text-xs text-muted-foreground">Closed Files</div></div></div></GlassCard>
           <GlassCard glow><div className="flex items-center gap-3 p-4"><DollarSign className="h-5 w-5 text-foreground" /><div><div className="text-2xl font-bold tabular-nums">{formatCurrency(stats.totalValue)}</div><div className="text-xs text-muted-foreground">Estimated Value</div></div></div></GlassCard>
-          <GlassCard glow><div className="flex items-center gap-3 p-4"><ArrowUpDown className="h-5 w-5 text-foreground" /><div><div className="text-2xl font-bold tabular-nums">{stats.avgScore}</div><div className="text-xs text-muted-foreground">Avg Score</div></div></div></GlassCard>
         </div>
 
         <div className="flex items-center gap-3 mb-4">
@@ -98,7 +93,6 @@ export default function ClosedPage() {
                 <thead>
                   <tr className="border-b border-overlay-6 text-sm text-muted-foreground uppercase tracking-wider">
                     <th className="text-left px-4 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("owner_name")}>Owner / Property {sortField === "owner_name" && (sortDir === "desc" ? "↓" : "↑")}</th>
-                    <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("composite_score")}>Score {sortField === "composite_score" && (sortDir === "desc" ? "↓" : "↑")}</th>
                     <th className="text-right px-3 py-3">Value</th>
                     <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("updated_at")}>Closed {sortField === "updated_at" && (sortDir === "desc" ? "↓" : "↑")}</th>
                     <th className="text-right px-4 py-3">Actions</th>
@@ -109,7 +103,6 @@ export default function ClosedPage() {
                     {rows.map((row, index) => (
                       <motion.tr key={row.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ delay: index * 0.02 }} className="border-b border-overlay-4 hover:bg-overlay-4 cursor-pointer transition-colors" onClick={() => setSelectedRow(row)}>
                         <td className="px-4 py-3 max-w-[320px]"><div className="text-sm font-semibold truncate">{row.owner_name || "Unknown owner"}</div><div className="text-xs text-muted-foreground truncate">{row.address || "No address"}</div></td>
-                        <td className="px-3 py-3 text-center"><AIScoreBadge score={{ composite: row.composite_score, motivation: row.motivation_score, equityVelocity: 0, urgency: 0, historicalConversion: 0, aiBoost: row.ai_boost, label: row.score_label }} size="sm" /></td>
                         <td className="px-3 py-3 text-right"><div className="text-sm font-medium tabular-nums">{row.estimated_value ? formatCurrency(row.estimated_value) : "—"}</div></td>
                         <td className="px-3 py-3 text-center"><span className="text-xs text-muted-foreground">{timeAgo(row.updated_at ?? row.created_at)}</span></td>
                         <td className="px-4 py-3 text-right"><Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(event) => { event.stopPropagation(); setSelectedRow(row); }}><ExternalLink className="h-3.5 w-3.5" /></Button></td>

@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
-import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
@@ -17,8 +16,6 @@ import { supabase } from "@/lib/supabase";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 import { toast } from "sonner";
 import type { ProspectRow } from "@/hooks/use-prospects";
-
-// ── Constants ─────────────────────────────────────────────────────────
 
 const DISTRESS_LABELS: Record<string, string> = {
   probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
@@ -68,11 +65,9 @@ function timeAgo(dateStr: string | null): string {
   return `${Math.round(days / 365)}y ago`;
 }
 
-// ── Page ──────────────────────────────────────────────────────────────
-
 export default function DeadPage() {
   const [search, setSearch] = useState("");
-  const [sortField, setSortField] = useState<"composite_score" | "updated_at" | "owner_name" | "address">("updated_at");
+  const [sortField, setSortField] = useState<"updated_at" | "owner_name" | "address">("updated_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const { rows, loading, error, totalCount, refetch } = useLeadsByStatus("dead", { search, sortField, sortDir });
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
@@ -95,7 +90,6 @@ export default function DeadPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error("Not logged in"); return; }
 
-      // Fetch current lock_version for optimistic locking
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: current } = await (supabase.from("leads") as any)
         .select("lock_version")
@@ -144,38 +138,12 @@ export default function DeadPage() {
           </Button>
         }
       >
-        {/* Summary stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <GlassCard glow>
-            <div className="flex items-center gap-3 p-4">
-              <Skull className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <div className="text-2xl font-bold tabular-nums">{stats.total}</div>
-                <div className="text-xs text-muted-foreground">Total Dead</div>
-              </div>
-            </div>
-          </GlassCard>
-          <GlassCard glow>
-            <div className="flex items-center gap-3 p-4">
-              <AlertTriangle className="h-5 w-5 text-foreground" />
-              <div>
-                <div className="text-2xl font-bold tabular-nums">{stats.thisMonth}</div>
-                <div className="text-xs text-muted-foreground">This Month</div>
-              </div>
-            </div>
-          </GlassCard>
-          <GlassCard glow>
-            <div className="flex items-center gap-3 p-4">
-              <RotateCcw className="h-5 w-5 text-primary" />
-              <div>
-                <div className="text-2xl font-bold tabular-nums">{stats.avgDays}d</div>
-                <div className="text-xs text-muted-foreground">Avg Time Dead</div>
-              </div>
-            </div>
-          </GlassCard>
+          <GlassCard glow><div className="flex items-center gap-3 p-4"><Skull className="h-5 w-5 text-muted-foreground" /><div><div className="text-2xl font-bold tabular-nums">{stats.total}</div><div className="text-xs text-muted-foreground">Total Dead</div></div></div></GlassCard>
+          <GlassCard glow><div className="flex items-center gap-3 p-4"><AlertTriangle className="h-5 w-5 text-foreground" /><div><div className="text-2xl font-bold tabular-nums">{stats.thisMonth}</div><div className="text-xs text-muted-foreground">This Month</div></div></div></GlassCard>
+          <GlassCard glow><div className="flex items-center gap-3 p-4"><RotateCcw className="h-5 w-5 text-primary" /><div><div className="text-2xl font-bold tabular-nums">{stats.avgDays}d</div><div className="text-xs text-muted-foreground">Avg Time Dead</div></div></div></GlassCard>
         </div>
 
-        {/* Search */}
         <div className="flex items-center gap-3 mb-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
@@ -190,22 +158,10 @@ export default function DeadPage() {
           <div className="text-xs text-muted-foreground">Review periodically for resurrection</div>
         </div>
 
-        {/* Table */}
         <GlassCard hover={false}>
-          {error && (
-            <div className="p-6 text-center text-foreground text-sm flex items-center justify-center gap-2">
-              <AlertTriangle className="h-4 w-4" />{error}
-              <Button size="sm" variant="outline" onClick={() => refetch()} className="ml-2 text-xs">Retry</Button>
-            </div>
-          )}
-
-          {loading && !error && rows.length === 0 && (
-            <div className="p-12 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading dead leads...</div>
-          )}
-
-          {!loading && !error && rows.length === 0 && (
-            <div className="p-12 text-center text-muted-foreground">No dead leads</div>
-          )}
+          {error && <div className="p-6 text-center text-foreground text-sm flex items-center justify-center gap-2"><AlertTriangle className="h-4 w-4" />{error}<Button size="sm" variant="outline" onClick={() => refetch()} className="ml-2 text-xs">Retry</Button></div>}
+          {loading && !error && rows.length === 0 && <div className="p-12 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading dead leads...</div>}
+          {!loading && !error && rows.length === 0 && <div className="p-12 text-center text-muted-foreground">No dead leads</div>}
 
           {rows.length > 0 && (
             <div className="overflow-x-auto">
@@ -214,9 +170,6 @@ export default function DeadPage() {
                   <tr className="border-b border-overlay-6 text-sm text-muted-foreground uppercase tracking-wider">
                     <th className="text-left px-4 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("address")}>
                       Property {sortField === "address" && (sortDir === "desc" ? "↓" : "↑")}
-                    </th>
-                    <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("composite_score")}>
-                      Score {sortField === "composite_score" && (sortDir === "desc" ? "↓" : "↑")}
                     </th>
                     <th className="text-left px-3 py-3">Distress</th>
                     <th className="text-left px-3 py-3">Notes / Reason</th>
@@ -246,9 +199,6 @@ export default function DeadPage() {
                             <div className="text-sm font-semibold truncate">{row.address || "No address"}</div>
                             <div className="text-xs text-muted-foreground truncate">{row.owner_name}</div>
                           </td>
-                          <td className="px-3 py-3 text-center">
-                            <AIScoreBadge score={{ composite: row.composite_score, motivation: row.motivation_score, equityVelocity: 0, urgency: 0, historicalConversion: 0, aiBoost: row.ai_boost, label: row.score_label }} size="sm" />
-                          </td>
                           <td className="px-3 py-3">
                             <div className="flex flex-wrap gap-1 max-w-[160px]">
                               {validSignals.length > 0 ? (
@@ -261,21 +211,11 @@ export default function DeadPage() {
                               )}
                             </div>
                           </td>
-                          <td className="px-3 py-3 max-w-[200px]">
-                            <div className="text-xs text-muted-foreground truncate">{row.notes || "—"}</div>
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <span className="text-xs text-muted-foreground">{timeAgo(row.created_at)}</span>
-                          </td>
+                          <td className="px-3 py-3 max-w-[200px]"><div className="text-xs text-muted-foreground truncate">{row.notes || "—"}</div></td>
+                          <td className="px-3 py-3 text-center"><span className="text-xs text-muted-foreground">{timeAgo(row.created_at)}</span></td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 gap-1 text-sm text-primary border-primary/20 hover:border-primary/40 hover:bg-primary/[0.06]"
-                                onClick={(e) => handleResurrect(row, e)}
-                                disabled={isResurrecting}
-                              >
+                              <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-sm text-primary border-primary/20 hover:border-primary/40 hover:bg-primary/[0.06]" onClick={(e) => handleResurrect(row, e)} disabled={isResurrecting}>
                                 {isResurrecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
                                 Resurrect
                               </Button>

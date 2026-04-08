@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
-import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
@@ -19,8 +18,6 @@ import { supabase } from "@/lib/supabase";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
 import { toast } from "sonner";
 import type { ProspectRow } from "@/hooks/use-prospects";
-
-// ── Constants ─────────────────────────────────────────────────────────
 
 const DISTRESS_LABELS: Record<string, string> = {
   probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
@@ -63,11 +60,9 @@ function daysAgo(dateStr: string | null): number {
   return Math.max(Math.round((Date.now() - new Date(dateStr).getTime()) / 86400000), 0);
 }
 
-// ── Page ──────────────────────────────────────────────────────────────
-
 export default function NegotiationPage() {
   const [search, setSearch] = useState("");
-  const [sortField, setSortField] = useState<"composite_score" | "updated_at" | "owner_name" | "address">("composite_score");
+  const [sortField, setSortField] = useState<"updated_at" | "owner_name" | "address">("updated_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const { rows, loading, error, totalCount, refetch } = useLeadsByStatus("negotiation", { search, sortField, sortDir });
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
@@ -137,38 +132,12 @@ export default function NegotiationPage() {
           </Button>
         }
       >
-        {/* Summary stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <GlassCard glow>
-            <div className="flex items-center gap-3 p-4">
-              <Handshake className="h-5 w-5 text-primary" />
-              <div>
-                <div className="text-2xl font-bold tabular-nums">{stats.active}</div>
-                <div className="text-xs text-muted-foreground">Active</div>
-              </div>
-            </div>
-          </GlassCard>
-          <GlassCard glow>
-            <div className="flex items-center gap-3 p-4">
-              <DollarSign className="h-5 w-5 text-foreground" />
-              <div>
-                <div className="text-2xl font-bold tabular-nums">{formatCurrency(stats.totalValue)}</div>
-                <div className="text-xs text-muted-foreground">Total Value</div>
-              </div>
-            </div>
-          </GlassCard>
-          <GlassCard glow>
-            <div className="flex items-center gap-3 p-4">
-              <Clock className="h-5 w-5 text-foreground" />
-              <div>
-                <div className="text-2xl font-bold tabular-nums">{stats.avgDays}d</div>
-                <div className="text-xs text-muted-foreground">Avg Stage Time</div>
-              </div>
-            </div>
-          </GlassCard>
+          <GlassCard glow><div className="flex items-center gap-3 p-4"><Handshake className="h-5 w-5 text-primary" /><div><div className="text-2xl font-bold tabular-nums">{stats.active}</div><div className="text-xs text-muted-foreground">Active</div></div></div></GlassCard>
+          <GlassCard glow><div className="flex items-center gap-3 p-4"><DollarSign className="h-5 w-5 text-foreground" /><div><div className="text-2xl font-bold tabular-nums">{formatCurrency(stats.totalValue)}</div><div className="text-xs text-muted-foreground">Total Value</div></div></div></GlassCard>
+          <GlassCard glow><div className="flex items-center gap-3 p-4"><Clock className="h-5 w-5 text-foreground" /><div><div className="text-2xl font-bold tabular-nums">{stats.avgDays}d</div><div className="text-xs text-muted-foreground">Avg Stage Time</div></div></div></GlassCard>
         </div>
 
-        {/* Search */}
         <div className="flex items-center gap-3 mb-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
@@ -180,27 +149,13 @@ export default function NegotiationPage() {
               className="w-full pl-9 pr-3 py-2 rounded-[10px] text-sm bg-overlay-4 border border-overlay-8 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all"
             />
           </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            {totalCount} negotiation{totalCount !== 1 ? "s" : ""}
-          </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">{totalCount} negotiation{totalCount !== 1 ? "s" : ""}</div>
         </div>
 
-        {/* Table */}
         <GlassCard hover={false}>
-          {error && (
-            <div className="p-6 text-center text-foreground text-sm flex items-center justify-center gap-2">
-              <AlertTriangle className="h-4 w-4" />{error}
-              <Button size="sm" variant="outline" onClick={() => refetch()} className="ml-2 text-xs">Retry</Button>
-            </div>
-          )}
-
-          {loading && !error && rows.length === 0 && (
-            <div className="p-12 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading negotiations...</div>
-          )}
-
-          {!loading && !error && rows.length === 0 && (
-            <div className="p-12 text-center text-muted-foreground">No active negotiations</div>
-          )}
+          {error && <div className="p-6 text-center text-foreground text-sm flex items-center justify-center gap-2"><AlertTriangle className="h-4 w-4" />{error}<Button size="sm" variant="outline" onClick={() => refetch()} className="ml-2 text-xs">Retry</Button></div>}
+          {loading && !error && rows.length === 0 && <div className="p-12 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading negotiations...</div>}
+          {!loading && !error && rows.length === 0 && <div className="p-12 text-center text-muted-foreground">No active negotiations</div>}
 
           {rows.length > 0 && (
             <div className="overflow-x-auto">
@@ -212,9 +167,6 @@ export default function NegotiationPage() {
                     </th>
                     <th className="text-left px-3 py-3">Distress</th>
                     <th className="text-right px-3 py-3">Value / Equity</th>
-                    <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("composite_score")}>
-                      Score {sortField === "composite_score" && (sortDir === "desc" ? "↓" : "↑")}
-                    </th>
                     <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("updated_at")}>
                       Stage Time {sortField === "updated_at" && (sortDir === "desc" ? "↓" : "↑")}
                     </th>
@@ -227,7 +179,6 @@ export default function NegotiationPage() {
                       const validSignals = (row.tags ?? []).filter((t) => DISTRESS_LABELS[t]);
                       const days = daysAgo(row.created_at);
                       const equityColor = (row.equity_percent ?? 0) >= 60 ? "text-primary" : (row.equity_percent ?? 0) >= 30 ? "text-foreground" : "text-muted-foreground";
-                      const stageColor = days > 14 ? "text-foreground" : days > 7 ? "text-foreground" : "text-foreground";
 
                       return (
                         <motion.tr
@@ -262,31 +213,15 @@ export default function NegotiationPage() {
                             </div>
                           </td>
                           <td className="px-3 py-3 text-center">
-                            <AIScoreBadge score={{ composite: row.composite_score, motivation: row.motivation_score, equityVelocity: 0, urgency: 0, historicalConversion: 0, aiBoost: row.ai_boost, label: row.score_label }} size="sm" />
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <span className={cn("text-sm font-semibold tabular-nums", stageColor)}>{days}d</span>
+                            <span className="text-sm font-semibold tabular-nums text-foreground">{days}d</span>
                           </td>
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 gap-1 text-sm text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]"
-                                onClick={(e) => { e.stopPropagation(); setLogCallRow(row); }}
-                                title="Log Call"
-                              >
+                              <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-sm text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]" onClick={(e) => { e.stopPropagation(); setLogCallRow(row); }} title="Log Call">
                                 <PhoneOutgoing className="h-3 w-3" />
                                 Log Call
                               </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-2 gap-1 text-sm text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]"
-                                onClick={(e) => handleMoveToDispo(row, e)}
-                                disabled={movingToDispo === row.id}
-                                title="Move to Disposition"
-                              >
+                              <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-sm text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]" onClick={(e) => handleMoveToDispo(row, e)} disabled={movingToDispo === row.id} title="Move to Disposition">
                                 {movingToDispo === row.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRightCircle className="h-3 w-3" />}
                                 Dispo
                               </Button>

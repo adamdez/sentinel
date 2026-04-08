@@ -8,15 +8,12 @@ import {
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
-import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { Button } from "@/components/ui/button";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import { toast } from "sonner";
 import type { ProspectRow } from "@/hooks/use-prospects";
-
-// ── Constants ─────────────────────────────────────────────────────────
 
 const DISTRESS_LABELS: Record<string, string> = {
   probate: "Probate", pre_foreclosure: "Pre-Foreclosure", tax_lien: "Tax Lien",
@@ -74,31 +71,19 @@ function followUpUrgency(dateStr: string | null): { label: string; color: string
   target.setHours(0, 0, 0, 0);
   const diffDays = Math.round((target.getTime() - now.getTime()) / 86400000);
 
-  if (diffDays < 0) {
-    return { label: `${Math.abs(diffDays)}d overdue`, color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25", sortKey: diffDays };
-  }
-  if (diffDays === 0) {
-    return { label: "Today", color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25", sortKey: 0 };
-  }
-  if (diffDays <= 3) {
-    return { label: `In ${diffDays}d`, color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25", sortKey: diffDays };
-  }
-  if (diffDays <= 7) {
-    return { label: `In ${diffDays}d`, color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25", sortKey: diffDays };
-  }
+  if (diffDays < 0) return { label: `${Math.abs(diffDays)}d overdue`, color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25", sortKey: diffDays };
+  if (diffDays === 0) return { label: "Today", color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25", sortKey: 0 };
+  if (diffDays <= 7) return { label: `In ${diffDays}d`, color: "text-foreground", bgColor: "bg-muted/10", borderColor: "border-border/25", sortKey: diffDays };
   return { label: `In ${diffDays}d`, color: "text-muted-foreground", bgColor: "", borderColor: "", sortKey: diffDays };
 }
 
-// ── Page ──────────────────────────────────────────────────────────────
-
 export default function NurturePage() {
   const [search, setSearch] = useState("");
-  const [sortField, setSortField] = useState<"composite_score" | "updated_at" | "owner_name" | "address">("updated_at");
+  const [sortField, setSortField] = useState<"updated_at" | "owner_name" | "address">("updated_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const { rows: rawRows, loading, error, totalCount, refetch } = useLeadsByStatus("nurture", { search, sortField, sortDir });
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
 
-  // Sort nurture by follow-up urgency (overdue first) when using default sort
   const rows = useMemo(() => {
     if (sortField !== "updated_at") return rawRows;
     return [...rawRows].sort((a, b) => {
@@ -145,38 +130,12 @@ export default function NurturePage() {
           </Button>
         }
       >
-        {/* Summary stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-          <GlassCard glow>
-            <div className="flex items-center gap-3 p-4">
-              <Heart className="h-5 w-5 text-primary" />
-              <div>
-                <div className="text-2xl font-bold tabular-nums">{stats.total}</div>
-                <div className="text-xs text-muted-foreground">In Nurture</div>
-              </div>
-            </div>
-          </GlassCard>
-          <GlassCard glow>
-            <div className="flex items-center gap-3 p-4">
-              <AlertTriangle className="h-5 w-5 text-foreground" />
-              <div>
-                <div className="text-2xl font-bold tabular-nums text-foreground">{stats.overdue}</div>
-                <div className="text-xs text-muted-foreground">Overdue</div>
-              </div>
-            </div>
-          </GlassCard>
-          <GlassCard glow>
-            <div className="flex items-center gap-3 p-4">
-              <Clock className="h-5 w-5 text-foreground" />
-              <div>
-                <div className="text-2xl font-bold tabular-nums">{stats.dueThisWeek}</div>
-                <div className="text-xs text-muted-foreground">Due This Week</div>
-              </div>
-            </div>
-          </GlassCard>
+          <GlassCard glow><div className="flex items-center gap-3 p-4"><Heart className="h-5 w-5 text-primary" /><div><div className="text-2xl font-bold tabular-nums">{stats.total}</div><div className="text-xs text-muted-foreground">In Nurture</div></div></div></GlassCard>
+          <GlassCard glow><div className="flex items-center gap-3 p-4"><AlertTriangle className="h-5 w-5 text-foreground" /><div><div className="text-2xl font-bold tabular-nums text-foreground">{stats.overdue}</div><div className="text-xs text-muted-foreground">Overdue</div></div></div></GlassCard>
+          <GlassCard glow><div className="flex items-center gap-3 p-4"><Clock className="h-5 w-5 text-foreground" /><div><div className="text-2xl font-bold tabular-nums">{stats.dueThisWeek}</div><div className="text-xs text-muted-foreground">Due This Week</div></div></div></GlassCard>
         </div>
 
-        {/* Search */}
         <div className="flex items-center gap-3 mb-4">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
@@ -188,27 +147,13 @@ export default function NurturePage() {
               className="w-full pl-9 pr-3 py-2 rounded-[10px] text-sm bg-overlay-4 border border-overlay-8 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all"
             />
           </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            {totalCount} lead{totalCount !== 1 ? "s" : ""}
-          </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">{totalCount} lead{totalCount !== 1 ? "s" : ""}</div>
         </div>
 
-        {/* Table */}
         <GlassCard hover={false}>
-          {error && (
-            <div className="p-6 text-center text-foreground text-sm flex items-center justify-center gap-2">
-              <AlertTriangle className="h-4 w-4" />{error}
-              <Button size="sm" variant="outline" onClick={() => refetch()} className="ml-2 text-xs">Retry</Button>
-            </div>
-          )}
-
-          {loading && !error && rows.length === 0 && (
-            <div className="p-12 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading nurture leads...</div>
-          )}
-
-          {!loading && !error && rows.length === 0 && (
-            <div className="p-12 text-center text-muted-foreground">No leads in nurture pipeline</div>
-          )}
+          {error && <div className="p-6 text-center text-foreground text-sm flex items-center justify-center gap-2"><AlertTriangle className="h-4 w-4" />{error}<Button size="sm" variant="outline" onClick={() => refetch()} className="ml-2 text-xs">Retry</Button></div>}
+          {loading && !error && rows.length === 0 && <div className="p-12 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading nurture leads...</div>}
+          {!loading && !error && rows.length === 0 && <div className="p-12 text-center text-muted-foreground">No leads in nurture pipeline</div>}
 
           {rows.length > 0 && (
             <div className="overflow-x-auto">
@@ -219,9 +164,6 @@ export default function NurturePage() {
                       Property {sortField === "address" && (sortDir === "desc" ? "↓" : "↑")}
                     </th>
                     <th className="text-left px-3 py-3">Distress</th>
-                    <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("composite_score")}>
-                      Score {sortField === "composite_score" && (sortDir === "desc" ? "↓" : "↑")}
-                    </th>
                     <th className="text-left px-3 py-3">Notes</th>
                     <th className="text-center px-3 py-3">Last Contact</th>
                     <th className="text-center px-3 py-3 cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort("updated_at")}>
@@ -262,15 +204,8 @@ export default function NurturePage() {
                               )}
                             </div>
                           </td>
-                          <td className="px-3 py-3 text-center">
-                            <AIScoreBadge score={{ composite: row.composite_score, motivation: row.motivation_score, equityVelocity: 0, urgency: 0, historicalConversion: 0, aiBoost: row.ai_boost, label: row.score_label }} size="sm" />
-                          </td>
-                          <td className="px-3 py-3 max-w-[180px]">
-                            <div className="text-xs text-muted-foreground truncate">{row.notes || "—"}</div>
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <span className="text-xs text-muted-foreground">{timeAgo(row.created_at)}</span>
-                          </td>
+                          <td className="px-3 py-3 max-w-[180px]"><div className="text-xs text-muted-foreground truncate">{row.notes || "—"}</div></td>
+                          <td className="px-3 py-3 text-center"><span className="text-xs text-muted-foreground">{timeAgo(row.created_at)}</span></td>
                           <td className="px-3 py-3 text-center">
                             {urgency.bgColor ? (
                               <span className={cn("text-sm px-2 py-0.5 rounded border font-semibold", urgency.color, urgency.bgColor, urgency.borderColor)}>

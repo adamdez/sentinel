@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { ProspectRow } from "@/hooks/use-prospects";
 import type { AIScore } from "@/lib/types";
+import { buildLeadSourceLabel } from "@/lib/lead-source";
 
 // ── Row builder (mirrors use-prospects.ts buildRows) ────────────────────
 
@@ -41,7 +42,7 @@ function buildRows(leadsData: any[], propertiesMap: Record<string, any>, predict
       pinned_at: lead.pinned_at ?? null,
       pinned_by: lead.pinned_by ?? null,
       priority: lead.priority ?? 0,
-      source: lead.source ?? "unknown",
+      source: buildLeadSourceLabel(lead.source, lead.source_vendor, lead.source_list_name),
       source_vendor: (lead.source_vendor as string | null) ?? null,
       source_list_name: (lead.source_list_name as string | null) ?? null,
       tags: lead.tags ?? [],

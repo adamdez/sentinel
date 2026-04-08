@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
-import { AIScoreBadge } from "@/components/sentinel/ai-score-badge";
 import { MasterClientFileModal, clientFileFromProspect } from "@/components/sentinel/master-client-file-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +22,6 @@ import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client"
 import { canUserClaimLead } from "@/lib/lead-ownership";
 import { useSentinelStore } from "@/lib/store";
 import { useModal } from "@/providers/modal-provider";
-import type { AIScore } from "@/lib/types";
 import { toast } from "sonner";
 import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-badge";
 import { deleteLeadCustomerFile } from "@/lib/lead-write-helpers";
@@ -64,14 +62,6 @@ const SOURCE_FILTERS = [
   { value: "propertyradar", label: "PropertyRadar" },
   { value: "ranger_push", label: "Ranger" },
   { value: "manual", label: "Manual" },
-];
-
-const SCORE_FILTERS: { value: string; label: string; color: string; min: number; max: number }[] = [
-  { value: "", label: "All", color: "text-muted-foreground", min: 0, max: 100 },
-  { value: "platinum", label: "Platinum", color: "text-primary-300", min: 85, max: 100 },
-  { value: "gold", label: "Gold", color: "text-foreground", min: 65, max: 84 },
-  { value: "silver", label: "Silver", color: "text-foreground", min: 40, max: 64 },
-  { value: "bronze", label: "Bronze", color: "text-foreground", min: 0, max: 39 },
 ];
 
 const SIGNAL_FILTERS: { value: string; label: string; color: string }[] = [
@@ -211,18 +201,6 @@ function timeAgo(dateStr: string | null): string {
   return `${Math.round(days / 365)}y ago`;
 }
 
-function buildAIScore(p: ProspectRow): AIScore {
-  return {
-    composite: p.composite_score,
-    motivation: p.motivation_score,
-    equityVelocity: Math.round((p.equity_percent ?? 50) * 0.8),
-    urgency: Math.min(p.composite_score + 5, 100),
-    historicalConversion: Math.round(p.deal_score * 0.9),
-    aiBoost: p.ai_boost,
-    label: p.score_label,
-  };
-}
-
 // ── Page ──────────────────────────────────────────────────────────────
 
 export default function ProspectsPage() {
@@ -231,10 +209,9 @@ export default function ProspectsPage() {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [sortField, setSortField] = useState<SortField>("composite_score");
+  const [sortField, setSortField] = useState<SortField>("promoted_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [sourceFilter, setSourceFilter] = useState("");
-  const [scoreFilter, setScoreFilter] = useState("");
   const [signalFilter, setSignalFilter] = useState("");
   const [selectedProspect, setSelectedProspect] = useState<ProspectRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -298,11 +275,7 @@ export default function ProspectsPage() {
     sourceFilter: sourceFilter || undefined,
   });
 
-  // Apply score label filter + signal filter client-side
-  const activeFilter = SCORE_FILTERS.find((f) => f.value === scoreFilter);
-  let filteredProspects = activeFilter && activeFilter.value
-    ? prospects.filter((p) => p.composite_score >= activeFilter.min && p.composite_score <= activeFilter.max)
-    : prospects;
+  let filteredProspects = prospects;
 
   if (signalFilter) {
     filteredProspects = filteredProspects.filter((p) => p.tags.includes(signalFilter));
@@ -329,11 +302,6 @@ export default function ProspectsPage() {
 
   const rangerCount = prospects.filter((p) => p.source === "ranger_push").length;
   const prCount = prospects.filter((p) => p.source === "propertyradar").length;
-  const platinumCnt = prospects.filter((p) => p.composite_score >= 85).length;
-  const goldCnt = prospects.filter((p) => p.composite_score >= 65 && p.composite_score < 85).length;
-  const silverCnt = prospects.filter((p) => p.composite_score >= 40 && p.composite_score < 65).length;
-  const bronzeCnt = prospects.filter((p) => p.composite_score < 40).length;
-
   const toggleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDir((d) => (d === "desc" ? "asc" : "desc"));
@@ -601,29 +569,6 @@ export default function ProspectsPage() {
             ))}
           </div>
 
-          {/* Score label filter */}
-          <div className="flex items-center gap-1">
-            <span className="text-sm text-muted-foreground font-medium">Score:</span>
-            {SCORE_FILTERS.map((sf) => {
-              const count = sf.value === "platinum" ? platinumCnt : sf.value === "gold" ? goldCnt : sf.value === "silver" ? silverCnt : sf.value === "bronze" ? bronzeCnt : prospects.length;
-              return (
-                <button
-                  key={sf.value}
-                  onClick={() => setScoreFilter(sf.value)}
-                  className={cn(
-                    "text-sm px-2 py-1 rounded border transition-all inline-flex items-center gap-1",
-                    scoreFilter === sf.value
-                      ? `${sf.color} border-current/20 bg-current/8`
-                      : "text-muted-foreground border-glass-border hover:text-foreground hover:border-overlay-10"
-                  )}
-                >
-                  {sf.label}
-                  <span className="opacity-60">({count})</span>
-                </button>
-              );
-            })}
-          </div>
-
           {/* Distress signal filter */}
           <div className="flex items-center gap-1">
             <span className="text-sm text-muted-foreground font-medium">Signal:</span>
@@ -652,7 +597,7 @@ export default function ProspectsPage() {
           {/* Sort controls */}
           <div className="flex items-center gap-1 ml-auto">
             <ArrowUpDown className="h-3 w-3 text-muted-foreground" />
-            {(["composite_score", "promoted_at", "owner_name"] as SortField[]).map((field) => (
+            {(["promoted_at", "owner_name"] as SortField[]).map((field) => (
               <button
                 key={field}
                 onClick={() => toggleSort(field)}
@@ -663,14 +608,14 @@ export default function ProspectsPage() {
                     : "text-muted-foreground border-glass-border hover:text-foreground"
                 )}
               >
-                {field === "composite_score" ? "Score" : field === "promoted_at" ? "Date" : "Name"}
+                {field === "promoted_at" ? "Date" : "Name"}
                 {sortField === field && <SortIcon className="h-2.5 w-2.5" />}
               </button>
             ))}
           </div>
 
           <Badge variant="outline" className="text-sm shrink-0">
-            {scoreFilter ? filteredProspects.length : totalCount} prospects
+            {filteredProspects.length} prospects
           </Badge>
         </div>
 
@@ -717,15 +662,6 @@ export default function ProspectsPage() {
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground w-[140px]">Phone</th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">Distress Signals</th>
                   <th className="text-right p-3 text-xs font-medium text-muted-foreground">Est. Value</th>
-                  <th
-                    className="text-left p-3 text-xs font-medium text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                    onClick={() => toggleSort("composite_score")}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      AI Score
-                      {sortField === "composite_score" && <SortIcon className="h-2.5 w-2.5 text-primary" />}
-                    </span>
-                  </th>
                   <th className="text-left p-3 text-xs font-medium text-muted-foreground">Last Activity</th>
                   <th className="text-right p-3 text-xs font-medium text-muted-foreground">Actions</th>
                 </tr>
@@ -860,17 +796,6 @@ export default function ProspectsPage() {
                               <p className="text-sm font-semibold text-primary">Free &amp; Clear</p>
                             ) : null}
                           </div>
-                        </td>
-
-                        {/* ── AI Score ── */}
-                        <td className="p-3">
-                          <AIScoreBadge
-                            score={buildAIScore(p)}
-                            size="sm"
-                            tags={p.tags}
-                            equityPercent={p.equity_percent}
-                            isAbsentee={p.is_absentee}
-                          />
                         </td>
 
                         {/* ── Last Activity ── */}
