@@ -22,6 +22,8 @@ export async function GET(
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { lead_id } = await params;
+    const includeProposed = new URL(req.url).searchParams.get("include_proposed") === "true";
+    const statuses = includeProposed ? ["proposed", "reviewed", "promoted"] : ["reviewed", "promoted"];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (sb.from("dossiers") as any)
@@ -34,7 +36,7 @@ export async function GET(
         created_at, updated_at
       `)
       .eq("lead_id", lead_id)
-      .in("status", ["reviewed", "promoted"])
+      .in("status", statuses)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();

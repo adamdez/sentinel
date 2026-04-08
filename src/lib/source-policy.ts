@@ -61,6 +61,10 @@ const POLICY_DEFAULTS: Record<string, SourcePolicy> = {
   tax_delinquency:            "approved",
   rental_listing:             "review_required",
   property_management_record: "review_required",
+  social_media:               "review_required",
+  contact:                    "review_required",
+  employment:                 "review_required",
+  heir:                       "review_required",
   other:                      "review_required",
 };
 

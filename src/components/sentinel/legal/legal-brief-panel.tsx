@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -10,13 +11,12 @@ import {
   ExternalLink,
   Gavel,
   Loader2,
-  RefreshCw,
   Scale,
-  Search,
   FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
+import type { UnifiedResearchStatusResponse } from "@/lib/research-run-types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -115,6 +115,16 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const loaded = useRef(false);
 
+  const researchQuery = useQuery({
+    queryKey: ["lead-research", leadId],
+    queryFn: async () => {
+      const headers = await sentinelAuthHeaders(false);
+      const res = await fetch(`/api/leads/${leadId}/research-run`, { headers });
+      if (!res.ok) throw new Error("Failed to load research status");
+      return (await res.json()) as UnifiedResearchStatusResponse;
+    },
+  });
+
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
     try {
@@ -141,7 +151,7 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
     setSearching(true);
     try {
       const headers = await sentinelAuthHeaders();
-      const res = await fetch(`/api/leads/${leadId}/legal-search`, {
+      const res = await fetch(`/api/leads/${leadId}/research-run`, {
         method: "POST",
         headers,
         body: JSON.stringify({}),
@@ -150,17 +160,23 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error ?? "Search failed");
       }
-      const result = await res.json();
-      toast.success(
-        `Found ${result.documentsFound} documents, ${result.courtCasesFound} court cases`,
-      );
+      const result = await res.json() as UnifiedResearchStatusResponse;
+      const legal = result.metadata?.legal;
+      if (legal) {
+        toast.success(
+          `Research refreshed: ${legal.documents_found} legal records, ${legal.court_cases_found} court cases`,
+        );
+      } else {
+        toast.success("Research refreshed");
+      }
       await fetchDocuments();
+      await researchQuery.refetch();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Legal search failed");
+      toast.error(err instanceof Error ? err.message : "Research run failed");
     } finally {
       setSearching(false);
     }
-  }, [leadId, fetchDocuments]);
+  }, [leadId, fetchDocuments, researchQuery]);
 
   // Split documents into categories
   const courtCases = documents.filter((d) => d.case_number);
@@ -178,6 +194,7 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
     .filter((d) => d._days >= 0)
     .sort((a, b) => a._days - b._days);
   const nextEvent = upcomingEvents[0] ?? null;
+  const researchMeta = researchQuery.data?.metadata ?? null;
 
   if (loading && documents.length === 0) {
     return (
@@ -189,7 +206,7 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
   }
 
   return (
-    <div className="space-y-5">
+      <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -202,6 +219,11 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
               Last searched {formatDate(lastSearchedAt)}
             </p>
           )}
+          {researchMeta?.legal.status === "unsupported" && (
+            <p className="text-[11px] text-amber-300/70 mt-1">
+              Legal is partial here because {researchMeta.legal.county || "this county"} is not on the supported adapter yet.
+            </p>
+          )}
         </div>
         <button
           onClick={runSearch}
@@ -211,9 +233,9 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
           {searching ? (
             <Loader2 className="h-3 w-3 animate-spin" />
           ) : (
-            <Search className="h-3 w-3" />
+            <Scale className="h-3 w-3" />
           )}
-          {documents.length === 0 ? "Run Legal Search" : "Refresh"}
+          {documents.length === 0 ? "Run Research" : "Refresh Research"}
         </button>
       </div>
 
@@ -223,7 +245,7 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
           <Scale className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
           <p className="text-sm text-muted-foreground/60">No legal records found yet</p>
           <p className="text-xs text-muted-foreground/40 mt-1">
-            Click &quot;Run Legal Search&quot; to crawl county recorder and court records
+            Click &quot;Run Research&quot; to stage legal records through the shared research flow
           </p>
         </div>
       )}
@@ -232,9 +254,9 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
       {searching && (
         <div className="rounded-lg border border-glass-border bg-panel/50 p-6 text-center">
           <Loader2 className="h-6 w-6 animate-spin text-primary-300 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground">Searching county records...</p>
+          <p className="text-sm text-muted-foreground">Running shared research...</p>
           <p className="text-xs text-muted-foreground/50 mt-1">
-            Crawling Spokane County Recorder, WA Courts, and County Liens
+            Crawling county records and refreshing the staged dossier brief
           </p>
         </div>
       )}
