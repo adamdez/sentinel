@@ -8039,6 +8039,18 @@ export function MasterClientFileModal({
 
   }, [clientFile, onRefresh]);
 
+  const getAuthenticatedProspectPatchHeaders = useCallback(async (lockVersion: number) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-lock-version": String(lockVersion),
+    };
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+    }
+    return headers;
+  }, []);
+
   const handleToggleActive = useCallback(async () => {
     if (!clientFile?.id || activeUpdating) return;
     const currentStage = normalizeWorkflowStage(clientFile.status);
