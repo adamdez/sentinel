@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Loader2, RefreshCw, ShieldAlert, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -106,7 +106,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-export default function ImportPage() {
+function ImportPageContent() {
   const searchParams = useSearchParams();
   const [step, setStep] = useState<ImportStep>("upload");
   const [file, setFile] = useState<File | null>(null);
@@ -175,7 +175,6 @@ export default function ImportPage() {
     const batchName = nextFile.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase();
     const resolvedDefaults = {
       ...DEFAULTS,
-      importBatchId: batchName,
       ...overrideDefaults,
       importBatchId: overrideDefaults?.importBatchId || batchName,
     };
@@ -552,5 +551,13 @@ export default function ImportPage() {
       ) : null}
       <CoachPanel />
     </PageShell>
+  );
+}
+
+export default function ImportPage() {
+  return (
+    <Suspense fallback={<PageShell title="Import Normalization" description="Loading import workspace..." />}>
+      <ImportPageContent />
+    </Suspense>
   );
 }
