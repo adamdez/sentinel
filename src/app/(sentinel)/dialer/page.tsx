@@ -1161,6 +1161,7 @@ function DialerPageInner() {
   const [savedNotes, setSavedNotes] = useState<Array<{ content: string; time: string }>>([]);
   const [savingNote, setSavingNote] = useState(false);
   const noteSeqRef = useRef(0);
+  const pendingSavedNoteContentRef = useRef<string | null>(null);
   const transcriptSyncRef = useRef<{
     sessionId: string | null;
     lastSequence: number;
@@ -2786,43 +2787,73 @@ function DialerPageInner() {
     }
   }, [manualPhone, smsComposeMsg, currentUser.id]);
 
+  const persistOperatorDraftNote = useCallback(async (options?: {
+    toastOnSaved?: boolean;
+    toastOnDuplicate?: boolean;
+  }) => {
+    if (!dialerSessionId) return false;
+    const content = callNotes.trim();
+    if (!content) return false;
+
+    const alreadySaved = savedNotes.some((note) => note.content.trim() === content);
+    if (alreadySaved || pendingSavedNoteContentRef.current === content) {
+      if (options?.toastOnDuplicate) {
+        toast.info("Latest note is already saved", { duration: 1500 });
+      }
+      return false;
+    }
+
+    noteSeqRef.current += 1;
+    pendingSavedNoteContentRef.current = content;
+
+    try {
+      const res = await fetch(`/api/dialer/v1/sessions/${dialerSessionId}/notes`, {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          note_type: "operator_note",
+          content,
+          speaker: "operator",
+          sequence_num: noteSeqRef.current,
+          is_ai_generated: false,
+        }),
+      });
+
+      if (!res.ok) return false;
+
+      setSavedNotes((prev) => {
+        if (prev.some((note) => note.content.trim() === content)) return prev;
+        return [...prev, { content, time: new Date().toISOString() }];
+      });
+
+      if (options?.toastOnSaved) {
+        toast.success("Note saved", { duration: 1500 });
+      }
+
+      return true;
+    } catch {
+      return false;
+    } finally {
+      if (pendingSavedNoteContentRef.current === content) {
+        pendingSavedNoteContentRef.current = null;
+      }
+    }
+  }, [dialerSessionId, callNotes, savedNotes]);
+
   const handleHangup = useCallback(() => {
     // Disconnect VoIP call
     if (activeCall) {
       activeCall.disconnect();
       setActiveCall(null);
     }
-    if (dialerSessionId && callNotes.trim()) {
-      const normalized = callNotes.trim();
-      const alreadySaved = savedNotes.some((note) => note.content.trim() === normalized);
-      if (!alreadySaved) {
-        noteSeqRef.current += 1;
-        authHeaders().then((headers) =>
-          fetch(`/api/dialer/v1/sessions/${dialerSessionId}/notes`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({
-              note_type: "operator_note",
-              content: normalized,
-              speaker: "operator",
-              sequence_num: noteSeqRef.current,
-              is_ai_generated: false,
-            }),
-          }),
-        ).then((res) => {
-          if (res?.ok) {
-            setSavedNotes((prev) => [...prev, { content: normalized, time: new Date().toISOString() }]);
-          }
-        }).catch(() => {});
-      }
-    }
+    void persistOperatorDraftNote();
     setCallState("ended");
     setTransferStatus(null);
     setCurrentCallSid(null);
     setLiveCallStatus(null);
     setMuted(false);
     timer.stop();
-  }, [timer, activeCall, dialerSessionId, callNotes, savedNotes]);
+  }, [timer, activeCall, persistOperatorDraftNote]);
 
   const handleDisposition = useCallback(async (dispoKey: string) => {
     if (!currentCallLogId && callState !== "idle") {
@@ -2889,6 +2920,9 @@ function DialerPageInner() {
     setCallNotes("");
     setTransferStatus(null);
     setMuted(false);
+    setSavedNotes([]);
+    pendingSavedNoteContentRef.current = null;
+    noteSeqRef.current = 0;
     timer.reset();
     setDispositionPending(false);
     advanceQueueAfterDisposition(dispoKey, autoCycleMode);
@@ -2908,6 +2942,7 @@ function DialerPageInner() {
     setTransferStatus(null);
     setMuted(false);
     setSavedNotes([]);
+    pendingSavedNoteContentRef.current = null;
     noteSeqRef.current = 0;
     timer.reset();
     advanceQueueAfterDisposition(disposition, autoCycleMode);
@@ -2958,33 +2993,11 @@ function DialerPageInner() {
   const handleSaveNote = useCallback(async () => {
     if (!dialerSessionId || !callNotes.trim() || savingNote) return;
     setSavingNote(true);
-    const content = callNotes.trim();
-    const alreadySaved = savedNotes.some((note) => note.content.trim() === content);
-    if (alreadySaved) {
-      setSavingNote(false);
-      toast.info("Latest note is already saved", { duration: 1500 });
-      return;
-    }
     try {
-      noteSeqRef.current += 1;
-      const res = await fetch(`/api/dialer/v1/sessions/${dialerSessionId}/notes`, {
-        method: "POST",
-        headers: await authHeaders(),
-        body: JSON.stringify({
-          note_type: "operator_note",
-          content,
-          speaker: "operator",
-          sequence_num: noteSeqRef.current,
-          is_ai_generated: false,
-        }),
-      });
-      if (res.ok) {
-        setSavedNotes((prev) => [...prev, { content, time: new Date().toISOString() }]);
-        toast.success("Note saved", { duration: 1500 });
-      }
+      await persistOperatorDraftNote({ toastOnSaved: true, toastOnDuplicate: true });
     } catch { /* non-fatal */ }
     finally { setSavingNote(false); }
-  }, [dialerSessionId, callNotes, savingNote, savedNotes]);
+  }, [dialerSessionId, callNotes, savingNote, persistOperatorDraftNote]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -4753,6 +4766,7 @@ function DialerPageInner() {
                       userId={currentUser.id}
                       timerElapsed={timer.elapsed}
                       initialSummary={callNotes}
+                      beforePublish={persistOperatorDraftNote}
                       initialMotivationLevel={currentLead?.motivation_level ?? null}
                       initialSellerTimeline={currentLead?.seller_timeline ?? null}
                       qualContext={currentLead ? {

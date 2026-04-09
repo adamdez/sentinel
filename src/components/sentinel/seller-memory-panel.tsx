@@ -152,6 +152,7 @@ function CallHistoryRow({ call, index }: { call: CallMemoryEntry; index: number 
   const age  = daysAgo(call.date);
   const { opacity, label: ageLabel, warn } = stalenessStyle(age);
   const content = call.preferSource === "notes" ? call.notes : call.aiSummary;
+  const sourceLabel = call.preferSource === "notes" ? call.noteSourceLabel : call.aiSourceLabel;
   const isAi    = call.preferSource === "ai";
   const hasContent = !!content;
   const dur = fmtDuration(call.durationSec);
@@ -196,6 +197,11 @@ function CallHistoryRow({ call, index }: { call: CallMemoryEntry; index: number 
       {/* Content */}
       {expanded && hasContent && (
         <div className="px-2.5 pb-2 pt-0.5 border-t border-overlay-4">
+          {sourceLabel && (
+            <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/40">
+              {sourceLabel}
+            </p>
+          )}
           {isAi ? (
             <p className="text-sm text-foreground/50 italic leading-relaxed line-clamp-4">
               {content}

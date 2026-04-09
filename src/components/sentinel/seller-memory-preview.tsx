@@ -127,6 +127,9 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
 
   const hasCallback = !!memory.lastCallCallbackTiming;
   const lastNote = memory.recentCalls[0]?.notes || memory.recentCalls[0]?.aiSummary;
+  const lastNoteSourceLabel = memory.recentCalls[0]
+    ? (memory.recentCalls[0].notes ? memory.recentCalls[0].noteSourceLabel : memory.recentCalls[0].aiSourceLabel)
+    : null;
 
   return (
     <div className={`rounded-xl border border-border/20 bg-muted/[0.04] p-3 space-y-1.5 ${className}`}>
@@ -195,9 +198,16 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
 
       {/* Last call note / AI summary - compact, truncated */}
       {lastNote && memory.lastCallBullets.length === 0 && (
-        <p className="text-xs text-muted-foreground/50 leading-snug line-clamp-2 border-t border-border/10 pt-1.5">
-          {lastNote}
-        </p>
+        <div className="border-t border-border/10 pt-1.5">
+          {lastNoteSourceLabel && (
+            <p className="mb-1 text-[10px] uppercase tracking-wide text-muted-foreground/35">
+              {lastNoteSourceLabel}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground/50 leading-snug line-clamp-2">
+            {lastNote}
+          </p>
+        </div>
       )}
 
       {!hasStructuredFields && memory.recentCalls.length > 0 && !lastNote && (

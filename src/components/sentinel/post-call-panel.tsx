@@ -250,6 +250,8 @@ export interface PostCallPanelProps {
   leadId?: string | null;
   /** When true, route closeout progression through the Auto Cycle overlay instead of legacy cadence. */
   autoCycleEnabled?: boolean;
+  /** Optional hook to persist any unsaved operator draft note before publish finishes. */
+  beforePublish?: () => Promise<unknown> | unknown;
   onComplete: (disposition?: PublishDisposition) => void;
   onSkip: (disposition?: PublishDisposition) => void;
 }
@@ -266,6 +268,7 @@ export function PostCallPanel({
   phoneNumber = null,
   leadId = null,
   autoCycleEnabled = false,
+  beforePublish,
   onComplete,
   onSkip,
 }: PostCallPanelProps) {
@@ -475,6 +478,14 @@ export function PostCallPanel({
     setError(null);
     setPublishQaFindings([]);
     setPublishSnapshot(null);
+
+    if (beforePublish) {
+      try {
+        await beforePublish();
+      } catch {
+        // Non-fatal: publish summary still proceeds even if the timestamp save fails.
+      }
+    }
 
     const hdrs = await authHeaders();
     const summaryRunIdForPublish = await ensureSummaryRunId(dispo);

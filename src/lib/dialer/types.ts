@@ -191,19 +191,39 @@ export interface AutoCyclePhoneState {
  */
 export type MemorySource = "operator" | "ai" | "system";
 
+export type LeadNoteSourceType = "operator_note" | "call_summary" | "ai_summary";
+
+export interface LeadNoteTimelineItem {
+  id: string;
+  sourceType: LeadNoteSourceType;
+  sourceLabel: string;
+  content: string;
+  createdAt: string;
+  leadId: string;
+  sessionId: string | null;
+  callLogId: string | null;
+  isAiGenerated: boolean;
+  isConfirmed: boolean;
+  disposition?: string | null;
+  durationSec?: number | null;
+}
+
 /**
  * A single historical call entry for the memory surface.
  * Shows up to 3 of these in the repeat-call memory block.
  */
 export interface CallMemoryEntry {
   callLogId:    string;
+  sessionId:    string | null;
   date:         string;           // ISO timestamp
   disposition:  string | null;
   durationSec:  number | null;
-  /** Operator-written note (calls_log.notes). Highest trust. */
+  /** Operator-authored note lane (session note or published call summary). Highest trust. */
   notes:        string | null;
-  /** AI-generated summary (calls_log.ai_summary). Lower trust. */
+  noteSourceLabel: string | null;
+  /** AI-generated note lane (calls_log.ai_summary or ai_suggestion). Lower trust. */
   aiSummary:    string | null;
+  aiSourceLabel: string | null;
   /** Which content field to show first: "notes" | "ai" | null */
   preferSource: "notes" | "ai" | null;
 }
@@ -230,6 +250,8 @@ export interface RepeatCallMemory {
   // ── Recent call history ───────────────────────────────────
   /** Last 3 calls, most recent first. */
   recentCalls: CallMemoryEntry[];
+  /** Unified lead note timeline with provenance for dialer/client-file consumers. */
+  noteTimeline: LeadNoteTimelineItem[];
 
   // ── Staleness signal ──────────────────────────────────────
   /** Days since last live answer (disposition = completed/follow_up/appointment/offer_made).

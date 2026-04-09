@@ -100,7 +100,8 @@ import {
 
 } from "@/lib/valuation";
 
-import { useCallNotes, type CallNote } from "@/hooks/use-call-notes";
+import { useCallNotes } from "@/hooks/use-call-notes";
+import type { RepeatCallMemory, LeadNoteTimelineItem } from "@/lib/dialer/types";
 
 import { CompsMap, getSatelliteTileUrl, getGoogleStreetViewLink, haversine, scoreComp, getCompQualityLabel, getCompRationale, type CompProperty, type SubjectProperty, type CompScore } from "@/components/sentinel/comps/comps-map";
 
@@ -959,8 +960,9 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
     sourceListName: cf.sourceListName,
   });
 
-  const { loading: callHistoryLoading } = useCallNotes(cf.id, 20, activityRefreshToken);
-  const sellerContinuity = cf.sellerSituationSummaryShort?.trim() || null;
+  const [leadMemory, setLeadMemory] = useState<RepeatCallMemory | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const sellerContinuity = leadMemory?.lastCallSummary?.trim() || cf.sellerSituationSummaryShort?.trim() || null;
 
 
 
@@ -1050,79 +1052,98 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
 
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-
-  const [activityLog, setActivityLog] = useState<{ id: string; type: string; disposition?: string; notes?: string; created_at: string; duration_sec?: number }[]>([]);
+  const [activityLog, setActivityLog] = useState<Array<{
+    id: string;
+    type: "operator_note" | "call_summary" | "ai_summary" | "event";
+    disposition?: string | null;
+    notes?: string | null;
+    created_at: string;
+    duration_sec?: number | null;
+    sourceLabel?: string | null;
+    sessionId?: string | null;
+    callLogId?: string | null;
+    isAiGenerated?: boolean;
+    isConfirmed?: boolean;
+  }>>([]);
 
   useEffect(() => {
 
     if (!cf.id) return;
 
+    let cancelled = false;
+
     (async () => {
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-
-      const [callsRes, eventsRes] = await Promise.all([
-
-        (supabase.from("calls_log") as any)
-
-          .select("id, disposition, notes, started_at, duration_sec")
-
-          .or(`lead_id.eq.${cf.id},property_id.eq.${cf.propertyId}`)
-
-          .order("started_at", { ascending: false })
-
-          .limit(30),
-
-        (supabase.from("event_log") as any)
-
-          .select("id, action, details, created_at")
-
-          .eq("entity_id", cf.id)
-
-          .order("created_at", { ascending: false })
-
-          .limit(20),
-
-      ]);
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-
-      const merged = [
+      setActivityLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = session?.access_token
+          ? { Authorization: `Bearer ${session.access_token}` }
+          : {};
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const [memoryRes, eventsRes] = await Promise.all([
+          fetch(`/api/dialer/v1/leads/${cf.id}/call-memory`, { headers }).catch(() => null),
+          (supabase.from("event_log") as any)
+            .select("id, action, details, created_at")
+            .eq("entity_id", cf.id)
+            .order("created_at", { ascending: false })
+            .limit(20),
+        ]);
 
-        ...(callsRes.data ?? []).map((c: any) => ({
+        if (cancelled) return;
 
-          id: c.id, type: c.disposition === "sms_outbound" ? "sms" : c.disposition === "operator_note" ? "note" : "call",
+        const memoryPayload = memoryRes?.ok
+          ? await memoryRes.json().catch(() => ({} as { memory?: RepeatCallMemory | null }))
+          : null;
+        const memory = (memoryPayload as { memory?: RepeatCallMemory | null } | null)?.memory ?? null;
+        setLeadMemory(memory);
 
-          disposition: c.disposition, notes: c.notes,
+        const timelineEntries = (memory?.noteTimeline ?? []).map((entry: LeadNoteTimelineItem) => ({
+          id: entry.id,
+          type: entry.sourceType,
+          disposition: entry.disposition ?? null,
+          notes: entry.content,
+          created_at: entry.createdAt,
+          duration_sec: entry.durationSec ?? null,
+          sourceLabel: entry.sourceLabel,
+          sessionId: entry.sessionId,
+          callLogId: entry.callLogId,
+          isAiGenerated: entry.isAiGenerated,
+          isConfirmed: entry.isConfirmed,
+        }));
 
-          created_at: c.started_at, duration_sec: c.duration_sec,
-
-        })),
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-
-        ...(eventsRes.data ?? []).map((e: any) => {
-
+        const eventEntries = (eventsRes.data ?? []).map((e: any) => {
           const details = e.details && typeof e.details === "object" && !Array.isArray(e.details) ? e.details as Record<string, unknown> : null;
-
           const eventNote = typeof details?.note_appended === "string" && (details.note_appended as string).trim().length > 0
-
             ? (details.note_appended as string).trim() : null;
 
-          return { id: e.id, type: "event", disposition: e.action?.replace(/_/g, " ").toLowerCase(), notes: eventNote, created_at: e.created_at };
+          return {
+            id: e.id,
+            type: "event" as const,
+            disposition: e.action?.replace(/_/g, " ").toLowerCase(),
+            notes: eventNote,
+            created_at: e.created_at,
+          };
+        });
 
-        }),
-
-      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 40);
-
-      setActivityLog(merged);
-
+        setActivityLog(
+          [...timelineEntries, ...eventEntries]
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+            .slice(0, 40),
+        );
+      } catch {
+        setLeadMemory(null);
+        setActivityLog([]);
+      } finally {
+        if (!cancelled) setActivityLoading(false);
+      }
     })();
 
-  }, [activityRefreshToken, cf.id, cf.propertyId]);
+    return () => {
+      cancelled = true;
+    };
+
+  }, [activityRefreshToken, cf.id]);
 
   const [noteDraft, setNoteDraft] = useState("");
 
@@ -1139,6 +1160,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
       const { data: { session } } = await supabase.auth.getSession();
 
       const now = new Date().toISOString();
+      const content = noteDraft.trim();
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
@@ -1148,7 +1170,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
         user_id: session?.user?.id ?? null,
 
-        disposition: "operator_note", notes: noteDraft.trim(),
+        disposition: "operator_note", notes: content,
 
         started_at: now, ended_at: now, duration_sec: 0,
 
@@ -1156,6 +1178,41 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
       });
 
+      setActivityLog((prev) => [
+        {
+          id: `local-note:${now}`,
+          type: "operator_note" as const,
+          disposition: "operator_note",
+          notes: content,
+          created_at: now,
+          duration_sec: 0,
+          sourceLabel: "Operator note",
+          isAiGenerated: false,
+          isConfirmed: true,
+        },
+        ...prev,
+      ].slice(0, 40));
+      setLeadMemory((prev) => prev ? {
+        ...prev,
+        noteTimeline: [
+          {
+            id: `local-note:${now}`,
+            sourceType: "operator_note",
+            sourceLabel: "Operator note",
+            content,
+            createdAt: now,
+            leadId: cf.id,
+            sessionId: null,
+            callLogId: null,
+            isAiGenerated: false,
+            isConfirmed: true,
+            disposition: "operator_note",
+            durationSec: 0,
+          },
+          ...prev.noteTimeline,
+        ],
+        lastCallSummary: content,
+      } : prev);
       setNoteDraft("");
 
     } catch { /* ignore */ }
@@ -1646,9 +1703,21 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
             {activityLog.map((entry) => {
 
-              const typeBadge = entry.type === "call" ? "Call" : entry.type === "sms" ? "SMS" : entry.type === "note" ? "Note" : "Event";
+              const typeBadge = entry.type === "call_summary"
+                ? "Call"
+                : entry.type === "ai_summary"
+                  ? "AI"
+                  : entry.type === "operator_note"
+                    ? "Note"
+                    : "Event";
 
-              const typeBadgeClass = entry.type === "call" ? "bg-overlay-8 text-foreground" : entry.type === "sms" ? "bg-overlay-6 text-muted-foreground" : "bg-overlay-4 text-muted-foreground";
+              const typeBadgeClass = entry.type === "call_summary"
+                ? "bg-overlay-8 text-foreground"
+                : entry.type === "ai_summary"
+                  ? "bg-primary/10 text-primary/80"
+                  : entry.type === "operator_note"
+                    ? "bg-overlay-4 text-muted-foreground"
+                    : "bg-overlay-4 text-muted-foreground";
 
               return (
 
@@ -1658,15 +1727,25 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
                   <div className="flex-1 min-w-0">
 
-                    {entry.disposition && entry.type !== "note" && (
+                    {entry.sourceLabel && (
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground/40">
+                        {entry.sourceLabel}
+                      </p>
+                    )}
+
+                    {entry.disposition && entry.type !== "operator_note" && entry.type !== "event" && (
 
                       <p className="text-xs text-muted-foreground capitalize">{entry.disposition.replace(/_/g, " ")}</p>
 
                     )}
 
-                    {entry.notes && <p className="text-sm text-foreground line-clamp-2">{entry.notes}</p>}
+                    {entry.notes && (
+                      <p className={cn("text-sm line-clamp-2", entry.isAiGenerated ? "text-muted-foreground italic" : "text-foreground")}>
+                        {entry.notes}
+                      </p>
+                    )}
 
-                    {entry.type === "call" && entry.duration_sec != null && entry.duration_sec > 0 && (
+                    {entry.type === "call_summary" && entry.duration_sec != null && entry.duration_sec > 0 && (
 
                       <p className="text-xs text-muted-foreground/50">{Math.floor(entry.duration_sec / 60)}m {entry.duration_sec % 60}s</p>
 
@@ -1684,7 +1763,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
           </div>
 
-        ) : callHistoryLoading ? (
+        ) : activityLoading ? (
 
           <div className="flex items-center gap-2 py-4 justify-center text-sm text-muted-foreground/50"><Loader2 className="h-4 w-4 animate-spin" />Loading history...</div>
 
