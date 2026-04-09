@@ -19,6 +19,7 @@ export type StageEntryPrereqInput = {
   nextQualificationRoute: QualificationRoute | null;
   noteAppendText: string;
   existingNotes: string | null;
+  hasActivityNoteContext: boolean;
   dispositionCode: string | null;
 };
 
@@ -33,14 +34,16 @@ const DEAD_DISPOSITION_SIGNALS = new Set([
 ]);
 
 export function evaluateStageEntryPrerequisites(input: StageEntryPrereqInput): string | null {
-  const hasExistingNotes = typeof input.existingNotes === "string" && input.existingNotes.trim().length >= 12;
-  const hasNoteContext = input.noteAppendText.length > 0 || hasExistingNotes;
+  const hasExistingNotes = typeof input.existingNotes === "string" && input.existingNotes.trim().length > 0;
+  const hasMeaningfulExistingNotes = typeof input.existingNotes === "string" && input.existingNotes.trim().length >= 12;
+  const hasNoteContext = input.noteAppendText.length > 0 || hasMeaningfulExistingNotes;
+  const hasActiveNoteContext = input.noteAppendText.length > 0 || hasExistingNotes || input.hasActivityNoteContext;
   const dispositionCode = (input.dispositionCode ?? "").toLowerCase();
   const hasDispositionSignal = dispositionCode.length > 0;
 
   if (input.targetStatus === "active") {
-    if (!hasNoteContext) {
-      return "Move to Active requires a short seller progress note.";
+    if (!hasActiveNoteContext) {
+      return "Move to Active requires a short seller progress note when no prior note exists.";
     }
   }
 

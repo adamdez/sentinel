@@ -141,15 +141,6 @@ function LeadsPageInner() {
         return;
       }
 
-      const activeSummary = window.prompt("Add a short seller progress note for Active:");
-      if (activeSummary == null) {
-        return;
-      }
-      if (activeSummary.trim().length < 12) {
-        toast.error("Add a short seller progress note before moving to Active.");
-        return;
-      }
-
       const headers = await getAuthenticatedProspectPatchHeaders(current.lock_version ?? 0);
       const nextAction =
         typeof current.next_action === "string" && current.next_action.trim()
@@ -162,21 +153,50 @@ function LeadsPageInner() {
         ?? current.follow_up_date
         ?? null;
 
-      const res = await fetch("/api/prospects", {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({
+      const moveToActive = async (noteAppend?: string) => {
+        const payload: Record<string, unknown> = {
           lead_id: leadId,
           status: "active",
-          note_append: activeSummary.trim(),
           next_action: nextAction,
           next_action_due_at: nextActionDueAt,
-        }),
-      });
+        };
+        if (noteAppend) {
+          payload.note_append = noteAppend;
+        }
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.detail ?? data.error ?? "Could not move lead to Active");
+        const res = await fetch("/api/prospects", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json().catch(() => ({})) as { error?: string; detail?: string };
+        return { res, data };
+      };
+
+      const missingActiveNoteMessage = "Add a short seller progress note before moving to Active when no prior note exists.";
+      const isMissingActiveNoteError = (status: number, data: { error?: string; detail?: string }) =>
+        status === 422 && `${data.detail ?? data.error ?? ""}`.toLowerCase().includes("progress note");
+
+      let result = await moveToActive();
+
+      if (!result.res.ok && isMissingActiveNoteError(result.res.status, result.data)) {
+        const activeSummary = window.prompt("Add a short seller progress note for Active (required because no prior note exists):");
+        if (activeSummary == null) {
+          return;
+        }
+
+        const trimmed = activeSummary.trim();
+        if (!trimmed) {
+          toast.error(missingActiveNoteMessage);
+          return;
+        }
+
+        result = await moveToActive(trimmed);
+      }
+
+      if (!result.res.ok) {
+        toast.error(result.data.detail ?? result.data.error ?? "Could not move lead to Active");
         return;
       }
 

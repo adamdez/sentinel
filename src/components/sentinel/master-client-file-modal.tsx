@@ -1122,8 +1122,6 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
   }, [activityRefreshToken, cf.id, cf.propertyId]);
 
-
-
   const [noteDraft, setNoteDraft] = useState("");
 
   const [savingNote, setSavingNote] = useState(false);
@@ -4555,6 +4553,11 @@ export function MasterClientFileModal({
 
   );
 
+  const { notes: activityNotes } = useCallNotes(clientFile?.id, 20, activityRefreshToken);
+  const hasActivityNoteContext = activityNotes.some((entry) =>
+    typeof entry.notes === "string" && entry.notes.trim().length > 0,
+  );
+
 
 
   // ------------------------------------------------------------
@@ -5751,6 +5754,11 @@ export function MasterClientFileModal({
 
     }
 
+    if (selectedStage === "active") {
+      await handleToggleActive();
+      return;
+    }
+
     const precheck = precheckWorkflowStageChange({
 
       currentStatus: currentStatus as LeadStatus,
@@ -5772,6 +5780,8 @@ export function MasterClientFileModal({
       qualificationRoute: clientFile.qualificationRoute,
 
       notes: clientFile.notes,
+
+      hasActivityNoteContext,
 
     });
 
@@ -5907,7 +5917,7 @@ export function MasterClientFileModal({
 
     }
 
-  }, [applyLeadPatchFromResponse, clientFile, onRefresh, selectedStage, stageNextAction, stageNextActionDueAt, stageLockVersion]);
+  }, [applyLeadPatchFromResponse, clientFile, onRefresh, selectedStage, stageNextAction, stageNextActionDueAt, stageLockVersion, hasActivityNoteContext]);
 
 
 
@@ -7244,12 +7254,6 @@ export function MasterClientFileModal({
         payload.next_action_due_at = null;
 
       } else if (shouldForceActiveStatus) {
-
-        if (noteText.length < 12) {
-          toast.error("Add a short seller progress note before moving to Active.");
-          return;
-        }
-
         payload.status = "active";
 
       }
@@ -8163,6 +8167,7 @@ export function MasterClientFileModal({
       qualificationRoute: clientFile.qualificationRoute,
       notes: clientFile.notes,
       noteDraft,
+      hasActivityNoteContext,
     });
 
     if (!precheck.ok) {
@@ -8246,6 +8251,7 @@ export function MasterClientFileModal({
   }, [
     applyLeadPatchFromResponse,
     clientFile,
+    hasActivityNoteContext,
     noteDraft,
     onRefresh,
     stageNextAction,
@@ -8264,59 +8270,77 @@ export function MasterClientFileModal({
       return;
     }
 
-    const activeSummary = window.prompt("Add a short seller progress note for Active:");
-    if (activeSummary == null) {
-      return;
-    }
-    if (activeSummary.trim().length < 12) {
-      toast.error("Add a short seller progress note before moving to Active.");
-      return;
-    }
-
     setActiveUpdating(true);
     try {
       const headers = await getAuthenticatedProspectPatchHeaders(stageLockVersion || clientFile.lockVersion || 0);
-      const res = await fetch("/api/prospects", {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({
+
+      const moveToActive = async (noteAppend?: string) => {
+        const payload: Record<string, unknown> = {
           lead_id: clientFile.id,
           status: "active",
-          note_append: activeSummary.trim(),
-          next_action: clientFile.nextAction?.trim() || "Initial seller outreach",
-          next_action_due_at: clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate ?? null,
-        }),
-      });
+          next_action: stageNextAction.trim() || clientFile.nextAction?.trim() || "Initial seller outreach",
+          next_action_due_at: stageNextActionDueAt || clientFile.nextActionDueAt || clientFile.nextCallScheduledAt || clientFile.followUpDate || null,
+        };
+        if (noteAppend) {
+          payload.note_append = noteAppend;
+        }
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { error?: string; detail?: string };
-        toast.error(data.detail ?? data.error ?? "Failed to move to Active");
+        const res = await fetch("/api/prospects", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json().catch(() => ({})) as { error?: string; detail?: string; lock_version?: number };
+        return { res, data };
+      };
+
+      const missingActiveNoteMessage = "Add a short seller progress note before moving to Active when no prior note exists.";
+      const isMissingActiveNoteError = (status: number, data: { error?: string; detail?: string }) =>
+        status === 422 && `${data.detail ?? data.error ?? ""}`.toLowerCase().includes("progress note");
+
+      let result = await moveToActive();
+
+      if (!result.res.ok && isMissingActiveNoteError(result.res.status, result.data)) {
+        const activeSummary = window.prompt("Add a short seller progress note for Active (required because no prior note exists):");
+        if (activeSummary == null) {
+          return;
+        }
+
+        const trimmed = activeSummary.trim();
+        if (!trimmed) {
+          toast.error(missingActiveNoteMessage);
+          return;
+        }
+
+        result = await moveToActive(trimmed);
+      }
+
+      if (!result.res.ok) {
+        toast.error(result.data.detail ?? result.data.error ?? "Failed to move to Active");
         return;
       }
 
-      const data = await res.json().catch(() => null) as {
-        new_status?: string;
-        lock_version?: number;
-        next_action?: string | null;
-        next_action_due_at?: string | null;
-      } | null;
-
-      setClientFilePatch((prev) => ({
-        ...(prev ?? {}),
-        status: data?.new_status ?? "active",
-        nextAction: data?.next_action ?? clientFile.nextAction ?? "Initial seller outreach",
-        nextActionDueAt: data?.next_action_due_at ?? clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate ?? null,
-        lockVersion: data?.lock_version ?? clientFile.lockVersion,
-      }));
-      if (typeof data?.lock_version === "number") {
-        setStageLockVersion(data.lock_version);
+      applyLeadPatchFromResponse(result.data);
+      if (typeof result.data.lock_version === "number") {
+        setStageLockVersion(result.data.lock_version);
       }
+      setStageNextAction("");
+      setStageNextActionDueAt("");
       toast.success("Moved to Active");
       onRefresh?.();
     } finally {
       setActiveUpdating(false);
     }
-  }, [activeUpdating, clientFile, onRefresh, stageLockVersion]);
+  }, [
+    activeUpdating,
+    applyLeadPatchFromResponse,
+    clientFile,
+    onRefresh,
+    stageLockVersion,
+    stageNextAction,
+    stageNextActionDueAt,
+  ]);
 
   const handleApplyMove = useCallback(async () => {
     if (!clientFile || !moveTarget) return;
@@ -8527,6 +8551,8 @@ export function MasterClientFileModal({
     qualificationRoute: clientFile.qualificationRoute,
 
     notes: clientFile.notes,
+
+    hasActivityNoteContext,
 
   });
 

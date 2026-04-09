@@ -129,6 +129,7 @@ describe("evaluateStageEntryPrerequisites", () => {
     nextQualificationRoute: null,
     noteAppendText: "",
     existingNotes: null,
+    hasActivityNoteContext: false,
     dispositionCode: null,
   };
 
@@ -149,7 +150,25 @@ describe("evaluateStageEntryPrerequisites", () => {
     const err = evaluateStageEntryPrerequisites({
       ...base,
       targetStatus: "active",
-      noteAppendText: "Seller discussed timeline and condition details.",
+      noteAppendText: "see notes",
+    });
+    expect(err).toBeNull();
+  });
+
+  it("allows active with legacy lead notes", () => {
+    const err = evaluateStageEntryPrerequisites({
+      ...base,
+      targetStatus: "active",
+      existingNotes: "Prior seller note on file.",
+    });
+    expect(err).toBeNull();
+  });
+
+  it("allows active with prior manual activity notes", () => {
+    const err = evaluateStageEntryPrerequisites({
+      ...base,
+      targetStatus: "active",
+      hasActivityNoteContext: true,
     });
     expect(err).toBeNull();
   });

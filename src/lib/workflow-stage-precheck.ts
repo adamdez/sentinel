@@ -35,6 +35,7 @@ export interface WorkflowStagePrecheckInput {
   qualificationRoute?: QualificationRoute | null;
   notes?: string | null;
   noteDraft?: string | null;
+  hasActivityNoteContext?: boolean;
 }
 
 export interface WorkflowStagePrecheckResult {
@@ -45,6 +46,10 @@ export interface WorkflowStagePrecheckResult {
 
 function hasMeaningfulText(value: string | null | undefined, minLen = 12): boolean {
   return typeof value === "string" && value.trim().length >= minLen;
+}
+
+function hasAnyText(value: string | null | undefined): boolean {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function stageLabel(status: LeadStatus): string {
@@ -87,13 +92,17 @@ export function precheckWorkflowStageChange(input: WorkflowStagePrecheckInput): 
 
   const hasNextAction = Boolean(input.nextCallScheduledAt || input.nextFollowUpAt);
   const hasNoteContext = hasMeaningfulText(input.noteDraft) || hasMeaningfulText(input.notes);
+  const hasActiveNoteContext =
+    hasAnyText(input.noteDraft)
+    || hasAnyText(input.notes)
+    || input.hasActivityNoteContext === true;
   const hasDispositionContext = hasMeaningfulText(input.dispositionCode, 1);
   const dispositionCode = (input.dispositionCode ?? "").toLowerCase();
 
   if (input.targetStatus === "active") {
-    if (!hasNoteContext) {
+    if (!hasActiveNoteContext) {
       return buildResult([
-        "Add a short seller progress note before moving to Active.",
+        "Add a short seller progress note before moving to Active when no prior note exists.",
       ]);
     }
   }

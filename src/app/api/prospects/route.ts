@@ -726,6 +726,27 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (targetStatus && targetStatus !== currentStatus) {
+      let hasActivityNoteContext = false;
+      const hasLegacyNotes = typeof currentLead.notes === "string" && currentLead.notes.trim().length > 0;
+      if (targetStatus === "active" && noteAppendText.length === 0 && !hasLegacyNotes) {
+        // Operator-visible notes in Recent Notes & Calls live in calls_log, so
+        // Active moves should honor that history even when leads.notes is empty.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: activityNotes, error: activityNotesErr } = await (sb.from("calls_log") as any)
+          .select("notes")
+          .eq("lead_id", lead_id)
+          .order("started_at", { ascending: false })
+          .limit(25);
+
+        if (activityNotesErr) {
+          console.warn("[API/prospects PATCH] Could not load activity note context:", activityNotesErr.message);
+        } else {
+          hasActivityNoteContext = (activityNotes ?? []).some((row: { notes?: unknown }) =>
+            typeof row.notes === "string" && row.notes.trim().length > 0,
+          );
+        }
+      }
+
       const prereqError = evaluateStageEntryPrerequisites({
         currentStatus,
         targetStatus,
@@ -736,6 +757,7 @@ export async function PATCH(req: NextRequest) {
         nextQualificationRoute,
         noteAppendText,
         existingNotes: typeof currentLead.notes === "string" ? currentLead.notes : null,
+        hasActivityNoteContext,
         dispositionCode: effectiveDispositionCode,
       });
 
