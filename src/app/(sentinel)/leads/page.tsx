@@ -67,13 +67,13 @@ function buildLeadExportRows(leads: LeadRow[]) {
   }));
 }
 
-function buildLeadExportFileName(leads: LeadRow[], distressTags: string[]) {
+function buildLeadExportFileName(leads: LeadRow[], distressTags: string[], extension: "xlsx" | "csv") {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const tagSegment =
     distressTags.length === 1
       ? distressTags[0].replace(/[^a-z0-9]+/gi, "-").toLowerCase()
       : "filtered";
-  return `sentinel-${tagSegment}-leads-${leads.length}-${stamp}.xlsx`;
+  return `sentinel-${tagSegment}-leads-${leads.length}-${stamp}.${extension}`;
 }
 
 
@@ -244,7 +244,7 @@ function LeadsPageInner() {
     }
   }, [refetch]);
 
-  const handleExportLeads = useCallback(async () => {
+  const handleExportLeads = useCallback(async (format: "xlsx" | "csv") => {
     if (leads.length === 0) {
       toast.error("No leads match the current filters.");
       return;
@@ -252,11 +252,27 @@ function LeadsPageInner() {
 
     try {
       const XLSX = await import("xlsx");
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.json_to_sheet(buildLeadExportRows(leads));
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
-      XLSX.writeFile(workbook, buildLeadExportFileName(leads, filters.distressTags));
-      toast.success(`Exported ${leads.length} lead${leads.length === 1 ? "" : "s"} to Excel.`);
+      const rows = buildLeadExportRows(leads);
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+
+      if (format === "csv") {
+        const csv = XLSX.utils.sheet_to_csv(worksheet);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = buildLeadExportFileName(leads, filters.distressTags, "csv");
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+      } else {
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
+        XLSX.writeFile(workbook, buildLeadExportFileName(leads, filters.distressTags, "xlsx"));
+      }
+
+      toast.success(`Exported ${leads.length} lead${leads.length === 1 ? "" : "s"} as ${format.toUpperCase()}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not export leads");
     }
@@ -272,10 +288,19 @@ function LeadsPageInner() {
             size="sm"
             variant="outline"
             className="gap-2 text-xs"
-            onClick={handleExportLeads}
+            onClick={() => void handleExportLeads("xlsx")}
             disabled={leads.length === 0}
           >
-            Export Excel
+            Export XLSX
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 text-xs"
+            onClick={() => void handleExportLeads("csv")}
+            disabled={leads.length === 0}
+          >
+            Export CSV
           </Button>
           <Button
             size="sm"
