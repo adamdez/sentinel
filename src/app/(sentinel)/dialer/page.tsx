@@ -1100,6 +1100,16 @@ function DialerPageInner() {
   const selectedPhoneIndex = phoneSelection.selectedIndex;
   const selectedLeadPhone = phoneSelection.selectedPhone;
   const selectedDialPhone = phoneSelection.phone;
+  const activeCallPhoneDigits = (currentDialedPhone ?? selectedDialPhone ?? currentLead?.properties?.owner_phone ?? "")
+    .replace(/\D/g, "")
+    .slice(-10);
+  const activeCallPhoneLabel = activeCallPhoneDigits ? formatUsPhone(activeCallPhoneDigits) : "No phone";
+  const activeCallPhoneMeta =
+    selectedLeadPhone && activeLeadPhones.length > 1
+      ? `Phone ${selectedPhoneIndex + 1} of ${activeLeadPhones.length}`
+      : selectedLeadPhone?.is_primary
+        ? "Primary phone"
+        : null;
   const phonesActiveCount = activeLeadPhones.length;
   const phonesAttempted = activeLeadPhones.filter((phone) => phone.last_called_at).length;
   const currentLeadClientFile = currentLead?.properties
@@ -4437,7 +4447,7 @@ function DialerPageInner() {
                         const displayBathrooms = numberFromUnknown(p?.bathrooms);
                         return (
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                        <span className="font-mono text-foreground">{currentDialedPhone ?? currentLead.properties?.owner_phone ?? "No phone"}</span>
+                        <span className="font-mono text-foreground">{activeCallPhoneLabel}</span>
                         <span className="text-muted-foreground/40">|</span>
                         <span>{displayValueLabel} <span className="text-foreground font-medium">{displayValue != null ? formatMoneyFull(displayValue) : "—"}</span></span>
                         <span>Equity <span className="text-foreground font-medium">{(() => {
@@ -4615,6 +4625,26 @@ function DialerPageInner() {
                         </div>
                       )}
                     </div>
+
+                    {callState !== "idle" && (
+                      <div className="rounded-[12px] border border-primary/18 bg-primary/[0.06] px-3 py-2.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/55">
+                              {callState === "dialing" ? "Dialing Number" : callState === "connected" ? "Talking To" : "Last Number"}
+                            </p>
+                            <p className="mt-1 font-mono text-base font-semibold text-foreground">
+                              {activeCallPhoneLabel}
+                            </p>
+                          </div>
+                          {activeCallPhoneMeta && (
+                            <span className="rounded-full border border-primary/20 bg-primary/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/80">
+                              {activeCallPhoneMeta}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {callState === "connected" && (
                       <div className="mt-3">
