@@ -18,6 +18,11 @@ import {
   type QualificationScorePatch,
   type QualificationScoreState,
 } from "@/lib/qualification-workflow";
+import {
+  completeOpenCallTasksForLead,
+  projectLeadFromTasks,
+  upsertLeadCallTask,
+} from "@/lib/task-lead-sync";
 import { refreshZillowEstimateForLeadAssignment } from "@/lib/zillow-estimate";
 import { inngest } from "@/inngest/client";
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
@@ -208,6 +213,26 @@ function buildCoreUpdatesFromScout(input: {
   }
 
   return updates;
+}
+
+function inferLeadFollowUpTaskType(input: {
+  nextAction?: string | null;
+  nextCallScheduledAt?: string | null;
+  nextFollowUpAt?: string | null;
+}): "callback" | "follow_up" | "drive_by" | null {
+  const nextAction = typeof input.nextAction === "string" ? input.nextAction.trim().toLowerCase() : "";
+  if (nextAction.startsWith("drive by")) return "drive_by";
+  if (input.nextCallScheduledAt) return "callback";
+  if (input.nextFollowUpAt || nextAction) return "follow_up";
+  return null;
+}
+
+function resolveFollowUpTaskDueAt(input: {
+  nextActionDueAt?: string | null;
+  nextCallScheduledAt?: string | null;
+  nextFollowUpAt?: string | null;
+}): string | null {
+  return input.nextActionDueAt ?? input.nextCallScheduledAt ?? input.nextFollowUpAt ?? null;
 }
 
 export async function GET() {
@@ -547,6 +572,7 @@ export async function PATCH(req: NextRequest) {
       | {
           title: string;
           dueAt: string;
+          taskType: string;
           description?: string;
           nextFollowUpAt?: string;
           escalationReviewOnly?: boolean;
@@ -572,6 +598,7 @@ export async function PATCH(req: NextRequest) {
         const followUpAt = addDays(1);
         plannedTask = {
           title: `Run comps + prepare offer range${taskSuffix}`,
+          taskType: "research",
           description: "Offer-ready path active. Prepare range and set/confirm next seller touchpoint.",
           dueAt: nowIso,
           nextFollowUpAt: followUpAt,
@@ -582,6 +609,7 @@ export async function PATCH(req: NextRequest) {
         const dueAt = addDays(3);
         plannedTask = {
           title: `Follow-up call${taskSuffix}`,
+          taskType: "follow_up",
           dueAt,
           nextFollowUpAt: dueAt,
         };
@@ -601,6 +629,7 @@ export async function PATCH(req: NextRequest) {
         const dueAt = addDays(14);
         plannedTask = {
           title: `Nurture check-in${taskSuffix}`,
+          taskType: "follow_up",
           dueAt,
           nextFollowUpAt: dueAt,
         };
@@ -621,6 +650,7 @@ export async function PATCH(req: NextRequest) {
       if (nextQualificationRoute === "escalate") {
         plannedTask = {
           title: `Escalation review requested${taskSuffix}`,
+          taskType: "other",
           description: "Adam review requested. Lead ownership remains with the current assignee until manually reassigned.",
           dueAt: nowIso,
           escalationReviewOnly: true,
@@ -815,27 +845,6 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
-    if (parsedNextCall.provided) {
-      updateData.next_call_scheduled_at = parsedNextCall.iso;
-      if (!parsedNextFollowUp.provided) {
-        updateData.next_follow_up_at = parsedNextCall.iso;
-      }
-    }
-
-    if (parsedNextFollowUp.provided) {
-      updateData.next_follow_up_at = parsedNextFollowUp.iso;
-    }
-
-    if (plannedTask?.nextFollowUpAt && !parsedNextFollowUp.provided) {
-      updateData.next_follow_up_at = plannedTask.nextFollowUpAt;
-    }
-
-    if (targetStatus === "dead") {
-      // Dead leads should not keep active callback/follow-up timers.
-      updateData.next_call_scheduled_at = null;
-      updateData.next_follow_up_at = null;
-    }
-
     if (noteAppendText) {
       const stampedLine = `[${nowIso}] ${noteAppendText}`;
       const currentNotes = typeof currentLead.notes === "string" ? currentLead.notes.trim() : "";
@@ -887,16 +896,9 @@ export async function PATCH(req: NextRequest) {
       updateData.equity_flexibility_score = parsedEquityFlex.value;
     }
 
-    if (next_action !== undefined) {
-      updateData.next_action = typeof next_action === "string" ? next_action.trim() || null : null;
-    }
-
-    if (next_action_due_at !== undefined) {
-      const parsedNextActionDue = parseOptionalIso(next_action_due_at);
-      if (!parsedNextActionDue.valid) {
-        return NextResponse.json({ error: "Invalid datetime for next_action_due_at" }, { status: 400 });
-      }
-      updateData.next_action_due_at = parsedNextActionDue.iso;
+    const parsedNextActionDue = parseOptionalIso(next_action_due_at);
+    if (next_action_due_at !== undefined && !parsedNextActionDue.valid) {
+      return NextResponse.json({ error: "Invalid datetime for next_action_due_at" }, { status: 400 });
     }
 
     const currentScoreState: QualificationScoreState = {
@@ -960,6 +962,9 @@ export async function PATCH(req: NextRequest) {
           assigned_to: taskAssignee,
           lead_id,
           due_at: plannedTask.dueAt,
+          task_type: plannedTask.taskType,
+          source_type: plannedTask.taskType === "follow_up" ? "lead_follow_up" : null,
+          source_key: plannedTask.taskType === "follow_up" ? `lead:${lead_id}:primary_call` : null,
           status: "pending",
           priority: 2,
         })
@@ -1023,12 +1028,66 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 
+    const trimmedNextAction = typeof next_action === "string" ? next_action.trim() || null : null;
+    const projectedFollowUpTitle =
+      trimmedNextAction
+      ?? (plannedTask && plannedTask.taskType === "follow_up" ? plannedTask.title : null);
+    const projectedFollowUpTaskType =
+      inferLeadFollowUpTaskType({
+        nextAction: projectedFollowUpTitle,
+        nextCallScheduledAt: parsedNextCall.iso,
+        nextFollowUpAt: plannedTask?.nextFollowUpAt ?? parsedNextFollowUp.iso,
+      });
+    const projectedFollowUpDueAt = resolveFollowUpTaskDueAt({
+      nextActionDueAt: parsedNextActionDue.iso,
+      nextCallScheduledAt: parsedNextCall.iso,
+      nextFollowUpAt: plannedTask?.nextFollowUpAt ?? parsedNextFollowUp.iso,
+    });
+    const terminalFollowUpState =
+      finalStatus === "dead"
+      || finalStatus === "closed"
+      || nextQualificationRoute === "dead"
+      || DEAD_DISPOSITION_SIGNALS.has(effectiveDispositionCode ?? "");
+
+    if (terminalFollowUpState) {
+      await completeOpenCallTasksForLead({
+        sb,
+        leadId: lead_id,
+        completionNote: "Automatically completed after terminal lead outcome.",
+      });
+    } else if (projectedFollowUpTaskType && projectedFollowUpTitle && effectiveAssignedTo) {
+      const canonicalTaskId = await upsertLeadCallTask({
+        sb,
+        leadId: lead_id,
+        assignedTo: effectiveAssignedTo,
+        title: projectedFollowUpTitle,
+        dueAt: projectedFollowUpDueAt,
+        taskType: projectedFollowUpTaskType,
+        notes: noteAppendText || undefined,
+      });
+      if (!createdTaskId && canonicalTaskId) {
+        createdTaskId = canonicalTaskId;
+      }
+    } else {
+      await projectLeadFromTasks(sb, lead_id);
+    }
+
     // Drive By queue eviction
     if (next_action && typeof next_action === "string") {
       try {
         const { evictFromDialQueueIfDriveBy } = await import("@/lib/dial-queue");
         await evictFromDialQueueIfDriveBy(sb, lead_id, next_action);
       } catch { /* non-fatal */ }
+    }
+
+    let refreshedLeadState = currentLead;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: refreshedLead } = await (sb.from("leads") as any)
+      .select("status, assigned_to, next_call_scheduled_at, next_follow_up_at, last_contact_at, disposition_code, notes, qualification_score_total, next_action, next_action_due_at")
+      .eq("id", lead_id)
+      .maybeSingle();
+    if (refreshedLead) {
+      refreshedLeadState = { ...currentLead, ...refreshedLead };
     }
 
     const statusChanged = Boolean(targetStatus && currentStatus !== targetStatus);
@@ -1194,34 +1253,22 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({
       success: true,
       lead_id,
-      status: finalStatus,
+      status: (refreshedLeadState.status as LeadStatus | undefined) ?? finalStatus,
       lock_version: updateData.lock_version,
-      assigned_to: hasUpdate("assigned_to")
-        ? (updateData.assigned_to as string | null)
-        : (currentLead.assigned_to ?? null),
-      next_call_scheduled_at: hasUpdate("next_call_scheduled_at")
-        ? (updateData.next_call_scheduled_at as string | null)
-        : (currentLead.next_call_scheduled_at ?? null),
-      next_follow_up_at: hasUpdate("next_follow_up_at")
-        ? (updateData.next_follow_up_at as string | null)
-        : (currentLead.next_follow_up_at ?? null),
-      last_contact_at: hasUpdate("last_contact_at")
-        ? (updateData.last_contact_at as string | null)
-        : (currentLead.last_contact_at ?? null),
-      disposition_code: hasUpdate("disposition_code")
-        ? (updateData.disposition_code as string | null)
-        : (typeof currentLead.disposition_code === "string" ? currentLead.disposition_code : null),
+      assigned_to: (refreshedLeadState.assigned_to as string | null | undefined) ?? null,
+      next_call_scheduled_at: (refreshedLeadState.next_call_scheduled_at as string | null | undefined) ?? null,
+      next_follow_up_at: (refreshedLeadState.next_follow_up_at as string | null | undefined) ?? null,
+      last_contact_at: (refreshedLeadState.last_contact_at as string | null | undefined) ?? null,
+      disposition_code: typeof refreshedLeadState.disposition_code === "string" ? refreshedLeadState.disposition_code : null,
       qualification_route: hasUpdate("qualification_route")
         ? (updateData.qualification_route as QualificationRoute | null)
         : currentQualificationRoute,
-      notes: hasUpdate("notes")
-        ? (updateData.notes as string | null)
-        : (typeof currentLead.notes === "string" ? currentLead.notes : null),
+      notes: typeof refreshedLeadState.notes === "string" ? refreshedLeadState.notes : null,
       qualification_task_id: createdTaskId,
       escalation_review_only: plannedTask?.escalationReviewOnly === true,
-      qualification_score_total: hasUpdate("qualification_score_total")
-        ? (updateData.qualification_score_total as number | null)
-        : (currentLead.qualification_score_total ?? null),
+      qualification_score_total: (refreshedLeadState.qualification_score_total as number | null | undefined) ?? null,
+      next_action: typeof refreshedLeadState.next_action === "string" ? refreshedLeadState.next_action : null,
+      next_action_due_at: (refreshedLeadState.next_action_due_at as string | null | undefined) ?? null,
       suggested_route: suggestedRoute,
     });
   } catch (err) {

@@ -30,6 +30,10 @@ export interface TaskItem {
   lead_phone?: string | null;
   lead_status?: string | null;
   dial_queue_active?: boolean;
+  is_call_task?: boolean;
+  is_primary_for_lead?: boolean;
+  open_task_count?: number;
+  open_call_task_count?: number;
   // Last call context
   last_call_date?: string | null;
   last_call_disposition?: string | null;

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
-import { syncTaskToLead } from "@/lib/task-lead-sync";
+import {
+  isCallDrivingTaskType,
+  pickPrimaryCallTask,
+  syncTaskToLead,
+} from "@/lib/task-lead-sync";
 
 /**
  * GET /api/tasks — list tasks with filters
@@ -151,8 +155,56 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    const pendingTaskStatsByLeadId: Record<string, { open_task_count: number; open_call_task_count: number; primary_task_id: string | null }> = {};
+    if (leadIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: pendingTasks } = await (sb.from("tasks") as any)
+        .select("id, lead_id, due_at, task_type, status, priority, created_at")
+        .in("lead_id", leadIds)
+        .eq("status", "pending");
+
+      const grouped: Record<string, Array<Record<string, unknown>>> = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (pendingTasks ?? []).forEach((task: any) => {
+        if (typeof task?.lead_id !== "string") return;
+        if (!grouped[task.lead_id]) grouped[task.lead_id] = [];
+        grouped[task.lead_id].push(task);
+      });
+
+      for (const leadIdKey of Object.keys(grouped)) {
+        const tasksForLead = grouped[leadIdKey];
+        const primary = pickPrimaryCallTask(tasksForLead as Array<{
+          id: string;
+          title: string | null;
+          due_at: string | null;
+          task_type: string | null;
+          status: string | null;
+          lead_id: string | null;
+          assigned_to: string | null;
+          priority?: number | null;
+          created_at?: string | null;
+          updated_at?: string | null;
+        }>);
+        pendingTaskStatsByLeadId[leadIdKey] = {
+          open_task_count: tasksForLead.length,
+          open_call_task_count: tasksForLead.filter((task) => isCallDrivingTaskType(typeof task.task_type === "string" ? task.task_type : null)).length,
+          primary_task_id: primary?.id ?? null,
+        };
+      }
+    }
+
     const noCallContext = { last_call_date: null, last_call_disposition: null, last_call_notes: null };
-    const noLeadContext = { lead_address: null, lead_owner: null, lead_phone: null, lead_status: null, dial_queue_active: false };
+    const noLeadContext = {
+      lead_address: null,
+      lead_owner: null,
+      lead_phone: null,
+      lead_status: null,
+      dial_queue_active: false,
+      is_call_task: false,
+      is_primary_for_lead: false,
+      open_task_count: 0,
+      open_call_task_count: 0,
+    };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const enriched = (tasks ?? []).map((t: any) => ({
@@ -160,6 +212,13 @@ export async function GET(req: NextRequest) {
       ...(leadMap[t.lead_id] ?? noLeadContext),
       ...(callMap[t.lead_id] ?? noCallContext),
       assigned_to_name: typeof t.assigned_to === "string" ? (assigneeNameMap[t.assigned_to] ?? null) : null,
+      is_call_task: isCallDrivingTaskType(typeof t.task_type === "string" ? t.task_type : null),
+      is_primary_for_lead:
+        typeof t.lead_id === "string"
+        && !!pendingTaskStatsByLeadId[t.lead_id]
+        && pendingTaskStatsByLeadId[t.lead_id].primary_task_id === t.id,
+      open_task_count: typeof t.lead_id === "string" ? (pendingTaskStatsByLeadId[t.lead_id]?.open_task_count ?? 0) : 0,
+      open_call_task_count: typeof t.lead_id === "string" ? (pendingTaskStatsByLeadId[t.lead_id]?.open_call_task_count ?? 0) : 0,
     }));
 
     return NextResponse.json({ tasks: enriched });
@@ -210,7 +269,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await (sb.from("tasks") as any).insert(record).select().single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Bidirectional sync: project task onto lead's next_action fields
+    // Project the lead compatibility fields from the canonical task state.
     if (data?.lead_id) {
       await syncTaskToLead(sb, data.lead_id, data.title, data.due_at);
     }

@@ -47,6 +47,10 @@ interface DashTask {
   assigned_to: string | null;
   assigned_to_name?: string | null;
   notes: string | null;
+  is_call_task?: boolean;
+  is_primary_for_lead?: boolean;
+  open_task_count?: number;
+  open_call_task_count?: number;
 }
 
 interface BriefLead {
@@ -111,8 +115,11 @@ function ago(dateStr: string) {
 
 function callbackTask(task: DashTask) {
   const type = (task.task_type ?? "").toLowerCase();
-  const title = task.title.toLowerCase();
-  return type === "callback" || type === "call_back" || title.includes("callback") || title.includes("call back") || title.includes("return call");
+  return (task.is_call_task === true || type === "callback" || type === "call_back" || type === "follow_up") && type !== "drive_by";
+}
+
+function driveByTask(task: DashTask) {
+  return (task.task_type ?? "").toLowerCase() === "drive_by";
 }
 
 function taskTitle(task: DashTask) {
@@ -128,13 +135,6 @@ function leadTitle(lead: BriefLead) {
   }
   if (lead.properties?.address) return lead.properties.address;
   return lead.source ?? `Lead ${lead.id.slice(0, 8)}`;
-}
-
-function actionableLeadCallback(lead: BriefLead) {
-  const action = (lead.next_action ?? "").trim().toLowerCase();
-  if (!action) return false;
-  if (action.startsWith("drive by")) return false;
-  return ["overdue", "today"].includes(dueBucket(lead.next_action_due_at));
 }
 
 function cut(text: string, limit = 96) {
@@ -208,13 +208,9 @@ export function DashboardGrid() {
   const { openModal } = useModal();
   const [loading, setLoading] = useState(true);
   const [tasksError, setTasksError] = useState<SectionError>(null);
-  const [callbacksError, setCallbacksError] = useState<SectionError>(null);
-  const [driveByError, setDriveByError] = useState<SectionError>(null);
   const [inboundError, setInboundError] = useState<SectionError>(null);
   const [opsError, setOpsError] = useState<SectionError>(null);
   const [allTasks, setAllTasks] = useState<DashTask[]>([]);
-  const [callbackLeads, setCallbackLeads] = useState<BriefLead[]>([]);
-  const [driveByLeads, setDriveByLeads] = useState<BriefLead[]>([]);
   const [inboundLeads, setInboundLeads] = useState<BriefLead[]>([]);
   const [stalledDeals, setStalledDeals] = useState<BriefLead[]>([]);
   const [reviewBlockers, setReviewBlockers] = useState<ReviewBlocker[]>([]);
@@ -226,7 +222,6 @@ export function DashboardGrid() {
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const fetchAll = useCallback(async () => {
-    const { end } = todayRange();
     const session = await supabase.auth.getSession();
     const token = session.data.session?.access_token;
     const headers: Record<string, string> = {};
@@ -242,81 +237,6 @@ export function DashboardGrid() {
       console.error("[Today] tasks error:", err);
       setAllTasks([]);
       setTasksError("Failed to load tasks");
-    }
-
-    try {
-      if (!currentUser?.id) {
-        setCallbackLeads([]);
-        setCallbacksError(null);
-      } else {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data, error } = await (supabase.from("leads") as any)
-          .select("id, next_action_due_at, next_action, created_at, source, notes, dial_queue_active, properties(address, city, owner_name, owner_phone)")
-          .eq("assigned_to", currentUser.id)
-          .in("status", ["prospect", "lead"])
-          .not("next_action_due_at", "is", null)
-          .lte("next_action_due_at", end.toISOString())
-          .order("next_action_due_at", { ascending: true })
-          .limit(40);
-
-        if (error) throw error;
-
-        const rawLeads = (data ?? []) as BriefLead[];
-        const callbackCandidates = rawLeads.filter(actionableLeadCallback);
-        const leadIds = callbackCandidates.map((lead) => lead.id);
-
-        const callContextByLeadId: Record<string, Pick<BriefLead, "last_call_date" | "last_call_disposition" | "last_call_notes">> = {};
-        if (leadIds.length > 0) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { data: calls, error: callsError } = await (supabase.from("calls_log") as any)
-            .select("lead_id, created_at, disposition, notes")
-            .in("lead_id", leadIds)
-            .order("created_at", { ascending: false });
-          if (callsError) throw callsError;
-
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (calls ?? []).forEach((call: any) => {
-            if (typeof call?.lead_id === "string" && !callContextByLeadId[call.lead_id]) {
-              callContextByLeadId[call.lead_id] = {
-                last_call_date: call.created_at ?? null,
-                last_call_disposition: call.disposition ?? null,
-                last_call_notes: call.notes ? String(call.notes).slice(0, 120) : null,
-              };
-            }
-          });
-        }
-
-        setCallbackLeads(callbackCandidates.map((lead) => ({
-          ...lead,
-          lead_phone: lead.properties?.owner_phone ?? null,
-          ...(callContextByLeadId[lead.id] ?? { last_call_date: null, last_call_disposition: null, last_call_notes: null }),
-        })));
-        setCallbacksError(null);
-      }
-    } catch (err) {
-      console.error("[Today] callback leads error:", err);
-      setCallbackLeads([]);
-      setCallbacksError("Failed to load lead callbacks");
-    }
-
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let query = (supabase.from("leads") as any)
-        .select("id, next_action_due_at, next_action, created_at, source, properties(address, city, owner_name)")
-        .ilike("next_action", "drive by%")
-        .not("status", "in", '(\"dead\",\"closed\")')
-        .lte("next_action_due_at", end.toISOString())
-        .order("next_action_due_at", { ascending: true })
-        .limit(8);
-      if (currentUser?.id) query = query.eq("assigned_to", currentUser.id);
-      const { data, error } = await query;
-      if (error) throw error;
-      setDriveByLeads(data ?? []);
-      setDriveByError(null);
-    } catch (err) {
-      console.error("[Today] drive by error:", err);
-      setDriveByLeads([]);
-      setDriveByError("Failed to load drive-by work");
     }
 
     try {
@@ -387,18 +307,26 @@ export function DashboardGrid() {
   }, [fetchAll]);
 
   const myTasks = useMemo(() => allTasks.filter((task) => task.assigned_to === currentUser?.id), [allTasks, currentUser?.id]);
-  const myTaskCallbacks = useMemo(() => myTasks.filter((task) => callbackTask(task) && ["overdue", "today"].includes(dueBucket(task.due_at))), [myTasks]);
-  const callbackTaskLeadIds = useMemo(() => new Set(myTaskCallbacks.map((task) => task.lead_id).filter((value): value is string => typeof value === "string" && value.length > 0)), [myTaskCallbacks]);
-  const myLeadCallbacks = useMemo(() => callbackLeads.filter((lead) => !callbackTaskLeadIds.has(lead.id)), [callbackLeads, callbackTaskLeadIds]);
-  const myActionTasks = useMemo(() => myTasks.filter((task) => !callbackTask(task) && ["overdue", "today"].includes(dueBucket(task.due_at))), [myTasks]);
-  const myCallbacksCount = myTaskCallbacks.length + myLeadCallbacks.length;
+  const myTaskCallbacks = useMemo(
+    () => myTasks.filter((task) => callbackTask(task) && ["overdue", "today"].includes(dueBucket(task.due_at))),
+    [myTasks],
+  );
+  const myDriveByTasks = useMemo(
+    () => myTasks.filter((task) => driveByTask(task) && ["overdue", "today"].includes(dueBucket(task.due_at))),
+    [myTasks],
+  );
+  const myActionTasks = useMemo(
+    () => myTasks.filter((task) => !callbackTask(task) && !driveByTask(task) && ["overdue", "today"].includes(dueBucket(task.due_at))),
+    [myTasks],
+  );
+  const myCallbacksCount = myTaskCallbacks.length;
   const myOverdueCount = useMemo(
-    () => myTasks.filter((task) => dueBucket(task.due_at) === "overdue").length + myLeadCallbacks.filter((lead) => dueBucket(lead.next_action_due_at) === "overdue").length,
-    [myTasks, myLeadCallbacks],
+    () => myTasks.filter((task) => dueBucket(task.due_at) === "overdue").length,
+    [myTasks],
   );
   const myDueTodayCount = useMemo(
-    () => myTasks.filter((task) => dueBucket(task.due_at) === "today").length + myLeadCallbacks.filter((lead) => dueBucket(lead.next_action_due_at) === "today").length,
-    [myTasks, myLeadCallbacks],
+    () => myTasks.filter((task) => dueBucket(task.due_at) === "today").length,
+    [myTasks],
   );
   const teamGroups = useMemo(() => {
     const groups: Record<string, { name: string; tasks: DashTask[] }> = {};
@@ -415,10 +343,9 @@ export function DashboardGrid() {
   useEffect(() => {
     const validIds = new Set([
       ...myTaskCallbacks.map((task) => task.lead_id).filter((value): value is string => typeof value === "string" && value.length > 0),
-      ...myLeadCallbacks.map((lead) => lead.id),
     ]);
     setSelectedCallbacks((prev) => prev.filter((id) => validIds.has(id)));
-  }, [myTaskCallbacks, myLeadCallbacks]);
+  }, [myTaskCallbacks]);
 
   const toggleNote = useCallback((key: string) => {
     setExpandedNotes((prev) => {
@@ -492,6 +419,7 @@ export function DashboardGrid() {
       : null;
     const inQueue = task.dial_queue_active === true;
     const queueing = task.lead_id ? queueingLeadIds.includes(task.lead_id) : false;
+    const otherTaskCount = Math.max(0, (task.open_task_count ?? 0) - 1);
 
     return (
       <div key={task.id} className="rounded-lg border border-border/30 bg-background/30 p-3">
@@ -518,6 +446,18 @@ export function DashboardGrid() {
               {dueLabel(task.due_at)} · {task.title}
               {task.lead_phone ? ` · ${task.lead_phone}` : " · No phone"}
             </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              {task.is_primary_for_lead && (
+                <Badge variant="outline" className="text-[10px]">
+                  Primary follow-up
+                </Badge>
+              )}
+              {otherTaskCount > 0 && (
+                <Badge variant="outline" className="text-[10px]">
+                  +{otherTaskCount} more task{otherTaskCount === 1 ? "" : "s"}
+                </Badge>
+              )}
+            </div>
             {options?.showAssignee && task.assigned_to_name && (
               <p className="mt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground/55">{task.assigned_to_name}</p>
             )}
@@ -551,7 +491,7 @@ export function DashboardGrid() {
     );
   };
 
-  const renderCallbackLeadRow = (lead: BriefLead) => {
+  const _renderCallbackLeadRow = (lead: BriefLead) => {
     const queueing = queueingLeadIds.includes(lead.id);
     const inQueue = lead.dial_queue_active === true;
     const lastCall = lead.last_call_date
@@ -631,13 +571,12 @@ export function DashboardGrid() {
   return (
     <div className="space-y-5">
       {tasksError && <ErrorBanner message={tasksError} />}
-      {callbacksError && <ErrorBanner message={callbacksError} />}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat icon={AlertTriangle} label="My Overdue" value={myOverdueCount} color={myOverdueCount > 0 ? "text-red-400" : "text-muted-foreground"} />
         <Stat icon={CalendarCheck} label="My Due Today" value={myDueTodayCount} color={myDueTodayCount > 0 ? "text-amber-400" : "text-muted-foreground"} />
         <Stat icon={PhoneCall} label="My Callbacks Ready" value={myCallbacksCount} color={myCallbacksCount > 0 ? "text-primary" : "text-muted-foreground"} />
-        <Stat icon={MapPin} label="My Drive By" value={driveByLeads.length} color={driveByLeads.length > 0 ? "text-amber-400" : "text-muted-foreground"} />
+        <Stat icon={MapPin} label="My Drive By" value={myDriveByTasks.length} color={myDriveByTasks.length > 0 ? "text-amber-400" : "text-muted-foreground"} />
       </div>
 
       <Section
@@ -660,10 +599,7 @@ export function DashboardGrid() {
         {myCallbacksCount === 0 ? (
           <Empty icon={CheckCircle2} message="No callbacks are ready right now." />
         ) : (
-          <>
-            {myTaskCallbacks.map((task) => renderTaskRow(task, { selectable: true }))}
-            {myLeadCallbacks.map((lead) => renderCallbackLeadRow(lead))}
-          </>
+          myTaskCallbacks.map((task) => renderTaskRow(task, { selectable: true }))
         )}
       </Section>
 
@@ -703,10 +639,10 @@ export function DashboardGrid() {
       </Section>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <Section icon={MapPin} title="Drive By" iconColor="text-amber-400" count={driveByLeads.length}>
-          {driveByError ? <ErrorBanner message={driveByError} /> : driveByLeads.length === 0 ? <Empty icon={CheckCircle2} message="No drive-bys are due for you today." /> : (
+        <Section icon={MapPin} title="Drive By" iconColor="text-amber-400" count={myDriveByTasks.length}>
+          {myDriveByTasks.length === 0 ? <Empty icon={CheckCircle2} message="No drive-bys are due for you today." /> : (
             <>
-              {driveByLeads.map((lead) => renderLeadRow(lead, "Drive By", () => { window.location.href = "/drive-by"; }, lead.next_action_due_at ? dueLabel(lead.next_action_due_at) : "Drive-by queued"))}
+              {myDriveByTasks.map((task) => renderTaskRow(task))}
               <a href="/drive-by" className="flex items-center justify-center gap-1 pt-1 text-sm text-primary transition-colors hover:text-primary/80">Full Drive By board <ArrowRight className="h-3 w-3" /></a>
             </>
           )}

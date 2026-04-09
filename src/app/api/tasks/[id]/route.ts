@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { requireAuth } from "@/lib/api-auth";
-import { syncTaskToLead, clearTaskFromLead } from "@/lib/task-lead-sync";
+import { projectLeadFromTasks } from "@/lib/task-lead-sync";
 import { syncJeffInteractionStatusFromTask } from "@/lib/jeff-interactions";
 
 /**
@@ -54,14 +54,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Bidirectional sync: project task changes onto lead
-    const leadId = data?.lead_id ?? current?.lead_id;
-    if (leadId) {
-      if (data.status === "completed") {
-        await clearTaskFromLead(sb, leadId, id);
-      } else if (data.status === "pending") {
-        await syncTaskToLead(sb, leadId, data.title, data.due_at);
-      }
+    // Recompute task-first lead projection for every affected lead.
+    const affectedLeadIds = [
+      current?.lead_id,
+      data?.lead_id,
+    ].filter((value, index, arr): value is string => typeof value === "string" && value.length > 0 && arr.indexOf(value) === index);
+
+    for (const leadId of affectedLeadIds) {
+      await projectLeadFromTasks(sb, leadId);
     }
 
     await syncJeffInteractionStatusFromTask(id, data.status);
@@ -95,9 +95,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const { error } = await (sb.from("tasks") as any).delete().eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // Bidirectional sync: clear lead's next_action or promote next pending task
+    // Recompute task-first lead projection after deletion.
     if (taskBefore?.lead_id) {
-      await clearTaskFromLead(sb, taskBefore.lead_id, id);
+      await projectLeadFromTasks(sb, taskBefore.lead_id);
     }
 
     if (taskBefore?.jeff_interaction_id) {

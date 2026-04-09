@@ -289,8 +289,6 @@ export async function publishSession(
     if (input.motivation_level    !== undefined) qualPatch.motivation_level    = input.motivation_level;
     if (input.seller_timeline     !== undefined) qualPatch.seller_timeline     = input.seller_timeline;
     if (input.qualification_route !== undefined) qualPatch.qualification_route = input.qualification_route;
-    if (input.next_action         !== undefined) qualPatch.next_action         = input.next_action;
-    if (input.next_action_due_at  !== undefined) qualPatch.next_action_due_at  = input.next_action_due_at;
     if (input.qual_confirmed) {
       const qc = input.qual_confirmed;
       if (qc.decision_maker_confirmed !== undefined) qualPatch.decision_maker_confirmed = qc.decision_maker_confirmed;
@@ -332,18 +330,18 @@ export async function publishSession(
       }
     }
 
-    // Bidirectional sync: if next_action was set, upsert a task row
+    // Task-first follow-up: next_action becomes a canonical call-driving task.
     if (input.next_action) {
       try {
-        const { syncLeadToTask } = await import("@/lib/task-lead-sync");
-        await syncLeadToTask(
+        const { upsertLeadCallTask } = await import("@/lib/task-lead-sync");
+        await upsertLeadCallTask({
           sb,
           leadId,
-          input.next_action,
-          input.next_action_due_at ?? null,
-          userId,
-          "follow_up",
-        );
+          title: input.next_action,
+          dueAt: input.next_action_due_at ?? null,
+          assignedTo: userId,
+          taskType: input.next_action.toLowerCase().startsWith("drive by") ? "drive_by" : "follow_up",
+        });
       } catch (syncErr) {
         console.error("[publish-manager] task-lead-sync failed (non-fatal):", syncErr);
         warnings.push("task_sync_failed");
@@ -409,6 +407,19 @@ export async function publishSession(
           })
           .eq("id", leadId)
           .eq("lock_version", currentLead.lock_version);
+
+        if (targetStatus === "dead") {
+          try {
+            const { completeOpenCallTasksForLead } = await import("@/lib/task-lead-sync");
+            await completeOpenCallTasksForLead({
+              sb,
+              leadId,
+              completionNote: "Automatically completed after terminal dialer disposition.",
+            });
+          } catch (taskErr) {
+            console.warn("[publish-manager] dead disposition task cleanup failed (non-fatal):", taskErr);
+          }
+        }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (sb.from("event_log") as any).insert({
@@ -484,38 +495,56 @@ export async function publishSession(
       ? `${dispoLabel} — ${leadLabel} (set callback date)`
       : `${dispoLabel} — ${leadLabel}`;
 
-    const taskPayload = {
+    try {
+      const { upsertLeadCallTask } = await import("@/lib/task-lead-sync");
+      taskId = await upsertLeadCallTask({
+        sb,
+        leadId,
+        title,
+        dueAt: dueAt.toISOString(),
+        assignedTo,
+        taskType: "follow_up",
+        sourceType: "lead_follow_up",
+        sourceKey: `lead:${leadId}:primary_call`,
+      });
+    } catch (taskErr) {
+      console.error("[publish-manager] canonical task upsert failed, falling back to raw insert:", taskErr);
+    }
+
+    if (!taskId) {
+      const taskPayload = {
       title,
       assigned_to: assignedTo,
       lead_id: leadId,
       due_at: dueAt.toISOString(),
       status: "pending",
       priority: input.disposition === "appointment" ? 2 : 1,
-    };
+      };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: taskRow, error: taskErr } = await (sb.from("tasks") as any)
-      .insert(taskPayload)
-      .select("id")
-      .single();
-
-    if (taskErr) {
-      console.error("[publish-manager] task creation failed, retrying:", taskErr.message);
-      // Retry once — a dropped task means a lead silently exits the pipeline
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: retryRow, error: retryErr } = await (sb.from("tasks") as any)
+      const { data: taskRow, error: taskErr } = await (sb.from("tasks") as any)
         .insert(taskPayload)
         .select("id")
         .single();
 
-      if (retryErr) {
-        console.error("[publish-manager] task creation retry failed:", retryErr.message);
-        warnings.push("task_creation_failed");
+      if (taskErr) {
+        console.error("[publish-manager] task creation failed, retrying:", taskErr.message);
+        // Retry once — a dropped task means a lead silently exits the pipeline
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: retryRow, error: retryErr } = await (sb.from("tasks") as any)
+          .insert(taskPayload)
+          .select("id")
+          .single();
+
+        if (retryErr) {
+          console.error("[publish-manager] task creation retry failed:", retryErr.message);
+          warnings.push("task_creation_failed");
+        } else {
+          taskId = (retryRow?.id as string) ?? null;
+        }
       } else {
-        taskId = (retryRow?.id as string) ?? null;
+        taskId = (taskRow?.id as string) ?? null;
       }
-    } else {
-      taskId = (taskRow?.id as string) ?? null;
     }
   }
 
@@ -525,6 +554,15 @@ export async function publishSession(
   // Fire-and-forget: a failed write never fails the publish response.
   // Tags with invalid values (not in OBJECTION_TAGS allowlist) are silently dropped.
   // Writes are skipped if lead_id is null or no tags provided.
+
+  if (leadId && taskId) {
+    try {
+      const { syncTaskToLead } = await import("@/lib/task-lead-sync");
+      await syncTaskToLead(sb, leadId);
+    } catch (taskProjectErr) {
+      console.warn("[publish-manager] task projection refresh failed (non-fatal):", taskProjectErr);
+    }
+  }
 
   if (leadId && input.objection_tags?.length) {
     const allowedSet = new Set<string>(OBJECTION_TAGS);
