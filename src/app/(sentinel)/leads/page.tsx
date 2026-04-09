@@ -15,6 +15,7 @@ import { LeadTable } from "@/components/sentinel/leads/lead-table";
 import type { MarketFilter, AttentionFocus } from "@/hooks/use-leads";
 import { MasterClientFileModal, clientFileFromLead } from "@/components/sentinel/master-client-file-modal";
 import { useLeads } from "@/hooks/use-leads";
+import type { LeadRow } from "@/lib/leads-data";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { filterChip } from "@/lib/sentinel-ui";
@@ -37,6 +38,42 @@ function mapFilterToAttention(f: InboundFilter): AttentionFocus {
     case "callbacks_today": return "overdue";
     default: return "none";
   }
+}
+
+function buildLeadExportRows(leads: LeadRow[]) {
+  return leads.map((lead) => ({
+    "Sentinel Lead ID": lead.id,
+    "Sentinel Property ID": lead.propertyId,
+    Status: lead.status,
+    "Owner Name": lead.ownerName,
+    "Property Address": lead.address,
+    "Property City": lead.city,
+    "Property State": lead.state,
+    "Property Zip": lead.zip,
+    County: lead.county,
+    APN: lead.apn,
+    Phone: lead.ownerPhone ?? "",
+    "Owner Email": lead.ownerEmail ?? "",
+    "Distress Tags": lead.distressSignals.join(", "),
+    "Source Channel": lead.sourceChannel ?? lead.source,
+    "Source Vendor": lead.sourceVendor ?? "",
+    "Source List Name": lead.sourceListName ?? "",
+    "Source Pull Date": lead.sourcePullDate ?? "",
+    "Niche Tag": lead.nicheTag ?? "",
+    "Import Batch ID": lead.importBatchId ?? "",
+    "Skip Trace Status": lead.skipTraceStatus ?? "",
+    "Current Notes": lead.notes ?? "",
+    "Next Follow Up": lead.followUpDate ?? "",
+  }));
+}
+
+function buildLeadExportFileName(leads: LeadRow[], distressTags: string[]) {
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const tagSegment =
+    distressTags.length === 1
+      ? distressTags[0].replace(/[^a-z0-9]+/gi, "-").toLowerCase()
+      : "filtered";
+  return `sentinel-${tagSegment}-leads-${leads.length}-${stamp}.xlsx`;
 }
 
 
@@ -207,12 +244,47 @@ function LeadsPageInner() {
     }
   }, [refetch]);
 
+  const handleExportLeads = useCallback(async () => {
+    if (leads.length === 0) {
+      toast.error("No leads match the current filters.");
+      return;
+    }
+
+    try {
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(buildLeadExportRows(leads));
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
+      XLSX.writeFile(workbook, buildLeadExportFileName(leads, filters.distressTags));
+      toast.success(`Exported ${leads.length} lead${leads.length === 1 ? "" : "s"} to Excel.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not export leads");
+    }
+  }, [filters.distressTags, leads]);
+
   return (
     <PageShell
       title="Lead Queue"
       description="Working inbox — overdue and high-priority leads first."
       actions={
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 text-xs"
+            onClick={handleExportLeads}
+            disabled={leads.length === 0}
+          >
+            Export Excel
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 text-xs"
+            onClick={() => window.location.assign("/admin/import")}
+          >
+            Import Sheet
+          </Button>
           <Button size="sm" className="gap-2 text-xs" onClick={() => openModal("new-prospect")}>
             <Plus className="h-3 w-3" />
             New Seller Lead

@@ -106,6 +106,45 @@ function cleanPhoneForQuery(value: string | null): string | null {
   return digits.length >= 10 ? digits.slice(-10) : null;
 }
 
+const IMPORT_PHONE_FIELDS = [
+  "phone",
+  "phone2",
+  "phone3",
+  "phone4",
+  "phone5",
+  "phone6",
+  "phone7",
+  "phone8",
+  "phone9",
+  "phone10",
+] as const;
+
+type ImportedPhoneField = (typeof IMPORT_PHONE_FIELDS)[number];
+type ImportedPhoneRecord = Pick<NormalizedImportRecord, ImportedPhoneField>;
+
+function formatLeadPhoneValue(digits: string): string {
+  return `+1${digits}`;
+}
+
+function normalizeLeadPhoneSource(value: string): string {
+  const cleaned = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return cleaned || "csv_import";
+}
+
+export function extractImportedPhoneCandidates(record: ImportedPhoneRecord): string[] {
+  const seen = new Set<string>();
+  const phones: string[] = [];
+
+  for (const field of IMPORT_PHONE_FIELDS) {
+    const normalized = cleanPhoneForQuery(record[field]);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    phones.push(normalized);
+  }
+
+  return phones;
+}
+
 export async function findDuplicateCandidate(
   sb: SupabaseLike,
   record: NormalizedImportRecord,
@@ -193,6 +232,86 @@ export async function findDuplicateCandidate(
   return { level: "none", reasons: [] };
 }
 
+async function promoteImportedPhonesToExistingLead(args: {
+  sb: SupabaseLike;
+  leadId: string;
+  propertyId: string;
+  record: ImportedPhoneRecord;
+  existingPropertyOwnerPhone: string | null;
+  desiredPrimaryPhone: string | null;
+  sourceLabel: string;
+}) {
+  const { sb, leadId, propertyId, record, existingPropertyOwnerPhone, desiredPrimaryPhone, sourceLabel } = args;
+  const importedPhones = extractImportedPhoneCandidates(record);
+  if (importedPhones.length === 0) return 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: existingLeadPhones } = await (sb.from("lead_phones") as any)
+    .select("phone, position, is_primary, status")
+    .eq("lead_id", leadId)
+    .order("position", { ascending: true });
+
+  const existingRows = Array.isArray(existingLeadPhones) ? existingLeadPhones as Array<{
+    phone: string | null;
+    position: number | null;
+    is_primary: boolean | null;
+    status: string | null;
+  }> : [];
+
+  const knownPhoneDigits = new Set<string>();
+  const existingPropertyPhoneDigits = cleanPhoneForQuery(existingPropertyOwnerPhone);
+  if (existingPropertyPhoneDigits) knownPhoneDigits.add(existingPropertyPhoneDigits);
+
+  for (const row of existingRows) {
+    const normalized = cleanPhoneForQuery(asString(row.phone));
+    if (normalized) knownPhoneDigits.add(normalized);
+  }
+
+  const desiredPrimaryDigits = cleanPhoneForQuery(desiredPrimaryPhone) ?? importedPhones[0] ?? null;
+  const hasPrimaryLeadPhone = existingRows.some((row) => row.is_primary === true);
+  let primaryInserted = false;
+  let nextPosition = Math.max(
+    -1,
+    ...existingRows.map((row) => typeof row.position === "number" ? row.position : -1),
+  ) + 1;
+  let inserted = 0;
+
+  for (const digits of importedPhones) {
+    if (knownPhoneDigits.has(digits)) continue;
+
+    const isPrimary = !hasPrimaryLeadPhone && !primaryInserted && digits === desiredPrimaryDigits;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (sb.from("lead_phones") as any).insert({
+      lead_id: leadId,
+      property_id: propertyId,
+      phone: formatLeadPhoneValue(digits),
+      label: isPrimary ? "primary" : "mobile",
+      source: sourceLabel,
+      status: "active",
+      is_primary: isPrimary,
+      position: nextPosition,
+    });
+
+    if (error?.code === "23505") {
+      knownPhoneDigits.add(digits);
+      continue;
+    }
+    if (error) {
+      throw error;
+    }
+
+    knownPhoneDigits.add(digits);
+    inserted += 1;
+    nextPosition += 1;
+    if (isPrimary) {
+      primaryInserted = true;
+    }
+  }
+
+  return inserted;
+}
+
 export async function updateExistingRecordFromImport(args: {
   sb: SupabaseLike;
   duplicate: DuplicateCandidate;
@@ -221,6 +340,8 @@ export async function updateExistingRecordFromImport(args: {
   const ownerFlags = asObject(property?.owner_flags) ?? {};
   const prospecting = asObject(ownerFlags.prospecting_intake) ?? {};
   const outbound = asObject(ownerFlags.outbound_intake) ?? {};
+  const importedPhoneCandidates = extractImportedPhoneCandidates(record);
+  const primaryImportedPhone = importedPhoneCandidates[0] ?? null;
 
   const propertyPatch: Record<string, unknown> = {
     owner_flags: {
@@ -262,7 +383,7 @@ export async function updateExistingRecordFromImport(args: {
     },
   };
 
-  if (!property?.owner_phone && record.phone) propertyPatch.owner_phone = record.phone;
+  if (!property?.owner_phone && primaryImportedPhone) propertyPatch.owner_phone = primaryImportedPhone;
   if (!property?.owner_email && record.email) propertyPatch.owner_email = record.email;
   if ((!property?.owner_name || property.owner_name === "Unknown Owner") && record.ownerName) propertyPatch.owner_name = record.ownerName;
   if (!property?.city && record.propertyCity) propertyPatch.city = record.propertyCity;
@@ -287,6 +408,10 @@ export async function updateExistingRecordFromImport(args: {
     const noteAppend = [`Import append from ${defaults.importBatchId || "batch import"}`, record.notes]
       .filter(Boolean)
       .join(" - ");
+    const desiredPrimaryPhone =
+      typeof propertyPatch.owner_phone === "string"
+        ? propertyPatch.owner_phone
+        : asString(property?.owner_phone);
 
     const leadPatch: Record<string, unknown> = {
       tags: nextTags,
@@ -329,6 +454,17 @@ export async function updateExistingRecordFromImport(args: {
         console.error("[Import] Rescore failed (non-fatal):", scoreErr);
       }
     }
+
+    const importSource = normalizeLeadPhoneSource(record.sourceVendor ?? defaults.sourceVendor ?? defaults.sourceChannel);
+    await promoteImportedPhonesToExistingLead({
+      sb,
+      leadId: lead.id,
+      propertyId: duplicate.propertyId,
+      record,
+      existingPropertyOwnerPhone: asString(property?.owner_phone),
+      desiredPrimaryPhone,
+      sourceLabel: `import:${importSource}`,
+    });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("leads") as any)
