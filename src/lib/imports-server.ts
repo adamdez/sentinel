@@ -150,6 +150,24 @@ export async function findDuplicateCandidate(
   record: NormalizedImportRecord,
   cache: Map<string, DuplicateCandidate>
 ): Promise<DuplicateCandidate> {
+  const sentinelLeadId = asString(record.sentinelLeadId);
+  if (sentinelLeadId) {
+    const cacheKey = `lead:${sentinelLeadId}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey)!;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: matchedLead } = await (sb.from("leads") as any)
+      .select("id, property_id")
+      .eq("id", sentinelLeadId)
+      .maybeSingle();
+
+    if (matchedLead?.id && matchedLead?.property_id) {
+      const duplicate = mergeReasons("high", ["Matched Sentinel Lead ID"], matchedLead.property_id, matchedLead.id);
+      cache.set(cacheKey, duplicate);
+      return duplicate;
+    }
+  }
+
   const apnKey = record.apn && record.county ? `apn:${record.apn.toLowerCase()}::${record.county}` : null;
   if (apnKey && cache.has(apnKey)) return cache.get(apnKey)!;
 

@@ -67,13 +67,67 @@ function buildLeadExportRows(leads: LeadRow[]) {
   }));
 }
 
-function buildLeadExportFileName(leads: LeadRow[], distressTags: string[], extension: "xlsx" | "csv") {
+function splitOwnerName(ownerName: string) {
+  const trimmed = ownerName.trim();
+  if (!trimmed) {
+    return { firstName: "", middleName: "", lastName: "" };
+  }
+
+  if (trimmed.includes(",")) {
+    const [lastNamePart, restPart] = trimmed.split(",", 2).map((part) => part.trim());
+    const restTokens = restPart ? restPart.split(/\s+/).filter(Boolean) : [];
+    return {
+      firstName: restTokens[0] ?? "",
+      middleName: restTokens.slice(1).join(" "),
+      lastName: lastNamePart,
+    };
+  }
+
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length === 1) {
+    return { firstName: tokens[0], middleName: "", lastName: "" };
+  }
+
+  return {
+    firstName: tokens[0] ?? "",
+    middleName: tokens.slice(1, -1).join(" "),
+    lastName: tokens[tokens.length - 1] ?? "",
+  };
+}
+
+function buildSkipGenieExportRows(leads: LeadRow[]) {
+  return leads.map((lead) => {
+    const { firstName, middleName, lastName } = splitOwnerName(lead.ownerName);
+    return {
+      LastName: lastName,
+      FirstName: firstName,
+      MiddleName: middleName,
+      Address: lead.address,
+      City: lead.city,
+      State: lead.state,
+      ZipCode: lead.zip,
+      Campaign: lead.sourceListName ?? lead.nicheTag ?? "Sentinel Skip Trace",
+      "Sentinel Lead ID": lead.id,
+      "Sentinel Property ID": lead.propertyId,
+      APN: lead.apn,
+      County: lead.county,
+      "Owner Name": lead.ownerName,
+    };
+  });
+}
+
+type LeadExportFormat = "xlsx" | "csv" | "skipgenie_csv";
+
+function buildLeadExportFileName(leads: LeadRow[], distressTags: string[], format: LeadExportFormat) {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const tagSegment =
     distressTags.length === 1
       ? distressTags[0].replace(/[^a-z0-9]+/gi, "-").toLowerCase()
       : "filtered";
-  return `sentinel-${tagSegment}-leads-${leads.length}-${stamp}.${extension}`;
+  if (format === "skipgenie_csv") {
+    return `sentinel-skipgenie-${tagSegment}-leads-${leads.length}-${stamp}.csv`;
+  }
+  return `sentinel-${tagSegment}-leads-${leads.length}-${stamp}.${format}`;
 }
 
 
@@ -244,7 +298,7 @@ function LeadsPageInner() {
     }
   }, [refetch]);
 
-  const handleExportLeads = useCallback(async (format: "xlsx" | "csv") => {
+  const handleExportLeads = useCallback(async (format: LeadExportFormat) => {
     if (leads.length === 0) {
       toast.error("No leads match the current filters.");
       return;
@@ -252,16 +306,16 @@ function LeadsPageInner() {
 
     try {
       const XLSX = await import("xlsx");
-      const rows = buildLeadExportRows(leads);
+      const rows = format === "skipgenie_csv" ? buildSkipGenieExportRows(leads) : buildLeadExportRows(leads);
       const worksheet = XLSX.utils.json_to_sheet(rows);
 
-      if (format === "csv") {
+      if (format === "csv" || format === "skipgenie_csv") {
         const csv = XLSX.utils.sheet_to_csv(worksheet);
         const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
-        anchor.download = buildLeadExportFileName(leads, filters.distressTags, "csv");
+        anchor.download = buildLeadExportFileName(leads, filters.distressTags, format);
         document.body.appendChild(anchor);
         anchor.click();
         document.body.removeChild(anchor);
@@ -269,10 +323,11 @@ function LeadsPageInner() {
       } else {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
-        XLSX.writeFile(workbook, buildLeadExportFileName(leads, filters.distressTags, "xlsx"));
+        XLSX.writeFile(workbook, buildLeadExportFileName(leads, filters.distressTags, format));
       }
 
-      toast.success(`Exported ${leads.length} lead${leads.length === 1 ? "" : "s"} as ${format.toUpperCase()}.`);
+      const formatLabel = format === "skipgenie_csv" ? "Skip Genie CSV" : format.toUpperCase();
+      toast.success(`Exported ${leads.length} lead${leads.length === 1 ? "" : "s"} as ${formatLabel}.`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not export leads");
     }
@@ -301,6 +356,15 @@ function LeadsPageInner() {
             disabled={leads.length === 0}
           >
             Export CSV
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 text-xs"
+            onClick={() => void handleExportLeads("skipgenie_csv")}
+            disabled={leads.length === 0}
+          >
+            Skip Genie CSV
           </Button>
           <Button
             size="sm"

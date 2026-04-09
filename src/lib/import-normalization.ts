@@ -6,6 +6,7 @@ type JsonLike = string | number | boolean | null | JsonLike[] | { [key: string]:
 export type ImportFileKind = "csv" | "xlsx";
 
 export type ImportTargetField =
+  | "sentinel_lead_id"
   | "owner_name"
   | "owner_first_name"
   | "owner_last_name"
@@ -191,6 +192,7 @@ export interface DuplicateCandidate {
 
 export interface NormalizedImportRecord {
   rowNumber: number;
+  sentinelLeadId: string | null;
   ownerName: string | null;
   ownerSuffix: string | null;
   coOwnerName: string | null;
@@ -292,6 +294,7 @@ type FieldDefinition = {
 };
 
 const FIELD_DEFINITIONS: FieldDefinition[] = [
+  { field: "sentinel_lead_id", label: "Sentinel Lead ID", group: "Sentinel", aliases: ["sentinel lead id", "lead id", "sentinelleadid", "sentinel_lead_id"] },
   { field: "owner_name", label: "Owner Name", group: "Identity", aliases: ["owner name", "owner", "owner full name", "taxpayer", "name", "full name"] },
   { field: "owner_first_name", label: "Owner First Name", group: "Identity", aliases: ["owner first name", "first name", "first", "given name"] },
   { field: "owner_last_name", label: "Owner Last Name", group: "Identity", aliases: ["owner last name", "last name", "last", "surname", "family name"] },
@@ -913,6 +916,7 @@ export function normalizeImportedRow(args: {
 
   return {
     rowNumber,
+    sentinelLeadId: pick("sentinel_lead_id"),
     ownerName,
     ownerSuffix: pick("owner_suffix"),
     coOwnerName: pick("co_owner_name"),

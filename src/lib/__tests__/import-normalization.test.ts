@@ -85,6 +85,51 @@ describe("import normalization", () => {
     expect(result.mapped.mail_vacant_flag).toBe("Mail Vacant?");
   });
 
+  it("auto-maps Skip Genie export headers for re-import", () => {
+    const headers = [
+      "LastName",
+      "FirstName",
+      "MiddleName",
+      "Address",
+      "City",
+      "State",
+      "ZipCode",
+      "Campaign",
+      "Sentinel Lead ID",
+      "APN",
+      "County",
+    ];
+    const rows = [
+      {
+        LastName: "Seller",
+        FirstName: "Jane",
+        MiddleName: "M",
+        Address: "123 Main St",
+        City: "Spokane",
+        State: "WA",
+        ZipCode: "99201",
+        Campaign: "Probate Skip Trace",
+        "Sentinel Lead ID": "lead-123",
+        APN: "123456789",
+        County: "Spokane",
+      },
+    ];
+
+    const result = inferFieldMappings(headers, rows);
+
+    expect(result.mapped.owner_last_name).toBe("LastName");
+    expect(result.mapped.owner_first_name).toBe("FirstName");
+    expect(result.mapped.owner_middle_name).toBe("MiddleName");
+    expect(result.mapped.property_address).toBe("Address");
+    expect(result.mapped.property_city).toBe("City");
+    expect(result.mapped.property_state).toBe("State");
+    expect(result.mapped.property_zip).toBe("ZipCode");
+    expect(result.mapped.source_list_name).toBe("Campaign");
+    expect(result.mapped.sentinel_lead_id).toBe("Sentinel Lead ID");
+    expect(result.mapped.apn).toBe("APN");
+    expect(result.mapped.county).toBe("County");
+  });
+
   it("routes risky rows into review-oriented outbound statuses", () => {
     const mapping = {
       owner_name: "Owner",

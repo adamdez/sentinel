@@ -5,6 +5,7 @@ import { extractImportedPhoneCandidates, updateExistingRecordFromImport } from "
 function makeRecord(overrides: Partial<NormalizedImportRecord> = {}): NormalizedImportRecord {
   return {
     rowNumber: 2,
+    sentinelLeadId: null,
     ownerName: "Linda Example",
     ownerSuffix: null,
     coOwnerName: null,
@@ -193,6 +194,42 @@ function createSupabaseDouble(options?: {
 }
 
 describe("imports-server", () => {
+  it("matches an existing lead directly from Sentinel Lead ID", async () => {
+    const record = makeRecord({
+      sentinelLeadId: "lead-123",
+      apn: null,
+      county: null,
+    });
+
+    const sb = {
+      from(table: string) {
+        if (table === "leads") {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({ data: { id: "lead-123", property_id: "property-123" }, error: null }),
+          };
+        }
+
+        throw new Error(`Unexpected table ${table}`);
+      },
+    };
+
+    const { findDuplicateCandidate } = await import("@/lib/imports-server");
+    const duplicate = await findDuplicateCandidate(sb as never, record, new Map());
+
+    expect(duplicate).toEqual({
+      level: "high",
+      reasons: ["Matched Sentinel Lead ID"],
+      propertyId: "property-123",
+      leadId: "lead-123",
+    });
+  });
+
   it("extracts unique imported phone candidates in stable order", () => {
     const phones = extractImportedPhoneCandidates(
       makeRecord({
