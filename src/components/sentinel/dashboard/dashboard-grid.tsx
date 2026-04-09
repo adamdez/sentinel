@@ -55,7 +55,13 @@ interface BriefLead {
   next_action: string | null;
   created_at: string;
   source: string | null;
-  properties: { address: string | null; city: string | null; owner_name: string | null } | null;
+  notes?: string | null;
+  dial_queue_active?: boolean;
+  lead_phone?: string | null;
+  last_call_date?: string | null;
+  last_call_disposition?: string | null;
+  last_call_notes?: string | null;
+  properties: { address: string | null; city: string | null; owner_name: string | null; owner_phone?: string | null } | null;
 }
 
 interface ReviewBlocker {
@@ -122,6 +128,13 @@ function leadTitle(lead: BriefLead) {
   }
   if (lead.properties?.address) return lead.properties.address;
   return lead.source ?? `Lead ${lead.id.slice(0, 8)}`;
+}
+
+function actionableLeadCallback(lead: BriefLead) {
+  const action = (lead.next_action ?? "").trim().toLowerCase();
+  if (!action) return false;
+  if (action.startsWith("drive by")) return false;
+  return ["overdue", "today"].includes(dueBucket(lead.next_action_due_at));
 }
 
 function cut(text: string, limit = 96) {
@@ -195,10 +208,12 @@ export function DashboardGrid() {
   const { openModal } = useModal();
   const [loading, setLoading] = useState(true);
   const [tasksError, setTasksError] = useState<SectionError>(null);
+  const [callbacksError, setCallbacksError] = useState<SectionError>(null);
   const [driveByError, setDriveByError] = useState<SectionError>(null);
   const [inboundError, setInboundError] = useState<SectionError>(null);
   const [opsError, setOpsError] = useState<SectionError>(null);
   const [allTasks, setAllTasks] = useState<DashTask[]>([]);
+  const [callbackLeads, setCallbackLeads] = useState<BriefLead[]>([]);
   const [driveByLeads, setDriveByLeads] = useState<BriefLead[]>([]);
   const [inboundLeads, setInboundLeads] = useState<BriefLead[]>([]);
   const [stalledDeals, setStalledDeals] = useState<BriefLead[]>([]);
@@ -227,6 +242,61 @@ export function DashboardGrid() {
       console.error("[Today] tasks error:", err);
       setAllTasks([]);
       setTasksError("Failed to load tasks");
+    }
+
+    try {
+      if (!currentUser?.id) {
+        setCallbackLeads([]);
+        setCallbacksError(null);
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase.from("leads") as any)
+          .select("id, next_action_due_at, next_action, created_at, source, notes, dial_queue_active, properties(address, city, owner_name, owner_phone)")
+          .eq("assigned_to", currentUser.id)
+          .in("status", ["prospect", "lead"])
+          .not("next_action_due_at", "is", null)
+          .lte("next_action_due_at", end.toISOString())
+          .order("next_action_due_at", { ascending: true })
+          .limit(40);
+
+        if (error) throw error;
+
+        const rawLeads = (data ?? []) as BriefLead[];
+        const callbackCandidates = rawLeads.filter(actionableLeadCallback);
+        const leadIds = callbackCandidates.map((lead) => lead.id);
+
+        const callContextByLeadId: Record<string, Pick<BriefLead, "last_call_date" | "last_call_disposition" | "last_call_notes">> = {};
+        if (leadIds.length > 0) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: calls, error: callsError } = await (supabase.from("calls_log") as any)
+            .select("lead_id, created_at, disposition, notes")
+            .in("lead_id", leadIds)
+            .order("created_at", { ascending: false });
+          if (callsError) throw callsError;
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (calls ?? []).forEach((call: any) => {
+            if (typeof call?.lead_id === "string" && !callContextByLeadId[call.lead_id]) {
+              callContextByLeadId[call.lead_id] = {
+                last_call_date: call.created_at ?? null,
+                last_call_disposition: call.disposition ?? null,
+                last_call_notes: call.notes ? String(call.notes).slice(0, 120) : null,
+              };
+            }
+          });
+        }
+
+        setCallbackLeads(callbackCandidates.map((lead) => ({
+          ...lead,
+          lead_phone: lead.properties?.owner_phone ?? null,
+          ...(callContextByLeadId[lead.id] ?? { last_call_date: null, last_call_disposition: null, last_call_notes: null }),
+        })));
+        setCallbacksError(null);
+      }
+    } catch (err) {
+      console.error("[Today] callback leads error:", err);
+      setCallbackLeads([]);
+      setCallbacksError("Failed to load lead callbacks");
     }
 
     try {
@@ -317,8 +387,19 @@ export function DashboardGrid() {
   }, [fetchAll]);
 
   const myTasks = useMemo(() => allTasks.filter((task) => task.assigned_to === currentUser?.id), [allTasks, currentUser?.id]);
-  const myCallbacks = useMemo(() => myTasks.filter((task) => callbackTask(task) && ["overdue", "today"].includes(dueBucket(task.due_at))), [myTasks]);
+  const myTaskCallbacks = useMemo(() => myTasks.filter((task) => callbackTask(task) && ["overdue", "today"].includes(dueBucket(task.due_at))), [myTasks]);
+  const callbackTaskLeadIds = useMemo(() => new Set(myTaskCallbacks.map((task) => task.lead_id).filter((value): value is string => typeof value === "string" && value.length > 0)), [myTaskCallbacks]);
+  const myLeadCallbacks = useMemo(() => callbackLeads.filter((lead) => !callbackTaskLeadIds.has(lead.id)), [callbackLeads, callbackTaskLeadIds]);
   const myActionTasks = useMemo(() => myTasks.filter((task) => !callbackTask(task) && ["overdue", "today"].includes(dueBucket(task.due_at))), [myTasks]);
+  const myCallbacksCount = myTaskCallbacks.length + myLeadCallbacks.length;
+  const myOverdueCount = useMemo(
+    () => myTasks.filter((task) => dueBucket(task.due_at) === "overdue").length + myLeadCallbacks.filter((lead) => dueBucket(lead.next_action_due_at) === "overdue").length,
+    [myTasks, myLeadCallbacks],
+  );
+  const myDueTodayCount = useMemo(
+    () => myTasks.filter((task) => dueBucket(task.due_at) === "today").length + myLeadCallbacks.filter((lead) => dueBucket(lead.next_action_due_at) === "today").length,
+    [myTasks, myLeadCallbacks],
+  );
   const teamGroups = useMemo(() => {
     const groups: Record<string, { name: string; tasks: DashTask[] }> = {};
     for (const task of allTasks) {
@@ -332,9 +413,12 @@ export function DashboardGrid() {
   }, [allTasks, currentUser?.id]);
 
   useEffect(() => {
-    const validIds = new Set(myCallbacks.map((task) => task.id));
+    const validIds = new Set([
+      ...myTaskCallbacks.map((task) => task.lead_id).filter((value): value is string => typeof value === "string" && value.length > 0),
+      ...myLeadCallbacks.map((lead) => lead.id),
+    ]);
     setSelectedCallbacks((prev) => prev.filter((id) => validIds.has(id)));
-  }, [myCallbacks]);
+  }, [myTaskCallbacks, myLeadCallbacks]);
 
   const toggleNote = useCallback((key: string) => {
     setExpandedNotes((prev) => {
@@ -350,8 +434,8 @@ export function DashboardGrid() {
     openModal("client-file", { leadId });
   }, [openModal]);
 
-  const queueTasks = useCallback(async (tasks: DashTask[]) => {
-    const leadIds = [...new Set(tasks.map((task) => task.lead_id).filter((value): value is string => typeof value === "string" && value.length > 0))];
+  const queueLeadIds = useCallback(async (inputLeadIds: string[]) => {
+    const leadIds = [...new Set(inputLeadIds.filter((value): value is string => typeof value === "string" && value.length > 0))];
     if (leadIds.length === 0) {
       toast.error("No lead is attached to those callbacks.");
       return;
@@ -383,7 +467,7 @@ export function DashboardGrid() {
     }
   }, [fetchAll]);
 
-  const queueSelected = useMemo(() => myCallbacks.filter((task) => selectedCallbacks.includes(task.id)), [myCallbacks, selectedCallbacks]);
+  const queueSelectedLeadIds = useMemo(() => [...new Set(selectedCallbacks)], [selectedCallbacks]);
 
   const renderNote = (rowId: string, kind: "last" | "todo", label: string, text: string | null) => {
     if (!text) return null;
@@ -415,8 +499,11 @@ export function DashboardGrid() {
           {options?.selectable ? (
             <input
               type="checkbox"
-              checked={selectedCallbacks.includes(task.id)}
-              onChange={() => setSelectedCallbacks((prev) => prev.includes(task.id) ? prev.filter((id) => id !== task.id) : [...prev, task.id])}
+              checked={task.lead_id ? selectedCallbacks.includes(task.lead_id) : false}
+              onChange={() => {
+                if (!task.lead_id) return;
+                setSelectedCallbacks((prev) => prev.includes(task.lead_id as string) ? prev.filter((id) => id !== task.lead_id) : [...prev, task.lead_id as string]);
+              }}
               disabled={!task.lead_id}
               className="mt-1 h-4 w-4 rounded border-border/50 bg-background"
             />
@@ -445,7 +532,7 @@ export function DashboardGrid() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => void queueTasks([task])}
+                  onClick={() => task.lead_id ? void queueLeadIds([task.lead_id]) : undefined}
                   disabled={!task.lead_id || queueing}
                   className="h-8 gap-1 text-xs"
                 >
@@ -455,6 +542,58 @@ export function DashboardGrid() {
               )
             )}
             <Button size="sm" onClick={() => openLead(task.lead_id)} className="h-8 gap-1 text-xs">
+              <Phone className="h-3 w-3" />
+              Open
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderCallbackLeadRow = (lead: BriefLead) => {
+    const queueing = queueingLeadIds.includes(lead.id);
+    const inQueue = lead.dial_queue_active === true;
+    const lastCall = lead.last_call_date
+      ? `${lead.last_call_disposition ?? "call"} ${ago(lead.last_call_date)}${lead.last_call_notes ? ` â€” ${lead.last_call_notes}` : ""}`
+      : null;
+
+    return (
+      <div key={lead.id} className="rounded-lg border border-border/30 bg-background/30 p-3">
+        <div className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={selectedCallbacks.includes(lead.id)}
+            onChange={() => setSelectedCallbacks((prev) => prev.includes(lead.id) ? prev.filter((id) => id !== lead.id) : [...prev, lead.id])}
+            className="mt-1 h-4 w-4 rounded border-border/50 bg-background"
+          />
+          <div className="min-w-0 flex-1">
+            <button onClick={() => openLead(lead.id)} className="block text-left text-sm font-semibold text-foreground hover:text-primary">
+              {leadTitle(lead)}
+            </button>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {dueLabel(lead.next_action_due_at)} Â· {lead.next_action ?? "Callback"}
+              {lead.lead_phone ? ` Â· ${lead.lead_phone}` : " Â· No phone"}
+            </p>
+            {renderNote(lead.id, "last", "Last call", lastCall)}
+            {renderNote(lead.id, "todo", "Todo", lead.notes ?? null)}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {inQueue ? (
+              <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/10">In Dial Queue</Badge>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void queueLeadIds([lead.id])}
+                disabled={queueing}
+                className="h-8 gap-1 text-xs"
+              >
+                {queueing ? <Loader2 className="h-3 w-3 animate-spin" /> : <PhoneCall className="h-3 w-3" />}
+                Queue
+              </Button>
+            )}
+            <Button size="sm" onClick={() => openLead(lead.id)} className="h-8 gap-1 text-xs">
               <Phone className="h-3 w-3" />
               Open
             </Button>
@@ -492,11 +631,12 @@ export function DashboardGrid() {
   return (
     <div className="space-y-5">
       {tasksError && <ErrorBanner message={tasksError} />}
+      {callbacksError && <ErrorBanner message={callbacksError} />}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat icon={AlertTriangle} label="My Overdue" value={myTasks.filter((task) => dueBucket(task.due_at) === "overdue").length} color={myTasks.some((task) => dueBucket(task.due_at) === "overdue") ? "text-red-400" : "text-muted-foreground"} />
-        <Stat icon={CalendarCheck} label="My Due Today" value={myTasks.filter((task) => dueBucket(task.due_at) === "today").length} color={myTasks.some((task) => dueBucket(task.due_at) === "today") ? "text-amber-400" : "text-muted-foreground"} />
-        <Stat icon={PhoneCall} label="My Callbacks Ready" value={myCallbacks.length} color={myCallbacks.length > 0 ? "text-primary" : "text-muted-foreground"} />
+        <Stat icon={AlertTriangle} label="My Overdue" value={myOverdueCount} color={myOverdueCount > 0 ? "text-red-400" : "text-muted-foreground"} />
+        <Stat icon={CalendarCheck} label="My Due Today" value={myDueTodayCount} color={myDueTodayCount > 0 ? "text-amber-400" : "text-muted-foreground"} />
+        <Stat icon={PhoneCall} label="My Callbacks Ready" value={myCallbacksCount} color={myCallbacksCount > 0 ? "text-primary" : "text-muted-foreground"} />
         <Stat icon={MapPin} label="My Drive By" value={driveByLeads.length} color={driveByLeads.length > 0 ? "text-amber-400" : "text-muted-foreground"} />
       </div>
 
@@ -504,20 +644,27 @@ export function DashboardGrid() {
         icon={PhoneCall}
         title="My Callbacks Ready"
         iconColor="text-primary"
-        count={myCallbacks.length}
+        count={myCallbacksCount}
         actions={
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { window.location.href = "/dialer"; }}>
               Open Dialer
             </Button>
-            <Button size="sm" className="h-8 gap-1 text-xs" disabled={queueSelected.length === 0} onClick={() => void queueTasks(queueSelected)}>
+            <Button size="sm" className="h-8 gap-1 text-xs" disabled={queueSelectedLeadIds.length === 0} onClick={() => void queueLeadIds(queueSelectedLeadIds)}>
               <PhoneCall className="h-3 w-3" />
               Queue Selected to Dialer
             </Button>
           </div>
         }
       >
-        {myCallbacks.length === 0 ? <Empty icon={CheckCircle2} message="No callbacks are ready right now." /> : myCallbacks.map((task) => renderTaskRow(task, { selectable: true }))}
+        {myCallbacksCount === 0 ? (
+          <Empty icon={CheckCircle2} message="No callbacks are ready right now." />
+        ) : (
+          <>
+            {myTaskCallbacks.map((task) => renderTaskRow(task, { selectable: true }))}
+            {myLeadCallbacks.map((lead) => renderCallbackLeadRow(lead))}
+          </>
+        )}
       </Section>
 
       <Section icon={Clock} title="My Tasks Today" iconColor="text-amber-400" count={myActionTasks.length}>
