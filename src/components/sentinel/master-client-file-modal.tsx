@@ -140,11 +140,8 @@ import { precheckWorkflowStageChange } from "@/lib/workflow-stage-precheck";
 
 import { getAllowedTransitions, requiresNextAction } from "@/lib/lead-guardrails";
 
-import { LeadDossierPanel } from "@/components/sentinel/lead-dossier-panel";
-
 import { BrickedAnalysisPanel, type BrickedAnalysisPanelProps } from "@/components/sentinel/bricked/bricked-analysis-panel";
-
-import { LegalBriefPanel } from "@/components/sentinel/legal/legal-brief-panel";
+import { DeepSearchPanel } from "@/components/sentinel/deep-search-panel";
 
 import { QuickTaskSetter, type QuickTaskResult } from "@/components/sentinel/quick-task-setter";
 
@@ -564,9 +561,7 @@ const TABS = [
 
   { id: "comps", label: "Property Intel", icon: Map },
 
-  { id: "dossier", label: "Dossier", icon: Brain },
-
-  { id: "legal", label: "Legal", icon: Scale },
+  { id: "deep_search", label: "Deep Search", icon: Brain },
 
 ] as const;
 
@@ -844,7 +839,7 @@ function selectCallAssistCards(cf: ClientFile): { defaultCards: CallAssistCard[]
 
 
 
-const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "comps", "dossier", "legal"]);
+const PRIMARY_TAB_IDS = new Set<TabId>(["overview", "contact", "comps", "deep_search"]);
 const VISIBLE_WORKFLOW_STAGE_IDS = new Set<WorkflowStageId>(WORKFLOW_STAGE_OPTIONS.map((stage) => stage.id));
 
 function recordFromUnknown(value: unknown): Record<string, unknown> | null {
@@ -8604,7 +8599,7 @@ export function MasterClientFileModal({
 
               "fixed inset-x-4 top-[4.5%] bottom-[2%] md:inset-x-auto md:-translate-x-1/2 z-50 flex flex-col transition-all duration-300",
 
-              activeTab === "comps" ? "md:w-[1325px]" : activeTab === "dossier" || activeTab === "legal" ? "md:w-[1200px]" : "md:w-[1075px]",
+              activeTab === "comps" ? "md:w-[1325px]" : activeTab === "deep_search" || activeTab === "dossier" || activeTab === "legal" ? "md:w-[1200px]" : "md:w-[1075px]",
 
             )}
 
@@ -9342,13 +9337,20 @@ export function MasterClientFileModal({
 
                     )}
 
-                    {activeTab === "dossier" && (
+                    {(activeTab === "deep_search" || activeTab === "dossier" || activeTab === "legal") && (
 
                       <div className="space-y-6">
 
                         <IntelligenceSummaryBlock cf={clientFile} />
 
-                        <LeadDossierPanel leadId={clientFile.id} />
+                        <DeepSearchPanel
+                          leadId={clientFile.id}
+                          recommendProbatePack={
+                            clientFile.tags.some((tag) => tag.toLowerCase().includes("probate") || tag.toLowerCase().includes("estate"))
+                            || (clientFile.sourceListName?.toLowerCase().includes("probate") ?? false)
+                            || (clientFile.source?.toLowerCase().includes("probate") ?? false)
+                          }
+                        />
 
                       </div>
 
@@ -9395,12 +9397,6 @@ export function MasterClientFileModal({
                         <CompsTab cf={clientFile} selectedComps={selectedComps} onAddComp={handleAddComp} onRemoveComp={handleRemoveComp} onSkipTrace={handleSkipTrace} computedArv={computedArv} onArvChange={handleArvChange} conditionAdj={conditionAdj} onConditionAdjChange={setConditionAdj} />
 
                       )
-
-                    )}
-
-                    {activeTab === "legal" && (
-
-                      <LegalBriefPanel leadId={clientFile.id} />
 
                     )}
 

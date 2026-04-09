@@ -23,7 +23,7 @@ export async function GET(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (sb.from("dossier_artifacts") as any)
       .select(
-        "id, lead_id, dossier_id, source_url, source_type, source_label, captured_at, extracted_notes, screenshot_url, captured_by, created_at"
+        "id, lead_id, dossier_id, source_url, source_type, source_label, captured_at, extracted_notes, raw_excerpt, screenshot_url, captured_by, created_at"
       )
       .eq("lead_id", lead_id)
       .order("created_at", { ascending: false })
