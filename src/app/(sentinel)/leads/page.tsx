@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -120,6 +120,37 @@ function buildSkipGenieExportRows(leads: LeadRow[]) {
 
 type LeadExportFormat = "xlsx" | "csv" | "skipgenie_csv";
 
+type SkipGeniePreviewPayload = {
+  effectiveMapping: Record<string, string>;
+  defaults: {
+    sourceChannel: string;
+    sourceVendor: string;
+    sourceListName: string;
+    sourcePullDate: string;
+    county: string;
+    nicheTag: string;
+    importBatchId: string;
+    outreachType: string;
+    skipTraceStatus: string;
+    templateName: string;
+    templateId: string;
+  };
+  lowConfidenceFields: string[];
+  requiresReview: boolean;
+  workbook: {
+    chosenSheet: string;
+  };
+};
+
+type SkipGenieCommitPayload = {
+  imported: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  skippedRows: Array<{ rowNumber: number; status: string; reason: string }>;
+  errorRows: Array<{ rowNumber: number; error: string }>;
+};
+
 function buildLeadExportFileName(leads: LeadRow[], distressTags: string[], format: LeadExportFormat) {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const tagSegment =
@@ -178,6 +209,8 @@ function LeadsPageInner() {
   } = useLeads();
   const { openModal } = useModal();
   const [showSourceInsights, setShowSourceInsights] = useState(false);
+  const [skipGenieImporting, setSkipGenieImporting] = useState(false);
+  const skipGenieInputRef = useRef<HTMLInputElement | null>(null);
 
   // Apply URL filter param on mount and when it changes
   useEffect(() => {
@@ -335,12 +368,120 @@ function LeadsPageInner() {
     }
   }, [filters.distressTags, leads]);
 
+  const getImportAuthHeaders = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error("Session expired. Please sign in again.");
+    }
+    return { Authorization: `Bearer ${session.access_token}` };
+  }, []);
+
+  const handleSkipGenieImport = useCallback(async (file: File) => {
+    setSkipGenieImporting(true);
+    try {
+      const headers = await getImportAuthHeaders();
+      const previewForm = new FormData();
+      previewForm.append("file", file);
+      previewForm.append("defaults", JSON.stringify({
+        sourceChannel: "batch_skip_trace",
+        sourceVendor: "Skip Genie",
+        sourceListName: "Skip Genie Return",
+        sourcePullDate: new Date().toISOString().slice(0, 10),
+        county: "",
+        nicheTag: filters.distressTags.length === 1 ? filters.distressTags[0] : "",
+        importBatchId: file.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase(),
+        outreachType: "cold_call",
+        skipTraceStatus: "completed",
+        templateName: "",
+        templateId: "",
+      }));
+
+      const previewRes = await fetch("/api/imports/preview", {
+        method: "POST",
+        headers,
+        body: previewForm,
+      });
+      const previewData = await previewRes.json().catch(() => ({})) as Partial<SkipGeniePreviewPayload> & { error?: string };
+      if (!previewRes.ok) {
+        throw new Error(previewData.error ?? `Preview failed (${previewRes.status})`);
+      }
+
+      if (!previewData.workbook?.chosenSheet || !previewData.effectiveMapping || !previewData.defaults) {
+        throw new Error("Skip Genie preview did not return a usable mapping.");
+      }
+
+      if ((previewData.requiresReview ?? false) || (previewData.lowConfidenceFields?.length ?? 0) > 0) {
+        toast.error("Skip Genie file needs manual review. Opening the full import screen.");
+        window.location.assign("/admin/import");
+        return;
+      }
+
+      const commitForm = new FormData();
+      commitForm.append("file", file);
+      commitForm.append("sheet_name", previewData.workbook.chosenSheet);
+      commitForm.append("mapping", JSON.stringify(previewData.effectiveMapping));
+      commitForm.append("defaults", JSON.stringify(previewData.defaults));
+      commitForm.append("duplicate_strategy", "update_missing");
+      commitForm.append("save_template", "false");
+      commitForm.append("force_commit", "true");
+
+      const commitRes = await fetch("/api/imports/commit", {
+        method: "POST",
+        headers,
+        body: commitForm,
+      });
+      const commitData = await commitRes.json().catch(() => ({})) as Partial<SkipGenieCommitPayload> & { error?: string };
+      if (!commitRes.ok) {
+        throw new Error(commitData.error ?? `Import failed (${commitRes.status})`);
+      }
+
+      const updated = commitData.updated ?? 0;
+      const imported = commitData.imported ?? 0;
+      const skipped = commitData.skipped ?? 0;
+      const errors = commitData.errors ?? 0;
+
+      if (errors > 0) {
+        const firstError = commitData.errorRows?.[0]?.error;
+        toast.error(`Skip Genie import finished with ${errors} error${errors === 1 ? "" : "s"}.`, {
+          description: firstError ?? `${updated} updated, ${imported} imported, ${skipped} skipped.`,
+        });
+      } else if (skipped > 0) {
+        const firstSkipped = commitData.skippedRows?.[0];
+        toast.success(`Skip Genie import complete: ${updated} updated, ${imported} imported, ${skipped} skipped.`, {
+          description: firstSkipped ? `Row ${firstSkipped.rowNumber}: ${firstSkipped.reason}` : undefined,
+        });
+      } else {
+        toast.success(`Skip Genie import complete: ${updated} updated, ${imported} imported.`);
+      }
+
+      await refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not import Skip Genie results");
+    } finally {
+      setSkipGenieImporting(false);
+      if (skipGenieInputRef.current) {
+        skipGenieInputRef.current.value = "";
+      }
+    }
+  }, [filters.distressTags, getImportAuthHeaders, refetch]);
+
   return (
     <PageShell
       title="Lead Queue"
       description="Working inbox — overdue and high-priority leads first."
       actions={
         <div className="flex items-center gap-2">
+          <input
+            ref={skipGenieInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              void handleSkipGenieImport(file);
+            }}
+          />
           <Button
             size="sm"
             variant="outline"
@@ -367,6 +508,15 @@ function LeadsPageInner() {
             disabled={leads.length === 0}
           >
             Skip Genie CSV
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 text-xs"
+            onClick={() => skipGenieInputRef.current?.click()}
+            disabled={skipGenieImporting}
+          >
+            {skipGenieImporting ? "Importing..." : "Import Skip Genie Results"}
           </Button>
           <Button
             size="sm"
