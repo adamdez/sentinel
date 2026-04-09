@@ -442,9 +442,11 @@ function LeadsPageInner() {
           defaults: previewData.defaults,
           createdAt: Date.now(),
         };
-        sessionStorage.setItem(SKIP_GENIE_IMPORT_HANDOFF_KEY, JSON.stringify(handoffPayload));
+        const serializedHandoff = JSON.stringify(handoffPayload);
+        sessionStorage.setItem(SKIP_GENIE_IMPORT_HANDOFF_KEY, serializedHandoff);
+        localStorage.setItem(SKIP_GENIE_IMPORT_HANDOFF_KEY, serializedHandoff);
         toast.error("Skip Genie file needs manual review. Loading it into the import screen now.");
-        window.location.assign("/admin/import");
+        window.location.assign("/admin/import?skipgenie_review=1");
         return;
       }
 

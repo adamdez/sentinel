@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Loader2, RefreshCw, ShieldAlert, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -106,6 +107,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 }
 
 export default function ImportPage() {
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<ImportStep>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
@@ -188,10 +190,20 @@ export default function ImportPage() {
   }, [analyzeFile]);
 
   useEffect(() => {
-    const raw = sessionStorage.getItem(SKIP_GENIE_IMPORT_HANDOFF_KEY);
-    if (!raw) return;
+    const raw =
+      sessionStorage.getItem(SKIP_GENIE_IMPORT_HANDOFF_KEY) ??
+      localStorage.getItem(SKIP_GENIE_IMPORT_HANDOFF_KEY);
+
+    if (!raw) {
+      if (searchParams.get("skipgenie_review") === "1") {
+        setHandoffNotice("Nothing has been imported yet. Please re-upload the Skip Genie file on this screen to continue.");
+        toast.error("Skip Genie review handoff did not load. Nothing has been imported yet.");
+      }
+      return;
+    }
 
     sessionStorage.removeItem(SKIP_GENIE_IMPORT_HANDOFF_KEY);
+    localStorage.removeItem(SKIP_GENIE_IMPORT_HANDOFF_KEY);
 
     let handoff: ImportHandoffPayload;
     try {
@@ -224,7 +236,7 @@ export default function ImportPage() {
     } catch {
       toast.error("Could not load the Skip Genie review handoff.");
     }
-  }, [handleFile]);
+  }, [handleFile, searchParams]);
 
   const runImport = useCallback(async () => {
     if (!file || !preview) return;
