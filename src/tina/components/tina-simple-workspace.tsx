@@ -84,6 +84,7 @@ export function TinaSimpleWorkspace() {
   }
 
   async function handleIntakeFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
     const files = Array.from(event.target.files ?? []);
     if (files.length === 0) return;
 
@@ -103,7 +104,7 @@ export function TinaSimpleWorkspace() {
       setIntakeMessage("Tina could not analyze that intake batch yet. Try CSV or spreadsheet extracts.");
     } finally {
       setIsAnalyzingIntake(false);
-      event.currentTarget.value = "";
+      input.value = "";
     }
   }
 
