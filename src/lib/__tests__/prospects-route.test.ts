@@ -65,13 +65,17 @@ function buildServerClient({ leadNotes = null, activityNotes = [] }: BuildServer
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     single: leadSingle,
+    maybeSingle: vi.fn().mockResolvedValue({ data: leadRow, error: null }),
   };
 
   const leadUpdateSelect = vi.fn().mockResolvedValue({ data: [{ id: "lead-1" }], error: null });
   const leadUpdateEqLock = vi.fn().mockReturnValue({ select: leadUpdateSelect });
   const leadUpdateEqId = vi.fn().mockReturnValue({ eq: leadUpdateEqLock });
   const leadUpdateQuery = {
-    update: vi.fn().mockReturnValue({ eq: leadUpdateEqId }),
+    update: vi.fn((payload: Record<string, unknown>) => {
+      Object.assign(leadRow, payload);
+      return { eq: leadUpdateEqId };
+    }),
   };
 
   const callsLogLimit = vi.fn().mockResolvedValue({
@@ -83,6 +87,24 @@ function buildServerClient({ leadNotes = null, activityNotes = [] }: BuildServer
     eq: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     limit: callsLogLimit,
+  };
+
+  const tasksMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+  const tasksSingle = vi.fn().mockResolvedValue({ data: { id: "task-1" }, error: null });
+  const tasksSelectQuery = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockReturnThis(),
+    maybeSingle: tasksMaybeSingle,
+    single: tasksSingle,
+  };
+  const tasksInsertQuery = {
+    select: vi.fn().mockReturnValue({ single: tasksSingle }),
+  };
+  const tasksUpdateQuery = {
+    eq: vi.fn().mockResolvedValue({ error: null }),
+    in: vi.fn().mockResolvedValue({ error: null }),
   };
 
   const auditLogsQuery = {
@@ -104,6 +126,13 @@ function buildServerClient({ leadNotes = null, activityNotes = [] }: BuildServer
         };
       }
       if (table === "calls_log") return callsLogQuery;
+      if (table === "tasks") {
+        return {
+          ...tasksSelectQuery,
+          insert: vi.fn().mockReturnValue(tasksInsertQuery),
+          update: vi.fn().mockReturnValue(tasksUpdateQuery),
+        };
+      }
       if (table === "audit_logs") return auditLogsQuery;
       if (table === "event_log") return eventLogQuery;
       throw new Error(`Unexpected table ${table}`);
