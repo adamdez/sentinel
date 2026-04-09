@@ -46,11 +46,28 @@ export function resolveDialerPhoneSelection({
     };
   }
 
+  const autoCycleFallbackIndex = (() => {
+    const firstUncalledIndex = activePhones.findIndex((phone) => !phone.last_called_at);
+    if (firstUncalledIndex >= 0) return firstUncalledIndex;
+
+    let oldestIndex = 0;
+    let oldestTime = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < activePhones.length; index += 1) {
+      const lastCalledAt = activePhones[index]?.last_called_at;
+      const calledTime = lastCalledAt ? new Date(lastCalledAt).getTime() : Number.NEGATIVE_INFINITY;
+      if (calledTime < oldestTime) {
+        oldestTime = calledTime;
+        oldestIndex = index;
+      }
+    }
+    return oldestIndex;
+  })();
+
   const autoCycleIndex = nextPhoneId
     ? activePhones.findIndex((phone) => phone.id === nextPhoneId)
     : -1;
   const selectedIndex = autoCycleMode
-    ? (autoCycleIndex >= 0 ? autoCycleIndex : 0)
+    ? (autoCycleIndex >= 0 ? autoCycleIndex : autoCycleFallbackIndex)
     : (phoneIndex >= 0 && phoneIndex < activePhones.length ? phoneIndex : 0);
   const selectedPhone = activePhones[selectedIndex] ?? activePhones[0] ?? null;
 

@@ -5,7 +5,8 @@ import { requireAuth } from "@/lib/api-auth";
 /**
  * PATCH /api/leads/[id]/phones/[phoneId]
  *
- * Update a phone's status (mark dead, reactivate, or DNC).
+ * Update a phone's status (mark dead, reactivate, or DNC) and/or promote it
+ * to the lead's primary callback number.
  * When the primary phone is marked dead, auto-promotes the next active phone
  * and syncs properties.owner_phone as a legacy compatibility mirror.
  */
@@ -21,12 +22,13 @@ export async function PATCH(
     const { id: leadId, phoneId } = await params;
     const body = await req.json();
 
-    const { status, dead_reason } = body as {
-      status: "dead" | "active" | "dnc";
+    const { status, dead_reason, mark_primary } = body as {
+      status?: "dead" | "active" | "dnc";
       dead_reason?: "wrong_number" | "disconnected" | "fax" | "spam";
+      mark_primary?: boolean;
     };
 
-    if (!status || !["dead", "active", "dnc"].includes(status)) {
+    if (!mark_primary && (!status || !["dead", "active", "dnc"].includes(status))) {
       return NextResponse.json({ error: "status must be 'dead', 'active', or 'dnc'" }, { status: 400 });
     }
 
@@ -46,18 +48,25 @@ export async function PATCH(
 
     // Update the phone record
     const updateFields: Record<string, unknown> = {
-      status,
       updated_at: new Date().toISOString(),
     };
 
-    if (status === "dead" || status === "dnc") {
-      updateFields.dead_reason = dead_reason || null;
-      updateFields.dead_marked_by = user.id;
-      updateFields.dead_marked_at = new Date().toISOString();
-    } else if (status === "active") {
-      updateFields.dead_reason = null;
-      updateFields.dead_marked_by = null;
-      updateFields.dead_marked_at = null;
+    if (status) {
+      updateFields.status = status;
+      if (status === "dead" || status === "dnc") {
+        updateFields.dead_reason = dead_reason || null;
+        updateFields.dead_marked_by = user.id;
+        updateFields.dead_marked_at = new Date().toISOString();
+      } else if (status === "active") {
+        updateFields.dead_reason = null;
+        updateFields.dead_marked_by = null;
+        updateFields.dead_marked_at = null;
+      }
+    }
+
+    const effectiveStatus = status ?? (phoneRecord.status as "dead" | "active" | "dnc" | undefined);
+    if (mark_primary && effectiveStatus !== "active") {
+      return NextResponse.json({ error: "Only active phones can be promoted to primary" }, { status: 400 });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,7 +81,21 @@ export async function PATCH(
 
     // If this was the primary phone and we're marking it dead/dnc, auto-promote next active
     let newPrimaryPhone: string | undefined;
-    if (phoneRecord.is_primary && status !== "active") {
+    if (mark_primary) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("lead_phones") as any).update({ is_primary: false }).eq("lead_id", leadId).neq("id", phoneId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("lead_phones") as any).update({ is_primary: true }).eq("id", phoneId);
+      newPrimaryPhone = String(phoneRecord.phone ?? "");
+
+      // Sync properties.owner_phone for legacy callers that still expect a primary mirror.
+      if (phoneRecord.property_id) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (sb.from("properties") as any)
+          .update({ owner_phone: phoneRecord.phone })
+          .eq("id", phoneRecord.property_id);
+      }
+    } else if (phoneRecord.is_primary && status && status !== "active") {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: nextActive } = await (sb.from("lead_phones") as any)
         .select("id, phone")
@@ -139,16 +162,17 @@ export async function PATCH(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("event_log") as any).insert({
       user_id: user.id,
-      action: `phone.${status}`,
+      action: mark_primary ? "phone.primary_promoted" : `phone.${status}`,
       entity_type: "lead_phone",
       entity_id: phoneId,
       details: {
         lead_id: leadId,
         phone: phoneRecord.phone,
         previous_status: phoneRecord.status,
-        new_status: status,
+        new_status: effectiveStatus,
         dead_reason: dead_reason || null,
         was_primary: phoneRecord.is_primary,
+        marked_primary: mark_primary === true,
         new_primary: newPrimaryPhone || null,
         all_phones_dead: allPhonesDead,
       },
@@ -159,6 +183,7 @@ export async function PATCH(
       phone_id: phoneId,
       new_primary_phone: newPrimaryPhone,
       all_phones_dead: allPhonesDead,
+      mark_primary: mark_primary === true,
     });
   } catch (err) {
     console.error("[PATCH phones] unexpected error:", err);

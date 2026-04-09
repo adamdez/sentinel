@@ -1179,6 +1179,10 @@ function DialerPageInner() {
   // Fetch phone roster when lead changes
   useEffect(() => {
     if (!currentLead?.id) { setLeadPhones([]); setPhoneIndex(0); return; }
+    // Clear the previous lead's phone roster immediately so Power Dial never
+    // auto-dials using stale numbers while the next lead's phones are loading.
+    setLeadPhones([]);
+    setPhoneIndex(0);
     let active = true;
     (async () => {
       try {
@@ -1192,7 +1196,6 @@ function DialerPageInner() {
         } else {
           setLeadPhones([]);
         }
-        setPhoneIndex(0);
       } catch {
         if (active) {
           setLeadPhones([]);
@@ -1846,6 +1849,19 @@ function DialerPageInner() {
 
     if (plan.action === "stay") {
       setPhoneIndex(plan.nextPhoneIndex);
+      if (autoCycleMode && isAutoCycleQueueLead(currentLead)) {
+        const nextPhone = activeLeadPhones[plan.nextPhoneIndex] ?? null;
+        if (nextPhone) {
+          setCurrentLead({
+            ...currentLead,
+            autoCycle: {
+              ...currentLead.autoCycle,
+              nextPhoneId: nextPhone.id,
+              readyNow: true,
+            },
+          });
+        }
+      }
       refreshCurrentLeadPhones();
       if (autoDial && powerDialPaused) {
         setPendingAutoDialLeadId(null);
@@ -1887,7 +1903,7 @@ function DialerPageInner() {
 
     setPendingAutoDialLeadId(null);
     toast.info(autoDial ? "Power Dial complete — queue finished" : "Queue complete — all leads attempted");
-  }, [currentLead?.id, displayedQueue, executionQueue, leadPhones, phoneIndex, powerDialPaused, refreshCurrentLeadPhones]);
+  }, [activeLeadPhones, autoCycleMode, currentLead, displayedQueue, executionQueue, leadPhones, phoneIndex, powerDialPaused, refreshCurrentLeadPhones]);
 
   // ── Incoming call handler — attached to provider-managed Device ──
   useEffect(() => {
@@ -3919,7 +3935,7 @@ function DialerPageInner() {
                   ? "Loading the staged queue into Power Dial."
                   : powerDialPaused
                     ? "Power Dial is paused. Resume to continue through ready files."
-                    : "Power Dial runs from its own ready queue. Waiting files stay parked until due."
+                    : "Power Dial works the same staged queue. Waiting files stay parked until due."
                 : `${displayedQueue.length} queued`}
             </p>
 
@@ -3980,11 +3996,13 @@ function DialerPageInner() {
                     promotedAt: lead.promoted_at,
                   });
                   const rowDueLabel = powerDialRow
-                    ? (powerDialRow.autoCycle.readyNow
-                      ? "Ready now"
-                      : rowDueIso
-                        ? formatDueDateLabel(rowDueIso).text
-                        : "Waiting")
+                    ? (powerDialRow.autoCycle.cycleStatus === "paused"
+                      ? "Held"
+                      : powerDialRow.autoCycle.readyNow
+                        ? "Ready now"
+                        : rowDueIso
+                          ? formatDueDateLabel(rowDueIso).text
+                          : "Waiting")
                     : wf.dueLabel;
 
                   return (
@@ -4452,7 +4470,7 @@ function DialerPageInner() {
                               >
                                 <Phone className="h-3 w-3" />
                                 {formatUsPhone(lp.phone.replace(/\D/g, "").slice(-10))}
-                                {lp.is_primary && <span className="text-xs">★</span>}
+                                {lp.is_primary && <Heart className="h-3 w-3 fill-emerald-300/20 text-emerald-300" />}
                                 {lp.last_called_at && <span className="text-xs text-muted-foreground/40">✓</span>}
                               </button>
                             ))}
@@ -4471,6 +4489,7 @@ function DialerPageInner() {
                           >
                             <Phone className="h-4 w-4" />
                             {(() => {
+                              if (autoCycleMode && currentAutoCycleLead?.autoCycle.cycleStatus === "paused") return "Held";
                               if (autoCycleMode && !currentPowerDialReady) return "Scheduled";
                               if (selectedLeadPhone) return `Call ${formatUsPhone(selectedLeadPhone.phone.replace(/\D/g, "").slice(-10))}`;
                               return currentLead.properties?.owner_phone ? "Call Now" : "No Phone";
@@ -4745,7 +4764,7 @@ function DialerPageInner() {
                       } : null}
                       phoneNumber={currentDialedPhone}
                       leadId={currentLead?.id ?? null}
-                      autoCycleEnabled={false}
+                      autoCycleEnabled={autoCycleMode}
                       onComplete={handlePostCallDone}
                       onSkip={handlePostCallDone}
                     />

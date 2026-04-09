@@ -80,7 +80,12 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
 
   useEffect(() => { fetchPhones(); }, [fetchPhones]);
 
-  const handlePhoneAction = useCallback(async (phoneId: string, status: "dead" | "active" | "dnc", deadReason?: string) => {
+  const handlePhoneAction = useCallback(async (
+    phoneId: string,
+    status: "dead" | "active" | "dnc",
+    deadReason?: string,
+    options?: { markPrimary?: boolean },
+  ) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -88,11 +93,17 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
       const res = await fetch(`/api/leads/${cf.id}/phones/${phoneId}`, {
         method: "PATCH",
         headers,
-        body: JSON.stringify({ status, dead_reason: deadReason }),
+        body: JSON.stringify({ status, dead_reason: deadReason, mark_primary: options?.markPrimary === true }),
       });
       if (res.ok) {
         const data = await res.json();
-        toast.success(status === "active" ? "Phone reactivated" : `Phone marked ${status}`);
+        toast.success(
+          options?.markPrimary
+            ? "Callback number updated"
+            : status === "active"
+              ? "Phone reactivated"
+              : `Phone marked ${status}`,
+        );
         if (data.all_phones_dead) toast.warning("All phones are now dead for this lead");
         fetchPhones();
         onRefresh?.();
@@ -580,7 +591,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
                     <div className="flex items-center gap-1 shrink-0">
                       {isActive && !lp.is_primary && (
                         <button
-                          onClick={() => handlePhoneAction(lp.id, "active")}
+                          onClick={() => handlePhoneAction(lp.id, "active", undefined, { markPrimary: true })}
                           title="Promote to primary"
                           className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground hover:bg-muted/20 border border-border/20 transition-all flex items-center gap-1"
                         >

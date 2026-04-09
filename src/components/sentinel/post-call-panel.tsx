@@ -137,6 +137,12 @@ const QUAL_CONFIRM_DISPOS = new Set<PublishDisposition>([
 const AUTO_ADVANCE_DISPOS = new Set<PublishDisposition>([
   "no_answer", "voicemail", "dead_phone", "not_interested", "wrong_number", "disconnected", "do_not_call", "dead_lead",
 ]);
+const POSITIVE_CALLBACK_DISPOS = new Set<PublishDisposition>([
+  "completed",
+  "follow_up",
+  "appointment",
+  "offer_made",
+]);
 
 const AUTO_ADVANCE_DELAY_MS = 1200;
 
@@ -608,8 +614,13 @@ export function PostCallPanel({
       toast.warning(`QA found ${summaryBits.join(" and ")} for this call`);
     }
 
-    // Auto-mark phone dead when the number itself is unusable
-    if ((dispo === "dead_phone" || dispo === "wrong_number" || dispo === "disconnected") && leadId && phoneNumber) {
+    // Keep lead_phones in sync with call outcomes so both dialer modes and the
+    // client file immediately agree on the winning or dead number.
+    if (
+      ((dispo === "dead_phone" || dispo === "wrong_number" || dispo === "disconnected") || POSITIVE_CALLBACK_DISPOS.has(dispo))
+      && leadId
+      && phoneNumber
+    ) {
       try {
         const phonesRes = await fetch(`/api/leads/${leadId}/phones`, { headers: hdrs });
         if (phonesRes.ok) {
@@ -619,15 +630,18 @@ export function PostCallPanel({
             (p: { id: string; phone: string }) => p.phone.replace(/\D/g, "") === digits,
           );
           if (match) {
+            const phonePatch = POSITIVE_CALLBACK_DISPOS.has(dispo)
+              ? { mark_primary: true }
+              : { status: "dead", dead_reason: dispo === "wrong_number" ? "wrong_number" : "disconnected" };
             await fetch(`/api/leads/${leadId}/phones/${match.id}`, {
               method: "PATCH",
               headers: hdrs,
-              body: JSON.stringify({ status: "dead", dead_reason: dispo === "wrong_number" ? "wrong_number" : "disconnected" }),
+              body: JSON.stringify(phonePatch),
             });
           }
         }
       } catch {
-        console.warn("[PostCallPanel] Auto-mark dead phone failed (non-fatal)");
+        console.warn("[PostCallPanel] Phone outcome sync failed (non-fatal)");
       }
     }
 

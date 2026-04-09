@@ -34,17 +34,23 @@ export interface AutoCyclePhoneRowLike {
   exit_reason: string | null;
 }
 
+const AUTO_CYCLE_DAY_MS = 24 * 60 * 60_000;
+export const AUTO_CYCLE_MAX_NO_RESPONSE_ROUNDS = 3;
+
 const LEAD_EXIT_DISPOSITIONS = new Set<PublishDisposition>([
-  "completed",
   "not_interested",
   "wrong_number",
   "disconnected",
   "do_not_call",
+  "disqualified",
+  "dead_lead",
+]);
+
+const MANUAL_HOLD_DISPOSITIONS = new Set<PublishDisposition>([
+  "completed",
   "follow_up",
   "appointment",
   "offer_made",
-  "disqualified",
-  "dead_lead",
 ]);
 
 export function normalizePhoneForCompare(phone: string | null | undefined): string {
@@ -55,51 +61,49 @@ export function isAutoCycleLeadExitDisposition(disposition: PublishDisposition):
   return LEAD_EXIT_DISPOSITIONS.has(disposition);
 }
 
-export function nextAttemptPlan(attemptCountAfterOutcome: number, now = new Date()): {
+export function isAutoCycleManualHoldDisposition(disposition: PublishDisposition): boolean {
+  return MANUAL_HOLD_DISPOSITIONS.has(disposition);
+}
+
+export function buildAutoCycleNextRoundDueAt(now = new Date()): string {
+  return new Date(now.getTime() + AUTO_CYCLE_DAY_MS).toISOString();
+}
+
+export function buildAutoCycleThirtyDayFollowUpDueAt(now = new Date()): string {
+  return new Date(now.getTime() + 30 * AUTO_CYCLE_DAY_MS).toISOString();
+}
+
+export function shouldStopAutoCycleForNoResponseRound(nextRoundNumber: number): boolean {
+  return nextRoundNumber > AUTO_CYCLE_MAX_NO_RESPONSE_ROUNDS;
+}
+
+export function isLeadStatusEligibleForAutoCycle(status: string | null | undefined): boolean {
+  return status === "lead" || status === "prospect";
+}
+
+export function pickAutoCyclePhoneIdByPosition(
+  phoneRows: AutoCyclePhoneRowLike[],
+  phoneStatus: AutoCyclePhoneStatus = "active",
+): string | null {
+  const firstPhone = [...phoneRows]
+    .filter((row) => row.phone_status === phoneStatus)
+    .sort((a, b) => {
+      if (a.phone_position !== b.phone_position) return a.phone_position - b.phone_position;
+      return a.phone.localeCompare(b.phone);
+    })[0];
+
+  return firstPhone?.phone_id ?? null;
+}
+
+export function planNextAutoCyclePhoneCall(currentRound: number, now = new Date()): {
   nextAttemptNumber: number | null;
   nextDueAt: string | null;
   voicemailDropNext: boolean;
   phoneStatus: AutoCyclePhoneStatus;
 } {
-  if (attemptCountAfterOutcome >= 5) {
-    return {
-      nextAttemptNumber: null,
-      nextDueAt: null,
-      voicemailDropNext: false,
-      phoneStatus: "completed",
-    };
-  }
-
-  if (attemptCountAfterOutcome === 1) {
-    return {
-      nextAttemptNumber: 2,
-      nextDueAt: new Date(now.getTime() + 5 * 60_000).toISOString(),
-      voicemailDropNext: true,
-      phoneStatus: "active",
-    };
-  }
-
-  if (attemptCountAfterOutcome === 2) {
-    return {
-      nextAttemptNumber: 3,
-      nextDueAt: new Date(now.getTime() + 24 * 60 * 60_000).toISOString(),
-      voicemailDropNext: false,
-      phoneStatus: "active",
-    };
-  }
-
-  if (attemptCountAfterOutcome === 3) {
-    return {
-      nextAttemptNumber: 4,
-      nextDueAt: new Date(now.getTime() + 5 * 60_000).toISOString(),
-      voicemailDropNext: true,
-      phoneStatus: "active",
-    };
-  }
-
   return {
-    nextAttemptNumber: 5,
-    nextDueAt: new Date(now.getTime() + 24 * 60 * 60_000).toISOString(),
+    nextAttemptNumber: Math.max(currentRound, 1) + 1,
+    nextDueAt: buildAutoCycleNextRoundDueAt(now),
     voicemailDropNext: false,
     phoneStatus: "active",
   };
@@ -150,17 +154,18 @@ export function deriveLeadCycleState(
     if (phone.nextAttemptNumber == null) return round;
     return Math.min(round, phone.nextAttemptNumber);
   }, leadRow.current_round || 1);
+  const isPaused = leadRow.cycle_status === "paused";
 
   return {
     id: leadRow.id,
     leadId: leadRow.lead_id,
-    cycleStatus: activePhones.length === 0 ? "exited" : duePhones.length > 0 ? "ready" : leadRow.cycle_status,
+    cycleStatus: activePhones.length === 0 ? "exited" : isPaused ? "paused" : duePhones.length > 0 ? "ready" : leadRow.cycle_status,
     currentRound: Number.isFinite(currentRound) ? currentRound : leadRow.current_round,
     nextDueAt: nextPhone?.nextDueAt ?? leadRow.next_due_at,
     nextPhoneId: nextPhone?.phoneId ?? leadRow.next_phone_id,
     lastOutcome: leadRow.last_outcome,
     exitReason: activePhones.length === 0 ? (leadRow.exit_reason ?? "completed") : leadRow.exit_reason,
-    readyNow: duePhones.length > 0,
+    readyNow: !isPaused && duePhones.length > 0,
     voicemailDropNext: Boolean(nextPhone?.voicemailDropNext),
     remainingPhones: activePhones.length,
   };

@@ -10,10 +10,16 @@
 
 import { createClient } from "@supabase/supabase-js";
 import {
+  buildAutoCycleNextRoundDueAt,
+  buildAutoCycleThirtyDayFollowUpDueAt,
   deriveLeadCycleState,
   isAutoCycleLeadExitDisposition,
-  nextAttemptPlan,
+  isAutoCycleManualHoldDisposition,
+  isLeadStatusEligibleForAutoCycle,
   normalizePhoneForCompare,
+  pickAutoCyclePhoneIdByPosition,
+  planNextAutoCyclePhoneCall,
+  shouldStopAutoCycleForNoResponseRound,
   type AutoCycleLeadRowLike,
   type AutoCyclePhoneRowLike,
 } from "./auto-cycle";
@@ -27,12 +33,12 @@ import { evictFromDialQueueIfAutoCycleStatusStopsImmediateWork } from "@/lib/dia
  *
  * CRITICAL: This must NEVER return null for a connected Vapi call.
  * Returning null means the auto-cycle phone never advances, causing
- * infinite retry (the 2,420-call bug). Every call that reaches Vapi
+ * infinite redial (the 2,420-call bug). Every call that reaches Vapi
  * and gets an end-of-call-report MUST advance the cycle.
  *
  * @param durationSeconds — if provided, used to distinguish real conversations
  *   from quick hangups. A "completed" call with >30s duration was a real convo
- *   and should exit the cycle (follow_up), not retry as no_answer.
+ *   and should exit the cycle (follow_up), not continue through the no-answer path.
  */
 export function mapVapiDispositionToAutoCycle(
   disposition: string,
@@ -44,12 +50,12 @@ export function mapVapiDispositionToAutoCycle(
     case "voicemail":    return "voicemail";         // advance phone attempt
     case "completed": {
       // Real conversation (>30s) = follow_up (exit cycle, Logan takes over)
-      // Quick hangup (<30s) = no_answer (advance attempt, try again later)
+      // Quick hangup (<30s) = no_answer (advance the file through today's pass)
       if (durationSeconds != null && durationSeconds > 30) return "follow_up";
       return "no_answer";
     }
     case "ai_ended":     return "not_interested";    // Jeff screened out, exit
-    case "error":        return "no_answer";         // API/pipeline error — advance, don't retry forever
+    case "error":        return "no_answer";         // API/pipeline error — advance the file, don't loop
     case "sip_failed":   return "dead_phone";        // SIP failed to connect — mark phone dead
     case "spam":         return "disqualified";      // spam caller, exit lead
     default:             return "no_answer";          // unknown → advance cycle, don't loop
@@ -134,6 +140,25 @@ export async function processAutoCycleOutcome(
   }
 
   const cycleLead = cycleLeadRow as AutoCycleLeadRowLike;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: leadRow, error: leadErr } = await (sb.from("leads") as any)
+    .select("id, status, assigned_to")
+    .eq("id", leadId)
+    .maybeSingle();
+
+  if (leadErr) {
+    console.warn("[auto-cycle-outcome] lead status load failed (non-fatal):", leadErr.message);
+  }
+
+  const leadStatus = typeof leadRow?.status === "string" ? leadRow.status : null;
+  const leadStillEligibleForAutoCycle = isLeadStatusEligibleForAutoCycle(leadStatus);
+  const assignedTo = typeof leadRow?.assigned_to === "string" && leadRow.assigned_to.length > 0
+    ? leadRow.assigned_to
+    : typeof userId === "string" && userId.length > 0
+      ? userId
+      : typeof (cycleLeadRow as { user_id?: unknown }).user_id === "string"
+        ? (cycleLeadRow as { user_id: string }).user_id
+        : null;
 
   // ── Load phones ──────────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -169,6 +194,7 @@ export async function processAutoCycleOutcome(
   }
 
   const isLeadExit = isAutoCycleLeadExitDisposition(disposition);
+  const isManualHold = isAutoCycleManualHoldDisposition(disposition);
 
   // ── Update target phone ──────────────────────────────────────────
   if (targetPhone) {
@@ -176,6 +202,7 @@ export async function processAutoCycleOutcome(
 
     if (disposition === "dead_phone") {
       phonePatch = {
+        attempt_count: Math.max((targetPhone.attempt_count ?? 0) + 1, 1),
         last_attempt_at: nowIso,
         last_outcome: disposition,
         phone_status: "dead",
@@ -184,9 +211,20 @@ export async function processAutoCycleOutcome(
         next_due_at: null,
         voicemail_drop_next: false,
       };
+    } else if (isManualHold) {
+      phonePatch = {
+        attempt_count: Math.max((targetPhone.attempt_count ?? 0) + 1, 1),
+        last_attempt_at: nowIso,
+        last_outcome: disposition,
+        next_attempt_number: cycleLead.current_round || 1,
+        next_due_at: null,
+        voicemail_drop_next: false,
+        phone_status: "active",
+        exit_reason: null,
+      };
     } else if (!isLeadExit) {
-      const attemptCount = Math.min((targetPhone.attempt_count ?? 0) + 1, 5);
-      const nextPlan = nextAttemptPlan(attemptCount, now);
+      const attemptCount = Math.max((targetPhone.attempt_count ?? 0) + 1, 1);
+      const nextPlan = planNextAutoCyclePhoneCall(cycleLead.current_round || 1, now);
       phonePatch = {
         attempt_count: attemptCount,
         last_attempt_at: nowIso,
@@ -195,7 +233,7 @@ export async function processAutoCycleOutcome(
         next_due_at: nextPlan.nextDueAt,
         voicemail_drop_next: nextPlan.voicemailDropNext,
         phone_status: nextPlan.phoneStatus,
-        exit_reason: nextPlan.phoneStatus === "completed" ? "completed_cycle" : null,
+        exit_reason: null,
       };
     } else {
       phonePatch = {
@@ -270,23 +308,108 @@ export async function processAutoCycleOutcome(
     return dueMs <= now.getTime();
   });
 
-  const leadPatch = activeAfter.length === 0 || isLeadExit
-    ? {
-        cycle_status: "exited" as const,
+  let leadPatch:
+    | {
+        cycle_status: "ready" | "waiting" | "paused" | "exited";
+        current_round: number;
+        next_due_at: string | null;
+        next_phone_id: string | null;
+        last_outcome: PublishDisposition;
+        exit_reason: string | null;
+      };
+
+  if (isLeadExit || activeAfter.length === 0) {
+    leadPatch = {
+      cycle_status: "exited",
+      current_round: leadState.currentRound,
+      next_due_at: null,
+      next_phone_id: null,
+      last_outcome: disposition,
+      exit_reason: isLeadExit ? disposition : "completed_cycle",
+    };
+  } else if (!leadStillEligibleForAutoCycle) {
+    leadPatch = {
+      cycle_status: "exited",
+      current_round: leadState.currentRound,
+      next_due_at: null,
+      next_phone_id: null,
+      last_outcome: disposition,
+      exit_reason: "status_changed",
+    };
+  } else if (isManualHold) {
+    leadPatch = {
+      cycle_status: "paused",
+      current_round: leadState.currentRound,
+      next_due_at: null,
+      next_phone_id: targetPhone?.phone_id ?? leadState.nextPhoneId,
+      last_outcome: disposition,
+      exit_reason: "manual_positive_hold",
+    };
+  } else if (!dueNowExists) {
+    if (shouldStopAutoCycleForNoResponseRound(leadState.currentRound)) {
+      if (assignedTo) {
+        const followUpDueAt = buildAutoCycleThirtyDayFollowUpDueAt(now);
+        try {
+          const { upsertLeadCallTask } = await import("@/lib/task-lead-sync");
+          await upsertLeadCallTask({
+            sb,
+            leadId,
+            assignedTo,
+            title: "Follow up in 30 days - no response after 3 call days",
+            dueAt: followUpDueAt,
+            taskType: "follow_up",
+            notes: "Auto-created by Power Dial after 3 consecutive no-response call days.",
+          });
+        } catch (taskErr) {
+          console.error("[auto-cycle-outcome] 30-day follow-up task creation failed:", taskErr);
+        }
+      }
+
+      leadPatch = {
+        cycle_status: "exited",
         current_round: leadState.currentRound,
         next_due_at: null,
         next_phone_id: null,
         last_outcome: disposition,
-        exit_reason: isLeadExit ? disposition : "completed_cycle",
+        exit_reason: "no_response_30_day_follow_up",
+      };
+    } else {
+      const nextRoundDueAt = buildAutoCycleNextRoundDueAt(now);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: normalizeErr } = await (sb.from("dialer_auto_cycle_phones") as any)
+        .update({
+          next_attempt_number: leadState.currentRound,
+          next_due_at: nextRoundDueAt,
+          voicemail_drop_next: false,
+          exit_reason: null,
+        })
+        .eq("cycle_lead_id", cycleLead.id)
+        .eq("phone_status", "active");
+
+      if (normalizeErr) {
+        console.error("[auto-cycle-outcome] next-round phone normalization failed:", normalizeErr.message);
+        throw new Error(`Failed to normalize next round: ${normalizeErr.message}`);
       }
-    : {
-        cycle_status: (dueNowExists ? "ready" : "waiting") as string,
+
+      leadPatch = {
+        cycle_status: "waiting",
         current_round: leadState.currentRound,
-        next_due_at: leadState.nextDueAt,
-        next_phone_id: leadState.nextPhoneId,
+        next_due_at: nextRoundDueAt,
+        next_phone_id: pickAutoCyclePhoneIdByPosition(activeAfter),
         last_outcome: disposition,
         exit_reason: null,
       };
+    }
+  } else {
+    leadPatch = {
+      cycle_status: "ready",
+      current_round: leadState.currentRound,
+      next_due_at: leadState.nextDueAt,
+      next_phone_id: leadState.nextPhoneId,
+      last_outcome: disposition,
+      exit_reason: null,
+    };
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: leadUpdateErr } = await (sb.from("dialer_auto_cycle_leads") as any)

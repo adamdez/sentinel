@@ -76,17 +76,49 @@ describe("resolveDialerPhoneSelection", () => {
     expect(dialedPhones).toEqual(["5091111111", "5092222222", "5093333333"]);
   });
 
-  it("falls back to the first active phone when the pointer is missing or stale", () => {
+  it("falls back to the first uncalled active phone when the pointer is missing or stale", () => {
     const selection = resolveDialerPhoneSelection({
       autoCycleMode: true,
-      leadPhones: phones,
+      leadPhones: [
+        buildPhone("lead-phone-1", "5091111111", {
+          position: 1,
+          last_called_at: "2026-04-09T10:00:00.000Z",
+          call_count: 1,
+        }),
+        buildPhone("lead-phone-2", "5092222222", { position: 2 }),
+        buildPhone("lead-phone-3", "5093333333", { position: 3 }),
+      ],
       phoneIndex: 2,
       nextPhoneId: "missing-phone-id",
       fallbackPhone: "5099999999",
     });
 
-    expect(selection.selectedIndex).toBe(0);
-    expect(selection.phone).toBe("5091111111");
+    expect(selection.selectedIndex).toBe(1);
+    expect(selection.phone).toBe("5092222222");
+  });
+
+  it("falls back to the oldest-called active phone when every active phone was already tried", () => {
+    const selection = resolveDialerPhoneSelection({
+      autoCycleMode: true,
+      leadPhones: [
+        buildPhone("lead-phone-1", "5091111111", {
+          position: 1,
+          last_called_at: "2026-04-09T11:00:00.000Z",
+          call_count: 2,
+        }),
+        buildPhone("lead-phone-2", "5092222222", {
+          position: 2,
+          last_called_at: "2026-04-09T09:00:00.000Z",
+          call_count: 1,
+        }),
+      ],
+      phoneIndex: 0,
+      nextPhoneId: "missing-phone-id",
+      fallbackPhone: null,
+    });
+
+    expect(selection.selectedIndex).toBe(1);
+    expect(selection.phone).toBe("5092222222");
   });
 
   it("keeps manual queue behavior unchanged and falls back to owner_phone when needed", () => {

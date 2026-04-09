@@ -29,7 +29,6 @@ const TERMINAL_QUEUE_DISPOSITIONS = new Set([
 ]);
 
 const AUTO_CYCLE_QUEUE_EVICT_STATUSES = new Set([
-  "waiting",
   "exited",
 ]);
 
