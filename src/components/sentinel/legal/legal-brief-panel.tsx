@@ -162,7 +162,9 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
       }
       const result = await res.json() as UnifiedResearchStatusResponse;
       const legal = result.metadata?.legal;
-      if (legal) {
+      if (legal?.errors?.length) {
+        toast.error(legal.errors[0]);
+      } else if (legal) {
         toast.success(
           `Research refreshed: ${legal.documents_found} legal records, ${legal.court_cases_found} court cases`,
         );
@@ -195,6 +197,7 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
     .sort((a, b) => a._days - b._days);
   const nextEvent = upcomingEvents[0] ?? null;
   const researchMeta = researchQuery.data?.metadata ?? null;
+  const legalErrors = researchMeta?.legal.errors ?? [];
 
   if (loading && documents.length === 0) {
     return (
@@ -241,12 +244,35 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
 
       {/* Empty state */}
       {documents.length === 0 && !searching && (
-        <div className="rounded-lg border border-dashed border-glass-border p-8 text-center">
-          <Scale className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground/60">No legal records found yet</p>
-          <p className="text-xs text-muted-foreground/40 mt-1">
-            Click &quot;Run Research&quot; to stage legal records through the shared research flow
-          </p>
+        <div className="space-y-3">
+          <div className="rounded-lg border border-dashed border-glass-border p-8 text-center">
+            <Scale className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground/60">No legal records found yet</p>
+            <p className="text-xs text-muted-foreground/40 mt-1">
+              Click &quot;Run Research&quot; to stage legal records through the shared research flow
+            </p>
+          </div>
+          {legalErrors.length > 0 && (
+            <div className="rounded-lg border border-amber-500/25 bg-amber-500/8 p-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-300" />
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-amber-200/80">
+                    Research Hit An Upstream Issue
+                  </p>
+                  <p className="text-sm text-amber-100/85">
+                    Sentinel did not get a clean legal result back from every source.
+                  </p>
+                  <p className="text-xs text-amber-200/70">
+                    {legalErrors[0]}
+                  </p>
+                  <p className="text-xs text-amber-200/55">
+                    Obituaries, next of kin, and softer probate clues surface in Dossier. Legal only shows matched hard-record filings.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

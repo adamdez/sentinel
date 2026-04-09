@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   assessLegalDocumentMatch,
   parseOwnerName,
+  runLegalSearch,
   type LegalSearchInput,
   type NormalizedDocument,
 } from "@/lib/county-legal-search";
@@ -38,6 +39,10 @@ function buildDoc(overrides: Partial<NormalizedDocument>): NormalizedDocument {
     ...overrides,
   };
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("parseOwnerName", () => {
   it("treats natural-order person names as first-middle-last", () => {
@@ -100,5 +105,19 @@ describe("assessLegalDocumentMatch", () => {
     }), baseInput);
 
     expect(assessment.accepted).toBe(false);
+  });
+});
+
+describe("runLegalSearch", () => {
+  it("surfaces upstream Firecrawl failures instead of silently looking empty", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 402, statusText: "Payment Required" }),
+    );
+
+    const result = await runLegalSearch(baseInput, "test-firecrawl-key");
+
+    expect(result.documents).toEqual([]);
+    expect(result.errors.some((error) => error.includes("402"))).toBe(true);
+    expect(result.errors.some((error) => error.includes("Payment Required"))).toBe(true);
   });
 });

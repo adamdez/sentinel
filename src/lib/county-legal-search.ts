@@ -209,6 +209,11 @@ export interface NormalizedDocument {
   rawExcerpt: string | null;
 }
 
+interface SourceSearchResult {
+  documents: NormalizedDocument[];
+  errors: string[];
+}
+
 interface LegalMatchContext {
   owner: ParsedOwnerName;
   addressTokens: string[];
@@ -347,10 +352,14 @@ function filterDocumentsForInput(
   let rejected = 0;
   let dateRejected = 0;
   const filtered = docs.filter((doc) => {
-    // Date filter: exclude documents older than 24 months (only when date is known)
+    const probateSignals = [doc.caseType, doc.eventDescription, doc.rawExcerpt].filter(Boolean).join(" ");
+    const isProbateLike = doc.documentType === "probate_petition"
+      || /\b(probate|estate|executor|executrix|personal representative|administrator|heir)\b/i.test(probateSignals);
+
+    // Date filter: exclude documents older than 24 months unless the filing looks probate-related.
     if (doc.recordingDate) {
       const recDate = new Date(doc.recordingDate);
-      if (!isNaN(recDate.getTime()) && recDate < cutoff) {
+      if (!isNaN(recDate.getTime()) && recDate < cutoff && !isProbateLike) {
         dateRejected += 1;
         return false;
       }
@@ -439,7 +448,7 @@ async function firecrawlScrape(
   schema: Record<string, unknown>,
   apiKey: string,
   actions?: Array<Record<string, unknown>>,
-): Promise<{ extract: Record<string, unknown> | null; markdown: string }> {
+): Promise<{ extract: Record<string, unknown> | null; markdown: string; error: string | null }> {
   try {
     const body: Record<string, unknown> = {
       url,
@@ -456,17 +465,20 @@ async function firecrawlScrape(
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      console.warn(`[LegalSearch] Firecrawl scrape failed: ${res.status} ${res.statusText}`);
-      return { extract: null, markdown: "" };
+      const error = `Firecrawl scrape failed (${res.status} ${res.statusText})`;
+      console.warn(`[LegalSearch] ${error}`);
+      return { extract: null, markdown: "", error };
     }
     const json = await res.json();
     return {
       extract: json.data?.extract ?? null,
       markdown: (json.data?.markdown ?? "").slice(0, 8000),
+      error: null,
     };
   } catch (err) {
+    const error = err instanceof Error ? err.message : "Unknown Firecrawl scrape error";
     console.warn("[LegalSearch] Firecrawl scrape error:", err);
-    return { extract: null, markdown: "" };
+    return { extract: null, markdown: "", error };
   }
 }
 
@@ -474,22 +486,31 @@ async function firecrawlSearch(
   query: string,
   apiKey: string,
   limit = 5,
-): Promise<Array<{ url: string; title: string; markdown: string }>> {
+): Promise<{ results: Array<{ url: string; title: string; markdown: string }>; error: string | null }> {
   try {
     const res = await fetch(FIRECRAWL_SEARCH, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({ query, limit, scrapeOptions: { formats: ["markdown"] } }),
     });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      const error = `Firecrawl search failed (${res.status} ${res.statusText})`;
+      console.warn(`[LegalSearch] ${error}`);
+      return { results: [], error };
+    }
     const json = await res.json();
-    return (json.data ?? []).map((r: Record<string, unknown>) => ({
-      url: (r.url as string) ?? "",
-      title: (r.title as string) ?? "",
-      markdown: ((r.markdown as string) ?? "").slice(0, 3000),
-    }));
-  } catch {
-    return [];
+    return {
+      results: (json.data ?? []).map((r: Record<string, unknown>) => ({
+        url: (r.url as string) ?? "",
+        title: (r.title as string) ?? "",
+        markdown: ((r.markdown as string) ?? "").slice(0, 3000),
+      })),
+      error: null,
+    };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : "Unknown Firecrawl search error";
+    console.warn("[LegalSearch] Firecrawl search error:", err);
+    return { results: [], error };
   }
 }
 
@@ -567,8 +588,9 @@ const LIEN_SCHEMA = {
 async function searchRecorder(
   input: LegalSearchInput,
   apiKey?: string,
-): Promise<NormalizedDocument[]> {
+): Promise<SourceSearchResult> {
   const docs: NormalizedDocument[] = [];
+  const errors: string[] = [];
   const owner = parseOwnerName(input.ownerName);
   const { last, first } = owner;
   const ownerPhrase = owner.fullNameVariants[0] ?? input.ownerName;
@@ -577,7 +599,7 @@ async function searchRecorder(
   // Plain-fetch fallback: use APN direct search when no Firecrawl key
   if (!apiKey) {
     if (!input.apn || input.apn.startsWith("MANUAL-")) {
-      return [];
+      return { documents: [], errors };
     }
 
     try {
@@ -599,7 +621,7 @@ async function searchRecorder(
       const res = await fetch(recorderApnUrl, { signal: AbortSignal.timeout(15000) });
       if (!res.ok) {
         console.warn(`[LegalSearch:Recorder] APN fetch failed: ${res.status}`);
-        return [];
+        return { documents: [], errors };
       }
       const html = await res.text();
 
@@ -686,10 +708,10 @@ async function searchRecorder(
       console.log(`[LegalSearch:Recorder] Plain-fetch extracted ${docs.length} candidate docs`);
     } catch (err) {
       console.warn("[LegalSearch:Recorder] Plain-fetch error:", err);
-      return [];
+      return { documents: [], errors };
     }
 
-    return filterDocumentsForInput(docs, input, "Recorder");
+    return { documents: filterDocumentsForInput(docs, input, "Recorder"), errors };
   }
 
   // Strategy 1: Use Firecrawl actions to interact with the recorder search form.
@@ -713,6 +735,9 @@ async function searchRecorder(
       apiKey,
       formActions,
     );
+    if (response.error) {
+      errors.push(`Recorder lookup: ${response.error}`);
+    }
     recorderExtract = response.extract;
     recorderMd = response.markdown;
 
@@ -738,7 +763,12 @@ async function searchRecorder(
   );
 
   const resultUrls = searchResults
-    .flat()
+    .flatMap((result) => {
+      if (result.error) {
+        errors.push(`Recorder web search: ${result.error}`);
+      }
+      return result.results;
+    })
     .map((r) => r.url)
     .filter((u) => u && !u.includes("google.") && !u.includes("bing."));
 
@@ -754,7 +784,12 @@ async function searchRecorder(
 
   scrapeResults.forEach((r, i) => {
     if (r.status === "fulfilled") {
+      if (r.value.error) {
+        errors.push(`Recorder source scrape: ${r.value.error}`);
+      }
       allExtracts.push({ ...r.value, url: resultUrls[i] });
+    } else {
+      errors.push(`Recorder source scrape failed: ${String(r.reason)}`);
     }
   });
 
@@ -793,7 +828,7 @@ async function searchRecorder(
     }
   }
 
-  return filterDocumentsForInput(docs, input, "Recorder");
+  return { documents: filterDocumentsForInput(docs, input, "Recorder"), errors };
 }
 
 // ── Crawler 2: WA Courts case search (per-lead) ─────────────────────────────
@@ -801,8 +836,9 @@ async function searchRecorder(
 async function searchCourts(
   input: LegalSearchInput,
   apiKey?: string,
-): Promise<NormalizedDocument[]> {
+): Promise<SourceSearchResult> {
   const docs: NormalizedDocument[] = [];
+  const errors: string[] = [];
   const owner = parseOwnerName(input.ownerName);
   const { last, first } = owner;
   const ownerPhrase = owner.fullNameVariants[0] ?? input.ownerName;
@@ -820,7 +856,7 @@ async function searchCourts(
       const res = await fetch(courtSearchUrl, { signal: AbortSignal.timeout(15000) });
       if (!res.ok) {
         console.warn(`[LegalSearch:Courts] Plain-fetch failed: ${res.status}`);
-        return [];
+        return { documents: [], errors };
       }
       const html = await res.text();
       // Guard: CFML session error pages return 200 OK with no case data.
@@ -832,25 +868,30 @@ async function searchCourts(
         (html.length < 500 && !html.includes("Case Number"))
       ) {
         console.warn(`[LegalSearch:Courts] Plain-fetch returned session/error page — no results`);
-        return [];
+        return { documents: [], errors };
       }
       const extracted = extractCasesFromText(html, courtSearchUrl);
       console.log(`[LegalSearch:Courts] Plain-fetch extracted ${extracted.length} cases`);
       docs.push(...extracted);
     } catch (err) {
       console.warn("[LegalSearch:Courts] Plain-fetch error:", err);
-      return [];
+      return { documents: [], errors };
     }
-    return filterDocumentsForInput(docs, input, "Courts");
+    return { documents: filterDocumentsForInput(docs, input, "Courts"), errors };
   }
 
   // Strategy 1: Construct a direct WA Courts name search URL.
   // This submits the search server-side — no form interaction needed.
-  const { extract: courtExtract, markdown: courtMd } = await firecrawlScrape(
+  const directCourtLookup = await firecrawlScrape(
     courtSearchUrl,
     COURT_CASE_SCHEMA,
     apiKey,
   );
+  if (directCourtLookup.error) {
+    errors.push(`WA Courts lookup: ${directCourtLookup.error}`);
+  }
+  const courtExtract = directCourtLookup.extract;
+  const courtMd = directCourtLookup.markdown;
 
   console.log(`[LegalSearch:Courts] Direct search for "${last}, ${first}" → ${(courtExtract?.cases as unknown[])?.length ?? 0} cases extracted, ${courtMd.length} chars markdown`);
 
@@ -865,7 +906,12 @@ async function searchCourts(
   );
 
   const resultUrls = searchResults
-    .flat()
+    .flatMap((result) => {
+      if (result.error) {
+        errors.push(`WA Courts web search: ${result.error}`);
+      }
+      return result.results;
+    })
     .map((r) => r.url)
     .filter((u) =>
       u &&
@@ -886,13 +932,18 @@ async function searchCourts(
 
   scrapeResults.forEach((r, i) => {
     if (r.status === "fulfilled") {
+      if (r.value.error) {
+        errors.push(`WA Courts source scrape: ${r.value.error}`);
+      }
       allExtracts.push({ ...r.value, url: resultUrls[i] });
+    } else {
+      errors.push(`WA Courts source scrape failed: ${String(r.reason)}`);
     }
   });
 
   // Extract cases from search snippet markdown (case numbers in text)
   for (const resultSet of searchResults) {
-    for (const result of resultSet) {
+    for (const result of resultSet.results) {
       if (result.markdown) {
         const inlineCases = extractCasesFromText(result.markdown, result.url);
         docs.push(...inlineCases);
@@ -943,7 +994,7 @@ async function searchCourts(
     }
   }
 
-  return filterDocumentsForInput(docs, input, "Courts");
+  return { documents: filterDocumentsForInput(docs, input, "Courts"), errors };
 }
 
 /**
@@ -1010,14 +1061,15 @@ function normalizeDate(dateStr: string): string | null {
 async function searchLiens(
   input: LegalSearchInput,
   apiKey?: string,
-): Promise<NormalizedDocument[]> {
+): Promise<SourceSearchResult> {
   // Without Firecrawl web search, lien data adds no value — tax delinquency
   // is already covered by SCOUT data stored in owner_flags.
   if (!apiKey) {
-    return [];
+    return { documents: [], errors: [] };
   }
 
   const docs: NormalizedDocument[] = [];
+  const errors: string[] = [];
   const owner = parseOwnerName(input.ownerName);
   const { last, first } = owner;
   const ownerPhrase = owner.fullNameVariants[0] ?? input.ownerName;
@@ -1036,7 +1088,12 @@ async function searchLiens(
   );
 
   const resultUrls = searchResults
-    .flat()
+    .flatMap((result) => {
+      if (result.error) {
+        errors.push(`Lien web search: ${result.error}`);
+      }
+      return result.results;
+    })
     .map((r) => r.url)
     .filter((u) => u && !u.includes("google.") && !u.includes("bing."));
 
@@ -1048,7 +1105,12 @@ async function searchLiens(
 
   scrapeResults.forEach((r, i) => {
     if (r.status === "fulfilled") {
+      if (r.value.error) {
+        errors.push(`Lien source scrape: ${r.value.error}`);
+      }
       allExtracts.push({ ...r.value, url: resultUrls[i] });
+    } else {
+      errors.push(`Lien source scrape failed: ${String(r.reason)}`);
     }
   });
 
@@ -1087,7 +1149,7 @@ async function searchLiens(
     }
   }
 
-  return filterDocumentsForInput(docs, input, "Liens");
+  return { documents: filterDocumentsForInput(docs, input, "Liens"), errors };
 }
 
 // ── Deduplication ────────────────────────────────────────────────────────────
@@ -1128,28 +1190,32 @@ export async function runLegalSearch(
   const all: NormalizedDocument[] = [];
 
   if (recorderResult.status === "fulfilled") {
-    all.push(...recorderResult.value);
+    all.push(...recorderResult.value.documents);
+    errors.push(...recorderResult.value.errors);
   } else {
     errors.push(`Recorder search failed: ${recorderResult.reason}`);
   }
 
   if (courtResult.status === "fulfilled") {
-    all.push(...courtResult.value);
+    all.push(...courtResult.value.documents);
+    errors.push(...courtResult.value.errors);
   } else {
     errors.push(`Court search failed: ${courtResult.reason}`);
   }
 
   if (lienResult.status === "fulfilled") {
-    all.push(...lienResult.value);
+    all.push(...lienResult.value.documents);
+    errors.push(...lienResult.value.errors);
   } else {
     errors.push(`Lien search failed: ${lienResult.reason}`);
   }
 
   const documents = deduplicateDocuments(all);
+  const successfulSources = [recorderResult, courtResult, lienResult].filter((result) => result.status === "fulfilled").length;
 
   console.log(
-    `[LegalSearch] ${documents.length} unique docs (${all.length} raw) from ${3 - errors.length}/3 sources`,
+    `[LegalSearch] ${documents.length} unique docs (${all.length} raw) from ${successfulSources}/3 sources with ${errors.length} warning(s)`,
   );
 
-  return { documents, errors };
+  return { documents, errors: [...new Set(errors)] };
 }
