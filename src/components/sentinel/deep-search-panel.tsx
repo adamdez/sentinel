@@ -84,6 +84,19 @@ interface RawFinding {
   date?: string;
 }
 
+interface LegalEvidenceRow {
+  key: string;
+  title: string;
+  subtitle: string;
+  link: { label: string; url: string } | null;
+  notes: string | null;
+  rawExcerpt: string | null;
+  amount: number | null;
+  caseNumber: string | null;
+  dateLabel: string | null;
+  statusLabel: string | null;
+}
+
 function formatWhen(value: string | null | undefined): string {
   if (!value) return "never";
   const parsed = new Date(value);
@@ -219,6 +232,43 @@ function trustTone(sourceType: string | null | undefined): {
 
 function docTypeLabel(type: string): string {
   return type.replace(/_/g, " ");
+}
+
+function normalizeEvidenceKey(parts: Array<string | null | undefined>): string {
+  return parts
+    .map((part) => (part ?? "").trim().toLowerCase())
+    .filter(Boolean)
+    .join("|");
+}
+
+function isLegalArtifact(artifact: ArtifactRow): boolean {
+  const sourceType = (artifact.source_type ?? "").toLowerCase();
+  const label = (artifact.source_label ?? "").toLowerCase();
+  return sourceType === "court_record"
+    || sourceType === "probate_filing"
+    || sourceType === "assessor"
+    || label.startsWith("legal:")
+    || /\b(court|recorder|lien|judgment|probate|bankruptcy|foreclosure)\b/.test(label);
+}
+
+function parseArtifactCaseNumber(...values: Array<string | null | undefined>): string | null {
+  for (const value of values) {
+    if (!value) continue;
+    const match = value.match(/\bcase(?:\s+no\.?)?\s*[:#]?\s*([A-Z0-9-]{4,})/i);
+    if (match?.[1]) return match[1];
+  }
+  return null;
+}
+
+function parseArtifactAmount(...values: Array<string | null | undefined>): number | null {
+  for (const value of values) {
+    if (!value) continue;
+    const match = value.match(/\$([0-9][0-9,]*(?:\.\d{2})?)/);
+    if (!match?.[1]) continue;
+    const numeric = Number(match[1].replace(/,/g, ""));
+    if (!Number.isNaN(numeric)) return numeric;
+  }
+  return null;
 }
 
 function resolveFactLink(
@@ -439,7 +489,69 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
   const isProposed = display?.status === "proposed";
   const legalErrors = runMeta?.legal.errors ?? [];
   const nextEvent = runMeta?.legal.next_upcoming_event ?? null;
-  const totalLienAmount = documents.reduce((sum, document) => sum + (document.amount ?? 0), 0);
+  const legalEvidenceRows = useMemo(() => {
+    const rows: LegalEvidenceRow[] = [];
+
+    for (const document of documents) {
+      rows.push({
+        key: normalizeEvidenceKey([
+          "doc",
+          document.id,
+          document.source_url,
+          document.case_number,
+          document.instrument_number,
+        ]),
+        title: `${docTypeLabel(document.document_type)}${document.instrument_number ? ` #${document.instrument_number}` : ""}`,
+        subtitle: [sourceTitle(document.source), formatDate(document.recording_date), document.case_number].filter(Boolean).join(" - "),
+        link: document.source_url ? { label: "Open Source", url: document.source_url } : null,
+        notes: document.event_description ?? ([document.grantor, document.grantee].filter(Boolean).join(" -> ") || null),
+        rawExcerpt: document.raw_excerpt ?? null,
+        amount: document.amount ?? null,
+        caseNumber: document.case_number ?? null,
+        dateLabel: document.recording_date ?? null,
+        statusLabel: document.status ?? null,
+      });
+    }
+
+    for (const artifact of artifacts.filter(isLegalArtifact)) {
+      rows.push({
+        key: normalizeEvidenceKey([
+          "artifact",
+          artifact.source_label,
+          artifact.source_url,
+          artifact.extracted_notes,
+        ]),
+        title: artifact.source_label ?? artifact.source_type ?? "Legal evidence",
+        subtitle: [artifact.source_type?.replace(/_/g, " "), formatDate(artifact.created_at)].filter(Boolean).join(" - "),
+        link: artifact.source_url ? { label: "Open Source", url: artifact.source_url } : null,
+        notes: artifact.extracted_notes ?? null,
+        rawExcerpt: artifact.raw_excerpt ?? null,
+        amount: parseArtifactAmount(artifact.extracted_notes, artifact.raw_excerpt),
+        caseNumber: parseArtifactCaseNumber(artifact.extracted_notes, artifact.raw_excerpt, artifact.source_label),
+        dateLabel: artifact.created_at,
+        statusLabel: null,
+      });
+    }
+
+    const seen = new Set<string>();
+    return rows.filter((row) => {
+      if (!row.key) return false;
+      if (seen.has(row.key)) return false;
+      seen.add(row.key);
+      return true;
+    });
+  }, [artifacts, documents]);
+  const legalRecordCount = Math.max(runMeta?.legal.documents_found ?? 0, legalEvidenceRows.length);
+  const courtCaseCount = Math.max(
+    runMeta?.legal.court_cases_found ?? 0,
+    legalEvidenceRows.filter((row) => Boolean(row.caseNumber)).length,
+  );
+  const totalLienAmount = legalEvidenceRows.reduce((sum, row) => sum + (row.amount ?? 0), 0);
+  const stagedSummary = runMeta
+    ? runMeta.ai_provider === "fallback"
+      ? `Last staged ${formatWhen(runMeta.staged_at)} using built-in fallback synthesis`
+      : `Last staged ${formatWhen(runMeta.staged_at)} using ${runMeta.ai_provider} ${runMeta.ai_model}`
+    : "Run one manual Deep Search pass for probate, legal, next of kin, and people intel.";
 
   const evidenceRows = useMemo(() => {
     const rows: Array<{
@@ -531,9 +643,7 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
               )}
             </div>
             <p className="text-sm text-foreground/85">
-              {runMeta
-                ? `Last staged ${formatWhen(runMeta.staged_at)} using ${runMeta.ai_provider} ${runMeta.ai_model}`
-                : "Run one manual Deep Search pass for probate, legal, next of kin, and people intel."}
+              {stagedSummary}
             </p>
             <div className="flex flex-wrap gap-2">
               {(runMeta?.source_groups ?? ["deep_property", "legal", "people_intel"]).map((group) => (
@@ -786,13 +896,11 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-[10px] border border-overlay-6 bg-overlay-1 px-3 py-3">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Legal Records</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">{documents.length}</p>
+                  <p className="mt-1 text-lg font-semibold text-foreground">{legalRecordCount}</p>
                 </div>
                 <div className="rounded-[10px] border border-overlay-6 bg-overlay-1 px-3 py-3">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Court Cases</p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">
-                    {documents.filter((document) => Boolean(document.case_number)).length}
-                  </p>
+                  <p className="mt-1 text-lg font-semibold text-foreground">{courtCaseCount}</p>
                 </div>
                 <div className="rounded-[10px] border border-overlay-6 bg-overlay-1 px-3 py-3">
                   <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Amount Tracked</p>
@@ -822,56 +930,56 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
                 </div>
               )}
 
-              {documents.length > 0 ? (
+              {legalEvidenceRows.length > 0 ? (
                 <div className="space-y-3">
-                  {documents.map((document) => (
-                    <div key={document.id} className="rounded-[10px] border border-overlay-6 bg-overlay-1 px-3 py-3">
+                  {legalEvidenceRows.map((row) => (
+                    <div key={row.key} className="rounded-[10px] border border-overlay-6 bg-overlay-1 px-3 py-3">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-medium text-foreground">{row.title}</p>
                             <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-200">
-                              {docTypeLabel(document.document_type)}
+                              Hard Record
                             </Badge>
-                            <span className="text-xs text-muted-foreground/60">
-                              {formatDate(document.recording_date)}
-                            </span>
-                            {document.case_number && (
-                              <span className="text-xs text-muted-foreground/60">Case {document.case_number}</span>
+                            {row.dateLabel && (
+                              <span className="text-xs text-muted-foreground/60">{formatDate(row.dateLabel)}</span>
+                            )}
+                            {row.caseNumber && (
+                              <span className="text-xs text-muted-foreground/60">Case {row.caseNumber}</span>
                             )}
                           </div>
                           <p className="text-sm text-foreground/90">
-                            {document.event_description ?? ([document.grantor, document.grantee].filter(Boolean).join(" -> ") || "Legal record")}
+                            {row.notes ?? "Legal record"}
                           </p>
                           <p className="text-xs text-muted-foreground/65">
-                            {[sourceTitle(document.source), document.court_name, document.attorney_name].filter(Boolean).join(" | ")}
+                            {row.subtitle}
                           </p>
                         </div>
 
-                        {document.source_url && (
+                        {row.link && (
                           <a
-                            href={document.source_url}
+                            href={row.link.url}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-1 rounded-full border border-border/30 bg-muted/10 px-3 py-1.5 text-xs text-primary/80 hover:text-primary"
                           >
                             <ExternalLink className="h-3 w-3" />
-                            Open Source
+                            {row.link.label}
                           </a>
                         )}
                       </div>
 
-                      {(document.amount != null || document.next_hearing_date || document.raw_excerpt) && (
+                      {(row.amount != null || row.statusLabel || row.rawExcerpt) && (
                         <div className="mt-3 space-y-2">
-                          {(document.amount != null || document.next_hearing_date) && (
+                          {(row.amount != null || row.statusLabel) && (
                             <div className="flex flex-wrap gap-4 text-xs text-muted-foreground/70">
-                              {document.amount != null && <span>Amount: {formatCurrency(document.amount)}</span>}
-                              {document.next_hearing_date && <span>Next Hearing: {formatDate(document.next_hearing_date)}</span>}
-                              <span>Status: {document.status}</span>
+                              {row.amount != null && <span>Amount: {formatCurrency(row.amount)}</span>}
+                              {row.statusLabel && <span>Status: {row.statusLabel}</span>}
                             </div>
                           )}
-                          {document.raw_excerpt && (
+                          {row.rawExcerpt && (
                             <p className="rounded-[8px] border border-overlay-6 bg-black/20 px-3 py-2 text-xs leading-relaxed text-muted-foreground/75">
-                              {document.raw_excerpt}
+                              {row.rawExcerpt}
                             </p>
                           )}
                         </div>
@@ -881,7 +989,7 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground/70">
-                  No recorder or court records are staged yet.
+                  No legal evidence is staged yet.
                 </p>
               )}
             </div>

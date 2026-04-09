@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { DeepSkipPerson } from "@/lib/openclaw-client";
+import type { AgentFinding, DeepSkipPerson } from "@/lib/openclaw-client";
 
 vi.mock("@/lib/supabase", () => ({
   createServerClient: vi.fn(),
 }));
 
-const { extractNextOfKinCandidates } = await import("@/lib/lead-research");
+const { extractNextOfKinCandidates, summarizeResearchSignals } = await import("@/lib/lead-research");
 
 function person(overrides: Partial<DeepSkipPerson>): DeepSkipPerson {
   return {
@@ -15,6 +15,17 @@ function person(overrides: Partial<DeepSkipPerson>): DeepSkipPerson {
     emails: [],
     notes: "",
     source: "openclaw",
+    confidence: 0.5,
+    ...overrides,
+  };
+}
+
+function finding(overrides: Partial<AgentFinding>): AgentFinding {
+  return {
+    agentId: "agent-1",
+    category: "social_media",
+    source: "Open Source",
+    finding: "Generic finding",
     confidence: 0.5,
     ...overrides,
   };
@@ -43,5 +54,21 @@ describe("extractNextOfKinCandidates", () => {
     ]);
 
     expect(result.map((item) => item.name)).toEqual(["Mia Spouse", "Alex Attorney"]);
+  });
+});
+
+describe("summarizeResearchSignals", () => {
+  it("counts corroborating hard-record findings even when normalized legal documents are missing", () => {
+    const result = summarizeResearchSignals({
+      legalDocumentsFound: 0,
+      agentFindings: [
+        finding({ category: "financial", finding: "Civil judgment lien filed against owner" }),
+        finding({ category: "court_record", finding: "Probate case filed in superior court" }),
+        finding({ category: "social_media", finding: "Facebook profile found" }),
+      ],
+    });
+
+    expect(result.confirmedLegalRecords).toBe(0);
+    expect(result.corroboratingHardRecordFindings).toBe(2);
   });
 });

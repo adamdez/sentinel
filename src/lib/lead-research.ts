@@ -150,6 +150,23 @@ function toPeopleIntelHighlight(finding: AgentFinding): PeopleIntelHighlight {
   };
 }
 
+function isHardRecordFinding(finding: AgentFinding): boolean {
+  return ["court_record", "financial", "county_record"].includes(finding.category);
+}
+
+export function summarizeResearchSignals(args: {
+  legalDocumentsFound: number;
+  agentFindings: AgentFinding[];
+}): {
+  confirmedLegalRecords: number;
+  corroboratingHardRecordFindings: number;
+} {
+  return {
+    confirmedLegalRecords: args.legalDocumentsFound,
+    corroboratingHardRecordFindings: args.agentFindings.filter(isHardRecordFinding).length,
+  };
+}
+
 export function extractNextOfKinCandidates(people: DeepSkipPerson[]): NextOfKinCandidate[] {
   const kinRoles = new Set(["heir", "executor", "spouse", "family", "attorney"]);
   return people
@@ -173,14 +190,25 @@ function buildFallbackSynthesis(args: {
   nextOfKin: NextOfKinCandidate[];
 }): SynthesisResult {
   const ownerName = compact(args.property.owner_name) || "the owner";
-  const signalText = args.legal.documentsFound > 0
-    ? `${args.legal.documentsFound} legal record${args.legal.documentsFound === 1 ? "" : "s"} found`
-    : "no legal records confirmed in the supported county sources";
+  const signalSummary = summarizeResearchSignals({
+    legalDocumentsFound: args.legal.documentsFound,
+    agentFindings: args.agentFindings,
+  });
+  const prioritizedFindings = [...args.agentFindings].sort((left, right) => {
+    const hardRecordDelta = Number(isHardRecordFinding(right)) - Number(isHardRecordFinding(left));
+    if (hardRecordDelta !== 0) return hardRecordDelta;
+    return right.confidence - left.confidence;
+  });
+  const signalText = signalSummary.confirmedLegalRecords > 0
+    ? `${signalSummary.confirmedLegalRecords} legal record${signalSummary.confirmedLegalRecords === 1 ? "" : "s"} found`
+    : signalSummary.corroboratingHardRecordFindings > 0
+      ? `${signalSummary.corroboratingHardRecordFindings} corroborating hard-record signal${signalSummary.corroboratingHardRecordFindings === 1 ? "" : "s"} surfaced, but no normalized legal documents were confirmed`
+      : "no legal records confirmed in the supported county sources";
   const kinSummary = args.nextOfKin[0]
     ? `${args.nextOfKin[0].name} appears relevant as ${args.nextOfKin[0].role}.`
     : "No confirmed next-of-kin contact was found yet.";
   const topFacts = [
-    ...args.agentFindings.slice(0, 2).map((finding) => ({
+    ...prioritizedFindings.slice(0, 2).map((finding) => ({
       fact: truncateText(finding.finding, 140),
       source: finding.source,
       confidence: severityForFinding(finding),
