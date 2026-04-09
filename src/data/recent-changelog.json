@@ -1,127 +1,127 @@
 [
   {
-    "hash": "701323a4",
+    "hash": "864de9ac",
+    "date": "2026-04-09",
+    "message": "[codex] Fix inbound intake record typing"
+  },
+  {
+    "hash": "593b3810",
+    "date": "2026-04-09",
+    "message": "[codex] Fix dialer follow-up regressions"
+  },
+  {
+    "hash": "11aae24c",
+    "date": "2026-04-09",
+    "message": "[codex] Clarify Skip Genie review fallback"
+  },
+  {
+    "hash": "5b081c8d",
+    "date": "2026-04-09",
+    "message": "[codex] Repair prospects route test harness"
+  },
+  {
+    "hash": "77bec774",
+    "date": "2026-04-09",
+    "message": "[codex] Merge dossier and legal into deep search"
+  },
+  {
+    "hash": "2242c829",
+    "date": "2026-04-09",
+    "message": "[codex] Preserve Skip Genie review handoff"
+  },
+  {
+    "hash": "ab57b216",
+    "date": "2026-04-09",
+    "message": "[codex] Add direct Skip Genie result import"
+  },
+  {
+    "hash": "507e54e3",
+    "date": "2026-04-09",
+    "message": "[codex] Harden Skip Genie return imports"
+  },
+  {
+    "hash": "e8f57a44",
+    "date": "2026-04-09",
+    "message": "[codex] Collapse lead follow-up into task-first workflow"
+  },
+  {
+    "hash": "c5662a03",
+    "date": "2026-04-09",
+    "message": "[codex] Add Spokane Scout lead queue filters"
+  },
+  {
+    "hash": "5a120938",
+    "date": "2026-04-09",
+    "message": "[codex] Add Skip Genie lead export round-trip"
+  },
+  {
+    "hash": "09f4bf5c",
+    "date": "2026-04-09",
+    "message": "[codex] Surface legal research provider failures"
+  },
+  {
+    "hash": "b5347546",
+    "date": "2026-04-09",
+    "message": "[codex] Add CSV lead export option"
+  },
+  {
+    "hash": "221e47aa",
+    "date": "2026-04-09",
+    "message": "[codex] Add lead export and skip-trace phone reimport"
+  },
+  {
+    "hash": "ced23b3a",
+    "date": "2026-04-09",
+    "message": "[codex] Open client files directly from call history"
+  },
+  {
+    "hash": "e29c0adb",
+    "date": "2026-04-09",
+    "message": "[codex] Let prior seller notes unlock active moves"
+  },
+  {
+    "hash": "7eb4c80e",
+    "date": "2026-04-09",
+    "message": "[codex] Surface due lead callbacks in Today"
+  },
+  {
+    "hash": "183d1258",
+    "date": "2026-04-09",
+    "message": "[codex] Restore missed inbound recovery visibility"
+  },
+  {
+    "hash": "709879fb",
+    "date": "2026-04-09",
+    "message": "[codex] Tighten scout tax threshold and show payments behind"
+  },
+  {
+    "hash": "02387f74",
+    "date": "2026-04-09",
+    "message": "[codex] Improve Tina intake and CPA handoff flow"
+  },
+  {
+    "hash": "6ef74c92",
     "date": "2026-04-08",
-    "message": "[codex] Canonicalize LeadHouse source labels"
+    "message": "[codex] Fix Tina simple intake upload reset"
   },
   {
-    "hash": "08b7c4b8",
+    "hash": "414788bb",
     "date": "2026-04-08",
-    "message": "[codex] Remove stale drive-by property fields"
+    "message": "[codex] Ship Tina intake and entity-review spine"
   },
   {
-    "hash": "25171385",
+    "hash": "48e3e814",
     "date": "2026-04-08",
-    "message": "[codex] Repair drive-by queue loading"
+    "message": "[codex] Turn Today into an operator command center"
   },
   {
-    "hash": "7392a5e3",
+    "hash": "5144f5c8",
     "date": "2026-04-08",
-    "message": "[codex] Send claimed PPL leads straight to active"
+    "message": "[codex] Relabel LeadHouse sources and remove score UI"
   },
   {
-    "hash": "fd5f3f22",
+    "hash": "c3e3dd5c",
     "date": "2026-04-08",
-    "message": "[codex] Split true active stage from lead queue"
-  },
-  {
-    "hash": "b3607702",
-    "date": "2026-04-08",
-    "message": "[codex] Unify dossier and legal research runs"
-  },
-  {
-    "hash": "1b248508",
-    "date": "2026-04-08",
-    "message": "[codex] Fix hidden default lead queue stage filter"
-  },
-  {
-    "hash": "071074d1",
-    "date": "2026-04-08",
-    "message": "[codex] Repair active stage typecheck regressions"
-  },
-  {
-    "hash": "bdce443b",
-    "date": "2026-04-08",
-    "message": "[codex] Route direct inbound calls by operator line"
-  },
-  {
-    "hash": "34febcb8",
-    "date": "2026-04-08",
-    "message": "[codex] Make dialer skip trace actions live"
-  },
-  {
-    "hash": "aef413a8",
-    "date": "2026-04-08",
-    "message": "[codex] Ship Tina IRS-aligned handoff and export contract"
-  },
-  {
-    "hash": "bb6907c7",
-    "date": "2026-04-08",
-    "message": "[codex] Replace pipeline kanban with stage lists"
-  },
-  {
-    "hash": "4b436d2e",
-    "date": "2026-04-08",
-    "message": "[codex] Align client file skip trace state"
-  },
-  {
-    "hash": "5c8a26ef",
-    "date": "2026-04-08",
-    "message": "[codex] Add in-call dialer keypad"
-  },
-  {
-    "hash": "9f1f8a15",
-    "date": "2026-04-08",
-    "message": "[codex] Prioritize lead identity in recent call tiles"
-  },
-  {
-    "hash": "b1c4c682",
-    "date": "2026-04-08",
-    "message": "[codex] Uncram dialer recent call tiles"
-  },
-  {
-    "hash": "8775f40c",
-    "date": "2026-04-08",
-    "message": "[codex] Tighten power dial lead advancement"
-  },
-  {
-    "hash": "3afad358",
-    "date": "2026-04-08",
-    "message": "[codex] Save compact seller memory from call notes"
-  },
-  {
-    "hash": "2e5c5047",
-    "date": "2026-04-08",
-    "message": "[codex] Remove unlinked calls from today dashboard"
-  },
-  {
-    "hash": "449a90c6",
-    "date": "2026-04-08",
-    "message": "[codex] Normalize intake cities from address tails"
-  },
-  {
-    "hash": "4c767033",
-    "date": "2026-04-07",
-    "message": "[codex] Surface PPL lead source tags in queue and file"
-  },
-  {
-    "hash": "1d3c70f6",
-    "date": "2026-04-07",
-    "message": "[codex] Harden inbound dialer teardown"
-  },
-  {
-    "hash": "6a104ac9",
-    "date": "2026-04-07",
-    "message": "[codex] Fix inbound claim ownership update"
-  },
-  {
-    "hash": "8a978fc2",
-    "date": "2026-04-07",
-    "message": "[codex] Close live coach when session clears"
-  },
-  {
-    "hash": "d5bfc32e",
-    "date": "2026-04-07",
-    "message": "[codex] Fix dialer CI typecheck fallout"
+    "message": "[codex] Fix false answered inbound misses"
   }
 ]
