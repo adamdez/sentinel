@@ -130,6 +130,58 @@ describe("import normalization", () => {
     expect(result.mapped.county).toBe("County");
   });
 
+  it("recognizes Skip Genie return headers for address, name, campaign, and phones", () => {
+    const headers = [
+      "CAMPAIGN",
+      "INPUT_NAME",
+      "INPUT_ADDRESS",
+      "INPUT_CITY",
+      "INPUT_STATE",
+      "INPUT_ZIPCODE",
+      "FIRST",
+      "MIDDLE",
+      "LAST",
+      "MOBILE1",
+      "MOBILE2",
+      "PHONE1",
+      "PHONE_TYPE1",
+      "PHONE2",
+      "PHONE_TYPE2",
+    ];
+    const rows = [
+      {
+        CAMPAIGN: "spokane delinquentpreprobate",
+        INPUT_NAME: "DONNA R HARDER",
+        INPUT_ADDRESS: "5406 W NORTHWEST BLVD",
+        INPUT_CITY: "SPOKANE",
+        INPUT_STATE: "WA",
+        INPUT_ZIPCODE: "99205",
+        FIRST: "DONNA",
+        MIDDLE: "R",
+        LAST: "HARDER",
+        MOBILE1: "2066187017",
+        MOBILE2: "",
+        PHONE1: "2066187017",
+        PHONE_TYPE1: "Wireless",
+        PHONE2: "5093256857",
+        PHONE_TYPE2: "Landline",
+      },
+    ];
+
+    const result = inferFieldMappings(headers, rows);
+
+    expect(result.mapped.source_list_name).toBe("CAMPAIGN");
+    expect(result.mapped.owner_name).toBe("INPUT_NAME");
+    expect(result.mapped.property_address).toBe("INPUT_ADDRESS");
+    expect(result.mapped.property_city).toBe("INPUT_CITY");
+    expect(result.mapped.property_state).toBe("INPUT_STATE");
+    expect(result.mapped.property_zip).toBe("INPUT_ZIPCODE");
+    expect(result.mapped.owner_first_name).toBe("FIRST");
+    expect(result.mapped.owner_middle_name).toBe("MIDDLE");
+    expect(result.mapped.owner_last_name).toBe("LAST");
+    expect(result.mapped.phone).toBe("MOBILE1");
+  });
+
   it("routes risky rows into review-oriented outbound statuses", () => {
     const mapping = {
       owner_name: "Owner",

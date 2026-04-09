@@ -230,6 +230,46 @@ describe("imports-server", () => {
     });
   });
 
+  it("falls back to exact property address plus zip when county is absent", async () => {
+    const record = makeRecord({
+      county: null,
+      propertyZip: "99205",
+      propertyAddress: "5406 W NORTHWEST BLVD",
+      ownerName: "HARDER, DONNA R",
+    });
+
+    const sb = {
+      from(table: string) {
+        if (table === "properties") {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            limit: async () => ({
+              data: [{ id: "property-zip-1", owner_name: "HARDER, DONNA R" }],
+              error: null,
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table ${table}`);
+      },
+    };
+
+    const { findDuplicateCandidate } = await import("@/lib/imports-server");
+    const duplicate = await findDuplicateCandidate(sb as never, record, new Map());
+
+    expect(duplicate).toEqual({
+      level: "high",
+      reasons: ["Matched existing owner + property address + zip"],
+      propertyId: "property-zip-1",
+      leadId: null,
+    });
+  });
+
   it("extracts unique imported phone candidates in stable order", () => {
     const phones = extractImportedPhoneCandidates(
       makeRecord({
@@ -246,8 +286,15 @@ describe("imports-server", () => {
   it("promotes imported phones into canonical lead phones for duplicate updates", async () => {
     const record = makeRecord({
       phone: "5091112222",
-      phone2: "(509) 333-4444",
-      phone3: "5091112222",
+      rawRowPayload: {
+        MOBILE1: "5091112222",
+        PHONE1: "5091112222",
+        PHONE_TYPE1: "Wireless",
+        PHONE2: "5093334444",
+        PHONE_TYPE2: "Landline",
+        PHONE3: "5095556666",
+        PHONE_TYPE3: "OtherPhone",
+      },
     });
     const { sb, propertyUpdates, leadUpdates, insertedLeadPhones } = createSupabaseDouble();
 
@@ -270,19 +317,27 @@ describe("imports-server", () => {
 
     expect(didUpdate).toBe(true);
     expect(propertyUpdates[0]?.owner_phone).toBe("5091112222");
-    expect(insertedLeadPhones).toHaveLength(2);
+    expect(insertedLeadPhones).toHaveLength(3);
     expect(insertedLeadPhones[0]).toMatchObject({
       lead_id: "lead-1",
       property_id: "property-1",
       phone: "+15091112222",
       source: "import:skip_genie",
       is_primary: true,
+      label: "primary",
       position: 0,
     });
     expect(insertedLeadPhones[1]).toMatchObject({
       phone: "+15093334444",
+      label: "landline",
       is_primary: false,
       position: 1,
+    });
+    expect(insertedLeadPhones[2]).toMatchObject({
+      phone: "+15095556666",
+      label: "unknown",
+      is_primary: false,
+      position: 2,
     });
     expect(leadUpdates[0]).toMatchObject({
       source: "csv_import",

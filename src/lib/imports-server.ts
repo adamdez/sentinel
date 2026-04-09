@@ -121,6 +121,8 @@ const IMPORT_PHONE_FIELDS = [
 
 type ImportedPhoneField = (typeof IMPORT_PHONE_FIELDS)[number];
 type ImportedPhoneRecord = Pick<NormalizedImportRecord, ImportedPhoneField>;
+type ImportedPhoneLabel = "primary" | "mobile" | "landline" | "unknown";
+type ImportedPhoneDetail = { digits: string; label: ImportedPhoneLabel };
 
 function formatLeadPhoneValue(digits: string): string {
   return `+1${digits}`;
@@ -143,6 +145,55 @@ export function extractImportedPhoneCandidates(record: ImportedPhoneRecord): str
   }
 
   return phones;
+}
+
+function inferSkipGeniePhoneLabel(rawType: string | null | undefined): ImportedPhoneLabel {
+  const normalized = (rawType ?? "").trim().toLowerCase();
+  if (normalized.includes("wireless") || normalized.includes("mobile") || normalized.includes("cell")) return "mobile";
+  if (normalized.includes("landline")) return "landline";
+  return "unknown";
+}
+
+function extractSkipGeniePhoneDetails(rawRowPayload: Record<string, string>): ImportedPhoneDetail[] {
+  const details: ImportedPhoneDetail[] = [];
+
+  for (let index = 1; index <= 5; index += 1) {
+    const digits = cleanPhoneForQuery(rawRowPayload[`MOBILE${index}`] ?? null);
+    if (digits) {
+      details.push({ digits, label: "mobile" });
+    }
+  }
+
+  for (let index = 1; index <= 10; index += 1) {
+    const digits = cleanPhoneForQuery(rawRowPayload[`PHONE${index}`] ?? null);
+    if (!digits) continue;
+    details.push({
+      digits,
+      label: inferSkipGeniePhoneLabel(rawRowPayload[`PHONE_TYPE${index}`] ?? null),
+    });
+  }
+
+  return details;
+}
+
+function extractImportedPhoneDetails(record: NormalizedImportRecord): ImportedPhoneDetail[] {
+  const seen = new Set<string>();
+  const details: ImportedPhoneDetail[] = [];
+
+  const push = (digits: string | null, label: ImportedPhoneLabel) => {
+    if (!digits || seen.has(digits)) return;
+    seen.add(digits);
+    details.push({ digits, label });
+  };
+
+  const mappedCandidates = extractImportedPhoneCandidates(record);
+  mappedCandidates.forEach((digits, index) => push(digits, index === 0 ? "primary" : "mobile"));
+
+  for (const detail of extractSkipGeniePhoneDetails(record.rawRowPayload)) {
+    push(detail.digits, detail.label);
+  }
+
+  return details;
 }
 
 export async function findDuplicateCandidate(
@@ -247,6 +298,57 @@ export async function findDuplicateCandidate(
     }
   }
 
+  if (record.propertyAddress && record.propertyZip) {
+    const cacheKey = `address-zip:${record.propertyAddress.toLowerCase()}::${record.propertyZip}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey)!;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb.from("properties") as any)
+      .select("id, owner_name")
+      .eq("address", record.propertyAddress)
+      .eq("zip", record.propertyZip)
+      .limit(3);
+
+    if (Array.isArray(data) && data.length > 0) {
+      const ownerMatch = record.ownerName
+        ? data.some((row) => asString(row.owner_name)?.toLowerCase() === record.ownerName?.toLowerCase())
+        : false;
+      const duplicate = mergeReasons(
+        ownerMatch || data.length === 1 ? "high" : "possible",
+        [ownerMatch ? "Matched existing owner + property address + zip" : "Matched existing property address + zip"],
+        data[0].id,
+        null,
+      );
+      cache.set(cacheKey, duplicate);
+      return duplicate;
+    }
+  }
+
+  if (record.propertyAddress && record.propertyCity && record.propertyState) {
+    const cacheKey = `address-city-state:${record.propertyAddress.toLowerCase()}::${record.propertyCity.toLowerCase()}::${record.propertyState.toLowerCase()}`;
+    if (cache.has(cacheKey)) return cache.get(cacheKey)!;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (sb.from("properties") as any)
+      .select("id, owner_name")
+      .eq("address", record.propertyAddress)
+      .eq("city", record.propertyCity)
+      .eq("state", record.propertyState)
+      .limit(3);
+
+    if (Array.isArray(data) && data.length > 0) {
+      const ownerMatch = record.ownerName
+        ? data.some((row) => asString(row.owner_name)?.toLowerCase() === record.ownerName?.toLowerCase())
+        : false;
+      const duplicate = mergeReasons(
+        ownerMatch || data.length === 1 ? "high" : "possible",
+        [ownerMatch ? "Matched existing owner + property address + city/state" : "Matched existing property address + city/state"],
+        data[0].id,
+        null,
+      );
+      cache.set(cacheKey, duplicate);
+      return duplicate;
+    }
+  }
+
   return { level: "none", reasons: [] };
 }
 
@@ -254,14 +356,13 @@ async function promoteImportedPhonesToExistingLead(args: {
   sb: SupabaseLike;
   leadId: string;
   propertyId: string;
-  record: ImportedPhoneRecord;
+  phoneDetails: ImportedPhoneDetail[];
   existingPropertyOwnerPhone: string | null;
   desiredPrimaryPhone: string | null;
   sourceLabel: string;
 }) {
-  const { sb, leadId, propertyId, record, existingPropertyOwnerPhone, desiredPrimaryPhone, sourceLabel } = args;
-  const importedPhones = extractImportedPhoneCandidates(record);
-  if (importedPhones.length === 0) return 0;
+  const { sb, leadId, propertyId, phoneDetails, existingPropertyOwnerPhone, desiredPrimaryPhone, sourceLabel } = args;
+  if (phoneDetails.length === 0) return 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: existingLeadPhones } = await (sb.from("lead_phones") as any)
@@ -285,7 +386,7 @@ async function promoteImportedPhonesToExistingLead(args: {
     if (normalized) knownPhoneDigits.add(normalized);
   }
 
-  const desiredPrimaryDigits = cleanPhoneForQuery(desiredPrimaryPhone) ?? importedPhones[0] ?? null;
+  const desiredPrimaryDigits = cleanPhoneForQuery(desiredPrimaryPhone) ?? phoneDetails[0]?.digits ?? null;
   const hasPrimaryLeadPhone = existingRows.some((row) => row.is_primary === true);
   let primaryInserted = false;
   let nextPosition = Math.max(
@@ -294,17 +395,19 @@ async function promoteImportedPhonesToExistingLead(args: {
   ) + 1;
   let inserted = 0;
 
-  for (const digits of importedPhones) {
+  for (const detail of phoneDetails) {
+    const digits = detail.digits;
     if (knownPhoneDigits.has(digits)) continue;
 
     const isPrimary = !hasPrimaryLeadPhone && !primaryInserted && digits === desiredPrimaryDigits;
+    const label = isPrimary ? "primary" : detail.label === "mobile" ? "mobile" : detail.label === "landline" ? "landline" : "unknown";
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (sb.from("lead_phones") as any).insert({
       lead_id: leadId,
       property_id: propertyId,
       phone: formatLeadPhoneValue(digits),
-      label: isPrimary ? "primary" : "mobile",
+      label,
       source: sourceLabel,
       status: "active",
       is_primary: isPrimary,
@@ -358,8 +461,8 @@ export async function updateExistingRecordFromImport(args: {
   const ownerFlags = asObject(property?.owner_flags) ?? {};
   const prospecting = asObject(ownerFlags.prospecting_intake) ?? {};
   const outbound = asObject(ownerFlags.outbound_intake) ?? {};
-  const importedPhoneCandidates = extractImportedPhoneCandidates(record);
-  const primaryImportedPhone = importedPhoneCandidates[0] ?? null;
+  const importedPhoneDetails = extractImportedPhoneDetails(record);
+  const primaryImportedPhone = importedPhoneDetails[0]?.digits ?? null;
 
   const propertyPatch: Record<string, unknown> = {
     owner_flags: {
@@ -478,7 +581,7 @@ export async function updateExistingRecordFromImport(args: {
       sb,
       leadId: lead.id,
       propertyId: duplicate.propertyId,
-      record,
+      phoneDetails: importedPhoneDetails,
       existingPropertyOwnerPhone: asString(property?.owner_phone),
       desiredPrimaryPhone,
       sourceLabel: `import:${importSource}`,
