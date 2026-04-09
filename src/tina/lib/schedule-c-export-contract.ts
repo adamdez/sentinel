@@ -1,6 +1,7 @@
 import { buildTinaMefReadinessReport } from "@/tina/lib/mef-readiness";
 import { buildTinaNumericProofRows } from "@/tina/lib/numeric-proof";
 import { buildTinaReviewTraceRows } from "@/tina/lib/review-trace";
+import { buildTinaScheduleCScenarioProfile } from "@/tina/lib/schedule-c-scenario-profile";
 import type { TinaWorkspaceDraft } from "@/tina/types";
 
 export type TinaScheduleCExportContractStatus =
@@ -19,6 +20,7 @@ export interface TinaScheduleCExportContractField {
   reviewerFinalLineIds: string[];
   taxAdjustmentIds: string[];
   sourceDocumentIds: string[];
+  scenarioTags: string[];
 }
 
 export interface TinaScheduleCExportContractIssue {
@@ -41,6 +43,8 @@ export interface TinaScheduleCExportContract {
   businessName: string;
   filingLane: string;
   mefStatus: string;
+  scenarioSummary: string;
+  activeScenarioTags: string[];
   fields: TinaScheduleCExportContractField[];
   unresolvedIssues: TinaScheduleCExportContractIssue[];
   attachmentManifest: ReturnType<typeof buildTinaMefReadinessReport>["attachments"];
@@ -48,6 +52,8 @@ export interface TinaScheduleCExportContract {
 
 function mapSupportLevel(value: string | undefined): "strong" | "developing" | "thin" | "none" {
   if (value === "strong" || value === "developing" || value === "thin") return value;
+  if (value === "mixed") return "developing";
+  if (value === "weak") return "thin";
   return "none";
 }
 
@@ -57,10 +63,12 @@ export function buildTinaScheduleCExportContract(
   const mefReadiness = buildTinaMefReadinessReport(draft);
   const numericProofRows = buildTinaNumericProofRows(draft);
   const reviewTraceRows = buildTinaReviewTraceRows(draft);
+  const scenarioProfile = buildTinaScheduleCScenarioProfile(draft);
 
   const fields = draft.scheduleCDraft.fields.map((field) => {
     const proofRow = numericProofRows.find((row) => row.fieldId === field.id);
     const traceRow = reviewTraceRows.find((row) => row.fieldId === field.id);
+    const fieldScenarioProfile = buildTinaScheduleCScenarioProfile(draft, field.sourceDocumentIds);
 
     return {
       fieldId: field.id,
@@ -76,6 +84,7 @@ export function buildTinaScheduleCExportContract(
       reviewerFinalLineIds: field.reviewerFinalLineIds,
       taxAdjustmentIds: field.taxAdjustmentIds,
       sourceDocumentIds: field.sourceDocumentIds,
+      scenarioTags: fieldScenarioProfile.tags,
     };
   });
 
@@ -130,6 +139,8 @@ export function buildTinaScheduleCExportContract(
     businessName: draft.profile.businessName,
     filingLane: "schedule_c_single_member_llc",
     mefStatus: mefReadiness.status,
+    scenarioSummary: scenarioProfile.summary,
+    activeScenarioTags: scenarioProfile.tags,
     fields,
     unresolvedIssues,
     attachmentManifest: mefReadiness.attachments,

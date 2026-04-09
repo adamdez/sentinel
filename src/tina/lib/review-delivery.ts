@@ -1,11 +1,27 @@
 import { buildTinaCpaHandoff } from "@/tina/lib/cpa-handoff";
+import { buildTinaClientIntakeReviewReport } from "@/tina/lib/client-intake-review";
 import { buildTinaCurrentFileReviewerReality } from "@/tina/lib/current-file-reviewer-reality";
+import { buildTinaEntityReturnIntakeContract } from "@/tina/lib/entity-return-intake-contract";
 import { buildTinaFinalPackageQualityReport } from "@/tina/lib/final-package-quality";
 import { buildTinaFilingApprovalReport } from "@/tina/lib/filing-approval";
+import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { buildTinaLiveAcceptanceReport } from "@/tina/lib/live-acceptance";
 import { buildTinaMefReadinessReport } from "@/tina/lib/mef-readiness";
+import { buildTinaSCorpReviewReport } from "@/tina/lib/s-corp-review";
 import { buildTinaTransactionReconciliationReport } from "@/tina/lib/transaction-reconciliation";
 import type { TinaWorkspaceDraft } from "@/tina/types";
+
+function shouldUseEntityReturnDelivery(
+  lane: ReturnType<typeof recommendTinaFilingLane>,
+  intakeReview: ReturnType<typeof buildTinaClientIntakeReviewReport>
+): boolean {
+  return (
+    lane.laneId === "1120_s" ||
+    lane.laneId === "1065" ||
+    intakeReview.likelyLaneByDocuments === "1120_s" ||
+    intakeReview.likelyLaneByDocuments === "1065"
+  );
+}
 
 export type TinaReviewDeliveryStatus = "blocked" | "needs_review" | "ready_to_send";
 
@@ -35,6 +51,8 @@ function buildCheck(
 export function buildTinaReviewDeliveryReport(
   draft: TinaWorkspaceDraft
 ): TinaReviewDeliveryReport {
+  const lane = recommendTinaFilingLane(draft.profile);
+  const intakeReview = buildTinaClientIntakeReviewReport(draft);
   const handoff = buildTinaCpaHandoff(draft);
   const filingApproval = buildTinaFilingApprovalReport(draft);
   const liveAcceptance = buildTinaLiveAcceptanceReport(draft);
@@ -42,6 +60,8 @@ export function buildTinaReviewDeliveryReport(
   const packageQuality = buildTinaFinalPackageQualityReport(draft);
   const reconciliation = buildTinaTransactionReconciliationReport(draft);
   const mefReadiness = buildTinaMefReadinessReport(draft);
+  const entityIntakeContract = buildTinaEntityReturnIntakeContract(draft);
+  const sCorpReview = buildTinaSCorpReviewReport(draft);
 
   const currentFileFragile = liveAcceptance.currentFileCohorts.filter(
     (cohort) => cohort.trustLevel === "fragile"
@@ -49,6 +69,97 @@ export function buildTinaReviewDeliveryReport(
   const currentFileThin = liveAcceptance.currentFileCohorts.filter(
     (cohort) => cohort.trustLevel === "insufficient_history"
   );
+
+  if (shouldUseEntityReturnDelivery(lane, intakeReview)) {
+    const checks: TinaReviewDeliveryCheck[] = [
+      buildCheck(
+        "cpa_packet",
+        "CPA intake packet",
+        handoff.status !== "complete"
+          ? "blocked"
+          : handoff.artifacts.some((artifact) => artifact.status === "blocked")
+            ? "blocked"
+            : "ready",
+        handoff.summary
+      ),
+      buildCheck(
+        "entity_return_intake_contract",
+        "Entity-return intake contract",
+        entityIntakeContract.status === "blocked" ? "blocked" : "ready",
+        entityIntakeContract.summary
+      ),
+      ...(sCorpReview.status === "unsupported"
+        ? []
+        : [
+            buildCheck(
+              "s_corp_review_spine",
+              "1120-S review spine",
+              sCorpReview.status === "blocked" ? "blocked" : "ready",
+              sCorpReview.summary
+            ),
+          ]),
+      buildCheck(
+        "source_paper_index",
+        "Source paper coverage",
+        entityIntakeContract.requiredCoverage.some((item) => item.status === "needed")
+          ? "blocked"
+          : entityIntakeContract.documents.some((document) => document.readingStatus === "pending")
+            ? "needs_review"
+            : "ready",
+        entityIntakeContract.requiredCoverage.some((item) => item.status === "needed")
+          ? "Tina still has missing required intake support before this entity-return packet should go out."
+          : entityIntakeContract.documents.some((document) => document.readingStatus === "pending")
+            ? "Tina has the key papers, but a few saved files still have not been read into the packet."
+            : "The saved paper stack is organized enough for a first CPA entity-return review."
+      ),
+      buildCheck(
+        "current_file_reviewer_reality",
+        "Current-file reviewer reality",
+        currentFileReality.status === "fragile" ? "needs_review" : "ready",
+        currentFileReality.summary
+      ),
+      buildCheck(
+        "review_mode",
+        "Review-mode delivery",
+        "ready",
+        "This packet is explicitly organized for CPA intake review, not return filing."
+      ),
+    ];
+
+    const blockedCount = checks.filter((check) => check.status === "blocked").length;
+    const reviewCount = checks.filter((check) => check.status === "needs_review").length;
+
+    if (blockedCount > 0) {
+      return {
+        status: "blocked",
+        summary:
+          "Tina should not send this entity-return intake packet yet because at least one CPA handoff gate is still blocked.",
+        nextStep:
+          "Clear the blocked intake coverage or handoff sections first so the CPA packet starts from a clean packet.",
+        checks,
+      };
+    }
+
+    if (reviewCount > 0) {
+      return {
+        status: "needs_review",
+        summary:
+          "Tina has a workable entity-return intake packet, but a few review-delivery checks still deserve a quick human scan before sending.",
+        nextStep:
+          "Do one final pass on the needs-review checks, then export or email the packet to the CPA reviewer.",
+        checks,
+      };
+    }
+
+    return {
+      status: "ready_to_send",
+      summary:
+        "Tina has a clean entity-return intake packet for CPA review with no blocked send gates left.",
+      nextStep:
+        "Export, print, or email the packet to the CPA reviewer together with the saved source papers.",
+      checks,
+    };
+  }
 
   const checks: TinaReviewDeliveryCheck[] = [
     buildCheck(

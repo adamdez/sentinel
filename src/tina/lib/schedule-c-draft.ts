@@ -1,4 +1,5 @@
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
+import { buildTinaScheduleCScenarioProfile } from "@/tina/lib/schedule-c-scenario-profile";
 import type {
   TinaScheduleCDraftField,
   TinaScheduleCDraftNote,
@@ -173,8 +174,20 @@ export function buildTinaScheduleCDraft(
   const salesTaxLines = draft.reviewerFinal.lines.filter(
     (line) => line.label === "Sales tax should stay out of income"
   );
-  const timingLines = draft.reviewerFinal.lines.filter(
-    (line) => line.label === "Timing check before return"
+  const continuityLines = draft.reviewerFinal.lines.filter(
+    (line) => line.label === "Continuity review before return"
+  );
+  const depreciationLines = draft.reviewerFinal.lines.filter(
+    (line) => line.label === "Depreciation review before return"
+  );
+  const ownerFlowLines = draft.reviewerFinal.lines.filter(
+    (line) => line.label === "Owner-flow separation review"
+  );
+  const transferLines = draft.reviewerFinal.lines.filter(
+    (line) => line.label === "Transfer classification review"
+  );
+  const relatedPartyLines = draft.reviewerFinal.lines.filter(
+    (line) => line.label === "Related-party review"
   );
   const multistateLines = draft.reviewerFinal.lines.filter(
     (line) => line.label === "State scope review"
@@ -195,6 +208,11 @@ export function buildTinaScheduleCDraft(
   const relatedPartyClues = findFactValues(draft, "Related-party clue");
   const hiddenOwnerFlowSignal =
     ownerDrawClues.length > 0 || intercompanyTransferClues.length > 0 || relatedPartyClues.length > 0;
+  const scenarioProfile = buildTinaScheduleCScenarioProfile(draft);
+  const currentLaneScenarioSummary =
+    scenarioProfile.signals.length > 0
+      ? scenarioProfile.signals.map((signal) => signal.title.toLowerCase()).join(", ")
+      : "";
 
   const grossReceiptsStatus: TinaWorkpaperLineStatus =
     salesTaxLines.length > 0
@@ -537,6 +555,18 @@ export function buildTinaScheduleCDraft(
     );
   }
 
+  if (ownerFlowLines.length > 0 || transferLines.length > 0 || relatedPartyLines.length > 0) {
+    notes.push(
+      buildNote({
+        id: "schedule-c-specialized-flow-note",
+        title: "Specialized non-ordinary flows still need separation",
+        summary: `Tina is still carrying explicit owner-flow, transfer, or related-party review lines into the draft${currentLaneScenarioSummary ? ` because the current lane still shows ${currentLaneScenarioSummary}` : ""}.`,
+        severity: "needs_attention",
+        lines: [...ownerFlowLines, ...transferLines, ...relatedPartyLines],
+      })
+    );
+  }
+
   if (inventoryLines.length > 0) {
     notes.push(
       buildNote({
@@ -550,15 +580,28 @@ export function buildTinaScheduleCDraft(
     );
   }
 
-  if (timingLines.length > 0) {
+  if (continuityLines.length > 0) {
     notes.push(
       buildNote({
-        id: "schedule-c-timing-note",
-        title: "Timing still needs a human look",
+        id: "schedule-c-continuity-review-note",
+        title: "Continuity still needs a human look",
         summary:
-          "One approved timing note is still visible here because year placement can change the return even after cleanup is done.",
+          "A continuity review line is still visible here because carryover treatment can change the return even after cleanup is done.",
         severity: "needs_attention",
-        lines: timingLines,
+        lines: continuityLines,
+      })
+    );
+  }
+
+  if (depreciationLines.length > 0) {
+    notes.push(
+      buildNote({
+        id: "schedule-c-depreciation-review-note",
+        title: "Depreciation still needs a human look",
+        summary:
+          "A depreciation review line is still visible here because placed-in-service timing can change final deduction treatment.",
+        severity: "needs_attention",
+        lines: depreciationLines,
       })
     );
   }

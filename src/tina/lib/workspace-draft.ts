@@ -298,6 +298,15 @@ function normalizeReviewerOutcomeCaseTag(value: unknown): TinaReviewerOutcomeCas
     value === "authority_heavy" ||
     value === "commingled_entity" ||
     value === "schedule_c" ||
+    value === "payroll" ||
+    value === "contractor" ||
+    value === "sales_tax" ||
+    value === "inventory" ||
+    value === "owner_flow" ||
+    value === "transfer" ||
+    value === "related_party" ||
+    value === "continuity" ||
+    value === "depreciation" ||
     value === "s_corp" ||
     value === "partnership" ||
     value === "state_scope"
@@ -804,7 +813,11 @@ function normalizeTaxAdjustment(value: unknown): TinaTaxAdjustment | null {
   return {
     id: raw.id,
     kind:
-      raw.kind === "timing_review" ||
+      raw.kind === "owner_flow_separation" ||
+      raw.kind === "transfer_classification" ||
+      raw.kind === "related_party_review" ||
+      raw.kind === "continuity_review" ||
+      raw.kind === "depreciation_review" ||
       raw.kind === "sales_tax_exclusion" ||
       raw.kind === "payroll_classification" ||
       raw.kind === "contractor_classification" ||

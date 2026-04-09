@@ -18,6 +18,114 @@ function buildDraft(overrides?: Partial<TinaWorkspaceDraft>): TinaWorkspaceDraft
 }
 
 describe("buildTinaCpaHandoff", () => {
+  it("builds an entity-return intake handoff for a likely 1120-S packet", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "North Ridge Home Services LLC",
+        taxYear: "2025",
+        entityType: "s_corp",
+        hasPayroll: true,
+      },
+      priorReturnDocumentId: "prior-doc",
+      documents: [
+        {
+          id: "prior-doc",
+          name: "prior-return.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "local/prior-return.csv",
+          category: "prior_return",
+          requestId: "prior-return",
+          requestLabel: "Prior-year filed return",
+          uploadedAt: "2026-04-08T19:00:00.000Z",
+        },
+        {
+          id: "pnl-doc",
+          name: "pnl.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "local/pnl.csv",
+          category: "supporting_document",
+          requestId: "profit-loss",
+          requestLabel: "Full-year profit and loss",
+          uploadedAt: "2026-04-08T19:01:00.000Z",
+        },
+        {
+          id: "gl-doc",
+          name: "gl.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "local/gl.csv",
+          category: "supporting_document",
+          requestId: "general-ledger",
+          requestLabel: "General ledger export",
+          uploadedAt: "2026-04-08T19:02:00.000Z",
+        },
+        {
+          id: "bank-doc",
+          name: "bank.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "local/bank.csv",
+          category: "supporting_document",
+          requestId: "bank-support",
+          requestLabel: "Business bank statements",
+          uploadedAt: "2026-04-08T19:03:00.000Z",
+        },
+        {
+          id: "payroll-doc",
+          name: "payroll.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "local/payroll.csv",
+          category: "supporting_document",
+          requestId: "payroll",
+          requestLabel: "Payroll reports and W-2 support",
+          uploadedAt: "2026-04-08T19:04:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "return-type-hint-1",
+          sourceDocumentId: "prior-doc",
+          label: "Return type hint",
+          value: "1120-S",
+          confidence: "high",
+          capturedAt: "2026-04-08T19:05:00.000Z",
+        },
+      ],
+      documentReadings: [
+        {
+          documentId: "gl-doc",
+          status: "complete",
+          kind: "spreadsheet",
+          summary: "Read.",
+          nextStep: "Done.",
+          facts: [],
+          detailLines: [],
+          rowCount: 25,
+          headers: ["Date", "Account", "Debit", "Credit"],
+          sheetNames: ["GL"],
+          lastReadAt: "2026-04-08T19:06:00.000Z",
+        },
+      ],
+    });
+
+    const snapshot = buildTinaCpaHandoff(draft);
+    const intakeArtifact = snapshot.artifacts.find(
+      (artifact) => artifact.id === "entity-return-intake-contract"
+    );
+    const reviewArtifact = snapshot.artifacts.find(
+      (artifact) => artifact.id === "s-corp-review-spine"
+    );
+
+    expect(snapshot.status).toBe("complete");
+    expect(snapshot.summary).toContain("entity-return CPA intake review");
+    expect(intakeArtifact?.title).toContain("1120-S");
+    expect(reviewArtifact?.title).toContain("1120-S review spine");
+  });
+
   it("waits for the package check before building the packet", () => {
     const draft = buildDraft({
       profile: {

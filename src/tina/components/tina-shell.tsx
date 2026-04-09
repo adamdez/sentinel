@@ -8,11 +8,16 @@ export function TinaShell({
   eyebrow,
   title,
   description,
+  secondaryLink,
 }: {
   children: React.ReactNode;
   eyebrow: string;
   title: string;
   description: string;
+  secondaryLink?: {
+    href: string;
+    label: string;
+  };
 }) {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(134,239,172,0.12),transparent_28%),radial-gradient(circle_at_right,rgba(234,179,8,0.10),transparent_24%),linear-gradient(180deg,#111827_0%,#09090b_100%)] text-white">
@@ -34,6 +39,15 @@ export function TinaShell({
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs text-zinc-300">
+            {secondaryLink ? (
+              <Button
+                asChild
+                variant="ghost"
+                className="border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 hover:text-white"
+              >
+                <Link href={secondaryLink.href}>{secondaryLink.label}</Link>
+              </Button>
+            ) : null}
             <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 uppercase tracking-[0.18em] text-emerald-100">
               Private Tax Workspace
             </span>

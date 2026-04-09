@@ -3,6 +3,97 @@ import { buildTinaCpaPacketExport } from "@/tina/lib/cpa-packet-export";
 import { createDefaultTinaWorkspaceDraft } from "@/tina/lib/workspace-draft";
 
 describe("buildTinaCpaPacketExport", () => {
+  it("exports an entity-return intake section for a likely 1120-S packet", () => {
+    const baseDraft = createDefaultTinaWorkspaceDraft();
+    const draft = {
+      ...baseDraft,
+      profile: {
+        ...baseDraft.profile,
+        businessName: "North Ridge Home Services LLC",
+        taxYear: "2025",
+        entityType: "s_corp" as const,
+      },
+      priorReturnDocumentId: "prior-doc",
+      documents: [
+        {
+          id: "prior-doc",
+          name: "prior-return.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "local/prior-return.csv",
+          category: "prior_return" as const,
+          requestId: "prior-return",
+          requestLabel: "Prior-year filed return",
+          uploadedAt: "2026-04-08T21:00:00.000Z",
+        },
+        {
+          id: "pnl-doc",
+          name: "pnl.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "local/pnl.csv",
+          category: "supporting_document" as const,
+          requestId: "profit-loss",
+          requestLabel: "Full-year profit and loss",
+          uploadedAt: "2026-04-08T21:01:00.000Z",
+        },
+        {
+          id: "gl-doc",
+          name: "gl.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "local/gl.csv",
+          category: "supporting_document" as const,
+          requestId: "general-ledger",
+          requestLabel: "General ledger export",
+          uploadedAt: "2026-04-08T21:02:00.000Z",
+        },
+        {
+          id: "bank-doc",
+          name: "bank.csv",
+          size: 100,
+          mimeType: "text/csv",
+          storagePath: "local/bank.csv",
+          category: "supporting_document" as const,
+          requestId: "bank-support",
+          requestLabel: "Business bank statements",
+          uploadedAt: "2026-04-08T21:03:00.000Z",
+        },
+      ],
+      documentReadings: [
+        {
+          documentId: "prior-doc",
+          status: "complete" as const,
+          kind: "spreadsheet" as const,
+          summary: "Read.",
+          nextStep: "Done.",
+          facts: [],
+          detailLines: [],
+          rowCount: 8,
+          headers: ["Form", "Amount"],
+          sheetNames: ["Prior Return"],
+          lastReadAt: "2026-04-08T21:04:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "return-type-hint-1",
+          sourceDocumentId: "prior-doc",
+          label: "Return type hint",
+          value: "1120-S",
+          confidence: "high" as const,
+          capturedAt: "2026-04-08T21:05:00.000Z",
+        },
+      ],
+    };
+
+    const exportFile = buildTinaCpaPacketExport(draft);
+
+    expect(exportFile.contents).toContain("## Entity-return intake contract");
+    expect(exportFile.contents).toContain("## 1120-S review spine");
+    expect(exportFile.contents).toContain("1120-S / S-Corp");
+  });
+
   it("creates a markdown packet summary from the current Tina draft", () => {
     const draft = {
       ...createDefaultTinaWorkspaceDraft(),
@@ -23,6 +114,24 @@ describe("buildTinaCpaPacketExport", () => {
           requestId: "prior-return",
           requestLabel: "Last year's return",
           uploadedAt: "2026-03-27T04:00:00.000Z",
+        },
+      ],
+      sourceFacts: [
+        {
+          id: "carryover-1",
+          sourceDocumentId: "doc-1",
+          label: "Carryover amount clue",
+          value: "$1,250.00",
+          confidence: "medium" as const,
+          capturedAt: "2026-03-27T04:00:00.000Z",
+        },
+        {
+          id: "return-type-hint-1",
+          sourceDocumentId: "doc-1",
+          label: "Return type hint",
+          value: "Schedule C / 1040",
+          confidence: "high" as const,
+          capturedAt: "2026-03-27T04:00:00.000Z",
         },
       ],
       reviewerFinal: {
@@ -204,8 +313,12 @@ describe("buildTinaCpaPacketExport", () => {
     expect(exportFile.contents).toContain("# Tina CPA Review Packet");
     expect(exportFile.contents).toContain("Line 1 Gross receipts or sales");
     expect(exportFile.contents).toContain("2025-return.pdf");
+    expect(exportFile.contents).toContain("## Client intake review");
+    expect(exportFile.contents).toContain("Profile lane:");
     expect(exportFile.contents).toContain("## Tax position register");
     expect(exportFile.contents).toContain("confidence: high");
+    expect(exportFile.contents).toContain("## Current-lane scenario profile");
+    expect(exportFile.contents).toContain("carryover continuity");
     expect(exportFile.contents).toContain("## Return trace");
     expect(exportFile.contents).toContain("Reviewer-final lines:");
     expect(exportFile.contents).toContain("## Numeric proof");
@@ -223,6 +336,7 @@ describe("buildTinaCpaPacketExport", () => {
     expect(exportFile.contents).toContain("Attachment manifest:");
     expect(exportFile.contents).toContain("## 1040/Schedule C export contract");
     expect(exportFile.contents).toContain("Contract version: tina.schedule_c_export.v1");
+    expect(exportFile.contents).toContain("Scenario tags:");
     expect(exportFile.contents).toContain("## Review delivery");
     expect(exportFile.contents).toContain("## Planning and tradeoffs");
   });

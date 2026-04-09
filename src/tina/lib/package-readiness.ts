@@ -1,10 +1,15 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
+import { buildTinaClientIntakeReviewReport } from "@/tina/lib/client-intake-review";
 import { buildTinaCurrentFileReviewerReality } from "@/tina/lib/current-file-reviewer-reality";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { buildTinaFinalPackageQualityReport } from "@/tina/lib/final-package-quality";
 import { buildTinaLiveAcceptanceReport } from "@/tina/lib/live-acceptance";
 import { buildTinaPlanningReport } from "@/tina/lib/planning-report";
 import { buildTinaProfileFingerprint } from "@/tina/lib/profile-fingerprint";
+import {
+  buildTinaScheduleCScenarioProfile,
+  buildTinaScenarioCohortTrustMap,
+} from "@/tina/lib/schedule-c-scenario-profile";
 import { buildTinaTransactionReconciliationReport } from "@/tina/lib/transaction-reconciliation";
 import type {
   TinaPackageReadinessItem,
@@ -174,10 +179,13 @@ export function buildTinaPackageReadiness(
   const lane = recommendTinaFilingLane(draft.profile);
   const checklist = buildTinaChecklist(draft, lane);
   const planningReport = buildTinaPlanningReport(draft);
+  const intakeReview = buildTinaClientIntakeReviewReport(draft);
   const packageQuality = buildTinaFinalPackageQualityReport(draft);
   const reconciliation = buildTinaTransactionReconciliationReport(draft);
   const currentFileReality = buildTinaCurrentFileReviewerReality(draft);
   const liveAcceptance = buildTinaLiveAcceptanceReport(draft);
+  const scenarioProfile = buildTinaScheduleCScenarioProfile(draft);
+  const scenarioTrust = buildTinaScenarioCohortTrustMap(draft);
   const items: TinaPackageReadinessItem[] = [];
   const ledgerBucketClues = collectSourceFactValues(draft, ["Ledger bucket clue"]);
   const payrollClues = collectSourceFactValues(draft, ["Payroll clue", "Payroll filing period clue"]);
@@ -367,6 +375,22 @@ export function buildTinaPackageReadiness(
     );
   }
 
+  if (
+    intakeReview.likelyLaneByDocuments !== "unknown" &&
+    intakeReview.likelyLaneByDocuments !== "mixed" &&
+    intakeReview.likelyLaneByDocuments !== lane.laneId
+  ) {
+    items.push(
+      createItem({
+        id: "intake-document-lane-conflict",
+        title: "Saved documents point to a different return lane",
+        summary:
+          "Tina sees a conflict between the organizer lane and the packet lane suggested by the saved documents. She should stop before calling this Schedule C package ready.",
+        severity: "blocking",
+      })
+    );
+  }
+
   draft.taxPositionMemory.records
     .filter((record) => record.status === "blocked")
     .forEach((record) => {
@@ -446,7 +470,9 @@ export function buildTinaPackageReadiness(
     ledgerBucketClues.length > 0 &&
     draft.taxAdjustments.adjustments.every(
       (adjustment) =>
-        adjustment.kind === "carryforward_line" || adjustment.kind === "timing_review"
+        adjustment.kind === "carryforward_line" ||
+        adjustment.kind === "continuity_review" ||
+        adjustment.kind === "depreciation_review"
     );
   if (hiddenSpecializedBucket) {
     items.push(
@@ -514,7 +540,12 @@ export function buildTinaPackageReadiness(
   if (
     ownerFlowClues.length > 0 &&
     !draft.taxAdjustments.adjustments.some(
-      (adjustment) => adjustment.kind === "timing_review" && adjustment.risk === "high"
+      (adjustment) =>
+        [
+          "owner_flow_separation",
+          "transfer_classification",
+          "related_party_review",
+        ].includes(adjustment.kind) && adjustment.risk === "high"
     )
   ) {
     items.push(
@@ -523,11 +554,25 @@ export function buildTinaPackageReadiness(
         title: "Owner-flow clues are present without a governed separation path",
         summary: `Tina found owner-flow, transfer, or related-party support (${ownerFlowClues
           .slice(0, 2)
-          .join(" and ")}), but no high-risk timing review is holding that activity out of ordinary business treatment yet.`,
+          .join(" and ")}), but no explicit owner-flow, transfer, or related-party review path is holding that activity out of ordinary business treatment yet.`,
         severity: "blocking",
       })
     );
   }
+
+  scenarioProfile.signals
+    .filter((signal) => scenarioTrust.get(signal.tag) === "fragile")
+    .forEach((signal) => {
+      items.push(
+        createItem({
+          id: `fragile-scenario-${signal.tag}`,
+          title: `${signal.title} still has fragile reviewer trust`,
+          summary: `${signal.summary} Real reviewer history is still fragile for this Schedule C scenario family, so Tina should keep the package blocked until the same pattern stops being revised or rejected.`,
+          severity: "blocking",
+          sourceDocumentIds: signal.sourceDocumentIds,
+        })
+      );
+    });
 
   reconciliation.groups
     .filter((group) => group.status !== "ready")
@@ -601,7 +646,11 @@ export function buildTinaPackageReadiness(
 
   if (
     carryoverAmounts.length > 0 &&
-    !draft.scheduleCDraft.notes.some((note) => note.id === "schedule-c-carryover-note")
+    !draft.scheduleCDraft.notes.some(
+      (note) =>
+        note.id === "schedule-c-carryover-note" ||
+        note.id === "schedule-c-continuity-review-note"
+    )
   ) {
     items.push(
       createItem({
@@ -617,7 +666,11 @@ export function buildTinaPackageReadiness(
 
   if (
     assetPlacedInServiceDates.length > 0 &&
-    !draft.scheduleCDraft.notes.some((note) => note.id === "schedule-c-assets-note")
+    !draft.scheduleCDraft.notes.some(
+      (note) =>
+        note.id === "schedule-c-assets-note" ||
+        note.id === "schedule-c-depreciation-review-note"
+    )
   ) {
     items.push(
       createItem({

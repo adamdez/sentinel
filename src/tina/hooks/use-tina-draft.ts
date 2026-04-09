@@ -45,6 +45,7 @@ import {
   upsertTinaReviewerOutcomeMemory,
 } from "@/tina/lib/reviewer-outcomes";
 import { importTinaReviewerTraffic } from "@/tina/lib/reviewer-traffic-import";
+import { deriveCurrentFileTags } from "@/tina/lib/live-acceptance";
 import { markTinaScheduleCDraftStale } from "@/tina/lib/schedule-c-draft";
 import { deriveTinaSourceFactsFromReading } from "@/tina/lib/source-facts";
 import { buildTinaBenchmarkProposalDecisionId } from "@/tina/lib/benchmark-rescore";
@@ -474,7 +475,10 @@ export function useTinaDraft() {
     format?: "json" | "csv";
     defaultDecidedBy?: string | null;
   }) {
-    const imported = importTinaReviewerTraffic(input);
+    const imported = importTinaReviewerTraffic({
+      ...input,
+      defaultCaseTags: deriveCurrentFileTags(draft),
+    });
 
     setDraft((current) =>
       stampDraft({
@@ -515,6 +519,41 @@ export function useTinaDraft() {
           decision,
           ...current.benchmarkProposalDecisions.filter((item) => item.id !== id),
         ],
+      });
+    });
+  }
+
+  function ingestDocumentWithReading(
+    document: TinaStoredDocument,
+    reading: TinaDocumentReading,
+    markAsPriorReturn = false
+  ) {
+    setDraft((current) => {
+      const withoutExistingDocuments = current.documents.filter((item) => item.id !== document.id);
+      const withoutExistingReadings = current.documentReadings.filter(
+        (item) => item.documentId !== reading.documentId
+      );
+      const withoutExistingFacts = current.sourceFacts.filter(
+        (fact) => fact.sourceDocumentId !== reading.documentId
+      );
+      const nextSourceFacts = [
+        ...deriveTinaSourceFactsFromReading(document, reading),
+        ...withoutExistingFacts,
+      ];
+
+      return stampDraft({
+        ...withStaleReview(current),
+        priorReturn: markAsPriorReturn ? null : current.priorReturn,
+        priorReturnDocumentId: markAsPriorReturn ? document.id : current.priorReturnDocumentId,
+        documents: [document, ...withoutExistingDocuments].sort(
+          (a, b) => Date.parse(b.uploadedAt) - Date.parse(a.uploadedAt)
+        ),
+        documentReadings: [reading, ...withoutExistingReadings].sort((a, b) => {
+          const aTime = a.lastReadAt ? Date.parse(a.lastReadAt) : 0;
+          const bTime = b.lastReadAt ? Date.parse(b.lastReadAt) : 0;
+          return bTime - aTime;
+        }),
+        sourceFacts: nextSourceFacts,
       });
     });
   }
@@ -640,6 +679,7 @@ export function useTinaDraft() {
     addUploadedDocument,
     removeDocument,
     saveDocumentReading,
+    ingestDocumentWithReading,
     saveBootstrapReview,
     saveIssueQueue,
     saveBookTieOut,

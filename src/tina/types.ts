@@ -253,7 +253,11 @@ export type TinaTaxAdjustmentStatus =
 export type TinaTaxAdjustmentRisk = "low" | "medium" | "high";
 export type TinaTaxAdjustmentKind =
   | "carryforward_line"
-  | "timing_review"
+  | "owner_flow_separation"
+  | "transfer_classification"
+  | "related_party_review"
+  | "continuity_review"
+  | "depreciation_review"
   | "sales_tax_exclusion"
   | "payroll_classification"
   | "contractor_classification"
@@ -482,6 +486,15 @@ export type TinaReviewerOutcomeCaseTag =
   | "authority_heavy"
   | "commingled_entity"
   | "schedule_c"
+  | "payroll"
+  | "contractor"
+  | "sales_tax"
+  | "inventory"
+  | "owner_flow"
+  | "transfer"
+  | "related_party"
+  | "continuity"
+  | "depreciation"
   | "s_corp"
   | "partnership"
   | "state_scope";

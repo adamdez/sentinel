@@ -156,7 +156,13 @@ function extractEinTokens(value: string): string[] {
 }
 
 function isBooksDocument(document: TinaStoredDocument | undefined): boolean {
-  return document?.requestId === "quickbooks" || document?.requestId === "bank-support";
+  return (
+    document?.requestId === "quickbooks" ||
+    document?.requestId === "profit-loss" ||
+    document?.requestId === "general-ledger" ||
+    document?.requestId === "balance-sheet" ||
+    document?.requestId === "bank-support"
+  );
 }
 
 function findFactsByLabel(sourceFacts: TinaSourceFact[], label: string): TinaSourceFact[] {
@@ -625,7 +631,14 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     items.push(moneyScaleMismatch);
   }
 
-  const quickbooksCovered = checklist.find((item) => item.id === "quickbooks")?.status === "covered";
+  const mainBooksCovered = checklist.some(
+    (item) =>
+      (item.id === "quickbooks" ||
+        item.id === "profit-loss" ||
+        item.id === "general-ledger" ||
+        item.id === "balance-sheet") &&
+      item.status === "covered"
+  );
   const bankCovered = checklist.find((item) => item.id === "bank-support")?.status === "covered";
 
   const uniqueItems = items.filter(
@@ -693,12 +706,12 @@ export function buildTinaIssueQueue(draft: TinaWorkspaceDraft): TinaIssueQueue {
     buildRecord(
       "books",
       "Books and money records",
-      quickbooksCovered && bankCovered
+      mainBooksCovered && bankCovered
         ? booksIssueIds.length > 0
           ? "needs_attention"
           : "ready"
         : "waiting",
-      quickbooksCovered && bankCovered
+      mainBooksCovered && bankCovered
         ? booksIssueIds.length > 0
           ? booksSignalSummaryParts.length > 0
             ? `${booksSignalSummaryParts.join(" ")} Tina still sees something to check.`

@@ -93,6 +93,51 @@ const COHORT_SKILL_MAP: Partial<Record<TinaReviewerOutcomeCaseTag, string[]>> = 
     "form_and_compliance_execution",
     "true_final_form_execution",
   ],
+  payroll: [
+    "accounting_fluency",
+    "tax_treatment_selection",
+    "form_and_compliance_execution",
+  ],
+  contractor: [
+    "accounting_fluency",
+    "tax_treatment_selection",
+    "review_and_error_detection",
+  ],
+  sales_tax: [
+    "technical_tax_law",
+    "tax_treatment_selection",
+    "confidence_calibration",
+  ],
+  inventory: [
+    "accounting_fluency",
+    "tax_treatment_selection",
+    "industry_and_scenario_familiarity",
+  ],
+  owner_flow: [
+    "accounting_fluency",
+    "messy_evidence_generalization",
+    "practice_judgment",
+  ],
+  transfer: [
+    "fact_pattern_judgment",
+    "review_and_error_detection",
+    "practice_judgment",
+  ],
+  related_party: [
+    "fact_pattern_judgment",
+    "risk_and_materiality_judgment",
+    "practice_judgment",
+  ],
+  continuity: [
+    "fact_pattern_judgment",
+    "form_and_compliance_execution",
+    "durable_case_memory",
+  ],
+  depreciation: [
+    "technical_tax_law",
+    "form_and_compliance_execution",
+    "document_intelligence_depth",
+  ],
   state_scope: [
     "industry_and_scenario_familiarity",
     "risk_and_materiality_judgment",

@@ -396,7 +396,7 @@ function buildGovernedPositionRecord(args: {
   const confidence = buildConfidence({
     adjustment: relatedAdjustments[0] ?? {
       id: args.adjustmentId,
-      kind: relatedAdjustmentKinds[0] ?? "timing_review",
+      kind: relatedAdjustmentKinds[0] ?? "continuity_review",
       status: "ready_for_review",
       risk: "medium",
       requiresAuthority: false,
@@ -506,7 +506,7 @@ function buildSyntheticGovernedRecords(draft: TinaWorkspaceDraft): TinaTaxPositi
       treatmentSummary: "confirm the carryover bridge before current-year numbers are treated as settled",
       summaryPrefix: "Carryover continuity is now tracked as a governed tax position.",
       facts: carryoverFacts,
-      relatedAdjustmentKinds: ["carryforward_line", "timing_review"],
+      relatedAdjustmentKinds: ["continuity_review", "carryforward_line"],
     }),
     buildGovernedPositionRecord({
       draft,
@@ -516,7 +516,7 @@ function buildSyntheticGovernedRecords(draft: TinaWorkspaceDraft): TinaTaxPositi
       treatmentSummary: "confirm placed-in-service timing before expense totals are treated as final",
       summaryPrefix: "Depreciation timing is now tracked as a governed tax position.",
       facts: depreciationFacts,
-      relatedAdjustmentKinds: ["timing_review", "carryforward_line"],
+      relatedAdjustmentKinds: ["depreciation_review", "carryforward_line"],
     }),
     buildGovernedPositionRecord({
       draft,
@@ -526,7 +526,7 @@ function buildSyntheticGovernedRecords(draft: TinaWorkspaceDraft): TinaTaxPositi
       treatmentSummary: "keep payroll-shaped activity out of generic expense treatment until payroll handling is explicit",
       summaryPrefix: "Payroll activity is now tracked as a governed tax position.",
       facts: payrollFacts,
-      relatedAdjustmentKinds: ["payroll_classification", "carryforward_line", "timing_review"],
+      relatedAdjustmentKinds: ["payroll_classification", "carryforward_line"],
     }),
     buildGovernedPositionRecord({
       draft,
@@ -536,7 +536,7 @@ function buildSyntheticGovernedRecords(draft: TinaWorkspaceDraft): TinaTaxPositi
       treatmentSummary: "keep contractor-shaped activity out of generic expense treatment until contractor handling is explicit",
       summaryPrefix: "Contractor activity is now tracked as a governed tax position.",
       facts: contractorFacts,
-      relatedAdjustmentKinds: ["contractor_classification", "carryforward_line", "timing_review"],
+      relatedAdjustmentKinds: ["contractor_classification", "carryforward_line"],
     }),
     buildGovernedPositionRecord({
       draft,
@@ -546,7 +546,7 @@ function buildSyntheticGovernedRecords(draft: TinaWorkspaceDraft): TinaTaxPositi
       treatmentSummary: "keep collected sales tax out of gross receipts when liability facts support it",
       summaryPrefix: "Sales-tax activity is now tracked as a governed tax position.",
       facts: salesTaxFacts,
-      relatedAdjustmentKinds: ["sales_tax_exclusion", "carryforward_line", "timing_review"],
+      relatedAdjustmentKinds: ["sales_tax_exclusion", "carryforward_line"],
     }),
     buildGovernedPositionRecord({
       draft,
@@ -556,17 +556,37 @@ function buildSyntheticGovernedRecords(draft: TinaWorkspaceDraft): TinaTaxPositi
       treatmentSummary: "keep inventory-shaped activity out of ordinary expense treatment until COGS handling is explicit",
       summaryPrefix: "Inventory-shaped activity is now tracked as a governed tax position.",
       facts: inventoryFacts,
-      relatedAdjustmentKinds: ["inventory_treatment", "carryforward_line", "timing_review"],
+      relatedAdjustmentKinds: ["inventory_treatment", "carryforward_line"],
     }),
     buildGovernedPositionRecord({
       draft,
       id: "tax-position-owner-flow-review",
       adjustmentId: "owner-flow-review",
-      title: "Owner-flow and related-party contamination review",
-      treatmentSummary: "separate owner-flow, transfer, and related-party activity from ordinary Schedule C totals before trust",
-      summaryPrefix: "Owner-flow and related-party activity is now tracked as a governed tax position.",
+      title: "Owner-flow separation review",
+      treatmentSummary: "separate owner-flow activity from ordinary Schedule C totals before trust",
+      summaryPrefix: "Owner-flow activity is now tracked as a governed tax position.",
       facts: ownerFlowFacts,
-      relatedAdjustmentKinds: ["timing_review", "carryforward_line"],
+      relatedAdjustmentKinds: ["owner_flow_separation", "carryforward_line"],
+    }),
+    buildGovernedPositionRecord({
+      draft,
+      id: "tax-position-transfer-review",
+      adjustmentId: "transfer-review",
+      title: "Transfer classification review",
+      treatmentSummary: "separate transfer and intercompany activity from ordinary Schedule C totals before trust",
+      summaryPrefix: "Transfer activity is now tracked as a governed tax position.",
+      facts: ownerFlowFacts.filter((fact) => fact.label === "Intercompany transfer clue"),
+      relatedAdjustmentKinds: ["transfer_classification", "carryforward_line"],
+    }),
+    buildGovernedPositionRecord({
+      draft,
+      id: "tax-position-related-party-review",
+      adjustmentId: "related-party-review",
+      title: "Related-party review",
+      treatmentSummary: "separate related-party activity from ordinary Schedule C totals before trust",
+      summaryPrefix: "Related-party activity is now tracked as a governed tax position.",
+      facts: ownerFlowFacts.filter((fact) => fact.label === "Related-party clue"),
+      relatedAdjustmentKinds: ["related_party_review", "carryforward_line"],
     }),
   ].filter((record): record is TinaTaxPositionRecord => record !== null);
 }

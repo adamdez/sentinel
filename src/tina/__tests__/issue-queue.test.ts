@@ -230,8 +230,8 @@ describe("buildTinaIssueQueue", () => {
           mimeType: "text/csv",
           storagePath: "tax/books.csv",
           category: "supporting_document",
-          requestId: "quickbooks",
-          requestLabel: "QuickBooks or your profit-and-loss report",
+          requestId: "profit-loss",
+          requestLabel: "Full-year profit and loss",
           uploadedAt: "2026-03-26T21:15:00.000Z",
         },
         {
@@ -259,6 +259,19 @@ describe("buildTinaIssueQueue", () => {
           headers: ["Date", "Amount"],
           sheetNames: ["Sheet1"],
           lastReadAt: "2026-03-26T21:20:00.000Z",
+        },
+        {
+          documentId: "bank-doc",
+          status: "complete",
+          kind: "spreadsheet",
+          summary: "Tina found matching bank support.",
+          nextStep: "Keep going.",
+          facts: [],
+          detailLines: [],
+          rowCount: 10,
+          headers: ["Date", "Amount"],
+          sheetNames: ["Sheet1"],
+          lastReadAt: "2026-03-26T21:21:00.000Z",
         },
       ],
       sourceFacts: [
@@ -301,7 +314,7 @@ describe("buildTinaIssueQueue", () => {
     );
 
     const booksRecord = issueQueue.records.find((record) => record.id === "books");
-    expect(booksRecord?.summary).toContain("read 1 money paper");
+    expect(booksRecord?.summary).toContain("money paper");
     expect(booksRecord?.summary).toContain("$18,000 coming in");
     expect(booksRecord?.summary).toContain("$4,000 going out");
     expect(booksRecord?.summary).toContain("2024");

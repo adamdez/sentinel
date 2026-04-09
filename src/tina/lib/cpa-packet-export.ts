@@ -1,7 +1,9 @@
 import { buildTinaBenchmarkDashboardReport } from "@/tina/lib/benchmark-dashboard";
 import { buildTinaBenchmarkRescoreReport } from "@/tina/lib/benchmark-rescore";
 import { buildTinaCpaHandoff } from "@/tina/lib/cpa-handoff";
+import { buildTinaClientIntakeReviewReport } from "@/tina/lib/client-intake-review";
 import { buildTinaCurrentFileReviewerReality } from "@/tina/lib/current-file-reviewer-reality";
+import { buildTinaEntityReturnIntakeContract } from "@/tina/lib/entity-return-intake-contract";
 import { buildTinaFinalPackageQualityReport } from "@/tina/lib/final-package-quality";
 import { buildTinaFilingApprovalReport } from "@/tina/lib/filing-approval";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
@@ -11,7 +13,9 @@ import { buildTinaNumericProofRows } from "@/tina/lib/numeric-proof";
 import { buildTinaPlanningReport } from "@/tina/lib/planning-report";
 import { buildTinaReviewDeliveryReport } from "@/tina/lib/review-delivery";
 import { buildTinaReviewTraceRows } from "@/tina/lib/review-trace";
+import { buildTinaSCorpReviewReport } from "@/tina/lib/s-corp-review";
 import { buildTinaScheduleCExportContract } from "@/tina/lib/schedule-c-export-contract";
+import { buildTinaScheduleCScenarioProfile } from "@/tina/lib/schedule-c-scenario-profile";
 import { buildTinaTransactionReconciliationReport } from "@/tina/lib/transaction-reconciliation";
 import type { TinaWorkspaceDraft } from "@/tina/types";
 
@@ -41,12 +45,16 @@ export interface TinaCpaPacketExport {
 
 export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPacketExport {
   const handoff = buildTinaCpaHandoff(draft);
+  const intakeReview = buildTinaClientIntakeReviewReport(draft);
   const lane = recommendTinaFilingLane(draft.profile);
   const liveAcceptance = buildTinaLiveAcceptanceReport(draft);
   const mefReadiness = buildTinaMefReadinessReport(draft);
   const filingApproval = buildTinaFilingApprovalReport(draft);
   const reviewDelivery = buildTinaReviewDeliveryReport(draft);
   const exportContract = buildTinaScheduleCExportContract(draft);
+  const entityIntakeContract = buildTinaEntityReturnIntakeContract(draft);
+  const sCorpReview = buildTinaSCorpReviewReport(draft);
+  const scenarioProfile = buildTinaScheduleCScenarioProfile(draft);
   const currentFileReality = buildTinaCurrentFileReviewerReality(draft);
   const packageQuality = buildTinaFinalPackageQualityReport(draft);
   const reviewTraceRows = buildTinaReviewTraceRows(draft);
@@ -79,24 +87,57 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     });
   });
 
-  lines.push("", "## Schedule C draft");
-  if (draft.scheduleCDraft.fields.length > 0) {
-    draft.scheduleCDraft.fields.forEach((field) => {
-      lines.push(
-        `- ${field.lineNumber} ${field.label}: ${formatMoney(field.amount)} [${field.status}]`
-      );
-      lines.push(`  - ${field.summary}`);
-    });
-  } else {
-    lines.push("- Tina has not built any Schedule C draft boxes yet.");
-  }
+  if (lane.support === "supported") {
+    lines.push("", "## Schedule C draft");
+    if (draft.scheduleCDraft.fields.length > 0) {
+      draft.scheduleCDraft.fields.forEach((field) => {
+        lines.push(
+          `- ${field.lineNumber} ${field.label}: ${formatMoney(field.amount)} [${field.status}]`
+        );
+        lines.push(`  - ${field.summary}`);
+      });
+    } else {
+      lines.push("- Tina has not built any Schedule C draft boxes yet.");
+    }
 
-  if (draft.scheduleCDraft.notes.length > 0) {
-    lines.push("", "## Draft notes");
-    draft.scheduleCDraft.notes.forEach((note) => {
-      lines.push(`- ${note.title} [${note.severity}]`);
-      lines.push(`  - ${note.summary}`);
-    });
+    if (draft.scheduleCDraft.notes.length > 0) {
+      lines.push("", "## Draft notes");
+      draft.scheduleCDraft.notes.forEach((note) => {
+        lines.push(`- ${note.title} [${note.severity}]`);
+        lines.push(`  - ${note.summary}`);
+      });
+    }
+  } else {
+    lines.push("", "## Entity-return intake contract");
+    lines.push(`- Status: ${entityIntakeContract.status.replace(/_/g, " ")}`);
+    lines.push(`- Lane: ${entityIntakeContract.laneTitle}`);
+    lines.push(`- ${entityIntakeContract.summary}`);
+    lines.push(`- Next step: ${entityIntakeContract.nextStep}`);
+    if (entityIntakeContract.blockerTitles.length > 0) {
+      lines.push("- Intake blockers:");
+      entityIntakeContract.blockerTitles.forEach((title) => {
+        lines.push(`  - ${title}`);
+      });
+    }
+    if (entityIntakeContract.messySignalTitles.length > 0) {
+      lines.push("- Messy signals:");
+      entityIntakeContract.messySignalTitles.forEach((title) => {
+        lines.push(`  - ${title}`);
+      });
+    }
+    if (sCorpReview.status !== "unsupported") {
+      lines.push("", "## 1120-S review spine");
+      lines.push(`- Status: ${sCorpReview.status.replace(/_/g, " ")}`);
+      lines.push(`- ${sCorpReview.summary}`);
+      lines.push(`- Next step: ${sCorpReview.nextStep}`);
+      sCorpReview.sections.forEach((section) => {
+        lines.push(`- ${section.title} [${section.status}]`);
+        lines.push(`  - ${section.summary}`);
+        section.includes.forEach((item) => {
+          lines.push(`  - ${item}`);
+        });
+      });
+    }
   }
 
   lines.push("", "## Open items");
@@ -116,6 +157,38 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     });
   } else {
     lines.push("- No saved papers yet.");
+  }
+
+  lines.push("", "## Client intake review");
+  lines.push(`- Status: ${intakeReview.status.replace(/_/g, " ")}`);
+  lines.push(`- Profile lane: ${intakeReview.laneTitle}`);
+  lines.push(
+    `- Document lane: ${
+      intakeReview.likelyLaneByDocuments === "unknown"
+        ? "Needs lane confirmation"
+        : intakeReview.likelyLaneByDocuments.replace(/_/g, " ")
+    }`
+  );
+  lines.push(`- ${intakeReview.summary}`);
+  lines.push(`- Next step: ${intakeReview.nextStep}`);
+  if (intakeReview.blockers.length > 0) {
+    lines.push("- Intake blockers:");
+    intakeReview.blockers.forEach((item) => {
+      lines.push(`  - ${item.title}`);
+      lines.push(`  - ${item.summary}`);
+    });
+  }
+  if (intakeReview.missingRequired.length > 0) {
+    lines.push("- Missing required intake support:");
+    intakeReview.missingRequired.forEach((item) => {
+      lines.push(`  - ${item.label}`);
+    });
+  }
+  if (intakeReview.messySignals.length > 0) {
+    lines.push("- Messy intake signals:");
+    intakeReview.messySignals.forEach((item) => {
+      lines.push(`  - ${item.title}: ${item.summary}`);
+    });
   }
 
   lines.push("", "## Authority work");
@@ -142,58 +215,71 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     lines.push("- No saved tax position records yet.");
   }
 
-  lines.push("", "## Return trace");
-  if (reviewTraceRows.length > 0) {
-    reviewTraceRows.forEach((row) => {
-      lines.push(
-        `- ${row.lineNumber} ${row.label}: ${formatMoney(row.amount)} [${row.fieldStatus}]`
-      );
-      lines.push(`  - ${row.summary}`);
-      if (row.reconciliationStatus !== "unknown") {
-        lines.push(
-          `  - Reconciliation: ${row.reconciliationStatus.replace(/_/g, " ")}; lineage clusters ${row.lineageCount}`
-        );
-      }
-    });
-  } else {
-    lines.push("- Tina does not have any return-trace rows yet.");
-  }
+  if (lane.support === "supported") {
+    lines.push("", "## Current-lane scenario profile");
+    lines.push(`- ${scenarioProfile.summary}`);
+    if (scenarioProfile.signals.length > 0) {
+      scenarioProfile.signals.forEach((signal) => {
+        lines.push(`- ${signal.title} [${signal.tag}]`);
+        lines.push(`  - ${signal.summary}`);
+      });
+    } else {
+      lines.push("- Tina does not see specialized Schedule C scenario families in the current file yet.");
+    }
 
-  lines.push("", "## Numeric proof");
-  if (numericProofRows.length > 0) {
-    numericProofRows.forEach((row) => {
-      lines.push(
-        `- ${row.lineNumber} ${row.label}: ${formatMoney(row.amount)} [support: ${row.supportLevel}]`
-      );
-      lines.push(`  - ${row.summary}`);
-      row.bookEntries.forEach((entry) => {
+    lines.push("", "## Return trace");
+    if (reviewTraceRows.length > 0) {
+      reviewTraceRows.forEach((row) => {
         lines.push(
-          `  - ${entry.label}: in ${formatMoney(entry.moneyIn)}, out ${formatMoney(entry.moneyOut)}, net ${formatMoney(entry.net)}, coverage ${entry.dateCoverage ?? "unknown"}`
+          `- ${row.lineNumber} ${row.label}: ${formatMoney(row.amount)} [${row.fieldStatus}]`
+        );
+        lines.push(`  - ${row.summary}`);
+        if (row.reconciliationStatus !== "unknown") {
+          lines.push(
+            `  - Reconciliation: ${row.reconciliationStatus.replace(/_/g, " ")}; lineage clusters ${row.lineageCount}`
+          );
+        }
+      });
+    } else {
+      lines.push("- Tina does not have any return-trace rows yet.");
+    }
+
+    lines.push("", "## Numeric proof");
+    if (numericProofRows.length > 0) {
+      numericProofRows.forEach((row) => {
+        lines.push(
+          `- ${row.lineNumber} ${row.label}: ${formatMoney(row.amount)} [support: ${row.supportLevel}]`
+        );
+        lines.push(`  - ${row.summary}`);
+        row.bookEntries.forEach((entry) => {
+          lines.push(
+            `  - ${entry.label}: in ${formatMoney(entry.moneyIn)}, out ${formatMoney(entry.moneyOut)}, net ${formatMoney(entry.net)}, coverage ${entry.dateCoverage ?? "unknown"}`
+          );
+        });
+        row.transactionGroups.forEach((group) => {
+          lines.push(`  - Transaction group: ${group}`);
+        });
+        row.transactionAnchors.forEach((anchor) => {
+          lines.push(`  - Anchor: ${anchor}`);
+        });
+      });
+    } else {
+      lines.push("- Tina does not have numeric proof rows for the current return draft yet.");
+    }
+
+    lines.push("", "## Transaction reconciliation");
+    lines.push(`- ${reconciliation.summary}`);
+    lines.push(`- Next step: ${reconciliation.nextStep}`);
+    if (reconciliation.groups.length > 0) {
+      reconciliation.groups.forEach((group) => {
+        lines.push(`- ${group.label} [${group.status}]`);
+        lines.push(
+          `  - ${group.summary} Lineage clusters: ${group.lineageCount}; grouped flows: ${group.transactionGroupCount}; ledger buckets: ${group.bucketCount}; mismatches: ${group.mismatchCount}.`
         );
       });
-      row.transactionGroups.forEach((group) => {
-        lines.push(`  - Transaction group: ${group}`);
-      });
-      row.transactionAnchors.forEach((anchor) => {
-        lines.push(`  - Anchor: ${anchor}`);
-      });
-    });
-  } else {
-    lines.push("- Tina does not have numeric proof rows for the current return draft yet.");
-  }
-
-  lines.push("", "## Transaction reconciliation");
-  lines.push(`- ${reconciliation.summary}`);
-  lines.push(`- Next step: ${reconciliation.nextStep}`);
-  if (reconciliation.groups.length > 0) {
-    reconciliation.groups.forEach((group) => {
-      lines.push(`- ${group.label} [${group.status}]`);
-      lines.push(
-        `  - ${group.summary} Lineage clusters: ${group.lineageCount}; grouped flows: ${group.transactionGroupCount}; ledger buckets: ${group.bucketCount}; mismatches: ${group.mismatchCount}.`
-      );
-    });
-  } else {
-    lines.push("- Tina does not have transaction-group reconciliation rows yet.");
+    } else {
+      lines.push("- Tina does not have transaction-group reconciliation rows yet.");
+    }
   }
 
   lines.push("", "## Live acceptance benchmark");
@@ -287,55 +373,62 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
     lines.push(`  - ${check.summary}`);
   });
 
-  lines.push("", "## MeF readiness");
-  lines.push(`- Status: ${mefReadiness.status.replace(/_/g, " ")}`);
-  lines.push(`- Return type: ${mefReadiness.returnType}`);
-  lines.push(`- Schedules: ${mefReadiness.schedules.join(", ")}`);
-  lines.push(`- ${mefReadiness.summary}`);
-  lines.push(`- Next step: ${mefReadiness.nextStep}`);
-  mefReadiness.checks.forEach((check) => {
-    lines.push(`- ${check.title} [${check.status}]`);
-    lines.push(`  - ${check.summary}`);
-  });
-  if (mefReadiness.attachments.length > 0) {
-    lines.push("- Attachment manifest:");
-    mefReadiness.attachments.forEach((attachment) => {
-      lines.push(
-        `  - ${attachment.sourceName}: ${attachment.disposition.replace(/_/g, " ")}`
-      );
-      if (attachment.mefFileName) {
-        lines.push(`  - MeF file name: ${attachment.mefFileName}`);
-      }
-      if (attachment.description) {
-        lines.push(`  - Description: ${attachment.description}`);
-      }
-      lines.push(`  - ${attachment.summary}`);
+  if (lane.support === "supported") {
+    lines.push("", "## MeF readiness");
+    lines.push(`- Status: ${mefReadiness.status.replace(/_/g, " ")}`);
+    lines.push(`- Return type: ${mefReadiness.returnType}`);
+    lines.push(`- Schedules: ${mefReadiness.schedules.join(", ")}`);
+    lines.push(`- ${mefReadiness.summary}`);
+    lines.push(`- Next step: ${mefReadiness.nextStep}`);
+    mefReadiness.checks.forEach((check) => {
+      lines.push(`- ${check.title} [${check.status}]`);
+      lines.push(`  - ${check.summary}`);
     });
+    if (mefReadiness.attachments.length > 0) {
+      lines.push("- Attachment manifest:");
+      mefReadiness.attachments.forEach((attachment) => {
+        lines.push(
+          `  - ${attachment.sourceName}: ${attachment.disposition.replace(/_/g, " ")}`
+        );
+        if (attachment.mefFileName) {
+          lines.push(`  - MeF file name: ${attachment.mefFileName}`);
+        }
+        if (attachment.description) {
+          lines.push(`  - Description: ${attachment.description}`);
+        }
+        lines.push(`  - ${attachment.summary}`);
+      });
+    }
   }
 
-  lines.push("", "## 1040/Schedule C export contract");
-  lines.push(`- Status: ${exportContract.status.replace(/_/g, " ")}`);
-  lines.push(`- ${exportContract.summary}`);
-  lines.push(`- Next step: ${exportContract.nextStep}`);
-  lines.push(`- Contract version: ${exportContract.contractVersion}`);
-  lines.push(`- Return type: ${exportContract.returnType}`);
-  lines.push(`- Schedules: ${exportContract.schedules.join(", ")}`);
-  if (exportContract.fields.length > 0) {
-    exportContract.fields.forEach((field) => {
-      lines.push(
-        `- ${field.lineNumber} ${field.label}: ${formatMoney(field.amount)} [${field.status}; support ${field.supportLevel}]`
-      );
-      lines.push(`  - ${field.summary}`);
-    });
-  } else {
-    lines.push("- Tina does not have any export-contract fields yet.");
-  }
-  if (exportContract.unresolvedIssues.length > 0) {
-    lines.push("- Unresolved export issues:");
-    exportContract.unresolvedIssues.forEach((issue) => {
-      lines.push(`  - ${issue.title} [${issue.severity}]`);
-      lines.push(`  - ${issue.summary}`);
-    });
+  if (lane.support === "supported") {
+    lines.push("", "## 1040/Schedule C export contract");
+    lines.push(`- Status: ${exportContract.status.replace(/_/g, " ")}`);
+    lines.push(`- ${exportContract.summary}`);
+    lines.push(`- Next step: ${exportContract.nextStep}`);
+    lines.push(`- Contract version: ${exportContract.contractVersion}`);
+    lines.push(`- Return type: ${exportContract.returnType}`);
+    lines.push(`- Schedules: ${exportContract.schedules.join(", ")}`);
+    if (exportContract.fields.length > 0) {
+      exportContract.fields.forEach((field) => {
+        lines.push(
+          `- ${field.lineNumber} ${field.label}: ${formatMoney(field.amount)} [${field.status}; support ${field.supportLevel}]`
+        );
+        lines.push(`  - ${field.summary}`);
+        if (field.scenarioTags.length > 0) {
+          lines.push(`  - Scenario tags: ${field.scenarioTags.join(", ")}`);
+        }
+      });
+    } else {
+      lines.push("- Tina does not have any export-contract fields yet.");
+    }
+    if (exportContract.unresolvedIssues.length > 0) {
+      lines.push("- Unresolved export issues:");
+      exportContract.unresolvedIssues.forEach((issue) => {
+        lines.push(`  - ${issue.title} [${issue.severity}]`);
+        lines.push(`  - ${issue.summary}`);
+      });
+    }
   }
 
   lines.push("", "## Review delivery");

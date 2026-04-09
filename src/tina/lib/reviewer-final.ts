@@ -11,6 +11,7 @@ import {
   measureTinaTransactionGroupAlignment,
   summarizeTinaTransactionGroups,
 } from "@/tina/lib/transaction-group-analysis";
+import { findTinaScenarioSignalsForDocuments } from "@/tina/lib/schedule-c-scenario-profile";
 
 function createEmptySnapshot(): TinaWorkpaperSnapshot {
   return {
@@ -212,6 +213,14 @@ function buildLineFromAdjustment(
   const reviewerLearningNote = buildReviewerLearningNote(draft);
   const bucketProofNote = buildBucketProofNote(draft, adjustment);
   const transactionGroupNote = buildTransactionGroupNote(draft, adjustment);
+  const scenarioSignals = findTinaScenarioSignalsForDocuments(draft, adjustment.sourceDocumentIds);
+  const scenarioNote =
+    scenarioSignals.length > 0
+      ? ` Scenario families still visible: ${scenarioSignals
+          .map((signal) => signal.title.toLowerCase())
+          .slice(0, 3)
+          .join(", ")}.`
+      : "";
 
   switch (adjustment.kind) {
     case "carryforward_line":
@@ -237,17 +246,73 @@ function buildLineFromAdjustment(
         ),
         ...shared,
       };
-    case "timing_review":
+    case "continuity_review":
       return {
         id: `reviewer-final-${adjustment.id}`,
         kind: "coverage",
         layer: "reviewer_final",
-        label: "Timing check before return",
+        label: "Continuity review before return",
         amount: adjustment.amount,
         status: "needs_attention",
         summary: buildSummary(
           adjustment,
-          "This timing note still needs a human look before Tina trusts it in the return path."
+          `This continuity note still needs a human look before Tina trusts it in the return path.${scenarioNote}`
+        ),
+        ...shared,
+      };
+    case "depreciation_review":
+      return {
+        id: `reviewer-final-${adjustment.id}`,
+        kind: "coverage",
+        layer: "reviewer_final",
+        label: "Depreciation review before return",
+        amount: adjustment.amount,
+        status: "needs_attention",
+        summary: buildSummary(
+          adjustment,
+          `This depreciation-sensitive note still needs a human look before Tina trusts it in the return path.${scenarioNote}`
+        ),
+        ...shared,
+      };
+    case "owner_flow_separation":
+      return {
+        id: `reviewer-final-${adjustment.id}`,
+        kind: "signal",
+        layer: "reviewer_final",
+        label: "Owner-flow separation review",
+        amount: adjustment.amount,
+        status: "needs_attention",
+        summary: buildSummary(
+          adjustment,
+          `Owner-flow activity still needs separation before Tina should trust it in the return path.${scenarioNote}`
+        ),
+        ...shared,
+      };
+    case "transfer_classification":
+      return {
+        id: `reviewer-final-${adjustment.id}`,
+        kind: "signal",
+        layer: "reviewer_final",
+        label: "Transfer classification review",
+        amount: adjustment.amount,
+        status: "needs_attention",
+        summary: buildSummary(
+          adjustment,
+          `Transfer or intercompany activity still needs classification before Tina should trust it in the return path.${scenarioNote}`
+        ),
+        ...shared,
+      };
+    case "related_party_review":
+      return {
+        id: `reviewer-final-${adjustment.id}`,
+        kind: "signal",
+        layer: "reviewer_final",
+        label: "Related-party review",
+        amount: adjustment.amount,
+        status: "needs_attention",
+        summary: buildSummary(
+          adjustment,
+          `Related-party activity still needs explicit review before Tina should trust it in the return path.${scenarioNote}`
         ),
         ...shared,
       };
@@ -275,7 +340,7 @@ function buildLineFromAdjustment(
         status: resolveBucketAwareStatus(draft, adjustment, "ready"),
         summary: buildSummary(
           adjustment,
-          `Tina can keep this approved payroll treatment visible in the return-facing layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}${bucketProofNote}${transactionGroupNote}`
+          `Tina can keep this approved payroll treatment visible in the return-facing layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}${bucketProofNote}${transactionGroupNote}${scenarioNote}`
         ),
         ...shared,
       };
@@ -289,7 +354,7 @@ function buildLineFromAdjustment(
         status: resolveBucketAwareStatus(draft, adjustment, "ready"),
         summary: buildSummary(
           adjustment,
-          `Tina can keep this approved contractor treatment visible in the return-facing layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}${bucketProofNote}${transactionGroupNote}`
+          `Tina can keep this approved contractor treatment visible in the return-facing layer.${reviewerLearningNote ? ` ${reviewerLearningNote}` : ""}${bucketProofNote}${transactionGroupNote}${scenarioNote}`
         ),
         ...shared,
       };
@@ -303,7 +368,7 @@ function buildLineFromAdjustment(
         status: "needs_attention",
         summary: buildSummary(
           adjustment,
-          "Inventory still needs careful form mapping, so Tina carries it as a return-facing review note."
+          `Inventory still needs careful form mapping, so Tina carries it as a return-facing review note.${scenarioNote}`
         ),
         ...shared,
       };
@@ -317,7 +382,7 @@ function buildLineFromAdjustment(
         status: "needs_attention",
         summary: buildSummary(
           adjustment,
-          "State scope can change the return package, so Tina keeps this visible in the final review layer."
+          `State scope can change the return package, so Tina keeps this visible in the final review layer.${scenarioNote}`
         ),
         ...shared,
       };

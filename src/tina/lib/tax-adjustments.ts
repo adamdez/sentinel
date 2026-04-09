@@ -11,6 +11,10 @@ import {
   collectTinaAnalyzedTransactionGroups,
   summarizeTinaTransactionGroups,
 } from "@/tina/lib/transaction-group-analysis";
+import {
+  buildTinaScenarioCohortTrustMap,
+  findTinaScenarioSignalsForDocuments,
+} from "@/tina/lib/schedule-c-scenario-profile";
 
 interface TinaAdjustmentSeed {
   kind: TinaTaxAdjustmentKind;
@@ -150,7 +154,7 @@ function mergeAdjustment(
 function buildCarryforwardSeed(line: TinaWorkpaperLine): TinaAdjustmentSeed {
   if (line.kind === "coverage") {
     return {
-      kind: "timing_review",
+      kind: "continuity_review",
       risk: "low",
       requiresAuthority: false,
       title: `Check the timing for ${line.label.toLowerCase()}`,
@@ -243,25 +247,57 @@ function inferSourceFactDrivenSeed(
     "Intercompany transfer clue",
     "Related-party clue",
   ]);
-  if (ownerFlowClues.length > 0) {
+  if (hasSourceFact(draft, sourceDocumentIds, ["Owner draw clue"])) {
     return {
-      kind: "timing_review",
+      kind: "owner_flow_separation",
       risk: "high",
       requiresAuthority: false,
-      title: `Do not auto-carry ${line.label.toLowerCase()} until owner-flow facts are resolved`,
+      title: `Separate owner-flow from ${line.label.toLowerCase()} before tax totals`,
       summary:
-        "Tina found direct owner-flow, transfer, or related-party clues behind this line, so she should keep it in explicit review instead of treating it as ordinary business activity.",
+        "Tina found direct owner-flow clues behind this line, so she should separate them from ordinary business activity before trusting tax totals.",
       suggestedTreatment:
-        "Hold this line in reviewer review until owner-flow, transfer, or related-party facts are classified out of ordinary business treatment.",
+        "Keep owner draws, distributions, and business activity separated before this line reaches ordinary tax treatment.",
       whyItMatters:
-        "Owner-flow contamination and related-party activity can make a clean-looking line numerically wrong for tax treatment.",
+        "Owner-flow contamination can make a clean-looking line numerically wrong for tax treatment.",
       authorityWorkIdeaIds: [],
     };
   }
 
-  if (hasSourceFact(draft, sourceDocumentIds, ["Carryover amount clue"])) {
+  if (hasSourceFact(draft, sourceDocumentIds, ["Intercompany transfer clue"])) {
     return {
-      kind: "timing_review",
+      kind: "transfer_classification",
+      risk: "high",
+      requiresAuthority: false,
+      title: `Classify transfer activity inside ${line.label.toLowerCase()} first`,
+      summary:
+        "Tina found direct transfer clues behind this line, so she should classify those flows out of ordinary business treatment before trusting the amount.",
+      suggestedTreatment:
+        "Hold this line in reviewer review until transfer and intercompany flows are separated from ordinary business activity.",
+      whyItMatters:
+        "Transfer activity can make a clean-looking line numerically wrong if Tina carries it as ordinary income or expense.",
+      authorityWorkIdeaIds: [],
+    };
+  }
+
+  if (hasSourceFact(draft, sourceDocumentIds, ["Related-party clue"])) {
+    return {
+      kind: "related_party_review",
+      risk: "high",
+      requiresAuthority: false,
+      title: `Keep related-party activity inside ${line.label.toLowerCase()} in explicit review`,
+      summary:
+        "Tina found direct related-party clues behind this line, so she should not flatten that activity into ordinary tax treatment yet.",
+      suggestedTreatment:
+        "Hold this line in reviewer review until related-party activity is classified and supported explicitly.",
+      whyItMatters:
+        "Related-party flows can distort ordinary business totals when Tina moves too quickly.",
+      authorityWorkIdeaIds: [],
+    };
+  }
+
+  if (hasSourceFact(draft, sourceDocumentIds, ["Carryover amount clue", "Prior-year carryover clue"])) {
+    return {
+      kind: "continuity_review",
       risk: "medium",
       requiresAuthority: false,
       title: `Keep continuity visible for ${line.label.toLowerCase()}`,
@@ -277,7 +313,7 @@ function inferSourceFactDrivenSeed(
 
   if (hasSourceFact(draft, sourceDocumentIds, ["Asset placed-in-service clue"])) {
     return {
-      kind: "timing_review",
+      kind: "depreciation_review",
       risk: "high",
       requiresAuthority: false,
       title: `Hold ${line.label.toLowerCase()} until depreciation timing is reviewed`,
@@ -334,10 +370,12 @@ function inferBucketDrivenSeed(
 
   if (/\bowner\b|\bdraw\b|\bdistribution\b|\bdue from\b|\bdue to\b|\btransfer\b/.test(haystack)) {
     return {
-      kind: "timing_review",
+      kind: /\btransfer\b|\bdue from\b|\bdue to\b/.test(haystack)
+        ? "transfer_classification"
+        : "owner_flow_separation",
       risk: "high",
       requiresAuthority: false,
-      title: `Do not auto-carry ${line.label.toLowerCase()} until owner-flow buckets are resolved`,
+      title: `Do not auto-carry ${line.label.toLowerCase()} until specialized buckets are resolved`,
       summary:
         "Tina found owner-flow or transfer-style ledger buckets behind this line, so she should keep it in explicit review instead of treating it as ordinary tax activity.",
       suggestedTreatment:
@@ -400,10 +438,14 @@ function inferTransactionGroupDrivenSeed(
     classifications.includes("related_party")
   ) {
     return {
-      kind: "timing_review",
+      kind: classifications.includes("related_party")
+        ? "related_party_review"
+        : classifications.includes("transfer")
+          ? "transfer_classification"
+          : "owner_flow_separation",
       risk: "high",
       requiresAuthority: false,
-      title: `Do not auto-carry ${line.label.toLowerCase()} until transaction groups are separated`,
+      title: `Do not auto-carry ${line.label.toLowerCase()} until specialized transaction groups are separated`,
       summary:
         "Tina found owner-flow, transfer, or related-party transaction groups behind this line, so she should keep it in explicit review instead of treating it as ordinary business activity.",
       suggestedTreatment:
@@ -446,6 +488,29 @@ function applyReviewerLearningToSeed(
   };
 }
 
+function applyScenarioCohortLearningToSeed(
+  draft: TinaWorkspaceDraft,
+  seed: TinaAdjustmentSeed,
+  sourceDocumentIds: string[]
+): TinaAdjustmentSeed {
+  const trustMap = buildTinaScenarioCohortTrustMap(draft);
+  const fragileSignals = findTinaScenarioSignalsForDocuments(draft, sourceDocumentIds).filter(
+    (signal) => trustMap.get(signal.tag) === "fragile"
+  );
+
+  if (fragileSignals.length === 0) return seed;
+
+  const titles = fragileSignals.map((signal) => signal.title.toLowerCase()).join(", ");
+
+  return {
+    ...seed,
+    risk: raiseRisk(seed.risk),
+    summary: `${seed.summary} Reviewer trust is fragile for ${titles}, so Tina is holding this treatment to a stricter proof standard.`,
+    suggestedTreatment: `${seed.suggestedTreatment} Slow this down until the repeated reviewer correction pattern for ${titles} is cleared.`,
+    whyItMatters: `${seed.whyItMatters} Real reviewer history still shows weak trust for ${titles}.`,
+  };
+}
+
 function buildAdjustmentFromLine(
   draft: TinaWorkspaceDraft,
   line: TinaWorkpaperLine
@@ -466,6 +531,7 @@ function buildAdjustmentFromLine(
     "Asset placed-in-service clue",
   ]);
   const transactionGroups = collectTinaAnalyzedTransactionGroups(draft, line.sourceDocumentIds);
+  const scenarioSignals = findTinaScenarioSignalsForDocuments(draft, line.sourceDocumentIds);
   const rawSeed =
     line.kind === "signal"
       ? SIGNAL_ADJUSTMENT_MAP[line.label] ?? {
@@ -485,7 +551,15 @@ function buildAdjustmentFromLine(
         inferBucketDrivenSeed(line, ledgerBucketClues) ??
         inferSourceFactDrivenSeed(line, draft) ??
         buildCarryforwardSeed(line);
-  const seed = applyReviewerLearningToSeed(draft, rawSeed);
+  const reviewerLearnedSeed = applyReviewerLearningToSeed(
+    draft,
+    rawSeed
+  );
+  const seed = applyScenarioCohortLearningToSeed(
+    draft,
+    reviewerLearnedSeed,
+    line.sourceDocumentIds
+  );
 
   const authorityReady = authorityAllowsAdjustment(draft, seed.authorityWorkIdeaIds);
   const bucketSummary =
@@ -500,6 +574,13 @@ function buildAdjustmentFromLine(
     transactionGroups.length > 0
       ? ` Transaction-group proof: ${summarizeTinaTransactionGroups(transactionGroups)}.`
       : "";
+  const scenarioSummary =
+    scenarioSignals.length > 0
+      ? ` Scenario profile: ${scenarioSignals
+          .map((signal) => `${signal.title.toLowerCase()} (${signal.evidence[0]})`)
+          .slice(0, 2)
+          .join("; ")}.`
+      : "";
 
   return {
     id: `tax-adjustment-${line.id}`,
@@ -509,12 +590,12 @@ function buildAdjustmentFromLine(
     risk: seed.risk,
     requiresAuthority: seed.requiresAuthority,
     title: seed.title,
-    summary: `${seed.summary}${directFactSummary}${bucketSummary}${transactionGroupSummary}`,
+    summary: `${seed.summary}${directFactSummary}${bucketSummary}${transactionGroupSummary}${scenarioSummary}`,
     suggestedTreatment:
       ledgerBucketClues.length > 0 || transactionGroups.length > 0 || directScenarioFacts.length > 0
         ? `${seed.suggestedTreatment} Keep the source facts, ledger buckets, and transaction groups visible during review.`
         : seed.suggestedTreatment,
-    whyItMatters: `${seed.whyItMatters}${directFactSummary}${bucketSummary}${transactionGroupSummary}`,
+    whyItMatters: `${seed.whyItMatters}${directFactSummary}${bucketSummary}${transactionGroupSummary}${scenarioSummary}`,
     amount: line.amount,
     authorityWorkIdeaIds: seed.authorityWorkIdeaIds,
     aiCleanupLineIds: [line.id],

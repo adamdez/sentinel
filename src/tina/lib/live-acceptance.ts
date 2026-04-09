@@ -6,6 +6,7 @@ import type {
   TinaReviewerPatternScore,
   TinaWorkspaceDraft,
 } from "@/tina/types";
+import { buildTinaScheduleCScenarioProfile } from "@/tina/lib/schedule-c-scenario-profile";
 
 export interface TinaLiveAcceptanceWindow {
   label: string;
@@ -188,6 +189,7 @@ function buildCohorts(outcomes: TinaReviewerOutcomeRecord[]): TinaLiveAcceptance
 
 export function deriveCurrentFileTags(draft: TinaWorkspaceDraft): TinaReviewerOutcomeCaseTag[] {
   const tags = new Set<TinaReviewerOutcomeCaseTag>();
+  const scenarioProfile = buildTinaScheduleCScenarioProfile(draft);
 
   if (draft.profile.entityType === "sole_prop" || draft.profile.entityType === "single_member_llc") {
     tags.add("schedule_c");
@@ -233,6 +235,8 @@ export function deriveCurrentFileTags(draft: TinaWorkspaceDraft): TinaReviewerOu
   if (draft.profile.hasIdahoActivity) {
     tags.add("state_scope");
   }
+
+  scenarioProfile.tags.forEach((tag) => tags.add(tag));
 
   return Array.from(tags).sort();
 }

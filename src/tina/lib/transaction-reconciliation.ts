@@ -52,7 +52,9 @@ function determineStatus(args: {
 
   const allGeneric = args.linkedAdjustments.every(
     (adjustment) =>
-      adjustment.kind === "carryforward_line" || adjustment.kind === "timing_review"
+      adjustment.kind === "carryforward_line" ||
+      adjustment.kind === "continuity_review" ||
+      adjustment.kind === "depreciation_review"
   );
   const hasAuthorityBlock = args.linkedAdjustments.some(
     (adjustment) => adjustment.status === "needs_authority"

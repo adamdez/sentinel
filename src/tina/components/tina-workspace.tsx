@@ -36,6 +36,7 @@ import { buildTinaResearchDossiers } from "@/tina/lib/research-dossiers";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { buildTinaResearchIdeas } from "@/tina/lib/research-ideas";
 import { describeTinaResearchPolicy } from "@/tina/lib/research-policy";
+import { buildTinaGuidedShellContract } from "@/tina/lib/guided-shell";
 import { resolveTinaPriorReturnDocument } from "@/tina/lib/workspace-draft";
 import type {
   TinaAiCleanupSnapshot,
@@ -429,6 +430,7 @@ export function TinaWorkspace() {
   const authorityWorkItems = useMemo(() => buildTinaAuthorityWorkItems(draft), [draft]);
   const benchmarkDashboard = useMemo(() => buildTinaBenchmarkDashboardReport(draft), [draft]);
   const benchmarkRescore = useMemo(() => buildTinaBenchmarkRescoreReport(draft), [draft]);
+  const guidedShell = useMemo(() => buildTinaGuidedShellContract(draft), [draft]);
   const researchPolicyLines = useMemo(() => describeTinaResearchPolicy(), []);
   const authorityWorkMap = useMemo(
     () => new Map(authorityWorkItems.map((item) => [item.ideaId, item])),
@@ -1368,6 +1370,66 @@ export function TinaWorkspace() {
           <div className="rounded-2xl border border-white/10 bg-black/15 px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100/80">Step 3</p>
             <p className="mt-2 text-sm font-medium text-white">Bring the papers Tina asks for next.</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+        <CardHeader className="space-y-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-500">Simple shell</p>
+          <CardTitle className="text-white">What Tina needs right now</CardTitle>
+          <p className="text-sm leading-6 text-zinc-300">{guidedShell.summary}</p>
+        </CardHeader>
+        <CardContent className="grid gap-4 xl:grid-cols-4">
+          <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Needs now</p>
+            <div className="mt-3 space-y-3">
+              {guidedShell.needsNow.length > 0 ? guidedShell.needsNow.map((item) => (
+                <div key={item.id} className="space-y-1">
+                  <p className="text-sm font-medium text-white">{item.title}</p>
+                  <p className="text-sm leading-6 text-zinc-400">{item.summary}</p>
+                </div>
+              )) : <p className="text-sm leading-6 text-zinc-400">Tina has the key inputs she needs for the next move.</p>}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Already knows</p>
+            <div className="mt-3 space-y-2">
+              {guidedShell.knownNow.length > 0 ? guidedShell.knownNow.map((item) => (
+                <div key={item.label} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                  <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">{item.label}</p>
+                  <p className="mt-1 text-sm text-white">{item.value}</p>
+                </div>
+              )) : <p className="text-sm leading-6 text-zinc-400">Tina has not grounded enough facts yet.</p>}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Blocked</p>
+            <div className="mt-3 space-y-3">
+              {guidedShell.blocked.length > 0 ? guidedShell.blocked.map((item) => (
+                <div key={item.id} className="space-y-1">
+                  <p className="text-sm font-medium text-white">{item.title}</p>
+                  <p className="text-sm leading-6 text-zinc-400">{item.summary}</p>
+                </div>
+              )) : <p className="text-sm leading-6 text-zinc-400">No hard blocker is stopping the next guided step right now.</p>}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">Human answers</p>
+            <div className="mt-3 space-y-3">
+              {guidedShell.humanQuestions.length > 0 ? guidedShell.humanQuestions.map((item) => (
+                <div key={item.id} className="space-y-1">
+                  <p className="text-sm font-medium text-white">{item.title}</p>
+                  <p className="text-sm leading-6 text-zinc-400">{item.summary}</p>
+                </div>
+              )) : <p className="text-sm leading-6 text-zinc-400">Tina does not have any special human questions queued right now.</p>}
+            </div>
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+              <p className="text-xs uppercase tracking-[0.14em] text-zinc-500">Safe to send</p>
+              <p className="mt-1 text-sm text-white">
+                {guidedShell.safeToSendToCpa ? "Yes, safe to send to CPA" : "Not safe to send yet"}
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

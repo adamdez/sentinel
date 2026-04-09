@@ -18,6 +18,7 @@ export interface TinaReviewerTrafficImportInput {
   content: string;
   format?: TinaReviewerTrafficImportFormat;
   defaultDecidedBy?: string | null;
+  defaultCaseTags?: TinaReviewerOutcomeCaseTag[];
 }
 
 export interface TinaReviewerTrafficImportResult {
@@ -64,6 +65,15 @@ const VALID_CASE_TAGS: TinaReviewerOutcomeCaseTag[] = [
   "authority_heavy",
   "commingled_entity",
   "schedule_c",
+  "payroll",
+  "contractor",
+  "sales_tax",
+  "inventory",
+  "owner_flow",
+  "transfer",
+  "related_party",
+  "continuity",
+  "depreciation",
   "s_corp",
   "partnership",
   "state_scope",
@@ -208,6 +218,7 @@ function normalizeOverrideRecord(
 function normalizeOutcomeRecord(
   record: RawReviewerTrafficRecord,
   defaultDecidedBy: string | null,
+  defaultCaseTags: TinaReviewerOutcomeCaseTag[],
   rowLabel: string,
   warnings: string[]
 ): TinaReviewerOutcomeRecord | null {
@@ -234,7 +245,10 @@ function normalizeOutcomeRecord(
     targetId,
     summary: asString(pickValue(record, ["summary"])),
     lessons: splitList(pickValue(record, ["lessons", "lesson"])),
-    caseTags: normalizeCaseTags(pickValue(record, ["caseTags", "case_tags", "tags"])),
+    caseTags:
+      normalizeCaseTags(pickValue(record, ["caseTags", "case_tags", "tags"])).length > 0
+        ? normalizeCaseTags(pickValue(record, ["caseTags", "case_tags", "tags"]))
+        : defaultCaseTags,
     overrideIds: splitList(pickValue(record, ["overrideIds", "override_ids"])),
     decidedAt,
     decidedBy: asNullableString(pickValue(record, ["decidedBy", "decided_by"])) ?? defaultDecidedBy,
@@ -362,6 +376,7 @@ export function importTinaReviewerTraffic(
       const normalized = normalizeOutcomeRecord(
         record,
         input.defaultDecidedBy ?? null,
+        input.defaultCaseTags ?? [],
         rowLabel,
         warnings
       );

@@ -133,4 +133,25 @@ describe("importTinaReviewerTraffic", () => {
     expect(imported.outcomes).toHaveLength(0);
     expect(imported.warnings).toHaveLength(2);
   });
+
+  it("applies default case tags when imported outcomes do not include them", () => {
+    const imported = importTinaReviewerTraffic({
+      format: "json",
+      defaultCaseTags: ["schedule_c", "payroll"],
+      content: JSON.stringify([
+        {
+          recordType: "outcome",
+          targetType: "schedule_c_field",
+          targetId: "line-26-wages",
+          phase: "package",
+          verdict: "revised",
+          title: "Payroll wages revised",
+          summary: "Reviewer revised payroll handling.",
+        },
+      ]),
+    });
+
+    expect(imported.warnings).toEqual([]);
+    expect(imported.outcomes[0]?.caseTags).toEqual(["schedule_c", "payroll"]);
+  });
 });

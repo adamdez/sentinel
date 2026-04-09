@@ -7,6 +7,7 @@ export default function TinaPage() {
       eyebrow="Tina Workspace"
       title="Tina now has a real intake flow."
       description="This slice adds the first working Tina stages: prior-year bootstrap, business organizer, deterministic filing-lane recommendation, and a personalized request list. The draft persists locally while we build Tina's full tax workspace backend."
+      secondaryLink={{ href: "/tina/simple", label: "Open simple flow" }}
     >
       <TinaWorkspace />
     </TinaShell>

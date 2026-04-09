@@ -415,9 +415,9 @@ describe("buildTinaTaxAdjustmentSnapshot", () => {
 
     const snapshot = buildTinaTaxAdjustmentSnapshot(draft);
 
-    expect(snapshot.adjustments[0]?.kind).toBe("timing_review");
+    expect(snapshot.adjustments[0]?.kind).toBe("continuity_review");
     expect(snapshot.adjustments[0]?.summary).toContain("carryover support");
-    expect(snapshot.adjustments[1]?.kind).toBe("timing_review");
+    expect(snapshot.adjustments[1]?.kind).toBe("depreciation_review");
     expect(snapshot.adjustments[1]?.summary).toContain("asset timing support");
     expect(snapshot.adjustments[1]?.suggestedTreatment).toContain("source facts");
   });
@@ -461,7 +461,7 @@ describe("buildTinaTaxAdjustmentSnapshot", () => {
     const snapshot = buildTinaTaxAdjustmentSnapshot(draft);
     const adjustment = snapshot.adjustments[0];
 
-    expect(adjustment?.kind).toBe("timing_review");
+    expect(adjustment?.kind).toBe("owner_flow_separation");
     expect(adjustment?.risk).toBe("high");
     expect(adjustment?.summary).toContain("owner-flow");
     expect(adjustment?.whyItMatters).toContain("Source-fact proof");

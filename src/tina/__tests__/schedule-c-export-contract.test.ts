@@ -29,6 +29,16 @@ describe("buildTinaScheduleCExportContract", () => {
           uploadedAt: "2026-04-07T08:00:00.000Z",
         },
       ],
+      sourceFacts: [
+        {
+          id: "asset-fact",
+          sourceDocumentId: "support-doc",
+          label: "Asset placed-in-service clue",
+          value: "2025-03-03",
+          confidence: "medium" as const,
+          capturedAt: "2026-04-07T08:00:00.000Z",
+        },
+      ],
       scheduleCDraft: {
         ...baseDraft.scheduleCDraft,
         status: "complete" as const,
@@ -83,6 +93,8 @@ describe("buildTinaScheduleCExportContract", () => {
     expect(contract.returnType).toBe("1040");
     expect(contract.schedules).toEqual(["Schedule C"]);
     expect(contract.fields[0]?.lineNumber).toBe("Line 1");
+    expect(contract.activeScenarioTags).toContain("depreciation");
+    expect(contract.fields[0]?.scenarioTags).toContain("depreciation");
     expect(contract.attachmentManifest[0]?.disposition).toBe("binary_attachment_candidate");
   });
 

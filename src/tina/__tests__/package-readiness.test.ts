@@ -47,6 +47,30 @@ describe("buildTinaPackageReadiness", () => {
     expect(snapshot.items.some((item) => item.id === "lane-not-supported")).toBe(true);
   });
 
+  it("blocks when saved documents point to a different lane than the organizer", () => {
+    const draft = buildDraft({
+      profile: {
+        ...createDefaultTinaWorkspaceDraft().profile,
+        businessName: "Tina Sole Prop",
+        entityType: "sole_prop",
+      },
+      sourceFacts: [
+        {
+          id: "return-type-hint-1",
+          sourceDocumentId: "prior-doc",
+          label: "Return type hint",
+          value: "1120-S",
+          confidence: "high",
+          capturedAt: "2026-04-08T18:00:00.000Z",
+        },
+      ],
+    });
+
+    const snapshot = buildTinaPackageReadiness(draft);
+
+    expect(snapshot.items.some((item) => item.id === "intake-document-lane-conflict")).toBe(true);
+  });
+
   it("shows blocking items for unapproved tax moves and waiting draft fields", () => {
     const draft = buildDraft({
       profile: {

@@ -61,22 +61,24 @@ export function recommendTinaFilingLane(
       laneId: "1120_s",
       title: "1120-S / S-Corp",
       support: "future",
-      summary: "Tina recognizes this business type, but this first build is not ready to finish that return yet.",
+      summary:
+        "Tina recognizes this business type and can organize the intake packet for CPA review, but this branch is not ready to finish the 1120-S return itself yet.",
       reasons: [
         "Your answers look like an S-corp setup.",
-        "Tina is starting with the simpler Schedule C path before she expands to 1120-S.",
+        "Tina is starting with the simpler Schedule C path before she expands to full 1120-S prep.",
       ],
       blockers: [
-        "Tina should stop here for now instead of pretending she can finish this return safely.",
+        "Tina should stop short of return prep here instead of pretending she can finish this 1120-S safely.",
       ],
     };
   }
 
   return {
-    laneId: "1065",
-    title: "1065 / Partnership",
-    support: "future",
-    summary: "Tina can tell this looks like a partnership, but this first build does not finish partnership returns yet.",
+      laneId: "1065",
+      title: "1065 / Partnership",
+      support: "future",
+      summary:
+        "Tina can tell this looks like a partnership and can organize the intake packet for CPA review, but this first build does not finish partnership returns yet.",
     reasons: [
       profile.entityType === "multi_member_llc"
         ? "A multi-member LLC usually follows a partnership path unless another election was made."

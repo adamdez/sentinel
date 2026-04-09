@@ -42,8 +42,8 @@ describe("buildTinaBootstrapReview", () => {
           mimeType: "application/vnd.ms-excel",
           storagePath: "user/2025/doc-qb.xlsx",
           category: "supporting_document" as const,
-          requestId: "quickbooks",
-          requestLabel: "QuickBooks or your profit-and-loss report",
+          requestId: "profit-loss",
+          requestLabel: "Full-year profit and loss",
           uploadedAt: "2026-03-26T21:01:00.000Z",
         },
         {
@@ -57,8 +57,31 @@ describe("buildTinaBootstrapReview", () => {
           requestLabel: "Business bank and card statements",
           uploadedAt: "2026-03-26T21:02:00.000Z",
         },
+        {
+          id: "doc-ledger",
+          name: "general-ledger.csv",
+          size: 2600,
+          mimeType: "text/csv",
+          storagePath: "user/2025/doc-ledger.csv",
+          category: "supporting_document" as const,
+          requestId: "general-ledger",
+          requestLabel: "General ledger export",
+          uploadedAt: "2026-03-26T21:03:00.000Z",
+        },
       ],
       documentReadings: [
+        {
+          documentId: "doc-prior",
+          status: "complete" as const,
+          kind: "pdf" as const,
+          summary: "This prior return is readable and ready for continuity checks.",
+          nextStep: "Tina can compare this against the current year.",
+          detailLines: ["Prior-year return package found."],
+          rowCount: null,
+          headers: [],
+          sheetNames: [],
+          lastReadAt: "2026-03-26T21:06:00.000Z",
+        },
         {
           documentId: "doc-qb",
           status: "complete" as const,
@@ -87,7 +110,7 @@ describe("buildTinaBootstrapReview", () => {
     expect(
       review.facts.some(
         (fact) =>
-          fact.label === "QuickBooks or your profit-and-loss report" &&
+          fact.label === "Full-year profit and loss" &&
           fact.source === "document_vault"
       )
     ).toBe(true);

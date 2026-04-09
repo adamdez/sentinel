@@ -1,8 +1,11 @@
 import { buildTinaChecklist } from "@/tina/lib/checklist";
+import { buildTinaClientIntakeReviewReport } from "@/tina/lib/client-intake-review";
+import { buildTinaEntityReturnIntakeContract } from "@/tina/lib/entity-return-intake-contract";
 import { buildTinaFinalPackageQualityReport } from "@/tina/lib/final-package-quality";
 import { buildTinaMefReadinessReport } from "@/tina/lib/mef-readiness";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { buildTinaPlanningReport } from "@/tina/lib/planning-report";
+import { buildTinaSCorpReviewReport } from "@/tina/lib/s-corp-review";
 import { buildTinaScheduleCExportContract } from "@/tina/lib/schedule-c-export-contract";
 import { buildTinaTransactionReconciliationReport } from "@/tina/lib/transaction-reconciliation";
 import type {
@@ -107,13 +110,218 @@ function planningScenarioNeedsWorkflowAttention(args: {
   return args.id === "continuity" && args.supportLevel !== "strong";
 }
 
+function countNeeded(items: { status: "needed" | "covered" }[]): number {
+  return items.filter((item) => item.status === "needed").length;
+}
+
+function buildEntityReturnIntakeHandoff(
+  draft: TinaWorkspaceDraft,
+  lane: ReturnType<typeof recommendTinaFilingLane>,
+  checklist: ReturnType<typeof buildTinaChecklist>,
+  intakeReview: ReturnType<typeof buildTinaClientIntakeReviewReport>,
+  now: string
+): TinaCpaHandoffSnapshot {
+  const entityContract = buildTinaEntityReturnIntakeContract(draft);
+  const sCorpReview = buildTinaSCorpReviewReport(draft);
+  const requiredChecklistItems = checklist.filter(
+    (item) => item.priority === "required" && item.status === "needed"
+  );
+  const incompleteReadings = draft.documents.filter(
+    (document) =>
+      !draft.documentReadings.some(
+        (reading) => reading.documentId === document.id && reading.status === "complete"
+      )
+  );
+
+  const contractStatus: TinaCpaHandoffArtifactStatus =
+    entityContract.status === "blocked"
+      ? "blocked"
+      : entityContract.status === "needs_review"
+        ? "waiting"
+        : "ready";
+
+  const sourceIndexStatus: TinaCpaHandoffArtifactStatus =
+    draft.documents.length === 0 || requiredChecklistItems.length > 0
+      ? "waiting"
+      : incompleteReadings.length > 0
+        ? "waiting"
+        : "ready";
+
+  const openItemsStatus: TinaCpaHandoffArtifactStatus =
+    entityContract.blockerTitles.length > 0
+      ? "blocked"
+      : entityContract.messySignalTitles.length > 0 || incompleteReadings.length > 0
+        ? "waiting"
+        : "ready";
+
+  const artifacts: TinaCpaHandoffArtifact[] = [
+    buildArtifact({
+      id: "cpa-cover-note",
+      title: "CPA cover note",
+      status: contractStatus,
+      summary:
+        contractStatus === "blocked"
+          ? "Tina can explain the entity-return packet, but the CPA should see the intake blockers first."
+          : contractStatus === "waiting"
+            ? "Tina can frame the packet for a CPA, but the cover note should call out the open intake questions."
+            : "Tina can frame this entity-return packet as a clean first CPA intake handoff.",
+      includes: [
+        `Business: ${draft.profile.businessName || "Still needed"}`,
+        `Tax year: ${draft.profile.taxYear || "Still needed"}`,
+        `Lane: ${lane.title}`,
+        "Packet type: entity-return intake review",
+      ],
+      sourceDocumentIds: draft.documents.map((document) => document.id),
+    }),
+    buildArtifact({
+      id: "intake-review",
+      title: "Client intake review",
+      status: contractStatus,
+      summary: entityContract.summary,
+      includes: [
+        `Profile lane: ${lane.title}`,
+        `Document lane: ${
+          intakeReview.likelyLaneByDocuments === "unknown"
+            ? "Needs lane confirmation"
+            : intakeReview.likelyLaneByDocuments.replace(/_/g, " ")
+        }`,
+        `Missing required intake items: ${requiredChecklistItems.length}`,
+        `Messy scenario signals: ${entityContract.messySignalTitles.length}`,
+      ],
+      relatedReadinessItemIds: intakeReview.blockers.map((item) => item.id),
+    }),
+    buildArtifact({
+      id: "source-paper-index",
+      title: "Source paper index",
+      status: sourceIndexStatus,
+      summary:
+        sourceIndexStatus === "ready"
+          ? "Tina has a strong first-pass entity packet with readable source papers for CPA review."
+          : "Tina still wants a little more source coverage or more completed paper reads before this packet feels complete.",
+      includes: [
+        formatCount(draft.documents.length, "saved paper"),
+        `${draft.documentReadings.filter((reading) => reading.status === "complete").length} paper read${draft.documentReadings.filter((reading) => reading.status === "complete").length === 1 ? "" : "s"} complete`,
+        requiredChecklistItems.length > 0
+          ? `${formatCount(requiredChecklistItems.length, "required ask")} still open`
+          : "Required paper asks are covered",
+        incompleteReadings.length > 0
+          ? `${formatCount(incompleteReadings.length, "paper")} still waiting on a Tina read`
+          : "Saved papers have been read into Tina",
+      ],
+      sourceDocumentIds: draft.documents.map((document) => document.id),
+    }),
+    buildArtifact({
+      id: "entity-return-intake-contract",
+      title: `${entityContract.laneTitle} intake review contract`,
+      status: contractStatus,
+      summary: entityContract.summary,
+      includes: [
+        `Contract version: ${entityContract.contractVersion}`,
+        `Finish support: ${entityContract.finishSupport.replace(/_/g, " ")}`,
+        `${countNeeded(entityContract.requiredCoverage)} required intake item${countNeeded(entityContract.requiredCoverage) === 1 ? "" : "s"} still needed`,
+        `${entityContract.documents.length} saved source document${entityContract.documents.length === 1 ? "" : "s"}`,
+      ],
+      sourceDocumentIds: entityContract.documents.map((document) => document.documentId),
+    }),
+    ...(sCorpReview.status === "unsupported"
+      ? []
+      : [
+          buildArtifact({
+            id: "s-corp-review-spine",
+            title: "1120-S review spine",
+            status:
+              sCorpReview.status === "blocked"
+                ? "blocked"
+                : sCorpReview.status === "needs_review"
+                  ? "waiting"
+                  : "ready",
+            summary: sCorpReview.summary,
+            includes: sCorpReview.sections.map(
+              (section) => `${section.title}: ${section.status.replace(/_/g, " ")}`
+            ),
+            sourceDocumentIds: Array.from(
+              new Set(sCorpReview.sections.flatMap((section) => section.sourceDocumentIds))
+            ),
+          }),
+        ]),
+    buildArtifact({
+      id: "open-items-list",
+      title: "Open items list",
+      status: openItemsStatus,
+      summary:
+        openItemsStatus === "blocked"
+          ? "The packet still has intake blockers that belong at the front of the CPA handoff."
+          : openItemsStatus === "waiting"
+            ? "The packet is sendable for CPA review, but Tina should surface the open intake questions and messy signals."
+            : "Tina does not see any intake blockers for the first CPA handoff packet.",
+      includes: [
+        formatCount(entityContract.blockerTitles.length, "blocking intake item"),
+        formatCount(entityContract.messySignalTitles.length, "messy signal"),
+      ],
+      sourceDocumentIds: entityContract.documents.map((document) => document.documentId),
+    }),
+  ];
+
+  const readyCount = artifacts.filter((artifact) => artifact.status === "ready").length;
+  const waitingCount = artifacts.filter((artifact) => artifact.status === "waiting").length;
+  const blockedCount = artifacts.filter((artifact) => artifact.status === "blocked").length;
+
+  let summary = `Tina prepared ${formatCount(artifacts.length, "packet section")} for an entity-return CPA intake review. ${formatCount(
+    readyCount,
+    "section"
+  )} ready, ${formatCount(waitingCount, "section")} waiting, ${formatCount(
+    blockedCount,
+    "section"
+  )} blocked.`;
+
+  if (blockedCount === 0 && waitingCount === 0) {
+    summary =
+      "Tina prepared a clean first CPA intake packet for this entity-return lane without pretending the return is finished.";
+  }
+
+  let nextStep =
+    "Send the intake packet to the CPA reviewer with the saved source papers attached.";
+  if (blockedCount > 0) {
+    nextStep =
+      "Clear the blocked intake sections first so the CPA does not inherit an avoidably incomplete packet.";
+  } else if (waitingCount > 0) {
+    nextStep =
+      "Call out the waiting intake sections in the cover note, then send the packet for CPA review.";
+  }
+
+  return {
+    lastRunAt: now,
+    status: "complete",
+    summary,
+    nextStep,
+    artifacts,
+  };
+}
+
+function shouldUseEntityReturnIntakeHandoff(
+  lane: ReturnType<typeof recommendTinaFilingLane>,
+  intakeReview: ReturnType<typeof buildTinaClientIntakeReviewReport>
+): boolean {
+  return (
+    lane.laneId === "1120_s" ||
+    lane.laneId === "1065" ||
+    intakeReview.likelyLaneByDocuments === "1120_s" ||
+    intakeReview.likelyLaneByDocuments === "1065"
+  );
+}
+
 export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSnapshot {
   const now = new Date().toISOString();
   const lane = recommendTinaFilingLane(draft.profile);
   const checklist = buildTinaChecklist(draft, lane);
+  const intakeReview = buildTinaClientIntakeReviewReport(draft);
   const planningReport = buildTinaPlanningReport(draft);
   const packageQuality = buildTinaFinalPackageQualityReport(draft);
   const reconciliation = buildTinaTransactionReconciliationReport(draft);
+
+  if (shouldUseEntityReturnIntakeHandoff(lane, intakeReview)) {
+    return buildEntityReturnIntakeHandoff(draft, lane, checklist, intakeReview, now);
+  }
 
   if (draft.reviewerFinal.status !== "complete") {
     return {
@@ -301,6 +509,23 @@ export function buildTinaCpaHandoff(draft: TinaWorkspaceDraft): TinaCpaHandoffSn
       ],
       relatedReadinessItemIds: draft.packageReadiness.items.map((item) => item.id),
       sourceDocumentIds: readinessDocumentIds,
+    }),
+    buildArtifact({
+      id: "intake-review",
+      title: "Client intake review",
+      status: intakeReview.status === "blocked" ? "blocked" : "ready",
+      summary: intakeReview.summary,
+      includes: [
+        `Profile lane: ${lane.title}`,
+        `Document lane: ${
+          intakeReview.likelyLaneByDocuments === "unknown"
+            ? "Needs lane confirmation"
+            : intakeReview.likelyLaneByDocuments.replace(/_/g, " ")
+        }`,
+        `Missing required intake items: ${intakeReview.missingRequired.length}`,
+        `Messy scenario signals: ${intakeReview.messySignals.length}`,
+      ],
+      relatedReadinessItemIds: intakeReview.blockers.map((item) => item.id),
     }),
     buildArtifact({
       id: "source-paper-index",
