@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Loader2, RefreshCw, ShieldAlert, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -65,6 +65,15 @@ type ImportResults = {
   errorRows: Array<{ rowNumber: number; error: string }>;
 };
 
+type ImportHandoffPayload = {
+  source: "skip_genie";
+  fileName: string;
+  fileType: string;
+  dataUrl: string;
+  defaults: NormalizationDefaults;
+  createdAt: number;
+};
+
 const DEFAULTS: NormalizationDefaults = {
   sourceChannel: "csv_import",
   sourceVendor: "",
@@ -78,6 +87,8 @@ const DEFAULTS: NormalizationDefaults = {
   templateName: "",
   templateId: "",
 };
+
+const SKIP_GENIE_IMPORT_HANDOFF_KEY = "sentinel.skipgenie.import-handoff";
 
 async function authHeaders() {
   const { data: { session } } = await supabase.auth.getSession();
@@ -108,6 +119,7 @@ export default function ImportPage() {
   const [duplicateStrategy, setDuplicateStrategy] = useState<"skip" | "update_missing">("skip");
   const [saveTemplate, setSaveTemplate] = useState(false);
   const [ackReview, setAckReview] = useState(false);
+  const [handoffNotice, setHandoffNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const lowConfCount = (preview?.mappingSuggestions ?? []).filter((s) => s.confidence < 0.6).length;
@@ -157,17 +169,62 @@ export default function ImportPage() {
     }
   }, [defaults, mapping, selectedSheet]);
 
-  const handleFile = useCallback(async (nextFile: File) => {
+  const handleFile = useCallback(async (nextFile: File, overrideDefaults?: Partial<NormalizationDefaults>) => {
     const batchName = nextFile.name.replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9]+/g, "_").toLowerCase();
+    const resolvedDefaults = {
+      ...DEFAULTS,
+      importBatchId: batchName,
+      ...overrideDefaults,
+      importBatchId: overrideDefaults?.importBatchId || batchName,
+    };
     setFile(nextFile);
     setPreview(null);
     setResults(null);
     setMapping({});
-    setDefaults({ ...DEFAULTS, importBatchId: batchName });
+    setDefaults(resolvedDefaults);
     setSelectedSheet("");
     setAckReview(false);
-    await analyzeFile(nextFile, "", {}, { ...DEFAULTS, importBatchId: batchName });
+    await analyzeFile(nextFile, "", {}, resolvedDefaults);
   }, [analyzeFile]);
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem(SKIP_GENIE_IMPORT_HANDOFF_KEY);
+    if (!raw) return;
+
+    sessionStorage.removeItem(SKIP_GENIE_IMPORT_HANDOFF_KEY);
+
+    let handoff: ImportHandoffPayload;
+    try {
+      handoff = JSON.parse(raw) as ImportHandoffPayload;
+    } catch {
+      toast.error("Could not load the Skip Genie review handoff.");
+      return;
+    }
+
+    const commaIndex = handoff.dataUrl.indexOf(",");
+    if (commaIndex < 0) {
+      toast.error("Could not load the Skip Genie review handoff.");
+      return;
+    }
+
+    try {
+      const base64 = handoff.dataUrl.slice(commaIndex + 1);
+      const binary = window.atob(base64);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      const reconstructedFile = new File([bytes], handoff.fileName, {
+        type: handoff.fileType || "text/csv",
+      });
+
+      setDuplicateStrategy("update_missing");
+      setHandoffNotice("Skip Genie file loaded for review. Nothing has been imported yet.");
+      toast("Skip Genie review loaded", {
+        description: "Nothing has been imported yet. Review the mapping, then run import.",
+      });
+      void handleFile(reconstructedFile, handoff.defaults);
+    } catch {
+      toast.error("Could not load the Skip Genie review handoff.");
+    }
+  }, [handleFile]);
 
   const runImport = useCallback(async () => {
     if (!file || !preview) return;
@@ -207,6 +264,18 @@ export default function ImportPage() {
         const nextFile = event.target.files?.[0];
         if (nextFile) void handleFile(nextFile);
       }} />
+
+      {handoffNotice ? (
+        <GlassCard className="mb-4 border-primary/30 bg-primary/[0.04]">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 text-primary" />
+            <div>
+              <p className="text-sm font-semibold text-foreground">Skip Genie review required</p>
+              <p className="text-sm text-muted-foreground/75">{handoffNotice}</p>
+            </div>
+          </div>
+        </GlassCard>
+      ) : null}
 
       {step === "upload" ? (
         <GlassCard>

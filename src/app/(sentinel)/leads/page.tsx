@@ -151,6 +151,29 @@ type SkipGenieCommitPayload = {
   errorRows: Array<{ rowNumber: number; error: string }>;
 };
 
+type SkipGenieImportHandoff = {
+  source: "skip_genie";
+  fileName: string;
+  fileType: string;
+  dataUrl: string;
+  defaults: SkipGeniePreviewPayload["defaults"];
+  createdAt: number;
+};
+
+const SKIP_GENIE_IMPORT_HANDOFF_KEY = "sentinel.skipgenie.import-handoff";
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error("Could not read Skip Genie file"));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read Skip Genie file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function buildLeadExportFileName(leads: LeadRow[], distressTags: string[], format: LeadExportFormat) {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const tagSegment =
@@ -411,7 +434,16 @@ function LeadsPageInner() {
       }
 
       if ((previewData.requiresReview ?? false) || (previewData.lowConfidenceFields?.length ?? 0) > 0) {
-        toast.error("Skip Genie file needs manual review. Opening the full import screen.");
+        const handoffPayload: SkipGenieImportHandoff = {
+          source: "skip_genie",
+          fileName: file.name,
+          fileType: file.type,
+          dataUrl: await fileToDataUrl(file),
+          defaults: previewData.defaults,
+          createdAt: Date.now(),
+        };
+        sessionStorage.setItem(SKIP_GENIE_IMPORT_HANDOFF_KEY, JSON.stringify(handoffPayload));
+        toast.error("Skip Genie file needs manual review. Loading it into the import screen now.");
         window.location.assign("/admin/import");
         return;
       }
