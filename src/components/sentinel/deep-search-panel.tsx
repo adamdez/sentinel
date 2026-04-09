@@ -271,6 +271,53 @@ function parseArtifactAmount(...values: Array<string | null | undefined>): numbe
   return null;
 }
 
+function parseArtifactDate(...values: Array<string | null | undefined>): string | null {
+  for (const value of values) {
+    if (!value) continue;
+    const labeled = value.match(
+      /\b(?:filed|filing date|date filed|recorded|recording date|hearing date|dated)\b[^\d]{0,20}(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})/i,
+    );
+    const plain = value.match(/\b(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4})\b/);
+    const raw = labeled?.[1] ?? plain?.[1];
+    if (!raw) continue;
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+  return null;
+}
+
+function isHelpfulSourceUrl(
+  url: string | null | undefined,
+  context?: { caseNumber?: string | null; instrumentNumber?: string | null },
+): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    const href = parsed.toString().toLowerCase();
+    const fa = parsed.searchParams.get("fa")?.toLowerCase() ?? "";
+    if ((parsed.pathname === "/" || parsed.pathname === "/index.cfm") && !parsed.search) {
+      return false;
+    }
+    if (/dw\.courts\.wa\.gov$/i.test(parsed.hostname)) {
+      if (fa === "home.namesearchresult" || fa === "home.namesearch" || fa === "home.casesearch" || fa === "home.caselist") {
+        const caseNeedle = context?.caseNumber?.toLowerCase() ?? "";
+        if (!caseNeedle || !href.includes(caseNeedle)) return false;
+      }
+    }
+    if (/pacer|uscourts\.gov/i.test(parsed.hostname)) {
+      const caseNeedle = context?.caseNumber?.toLowerCase() ?? "";
+      if (!caseNeedle || !href.includes(caseNeedle)) return false;
+    }
+    if (/recording\.spokanecounty\.org/i.test(parsed.hostname)) {
+      const searchType = parsed.searchParams.get("searchType")?.toLowerCase() ?? "";
+      return Boolean(searchType || parsed.search);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function resolveFactLink(
   source: string | undefined,
   text: string,
@@ -493,6 +540,7 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
     const rows: LegalEvidenceRow[] = [];
 
     for (const document of documents) {
+      const documentDateLabel = document.recording_date ? formatDate(document.recording_date) : "";
       rows.push({
         key: normalizeEvidenceKey([
           "doc",
@@ -502,8 +550,13 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
           document.instrument_number,
         ]),
         title: `${docTypeLabel(document.document_type)}${document.instrument_number ? ` #${document.instrument_number}` : ""}`,
-        subtitle: [sourceTitle(document.source), formatDate(document.recording_date), document.case_number].filter(Boolean).join(" - "),
-        link: document.source_url ? { label: "Open Source", url: document.source_url } : null,
+        subtitle: [sourceTitle(document.source), documentDateLabel, document.case_number].filter(Boolean).join(" - "),
+        link: isHelpfulSourceUrl(document.source_url, {
+          caseNumber: document.case_number,
+          instrumentNumber: document.instrument_number,
+        })
+          ? { label: "Open Source", url: document.source_url! }
+          : null,
         notes: document.event_description ?? ([document.grantor, document.grantee].filter(Boolean).join(" -> ") || null),
         rawExcerpt: document.raw_excerpt ?? null,
         amount: document.amount ?? null,
@@ -514,6 +567,7 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
     }
 
     for (const artifact of artifacts.filter(isLegalArtifact)) {
+      const artifactDate = parseArtifactDate(artifact.extracted_notes, artifact.raw_excerpt);
       rows.push({
         key: normalizeEvidenceKey([
           "artifact",
@@ -522,13 +576,20 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
           artifact.extracted_notes,
         ]),
         title: artifact.source_label ?? artifact.source_type ?? "Legal evidence",
-        subtitle: [artifact.source_type?.replace(/_/g, " "), formatDate(artifact.created_at)].filter(Boolean).join(" - "),
-        link: artifact.source_url ? { label: "Open Source", url: artifact.source_url } : null,
+        subtitle: [
+          artifact.source_type?.replace(/_/g, " "),
+          artifactDate ? formatDate(artifactDate) : "",
+        ].filter(Boolean).join(" - "),
+        link: isHelpfulSourceUrl(artifact.source_url, {
+          caseNumber: parseArtifactCaseNumber(artifact.extracted_notes, artifact.raw_excerpt, artifact.source_label),
+        })
+          ? { label: "Open Source", url: artifact.source_url! }
+          : null,
         notes: artifact.extracted_notes ?? null,
         rawExcerpt: artifact.raw_excerpt ?? null,
         amount: parseArtifactAmount(artifact.extracted_notes, artifact.raw_excerpt),
         caseNumber: parseArtifactCaseNumber(artifact.extracted_notes, artifact.raw_excerpt, artifact.source_label),
-        dateLabel: artifact.created_at,
+        dateLabel: artifactDate,
         statusLabel: null,
       });
     }

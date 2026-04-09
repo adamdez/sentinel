@@ -221,6 +221,27 @@ interface LegalMatchContext {
   apnNormalized: string | null;
 }
 
+function isGenericCourtSearchUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    if (!/dw\.courts\.wa\.gov$/i.test(parsed.hostname)) return false;
+    const fa = parsed.searchParams.get("fa")?.toLowerCase() ?? "";
+    return fa === "home.namesearchresult"
+      || fa === "home.namesearch"
+      || fa === "home.casesearch"
+      || fa === "home.caselist"
+      || parsed.pathname === "/"
+      || parsed.pathname === "/index.cfm";
+  } catch {
+    return false;
+  }
+}
+
+function currentIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function tokenSetFromText(value: string, opts?: { minLength?: number; omit?: Set<string> }): string[] {
   const minLength = opts?.minLength ?? 2;
   const omit = opts?.omit ?? new Set<string>();
@@ -969,11 +990,15 @@ async function searchCourts(
         : statusStr.includes("close")
           ? "released"
           : "pending";
+      const normalizedFilingDate = raw.filing_date ? normalizeDate(String(raw.filing_date)) : null;
+      const recordingDate = isGenericCourtSearchUrl(url) && normalizedFilingDate === currentIsoDate()
+        ? null
+        : normalizedFilingDate;
 
       docs.push({
         documentType: docType === "unknown" ? "court_filing" : docType,
         instrumentNumber: null,
-        recordingDate: raw.filing_date ? String(raw.filing_date) : null,
+        recordingDate,
         documentDate: null,
         grantor: null,
         grantee: null,
@@ -1017,7 +1042,9 @@ function extractCasesFromText(text: string, sourceUrl: string): NormalizedDocume
     const rawType = caseTypeMatch?.[1] ?? "";
     const docType = classifyDocumentType(rawType);
 
-    const dateMatch = surrounding.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+    const dateMatch = surrounding.match(
+      /\b(?:filed|filing date|date filed|petition filed|complaint filed|hearing date)\b[^\d]{0,20}(\d{1,2}\/\d{1,2}\/\d{2,4})/i,
+    );
     const recordingDate = dateMatch?.[1] ? normalizeDate(dateMatch[1]) : null;
 
     docs.push({
