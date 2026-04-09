@@ -27,6 +27,7 @@ import {
 } from "@/components/sentinel/comps/comps-map";
 import { CopyBtn } from "../master-client-file-parts";
 import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
+import { SkipTraceStatusControl } from "@/components/sentinel/skip-trace-status-control";
 import type { PhoneDetail, EmailDetail, SkipTraceOverlay, SkipTraceError } from "./contact-types";
 import type { LeadPhone } from "@/lib/dialer/types";
 
@@ -398,25 +399,12 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
           {skipGenieMarker && (
             <SkipGenieBadge size="sm" title={skipGenieMarker.title} />
           )}
-          {(skipStatus === "skipped" || skipStatus === "skip_empty") && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <CheckCircle2 className="h-3 w-3" />Skipped
-            </span>
-          )}
-          {skipStatus === "skip_failed" && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20">
-              <AlertCircle className="h-3 w-3" />Skip Failed
-            </span>
-          )}
-          {skipStatus === "not_run" && (
-            <button
-              onClick={onSkipTrace}
-              disabled={skipTracing}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50"
-            >
-              {skipTracing ? "Skipping..." : "Skip Trace"}
-            </button>
-          )}
+          <SkipTraceStatusControl
+            status={skipStatus}
+            size="sm"
+            loading={skipTracing}
+            onClick={onSkipTrace}
+          />
           <button
             onClick={handleMarkDriveBy}
             disabled={driveBySaving}

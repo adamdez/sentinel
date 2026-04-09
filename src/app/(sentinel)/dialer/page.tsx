@@ -74,6 +74,7 @@ import {
 import { deriveSkipGenieMarker } from "@/lib/skip-genie";
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
+import { SkipTraceStatusControl } from "@/components/sentinel/skip-trace-status-control";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -992,28 +993,6 @@ const DTMF_KEYPAD_ROWS = [
   ["*", "0", "#"],
 ] as const;
 
-function getSkipTraceBadgeConfig(status: SkipTraceUiState): {
-  label: string;
-  className: string;
-} {
-  if (status === "skipped") {
-    return {
-      label: "Skipped",
-      className: "border-emerald-500/25 bg-emerald-500/10 text-emerald-300",
-    };
-  }
-  if (status === "skip_failed") {
-    return {
-      label: "Skip Failed",
-      className: "border-red-500/25 bg-red-500/10 text-red-300",
-    };
-  }
-  return {
-    label: "Skip Trace",
-    className: "border-red-500/25 bg-red-500/10 text-red-300",
-  };
-}
-
 function DtmfKeypadPanel({
   digitsSent,
   onDigit,
@@ -1149,9 +1128,6 @@ function DialerPageInner() {
         clientFile: currentLeadClientFile,
         persistedPhoneCount: currentLead ? Math.max(activeLeadPhones.length, getQueueLeadPersistedPhoneCount(currentLead)) : activeLeadPhones.length,
       })
-    : null;
-  const currentLeadSkipTraceBadge = currentLeadSkipTraceState
-    ? getSkipTraceBadgeConfig(currentLeadSkipTraceState.status)
     : null;
   const currentLeadSkipGenieMarker = currentLeadClientFile
     ? deriveSkipGenieMarker({
@@ -1893,6 +1869,19 @@ function DialerPageInner() {
 
   const runLeadSkipTrace = useCallback(async (lead: QueueLead, manual = false) => {
     if (!lead.properties?.id || leadSkipTracingId) return;
+
+    const persistedPhoneCount = getQueueLeadPersistedPhoneCount(lead);
+    const skipTraceState = deriveSkipTraceUiState({
+      clientFile: clientFileFromRaw(
+        lead as unknown as Record<string, any>,
+        lead.properties as unknown as Record<string, any>,
+      ),
+      persistedPhoneCount,
+    });
+    if (skipTraceState.status === "skipped" || skipTraceState.status === "skip_empty") {
+      toast.message("This file has already been skip traced.");
+      return;
+    }
 
     const isCurrentLead = currentLead?.id === lead.id;
     const isPowerDialCurrentLead = autoCycleMode && isCurrentLead;
@@ -4140,12 +4129,9 @@ function DialerPageInner() {
                         persistedPhoneCount,
                       }).status
                     : null;
-                  const skipTraceBadge = skipTraceState
-                    ? getSkipTraceBadgeConfig(skipTraceState)
-                    : null;
-                  const skipTraceActionable =
-                    skipTraceState != null
-                    && skipTraceState !== "skipped"
+                    const skipTraceActionable =
+                      skipTraceState != null
+                      && skipTraceState !== "skipped"
                     && skipTraceState !== "skip_empty";
                   const rowSkipTracing = leadSkipTracingId === lead.id;
                   const powerDialRow = isAutoCycleQueueLead(lead) ? lead : null;
@@ -4229,30 +4215,27 @@ function DialerPageInner() {
                           {lead.tags?.slice(0, 1).map((tag) => (
                             <span key={tag} className="text-xs px-1.5 py-0 rounded bg-overlay-4 border border-overlay-8 text-muted-foreground/60">{tag}</span>
                           ))}
-                          {skipTraceBadge && (
+                          {skipTraceState && (
                             skipTraceActionable ? (
-                              <button
-                                type="button"
+                              <span
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  void runLeadSkipTrace(lead);
                                 }}
-                                disabled={rowSkipTracing}
-                                className={cn(
-                                  "inline-flex items-center gap-1 text-[10px] px-1.5 py-0 rounded border font-semibold uppercase tracking-wider transition-colors disabled:opacity-60",
-                                  skipTraceBadge.className,
-                                )}
                               >
-                                {rowSkipTracing ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : null}
-                                {rowSkipTracing ? "Skipping..." : skipTraceBadge.label}
-                              </button>
-                            ) : (
-                              <span className={cn(
-                                "text-[10px] px-1.5 py-0 rounded border font-semibold uppercase tracking-wider",
-                                skipTraceBadge.className,
-                              )}>
-                                {skipTraceBadge.label}
+                                <SkipTraceStatusControl
+                                  status={skipTraceState}
+                                  size="sm"
+                                  loading={rowSkipTracing}
+                                  onClick={() => void runLeadSkipTrace(lead)}
+                                  className="uppercase tracking-wider"
+                                />
                               </span>
+                            ) : (
+                              <SkipTraceStatusControl
+                                status={skipTraceState}
+                                size="sm"
+                                className="uppercase tracking-wider"
+                              />
                             )
                           )}
                         </div>
@@ -4427,33 +4410,19 @@ function DialerPageInner() {
                           <Phone className="h-2.5 w-2.5" />
                           {getCadencePosition(currentLead.total_calls ?? 0).label}
                         </Badge>
-                        {currentLeadSkipTraceBadge && (
+                        {currentLeadSkipTraceState && (
                           currentLeadSkipTraceActionable ? (
-                            <button
-                              type="button"
+                            <SkipTraceStatusControl
+                              status={currentLeadSkipTraceState.status}
+                              size="sm"
+                              loading={leadSkipTracingId === currentLead.id}
                               onClick={() => void runLeadSkipTrace(currentLead)}
-                              disabled={leadSkipTracingId === currentLead.id}
-                              className={cn(
-                                "inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60",
-                                "gap-1",
-                                currentLeadSkipTraceBadge.className,
-                              )}
-                            >
-                              {leadSkipTracingId === currentLead.id ? (
-                                <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                              ) : (
-                                <Search className="h-2.5 w-2.5" />
-                              )}
-                              {leadSkipTracingId === currentLead.id ? "Skipping..." : currentLeadSkipTraceBadge.label}
-                            </button>
+                            />
                           ) : (
-                            <Badge
-                              variant="outline"
-                              className={cn("text-xs gap-1", currentLeadSkipTraceBadge.className)}
-                            >
-                              <Search className="h-2.5 w-2.5" />
-                              {currentLeadSkipTraceBadge.label}
-                            </Badge>
+                            <SkipTraceStatusControl
+                              status={currentLeadSkipTraceState.status}
+                              size="sm"
+                            />
                           )
                         )}
                         {currentLeadSkipGenieMarker && (

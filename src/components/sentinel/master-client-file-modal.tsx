@@ -159,6 +159,7 @@ import { formatOwnerName } from "@/lib/format-name";
 import { isPplLeadSource } from "@/lib/lead-source";
 import { deriveSkipGenieMarker } from "@/lib/skip-genie";
 import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
+import { SkipTraceStatusControl } from "@/components/sentinel/skip-trace-status-control";
 
 import { toast } from "sonner";
 
@@ -954,7 +955,6 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
     clientFile: cf,
     sessionHasResults: Boolean(skipTraceResult),
   });
-  const alreadySkipTraced = skipTraceUi.status === "skipped" || skipTraceUi.status === "skip_empty";
   const skipGenieMarker = deriveSkipGenieMarker({
     ownerFlags: cf.ownerFlags,
     sourceVendor: cf.sourceVendor,
@@ -1387,19 +1387,12 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
               <SkipGenieBadge title={skipGenieMarker.title} />
             )}
             {onSkipTrace && (
-              alreadySkipTraced ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                  Skipped
-                </span>
-              ) : (
-                <button
-                  onClick={onSkipTrace}
-                  disabled={skipTracing}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50 shrink-0"
-                >
-                  {skipTracing ? "Skipping..." : "Skip Trace"}
-                </button>
-              )
+              <SkipTraceStatusControl
+                status={skipTraceUi.status}
+                loading={Boolean(skipTracing)}
+                onClick={onSkipTrace}
+                className="shrink-0"
+              />
             )}
           </div>
 
@@ -7761,6 +7754,16 @@ export function MasterClientFileModal({
   const executeSkipTrace = useCallback(async (manual: boolean) => {
 
     if (!clientFile) return;
+
+    const preflight = deriveSkipTraceUiState({
+      clientFile,
+      sessionHasResults: Boolean(skipTraceResult),
+      sessionFailed: skipTraceError != null,
+    });
+    if (preflight.status === "skipped" || preflight.status === "skip_empty") {
+      toast.message("This file has already been skip traced.");
+      return;
+    }
 
     setSkipTracing(true);
 
