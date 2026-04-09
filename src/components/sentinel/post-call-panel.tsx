@@ -121,8 +121,8 @@ const DISPO_OPTIONS: DispoMeta[] = [
   { key: "follow_up",      label: "Callback",       icon: ArrowRight,    color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "appointment",    label: "Appointment",    icon: CalendarCheck, color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "not_interested", label: "Not Interested", icon: X,             color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "wrong_number",   label: "Wrong Number",   icon: PhoneMissed,   color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
-  { key: "disconnected",   label: "Disconnected",   icon: PhoneMissed,   color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
+  { key: "wrong_number",   label: "Wrong Number (This Number)",   icon: PhoneMissed,   color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
+  { key: "disconnected",   label: "Disconnected (This Number)",   icon: PhoneMissed,   color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
   { key: "do_not_call",    label: "Do Not Call",    icon: Flag,          color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
 ];
 
@@ -163,9 +163,9 @@ function successLabelForDisposition(
     case "not_interested":
       return "Marked Dead";
     case "wrong_number":
-      return "Marked Dead · Wrong Number";
+      return "Number Dead · Wrong Number";
     case "disconnected":
-      return "Marked Dead · Disconnected";
+      return "Number Dead · Disconnected";
     case "do_not_call":
       return "Marked Dead · Do Not Call";
     case "no_answer":

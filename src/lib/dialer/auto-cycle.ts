@@ -39,8 +39,6 @@ export const AUTO_CYCLE_MAX_NO_RESPONSE_ROUNDS = 3;
 
 const LEAD_EXIT_DISPOSITIONS = new Set<PublishDisposition>([
   "not_interested",
-  "wrong_number",
-  "disconnected",
   "do_not_call",
   "disqualified",
   "dead_lead",

@@ -364,16 +364,16 @@ export async function publishSession(
 
   // ── Step 2.5: auto-disqualify on terminal dispositions ───
   //
-  // "not_interested" / "dead_lead" / "wrong_number" / "disconnected" / "do_not_call"
+  // "not_interested" / "dead_lead" / "do_not_call"
   //                                  → move lead to dead (archived, remove from active work)
   // "disqualified"                  → moves lead to nurture (recyclable, may re-engage)
   //
   // Both are backward moves in the state machine, so next_action is not
   // enforced by guardrails. We set a default next_action for audit purposes.
 
-  if (leadId && ["not_interested", "disqualified", "dead_lead", "wrong_number", "disconnected", "do_not_call"].includes(input.disposition)) {
+  if (leadId && ["not_interested", "disqualified", "dead_lead", "do_not_call"].includes(input.disposition)) {
     const targetStatus = resolveTerminalDispositionTargetStatus(
-      input.disposition as "not_interested" | "disqualified" | "dead_lead" | "wrong_number" | "disconnected" | "do_not_call",
+      input.disposition as "not_interested" | "disqualified" | "dead_lead" | "do_not_call",
     );
     try {
       try {

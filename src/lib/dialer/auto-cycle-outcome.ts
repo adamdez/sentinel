@@ -200,13 +200,13 @@ export async function processAutoCycleOutcome(
   if (targetPhone) {
     let phonePatch: Record<string, unknown>;
 
-    if (disposition === "dead_phone") {
+    if (disposition === "dead_phone" || disposition === "wrong_number" || disposition === "disconnected") {
       phonePatch = {
         attempt_count: Math.max((targetPhone.attempt_count ?? 0) + 1, 1),
         last_attempt_at: nowIso,
         last_outcome: disposition,
         phone_status: "dead",
-        exit_reason: "dead_phone",
+        exit_reason: disposition === "wrong_number" ? "wrong_number" : disposition === "disconnected" ? "disconnected" : "dead_phone",
         next_attempt_number: null,
         next_due_at: null,
         voicemail_drop_next: false,

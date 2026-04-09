@@ -428,8 +428,8 @@ export type PublishDisposition =
   | "voicemail"       // left or attempted voicemail
   | "no_answer"       // no pickup, no voicemail left
   | "dead_phone"      // phone is disconnected/wrong number — mark phone dead, try another
-  | "wrong_number"    // reached wrong party — terminal lead outcome
-  | "disconnected"    // disconnected line — terminal lead outcome
+  | "wrong_number"    // reached wrong party — mark phone dead, try another number on file
+  | "disconnected"    // disconnected line — mark phone dead, try another number on file
   | "do_not_call"     // seller asked not to be contacted again
   | "not_interested"  // seller declined
   | "follow_up"       // needs callback / follow-up

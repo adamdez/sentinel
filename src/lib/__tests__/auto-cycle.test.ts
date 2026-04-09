@@ -25,6 +25,8 @@ describe("isAutoCycleLeadExitDisposition", () => {
   it("exits the lead on terminal negative outcomes", () => {
     expect(isAutoCycleLeadExitDisposition("completed")).toBe(false);
     expect(isAutoCycleLeadExitDisposition("not_interested")).toBe(true);
+    expect(isAutoCycleLeadExitDisposition("wrong_number")).toBe(false);
+    expect(isAutoCycleLeadExitDisposition("disconnected")).toBe(false);
     expect(isAutoCycleLeadExitDisposition("follow_up")).toBe(false);
     expect(isAutoCycleLeadExitDisposition("appointment")).toBe(false);
     expect(isAutoCycleLeadExitDisposition("offer_made")).toBe(false);
