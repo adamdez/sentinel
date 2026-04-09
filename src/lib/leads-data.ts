@@ -574,6 +574,8 @@ export interface LeadRow {
   receivedAt: string | null;
   nicheTag: string | null;
   importBatchId: string | null;
+  scoutRunId?: string | null;
+  scoutSourceSystem?: string | null;
   outreachType: string | null;
   assignedAt: string | null;
   skipTraceStatus: string | null;

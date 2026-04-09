@@ -115,6 +115,11 @@ function toBool(value: unknown): boolean {
   return value === true || value === 1 || value === "1" || value === "Yes" || value === "True" || value === "true";
 }
 
+function toObject(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
 function sanitizeOwnerFlags(ownerFlags: Record<string, unknown> | null | undefined): Record<string, unknown> {
   if (!ownerFlags || typeof ownerFlags !== "object" || Array.isArray(ownerFlags)) return {};
   const {
@@ -139,11 +144,25 @@ function getPropertyRecord(input: RawLeadRecord["properties"]): RawPropertyRecor
   return input as RawPropertyRecord;
 }
 
+function extractScoutLineage(ownerFlags: Record<string, unknown>) {
+  const scoutIngest = toObject(ownerFlags.scout_ingest);
+  return {
+    sourceSystem: typeof scoutIngest?.source_system === "string" ? scoutIngest.source_system : null,
+    runId: typeof scoutIngest?.source_run_id === "string" ? scoutIngest.source_run_id : null,
+  };
+}
+
+function isScoutSourceSystem(value: string | null | undefined): boolean {
+  const normalized = (value ?? "").trim().toLowerCase();
+  return normalized.includes("spokane") && normalized.includes("scout");
+}
+
 export function buildLeadQueueRow(raw: RawLeadRecord, predictiveScore?: number | null): LeadRow {
   const property = getPropertyRecord(raw.properties);
   const ownerFlags = sanitizeOwnerFlags(property.owner_flags);
   const offerPrepSnapshot = extractOfferPrepSnapshot(ownerFlags);
   const prospecting = extractProspectingSnapshot(ownerFlags);
+  const scoutLineage = extractScoutLineage(ownerFlags);
   const composite = toNumber(raw.priority) ?? 0;
   const blendedPredictivePriority =
     predictiveScore != null
@@ -223,7 +242,10 @@ export function buildLeadQueueRow(raw: RawLeadRecord, predictiveScore?: number |
     }).state,
     promotedAt: typeof raw.promoted_at === "string" ? raw.promoted_at : typeof raw.created_at === "string" ? raw.created_at : new Date().toISOString(),
     source: typeof raw.source === "string" ? raw.source : "unknown",
-    sourceChannel: prospecting.sourceChannel ?? (typeof raw.source === "string" ? raw.source : "unknown"),
+    sourceChannel:
+      prospecting.sourceChannel
+      ?? (isScoutSourceSystem(scoutLineage.sourceSystem) ? "spokane_scout" : null)
+      ?? (typeof raw.source === "string" ? raw.source : "unknown"),
     sourceVendor: prospecting.sourceVendor,
     sourceListName: prospecting.sourceListName,
     sourcePullDate: prospecting.sourcePullDate,
@@ -234,6 +256,8 @@ export function buildLeadQueueRow(raw: RawLeadRecord, predictiveScore?: number |
     receivedAt: prospecting.receivedAt,
     nicheTag: prospecting.nicheTag,
     importBatchId: prospecting.importBatchId,
+    scoutRunId: scoutLineage.runId,
+    scoutSourceSystem: scoutLineage.sourceSystem,
     outreachType: prospecting.outreachType,
     assignedAt: prospecting.assignedAt,
     skipTraceStatus: (typeof raw.skip_trace_status === "string" ? raw.skip_trace_status : prospecting.skipTraceStatus),

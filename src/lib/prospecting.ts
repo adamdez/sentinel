@@ -170,6 +170,7 @@ export function sourceChannelLabel(value: string | null | undefined): string {
   if (normalized === "driving_for_dollars") return "Driving for Dollars";
   if (normalized === "county_records") return "County Records";
   if (normalized === "batch_skip_trace") return "Batch Skip Trace";
+  if (normalized === "spokane_scout") return "Spokane Scout";
   return tagLabel(normalized);
 }
 

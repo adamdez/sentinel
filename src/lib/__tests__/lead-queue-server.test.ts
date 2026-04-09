@@ -27,9 +27,12 @@ describe("buildLeadQueueRow", () => {
           pr_raw: { huge: true },
           deep_crawl: { huge: true },
           deep_crawl_result: { huge: true },
+          scout_ingest: {
+            source_system: "spokane_scout_crawler",
+            source_run_id: "scout-run-2026-04-07",
+          },
           bricked_full_response: { huge: true },
           prospecting_intake: {
-            source_channel: "csv_import",
             import_batch_id: "batch-1",
             niche_tag: "probate",
           },
@@ -43,8 +46,11 @@ describe("buildLeadQueueRow", () => {
 
     expect(row.predictivePriority).toBe(84);
     expect(row.ownerBadge).toBe("absentee");
+    expect(row.sourceChannel).toBe("spokane_scout");
     expect(row.importBatchId).toBe("batch-1");
     expect(row.nicheTag).toBe("probate");
+    expect(row.scoutRunId).toBe("scout-run-2026-04-07");
+    expect(row.scoutSourceSystem).toBe("spokane_scout_crawler");
     expect(row.ownerFlags).toEqual(expect.objectContaining({
       absentee: true,
       bricked_full_response: { huge: true },

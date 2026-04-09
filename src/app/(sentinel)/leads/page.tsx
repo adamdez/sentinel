@@ -61,6 +61,8 @@ function buildLeadExportRows(leads: LeadRow[]) {
     "Source Pull Date": lead.sourcePullDate ?? "",
     "Niche Tag": lead.nicheTag ?? "",
     "Import Batch ID": lead.importBatchId ?? "",
+    "Scout Run ID": lead.scoutRunId ?? "",
+    "Scout Source System": lead.scoutSourceSystem ?? "",
     "Skip Trace Status": lead.skipTraceStatus ?? "",
     "Current Notes": lead.notes ?? "",
     "Next Follow Up": lead.followUpDate ?? "",
@@ -163,7 +165,7 @@ function LeadsPageInner() {
     segmentCounts,
     sourceOptions,
     nicheOptions,
-    importBatchOptions,
+    batchOrRunOptions,
     callStatusOptions,
     outboundSourceMetrics,
     nicheMetrics,
@@ -433,7 +435,7 @@ function LeadsPageInner() {
               totalAll={segmentTotal}
               sourceOptions={sourceOptions}
               nicheOptions={nicheOptions}
-              importBatchOptions={importBatchOptions}
+              batchOrRunOptions={batchOrRunOptions}
               callStatusOptions={callStatusOptions}
             />
           </div>

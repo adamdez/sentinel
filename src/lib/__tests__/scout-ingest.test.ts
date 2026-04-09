@@ -166,6 +166,7 @@ describe("applyScoutIngestionPolicy", () => {
     expect(result.failure_reason).toBeNull();
     expect(sb.tables.properties).toHaveLength(1);
     expect(sb.tables.leads).toHaveLength(1);
+    expect((sb.tables.leads[0]?.tags as string[] | undefined) ?? []).toContain("tax_lien");
   });
 
   it("merges owner_flags safely without clobbering existing scout blocks", async () => {

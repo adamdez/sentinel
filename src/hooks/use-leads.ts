@@ -23,6 +23,7 @@ export type SortDir = "asc" | "desc";
 export type FollowUpFilter = "all" | "overdue" | "today" | "uncontacted" | "urgent_uncontacted";
 export type MarketFilter = "spokane" | "kootenai" | "other";
 export type OutboundCallStatusFilter = "not_called" | "contacted" | "wrong_number" | "do_not_call" | "bad_record";
+export type BatchOrRunFilterKind = "import_batch" | "scout_run";
 type FollowUpState = "overdue" | "today" | "urgent_uncontacted" | "uncontacted" | "other";
 export type AttentionFocus =
   | "none"
@@ -81,7 +82,7 @@ export interface LeadFilters {
   markets: MarketFilter[];
   sources: string[];
   nicheTags: string[];
-  importBatches: string[];
+  batchOrRuns: string[];
   callStatuses: OutboundCallStatusFilter[];
   followUp: FollowUpFilter;
   unassignedOnly: boolean;
@@ -94,13 +95,24 @@ export interface LeadFilters {
   inDialQueue: "any" | "yes" | "no";
 }
 
+export interface LeadOption {
+  value: string;
+  label: string;
+  count: number;
+}
+
+export interface LeadBatchOrRunOption extends LeadOption {
+  kind: BatchOrRunFilterKind;
+  rawValue: string;
+}
+
 const DEFAULT_FILTERS: LeadFilters = {
   search: "",
   statuses: [],
   markets: [],
   sources: [],
   nicheTags: [],
-  importBatches: [],
+  batchOrRuns: [],
   callStatuses: [],
   followUp: "all",
   unassignedOnly: false,
@@ -290,6 +302,7 @@ function matchesSearch(lead: LeadRow, q: string): boolean {
     (lead.sourceVendor?.toLowerCase().includes(lower) ?? false) ||
     (lead.sourceListName?.toLowerCase().includes(lower) ?? false) ||
     (lead.importBatchId?.toLowerCase().includes(lower) ?? false) ||
+    (lead.scoutRunId?.toLowerCase().includes(lower) ?? false) ||
     (lead.nicheTag?.toLowerCase().includes(lower) ?? false) ||
     (lead.notes?.toLowerCase().includes(lower) ?? false)
   );
@@ -308,6 +321,81 @@ function sourceKey(source: string | null | undefined): string {
 
 function sourceLabel(source: string): string {
   return sourceChannelLabel(source);
+}
+
+export function batchOrRunFilterValue(kind: BatchOrRunFilterKind, rawValue: string): string {
+  return `${kind}:${rawValue}`;
+}
+
+function batchOrRunEntries(lead: Pick<LeadRow, "importBatchId" | "scoutRunId">): LeadBatchOrRunOption[] {
+  const options: LeadBatchOrRunOption[] = [];
+
+  const importBatchId = lead.importBatchId?.trim();
+  if (importBatchId) {
+    options.push({
+      value: batchOrRunFilterValue("import_batch", importBatchId),
+      label: `Import Batch - ${importBatchId}`,
+      count: 1,
+      kind: "import_batch",
+      rawValue: importBatchId,
+    });
+  }
+
+  const scoutRunId = lead.scoutRunId?.trim();
+  if (scoutRunId) {
+    options.push({
+      value: batchOrRunFilterValue("scout_run", scoutRunId),
+      label: `Scout Run - ${scoutRunId}`,
+      count: 1,
+      kind: "scout_run",
+      rawValue: scoutRunId,
+    });
+  }
+
+  return options;
+}
+
+export function buildLeadSourceOptions(leads: LeadRow[]): LeadOption[] {
+  const counts: Record<string, number> = {};
+  for (const lead of leads) {
+    const key = sourceKey(lead.sourceChannel ?? lead.source);
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([value, count]) => ({ value, label: sourceLabel(value), count }));
+}
+
+function buildLeadNicheOptions(leads: LeadRow[]): LeadOption[] {
+  const counts: Record<string, number> = {};
+  for (const lead of leads) {
+    if (!lead.nicheTag) continue;
+    counts[lead.nicheTag] = (counts[lead.nicheTag] ?? 0) + 1;
+  }
+
+  return Object.entries(counts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([value, count]) => ({ value, label: sourceLabel(value), count }));
+}
+
+export function buildLeadBatchOrRunOptions(leads: LeadRow[]): LeadBatchOrRunOption[] {
+  const counts = new Map<string, LeadBatchOrRunOption>();
+
+  for (const lead of leads) {
+    for (const option of batchOrRunEntries(lead)) {
+      const existing = counts.get(option.value);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        counts.set(option.value, { ...option });
+      }
+    }
+  }
+
+  return Array.from(counts.values())
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 }
 
 function outboundCallStatus(lead: LeadRow): OutboundCallStatusFilter {
@@ -397,6 +485,105 @@ function isEscalatedReviewAttention(lead: LeadRow): boolean {
 function isDriveByLead(lead: LeadRow): boolean {
   if (!lead.nextAction) return false;
   return lead.nextAction.toLowerCase().startsWith("drive by");
+}
+
+export function filterLeadRows(
+  leads: LeadRow[],
+  filters: LeadFilters,
+  attentionFocus: AttentionFocus,
+  now = new Date(),
+): LeadRow[] {
+  let result = leads;
+
+  if (filters.search) {
+    result = result.filter((lead) => matchesSearch(lead, filters.search));
+  }
+  if (filters.statuses.length > 0) {
+    result = result.filter((lead) => filters.statuses.includes(lead.status));
+  }
+  if (filters.markets.length > 0) {
+    result = result.filter((lead) => filters.markets.includes(marketKeyFromCounty(lead.county)));
+  }
+  if (filters.sources.length > 0) {
+    result = result.filter((lead) => filters.sources.includes(sourceKey(lead.sourceChannel ?? lead.source)));
+  }
+  if (filters.nicheTags.length > 0) {
+    result = result.filter((lead) => lead.nicheTag != null && filters.nicheTags.includes(lead.nicheTag));
+  }
+  if (filters.batchOrRuns.length > 0) {
+    result = result.filter((lead) => {
+      const values = batchOrRunEntries(lead).map((option) => option.value);
+      return values.some((value) => filters.batchOrRuns.includes(value));
+    });
+  }
+  if (filters.callStatuses.length > 0) {
+    result = result.filter((lead) => filters.callStatuses.includes(outboundCallStatus(lead)));
+  }
+  if (filters.followUp !== "all") {
+    result = result.filter((lead) => followUpState(lead) === filters.followUp);
+  }
+  if (filters.unassignedOnly) {
+    result = result.filter((lead) => !lead.assignedTo);
+  }
+  if (filters.excludeSuppressed) {
+    result = result.filter((lead) => !lead.doNotCall && !lead.badRecord);
+  }
+  if (filters.hasPhone === "yes") {
+    result = result.filter((lead) => !!lead.ownerPhone);
+  } else if (filters.hasPhone === "no") {
+    result = result.filter((lead) => !lead.ownerPhone);
+  }
+  if (filters.neverCalled) {
+    result = result.filter((lead) => (lead.totalCalls ?? 0) === 0);
+  }
+  if (filters.notCalledToday) {
+    const dayStart = startOfDay(now).getTime();
+    result = result.filter((lead) => {
+      if (!lead.lastContactAt) return true;
+      const ms = new Date(lead.lastContactAt).getTime();
+      return !Number.isNaN(ms) && ms < dayStart;
+    });
+  }
+  if (filters.distressTags.length > 0) {
+    result = result.filter((lead) =>
+      filters.distressTags.some((distressTag) => leadMatchesDistressTag(lead, distressTag)),
+    );
+  }
+  if (filters.inDialQueue === "yes") {
+    result = result.filter((lead) => lead.dialQueueActive);
+  } else if (filters.inDialQueue === "no") {
+    result = result.filter((lead) => !lead.dialQueueActive);
+  }
+
+  if (attentionFocus === "none") {
+    return result;
+  }
+
+  const nowMs = now.getTime();
+  const dayStartMs = startOfDay(now).getTime();
+  const dayEndMs = dayStartMs + 24 * 60 * 60 * 1000;
+
+  return result.filter((lead) => {
+    if (attentionFocus === "new_inbound") {
+      return isNewInboundNeedsAttention(lead, dayStartMs, dayEndMs);
+    }
+    if (attentionFocus === "overdue") {
+      return isOverdueFollowUpNeedsAttention(lead, nowMs);
+    }
+    if (attentionFocus === "unassigned_hot") {
+      return isUnassignedImportantNeedsAttention(lead);
+    }
+    if (attentionFocus === "slow_or_missing") {
+      return isSlowOrMissingFirstResponseNeedsAttention(lead, nowMs);
+    }
+    if (attentionFocus === "needs_qualification") {
+      return isNeedsQualificationAttention(lead, nowMs);
+    }
+    if (attentionFocus === "escalated_review") {
+      return isEscalatedReviewAttention(lead);
+    }
+    return true;
+  });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -683,41 +870,20 @@ export function useLeads() {
     closedVisible ? segmentedLeads : segmentedLeads.filter((l) => l.status !== "closed")
   ), [closedVisible, segmentedLeads]);
 
-  const sourceOptions = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const l of discoverableSegmentedLeads) {
-      const k = sourceKey(l.sourceChannel ?? l.source);
-      counts[k] = (counts[k] ?? 0) + 1;
-    }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([value, count]) => ({ value, label: sourceLabel(value), count }));
-  }, [discoverableSegmentedLeads]);
+  const sourceOptions = useMemo(
+    () => buildLeadSourceOptions(discoverableSegmentedLeads),
+    [discoverableSegmentedLeads],
+  );
 
-  const nicheOptions = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const l of discoverableSegmentedLeads) {
-      if (!l.nicheTag) continue;
-      counts[l.nicheTag] = (counts[l.nicheTag] ?? 0) + 1;
-    }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([value, count]) => ({ value, label: sourceLabel(value), count }));
-  }, [discoverableSegmentedLeads]);
+  const nicheOptions = useMemo(
+    () => buildLeadNicheOptions(discoverableSegmentedLeads),
+    [discoverableSegmentedLeads],
+  );
 
-  const importBatchOptions = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const l of discoverableSegmentedLeads) {
-      if (!l.importBatchId) continue;
-      counts[l.importBatchId] = (counts[l.importBatchId] ?? 0) + 1;
-    }
-    return Object.entries(counts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 8)
-      .map(([value, count]) => ({ value, label: value, count }));
-  }, [discoverableSegmentedLeads]);
+  const batchOrRunOptions = useMemo(
+    () => buildLeadBatchOrRunOptions(discoverableSegmentedLeads),
+    [discoverableSegmentedLeads],
+  );
 
   const callStatusOptions = useMemo(() => {
     const counts: Record<OutboundCallStatusFilter, number> = {
@@ -750,97 +916,10 @@ export function useLeads() {
 
   // Filters
 
-  const filteredLeads = useMemo(() => {
-    let result = discoverableSegmentedLeads;
-
-    if (filters.search) {
-      result = result.filter((l) => matchesSearch(l, filters.search));
-    }
-    if (filters.statuses.length > 0) {
-      result = result.filter((l) => filters.statuses.includes(l.status));
-    }
-    if (filters.markets.length > 0) {
-      result = result.filter((l) => filters.markets.includes(marketKeyFromCounty(l.county)));
-    }
-    if (filters.sources.length > 0) {
-      result = result.filter((l) => filters.sources.includes(sourceKey(l.sourceChannel ?? l.source)));
-    }
-    if (filters.nicheTags.length > 0) {
-      result = result.filter((l) => l.nicheTag != null && filters.nicheTags.includes(l.nicheTag));
-    }
-    if (filters.importBatches.length > 0) {
-      result = result.filter((l) => l.importBatchId != null && filters.importBatches.includes(l.importBatchId));
-    }
-    if (filters.callStatuses.length > 0) {
-      result = result.filter((l) => filters.callStatuses.includes(outboundCallStatus(l)));
-    }
-    if (filters.followUp !== "all") {
-      result = result.filter((l) => followUpState(l) === filters.followUp);
-    }
-    if (filters.unassignedOnly) {
-      result = result.filter((l) => !l.assignedTo);
-    }
-    if (filters.excludeSuppressed) {
-      result = result.filter((l) => !l.doNotCall && !l.badRecord);
-    }
-    if (filters.hasPhone === "yes") {
-      result = result.filter((l) => !!l.ownerPhone);
-    } else if (filters.hasPhone === "no") {
-      result = result.filter((l) => !l.ownerPhone);
-    }
-    if (filters.neverCalled) {
-      result = result.filter((l) => (l.totalCalls ?? 0) === 0);
-    }
-    if (filters.notCalledToday) {
-      const dayStart = startOfDay(new Date()).getTime();
-      result = result.filter((l) => {
-        if (!l.lastContactAt) return true;
-        const ms = new Date(l.lastContactAt).getTime();
-        return !Number.isNaN(ms) && ms < dayStart;
-      });
-    }
-    if (filters.distressTags.length > 0) {
-      result = result.filter((l) =>
-        filters.distressTags.some((dt) => leadMatchesDistressTag(l, dt)),
-      );
-    }
-    if (filters.inDialQueue === "yes") {
-      result = result.filter((l) => l.dialQueueActive);
-    } else if (filters.inDialQueue === "no") {
-      result = result.filter((l) => !l.dialQueueActive);
-    }
-
-    if (attentionFocus !== "none") {
-      const now = new Date();
-      const nowMs = now.getTime();
-      const dayStartMs = startOfDay(now).getTime();
-      const dayEndMs = dayStartMs + 24 * 60 * 60 * 1000;
-
-      result = result.filter((l) => {
-        if (attentionFocus === "new_inbound") {
-          return isNewInboundNeedsAttention(l, dayStartMs, dayEndMs);
-        }
-        if (attentionFocus === "overdue") {
-          return isOverdueFollowUpNeedsAttention(l, nowMs);
-        }
-        if (attentionFocus === "unassigned_hot") {
-          return isUnassignedImportantNeedsAttention(l);
-        }
-        if (attentionFocus === "slow_or_missing") {
-          return isSlowOrMissingFirstResponseNeedsAttention(l, nowMs);
-        }
-        if (attentionFocus === "needs_qualification") {
-          return isNeedsQualificationAttention(l, nowMs);
-        }
-        if (attentionFocus === "escalated_review") {
-          return isEscalatedReviewAttention(l);
-        }
-        return true;
-      });
-    }
-
-    return result;
-  }, [discoverableSegmentedLeads, filters, attentionFocus]);
+  const filteredLeads = useMemo(
+    () => filterLeadRows(discoverableSegmentedLeads, filters, attentionFocus),
+    [discoverableSegmentedLeads, filters, attentionFocus],
+  );
 
   // Sort
 
@@ -1062,7 +1141,7 @@ export function useLeads() {
     segmentCounts,
     sourceOptions,
     nicheOptions,
-    importBatchOptions,
+    batchOrRunOptions,
     callStatusOptions,
     distressTagOptions,
     inboxMetrics,

@@ -285,6 +285,7 @@ async function createLeadForProperty(
   propertyId: string,
   sourceSystem: string,
   county: string | null | undefined,
+  tags: string[],
 ): Promise<{ id: string } | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (sb.from("leads") as any)
@@ -293,6 +294,7 @@ async function createLeadForProperty(
       status: "prospect",
       source: sourceSystem,
       priority: 1,
+      tags,
       market: resolveMarket(county ?? ""),
       notes: `Scout ingest create path (${sourceSystem})`,
       updated_at: new Date().toISOString(),
@@ -338,9 +340,16 @@ export async function applyScoutIngestionPolicy(
     return fail("missing_property_identity");
   }
 
+  const scoutMissedPayments =
+    contract.ingest_mode === "create" && isSpokaneScoutSource(contract.source_system)
+      ? estimateScoutMissedPayments(contract.tax_signals)
+      : null;
+  const scoutLeadTags = scoutMissedPayments != null && scoutMissedPayments >= 5
+    ? ["tax_lien"]
+    : [];
+
   if (contract.ingest_mode === "create" && isSpokaneScoutSource(contract.source_system)) {
-    const missedPayments = estimateScoutMissedPayments(contract.tax_signals);
-    if (missedPayments != null && missedPayments < 5) {
+    if (scoutMissedPayments != null && scoutMissedPayments < 5) {
       return skip("below_tax_threshold_5_payments");
     }
   }
@@ -446,7 +455,13 @@ export async function applyScoutIngestionPolicy(
   if (activeLead) {
     leadId = activeLead.id;
   } else if (contract.ingest_mode === "create") {
-    const createdLead = await createLeadForProperty(sb, property.id, contract.source_system, contract.property.county);
+    const createdLead = await createLeadForProperty(
+      sb,
+      property.id,
+      contract.source_system,
+      contract.property.county,
+      scoutLeadTags,
+    );
     if (createdLead) {
       leadId = createdLead.id;
       persisted++;
