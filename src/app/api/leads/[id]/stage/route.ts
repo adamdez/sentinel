@@ -293,7 +293,7 @@ export async function GET(
       next_action_due_at: lead.next_action_due_at,
       allowed_transitions: allowed.map((s) => ({
         status: s,
-        requires_next_action: requiresNextAction(s),
+        requires_next_action: requiresNextAction(s, current),
       })),
     });
   } catch (err) {

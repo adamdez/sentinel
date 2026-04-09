@@ -13,7 +13,6 @@ import type { LeadStatus } from "@/lib/types";
 /* ------------------------------------------------------------------ */
 
 describe("validateStatusTransition", () => {
-  /* ---- valid forward transitions ---- */
   const validTransitions: [LeadStatus, LeadStatus][] = [
     ["staging", "prospect"],
     ["staging", "dead"],
@@ -35,14 +34,10 @@ describe("validateStatusTransition", () => {
     ["disposition", "dead"],
   ];
 
-  it.each(validTransitions)(
-    "allows %s → %s",
-    (current, next) => {
-      expect(validateStatusTransition(current, next)).toBe(true);
-    },
-  );
+  it.each(validTransitions)("allows %s -> %s", (current, next) => {
+    expect(validateStatusTransition(current, next)).toBe(true);
+  });
 
-  /* ---- invalid transitions ---- */
   const invalidTransitions: [LeadStatus, LeadStatus][] = [
     ["staging", "negotiation"],
     ["staging", "closed"],
@@ -58,33 +53,29 @@ describe("validateStatusTransition", () => {
     ["dead", "prospect"],
   ];
 
-  it.each(invalidTransitions)(
-    "rejects %s → %s",
-    (current, next) => {
-      expect(validateStatusTransition(current, next)).toBe(false);
-    },
-  );
+  it.each(invalidTransitions)("rejects %s -> %s", (current, next) => {
+    expect(validateStatusTransition(current, next)).toBe(false);
+  });
 
-  /* ---- backward / recovery transitions ---- */
-  it("allows dead → nurture (recovery)", () => {
+  it("allows dead -> nurture (recovery)", () => {
     expect(validateStatusTransition("dead", "nurture")).toBe(true);
   });
 
-  it("allows dead → lead (resurrection)", () => {
+  it("allows dead -> lead (resurrection)", () => {
     expect(validateStatusTransition("dead", "lead")).toBe(true);
   });
 
-  it("allows nurture → lead (re-engagement)", () => {
+  it("allows nurture -> lead (re-engagement)", () => {
     expect(validateStatusTransition("nurture", "lead")).toBe(true);
   });
 
-  it("allows nurture → active (re-engagement with seller progress)", () => {
+  it("allows nurture -> active (re-engagement with seller progress)", () => {
     expect(validateStatusTransition("nurture", "active")).toBe(true);
   });
 });
 
 /* ------------------------------------------------------------------ */
-/*  getAllowedTransitions                                              */
+/*  getAllowedTransitions                                             */
 /* ------------------------------------------------------------------ */
 
 describe("getAllowedTransitions", () => {
@@ -124,18 +115,32 @@ describe("incrementLockVersion", () => {
 /* ------------------------------------------------------------------ */
 
 describe("validateStageTransition", () => {
-  it("requires next_action when resurrecting dead → lead", () => {
+  it("allows dead to lead resurrection without next_action", () => {
     expect(validateStageTransition("dead", "lead", null)).toEqual({
+      valid: true,
+      requiresNextAction: false,
+    });
+  });
+
+  it("still requires next_action for a normal prospect to lead advance", () => {
+    expect(validateStageTransition("prospect", "lead", null)).toEqual({
       valid: false,
       code: "missing_next_action",
       message: 'A next_action is required when advancing to "lead". Describe what happens next for this lead.',
     });
   });
 
-  it("allows dead → lead when next_action is provided", () => {
-    expect(validateStageTransition("dead", "lead", "Call back tomorrow morning")).toEqual({
+  it("allows prospect to lead when next_action is provided", () => {
+    expect(validateStageTransition("prospect", "lead", "Call back tomorrow morning")).toEqual({
       valid: true,
       requiresNextAction: true,
+    });
+  });
+
+  it("allows dead to lead when next_action is provided", () => {
+    expect(validateStageTransition("dead", "lead", "Call back tomorrow morning")).toEqual({
+      valid: true,
+      requiresNextAction: false,
     });
   });
 });
@@ -158,8 +163,6 @@ describe("evaluateStageEntryPrerequisites", () => {
     hasActivityNoteContext: false,
     dispositionCode: null,
   };
-
-  /* ---- negotiation guards ---- */
 
   it("blocks active without a short note", () => {
     const err = evaluateStageEntryPrerequisites({
@@ -231,8 +234,6 @@ describe("evaluateStageEntryPrerequisites", () => {
     expect(err).toBeNull();
   });
 
-  /* ---- nurture guards ---- */
-
   it("blocks nurture without follow-up date", () => {
     const err = evaluateStageEntryPrerequisites({
       ...base,
@@ -264,8 +265,6 @@ describe("evaluateStageEntryPrerequisites", () => {
     });
     expect(err).toBeNull();
   });
-
-  /* ---- dead guards ---- */
 
   it("blocks dead without reason", () => {
     const err = evaluateStageEntryPrerequisites({
@@ -308,8 +307,6 @@ describe("evaluateStageEntryPrerequisites", () => {
     });
     expect(err).toBeNull();
   });
-
-  /* ---- disposition guards ---- */
 
   it("blocks disposition if currentStatus is not negotiation", () => {
     const err = evaluateStageEntryPrerequisites({

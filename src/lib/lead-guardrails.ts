@@ -60,9 +60,11 @@ export function getAllowedTransitions(status: LeadStatus): ReadonlyArray<LeadSta
 
 /**
  * Returns true if a next_action string must be provided when transitioning to `next`.
- * Used by the stage API route to reject requests missing a next_action.
+ * Dead -> lead is a resurrection path and should not block the operator behind
+ * an additional next-action requirement.
  */
-export function requiresNextAction(next: LeadStatus): boolean {
+export function requiresNextAction(next: LeadStatus, current?: LeadStatus): boolean {
+  if (current === "dead" && next === "lead") return false;
   return REQUIRES_NEXT_ACTION.has(next);
 }
 
@@ -96,7 +98,7 @@ export function validateStageTransition(
     };
   }
 
-  const needsAction = requiresNextAction(next);
+  const needsAction = requiresNextAction(next, current);
   if (needsAction && !nextAction?.trim()) {
     return {
       valid: false,

@@ -731,7 +731,7 @@ export async function PATCH(req: NextRequest) {
     const isClearingNextAction = next_action !== undefined && !(typeof next_action === "string" && next_action.trim());
     const resolvedStatus = targetStatus ?? currentStatus;
 
-    if (requiresNextAction(resolvedStatus) && (isStageChange || isClearingNextAction)) {
+    if (requiresNextAction(resolvedStatus, currentStatus) && (isStageChange || isClearingNextAction)) {
       const effectiveNextAction =
         (typeof next_action === "string" && next_action.trim())
           ? next_action.trim()

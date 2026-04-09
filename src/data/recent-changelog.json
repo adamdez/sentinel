@@ -1,5 +1,10 @@
 [
   {
+    "hash": "4171cff8",
+    "date": "2026-04-09",
+    "message": "[codex] restore dead lead resurrection path"
+  },
+  {
     "hash": "839f0f27",
     "date": "2026-04-09",
     "message": "[codex] keep disconnected and wrong numbers on the file"
@@ -118,10 +123,5 @@
     "hash": "183d1258",
     "date": "2026-04-09",
     "message": "[codex] Restore missed inbound recovery visibility"
-  },
-  {
-    "hash": "709879fb",
-    "date": "2026-04-09",
-    "message": "[codex] Tighten scout tax threshold and show payments behind"
   }
 ]

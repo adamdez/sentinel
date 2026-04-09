@@ -8394,7 +8394,7 @@ export function MasterClientFileModal({
       allowedTransitions.find((candidate) => candidate.status === targetStage)
       ?? {
         status: targetStage,
-        requires_next_action: requiresNextAction(targetStage as LeadStatus),
+        requires_next_action: requiresNextAction(targetStage as LeadStatus, currentStatus as LeadStatus),
       };
 
     setSelectedStage(targetStage);
