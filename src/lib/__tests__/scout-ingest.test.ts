@@ -127,7 +127,7 @@ describe("applyScoutIngestionPolicy", () => {
     expect(result.failure_reason).toBe("missing_property_for_enrich");
   });
 
-  it("skips Spokane Scout create payloads below the 4-payment tax threshold", async () => {
+  it("skips Spokane Scout create payloads below the 5-payment tax threshold", async () => {
     const sb = createMockSb();
     const result = await applyScoutIngestionPolicy(sb as never, baseContract({
       source_record_id: "record-below-threshold",
@@ -135,14 +135,37 @@ describe("applyScoutIngestionPolicy", () => {
         tax_years_owing: [
           { year: new Date().getFullYear() - 1, owing: 1200 },
         ],
+        current_annual_taxes: 2000,
+        total_tax_owed: 1800,
       },
     }));
 
     expect(result.ok).toBe(true);
     expect(result.ingest_status).toBe("skipped");
-    expect(result.failure_reason).toBe("below_tax_threshold_4_payments");
+    expect(result.failure_reason).toBe("below_tax_threshold_5_payments");
     expect(sb.tables.properties).toHaveLength(0);
     expect(sb.tables.leads).toHaveLength(0);
+  });
+
+  it("keeps Spokane Scout create payloads when owed amount implies 5+ missed payments", async () => {
+    const sb = createMockSb();
+    const result = await applyScoutIngestionPolicy(sb as never, baseContract({
+      source_record_id: "record-five-payments",
+      tax_signals: {
+        tax_years_owing: [
+          { year: new Date().getFullYear() - 2, owing: 1200 },
+          { year: new Date().getFullYear() - 1, owing: 1200 },
+        ],
+        current_annual_taxes: 2000,
+        total_tax_owed: 5600,
+      },
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.ingest_status).toBe("created");
+    expect(result.failure_reason).toBeNull();
+    expect(sb.tables.properties).toHaveLength(1);
+    expect(sb.tables.leads).toHaveLength(1);
   });
 
   it("merges owner_flags safely without clobbering existing scout blocks", async () => {

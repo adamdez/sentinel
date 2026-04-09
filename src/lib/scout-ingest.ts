@@ -74,12 +74,22 @@ function isSpokaneScoutSource(sourceSystem: string): boolean {
   return normalized.includes("spokane") && normalized.includes("scout");
 }
 
+function numberFromUnknown(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function getScoutPriorDelinquentYears(taxSignals: Record<string, unknown> | null | undefined): number | null {
   if (!taxSignals) return null;
 
   const directCount = taxSignals.prior_delinquent_years ?? taxSignals.priorDelinquentYears ?? taxSignals.delinquent_years;
-  if (typeof directCount === "number" && Number.isFinite(directCount)) {
-    return Math.max(0, Math.trunc(directCount));
+  const normalizedDirectCount = numberFromUnknown(directCount);
+  if (normalizedDirectCount != null) {
+    return Math.max(0, Math.trunc(normalizedDirectCount));
   }
 
   const taxYears = taxSignals.tax_years_owing;
@@ -93,6 +103,38 @@ function getScoutPriorDelinquentYears(taxSignals: Record<string, unknown> | null
     const owing = Number(row.owing);
     return Number.isFinite(year) && year < currentYear && Number.isFinite(owing) && owing > 0;
   }).length;
+}
+
+function estimateScoutMissedPayments(taxSignals: Record<string, unknown> | null | undefined): number | null {
+  if (!taxSignals) return null;
+
+  const priorDelinquentYears = getScoutPriorDelinquentYears(taxSignals) ?? 0;
+  const explicitPaymentsBehind = Math.max(priorDelinquentYears * 2, 0);
+
+  const totalTaxOwed =
+    numberFromUnknown(taxSignals.total_tax_owed) ??
+    numberFromUnknown(taxSignals.totalTaxOwed) ??
+    numberFromUnknown(taxSignals.total_charges_owing) ??
+    numberFromUnknown(taxSignals.totalChargesOwing) ??
+    numberFromUnknown(taxSignals.current_remaining_charges_owing) ??
+    numberFromUnknown(taxSignals.currentRemainingChargesOwing) ??
+    numberFromUnknown(taxSignals.amount_owed) ??
+    numberFromUnknown(taxSignals.amountOwed);
+  const annualTaxes =
+    numberFromUnknown(taxSignals.current_annual_taxes) ??
+    numberFromUnknown(taxSignals.currentAnnualTaxes) ??
+    numberFromUnknown(taxSignals.annual_taxes) ??
+    numberFromUnknown(taxSignals.annualTaxes);
+
+  if (totalTaxOwed != null && annualTaxes != null && annualTaxes > 0) {
+    const perPaymentAmount = annualTaxes / 2;
+    if (perPaymentAmount > 0) {
+      const estimatedPayments = Math.max(Math.floor(totalTaxOwed / perPaymentAmount), 0);
+      return Math.max(explicitPaymentsBehind, estimatedPayments);
+    }
+  }
+
+  return explicitPaymentsBehind > 0 ? explicitPaymentsBehind : null;
 }
 
 function mergePhotos(
@@ -297,9 +339,9 @@ export async function applyScoutIngestionPolicy(
   }
 
   if (contract.ingest_mode === "create" && isSpokaneScoutSource(contract.source_system)) {
-    const priorDelinquentYears = getScoutPriorDelinquentYears(contract.tax_signals);
-    if (priorDelinquentYears != null && priorDelinquentYears < 2) {
-      return skip("below_tax_threshold_4_payments");
+    const missedPayments = estimateScoutMissedPayments(contract.tax_signals);
+    if (missedPayments != null && missedPayments < 5) {
+      return skip("below_tax_threshold_5_payments");
     }
   }
 

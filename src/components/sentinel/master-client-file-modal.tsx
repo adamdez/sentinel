@@ -871,6 +871,58 @@ function stringFromUnknown(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function taxYearsFromUnknown(value: unknown): Array<{ year: number; owing: number }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const row = entry as { year?: unknown; owing?: unknown };
+    const year = Number(row.year);
+    const owing = Number(row.owing);
+    if (!Number.isFinite(year) || !Number.isFinite(owing)) return [];
+    return [{ year, owing }];
+  });
+}
+
+function countPriorDelinquentTaxYears(value: unknown): number | null {
+  const currentYear = new Date().getFullYear();
+  const rows = taxYearsFromUnknown(value);
+  if (rows.length === 0) return null;
+  return rows.filter((row) => row.year < currentYear && row.owing > 0).length;
+}
+
+function derivePaymentsBehindDisplay(
+  totalTaxOwed: number | null,
+  annualTaxes: number | null,
+  delinquentYears: number | null,
+): { paymentsBehind: number | null; estimated: boolean } {
+  const explicitPaymentsBehind =
+    delinquentYears != null && Number.isFinite(delinquentYears)
+      ? Math.max(Math.trunc(delinquentYears) * 2, 0)
+      : null;
+
+  if (totalTaxOwed != null && annualTaxes != null && annualTaxes > 0) {
+    const perPaymentAmount = annualTaxes / 2;
+    if (perPaymentAmount > 0) {
+      const estimatedPaymentsBehind = Math.max(Math.floor(totalTaxOwed / perPaymentAmount), 0);
+      if (explicitPaymentsBehind != null) {
+        return {
+          paymentsBehind: Math.max(explicitPaymentsBehind, estimatedPaymentsBehind),
+          estimated: estimatedPaymentsBehind > explicitPaymentsBehind,
+        };
+      }
+      return {
+        paymentsBehind: estimatedPaymentsBehind,
+        estimated: true,
+      };
+    }
+  }
+
+  return {
+    paymentsBehind: explicitPaymentsBehind,
+    estimated: false,
+  };
+}
+
 
 
 
@@ -1124,6 +1176,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
   const scoutData = recordFromUnknown(ownerFlags.scout_data);
   const countyData = recordFromUnknown(ownerFlags.county_data);
   const scoutTaxSignals = recordFromUnknown(ownerFlags.scout_tax_signals);
+  const scoutTaxYearsOwing = ownerFlags.tax_years_owing ?? scoutTaxSignals?.tax_years_owing ?? scoutData?.tax_years_owing;
   const prRaw = recordFromUnknown(ownerFlags.pr_raw);
   const scoutTaxOwed =
     numberFromUnknown(scoutData?.total_charges_owing) ??
@@ -1167,6 +1220,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
   const scoutAnnualTaxesDisplay = scoutAnnualTaxes ?? 0;
   const countyTaxableValueDisplay = countyTaxableValue ?? 0;
   const taxAssessedValue = numberFromUnknown(ownerFlags.tax_assessed_value) ?? countyAssessedValue ?? scoutAssessedValue ?? 0;
+  const exactPriorDelinquentYears = countPriorDelinquentTaxYears(scoutTaxYearsOwing);
   const explicitDelinquentYear =
     numberFromUnknown(prRaw?.DelinquentYear) ??
     numberFromUnknown(prRaw?.delinquent_year) ??
@@ -1178,11 +1232,18 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
       ? Math.max(new Date().getFullYear() - explicitDelinquentYear, 0)
       : null;
   const inferredDelinquentYears =
-    explicitDelinquentYears == null && displayedTaxOwed > 0 && scoutAnnualTaxesDisplay > 0
+    exactPriorDelinquentYears == null && explicitDelinquentYears == null && displayedTaxOwed > 0 && scoutAnnualTaxesDisplay > 0
       ? Math.max(Math.floor(displayedTaxOwed / scoutAnnualTaxesDisplay), 1)
       : null;
-  const delinquentYearsDisplay = explicitDelinquentYears ?? inferredDelinquentYears;
-  const delinquentYearsEstimated = explicitDelinquentYears == null && inferredDelinquentYears != null;
+  const delinquentYearsDisplay = exactPriorDelinquentYears ?? explicitDelinquentYears ?? inferredDelinquentYears;
+  const delinquentYearsEstimated = exactPriorDelinquentYears == null && explicitDelinquentYears == null && inferredDelinquentYears != null;
+  const paymentsBehindMeta = derivePaymentsBehindDisplay(
+    displayedTaxOwed > 0 ? displayedTaxOwed : null,
+    scoutAnnualTaxesDisplay > 0 ? scoutAnnualTaxesDisplay : null,
+    exactPriorDelinquentYears ?? explicitDelinquentYears,
+  );
+  const paymentsBehindDisplay = paymentsBehindMeta.paymentsBehind;
+  const paymentsBehindEstimated = paymentsBehindMeta.estimated;
   const hasPropertyBasics =
     displayBedrooms != null ||
     displayBathrooms != null ||
@@ -1478,7 +1539,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
 
 
-      {(cf.recommendedCallAngle || bestArv > 0 || taxAssessedValue > 0 || displayedTaxOwed > 0 || scoutAnnualTaxesDisplay > 0 || countyTaxableValueDisplay > 0 || (delinquentYearsDisplay != null && delinquentYearsDisplay > 0)) && (
+      {(cf.recommendedCallAngle || bestArv > 0 || taxAssessedValue > 0 || displayedTaxOwed > 0 || scoutAnnualTaxesDisplay > 0 || countyTaxableValueDisplay > 0 || (paymentsBehindDisplay != null && paymentsBehindDisplay > 0) || (delinquentYearsDisplay != null && delinquentYearsDisplay > 0)) && (
         <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Call Context</p>
 
@@ -1487,7 +1548,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
               <p className="text-foreground line-clamp-2">{cf.recommendedCallAngle}</p>
             )}
 
-            {(bestArv > 0 || taxAssessedValue > 0 || displayedTaxOwed > 0 || scoutAnnualTaxesDisplay > 0 || countyTaxableValueDisplay > 0 || (delinquentYearsDisplay != null && delinquentYearsDisplay > 0)) && (
+            {(bestArv > 0 || taxAssessedValue > 0 || displayedTaxOwed > 0 || scoutAnnualTaxesDisplay > 0 || countyTaxableValueDisplay > 0 || (paymentsBehindDisplay != null && paymentsBehindDisplay > 0) || (delinquentYearsDisplay != null && delinquentYearsDisplay > 0)) && (
               <div className="flex flex-wrap items-center gap-3 text-xs">
                 {bestArv > 0 && (
                   <span className="text-muted-foreground">
@@ -1507,6 +1568,11 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
                 {displayedTaxOwed > 0 && (
                   <span className="text-muted-foreground">
                     Scout Owed <span className="text-foreground font-mono font-semibold">{formatCurrency(displayedTaxOwed)}</span>
+                  </span>
+                )}
+                {paymentsBehindDisplay != null && paymentsBehindDisplay > 0 && (
+                  <span className="text-muted-foreground">
+                    {paymentsBehindEstimated ? "Est. Payments Behind" : "Payments Behind"} <span className="text-foreground font-mono font-semibold">{paymentsBehindDisplay}</span>
                   </span>
                 )}
                 {delinquentYearsDisplay != null && delinquentYearsDisplay > 0 && (
