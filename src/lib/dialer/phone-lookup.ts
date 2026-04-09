@@ -31,6 +31,7 @@ export type PhoneMatchSource =
   | "intake_leads"
   | "calls_log"
   | "call_sessions"
+  | "sms_messages"
   | "auto_cycle"
   | null;
 
@@ -59,6 +60,18 @@ export interface PhoneLookupResult {
   lastCallDate: string | null;
 }
 
+export interface PhoneSearchCandidate extends PhoneLookupResult {
+  matchedPhone: string | null;
+  matchReason: string;
+  exact: boolean;
+  phoneStatus: string | null;
+}
+
+type CandidateSeed = Partial<PhoneLookupResult> & {
+  matchedPhone: string | null;
+  phoneStatus?: string | null;
+};
+
 // ── Phone normalization ──────────────────────────────────────────────
 
 function normalizeDigits(phone: string): string {
@@ -86,6 +99,44 @@ function phoneOrFilter(raw: string): string {
 
 function phoneIlike(digits: string): string {
   return `%${digits.slice(-10)}`;
+}
+
+function isExactPhoneMatch(queryDigits: string, candidatePhone: string | null): boolean {
+  if (!candidatePhone) return false;
+  const normalizedCandidate = normalizeDigits(candidatePhone);
+  const normalizedQuery = normalizeDigits(queryDigits);
+  if (normalizedQuery.length < 7) return false;
+  return normalizedCandidate.endsWith(normalizedQuery);
+}
+
+function sourceRank(source: PhoneMatchSource, phoneStatus?: string | null): number {
+  if (source === "contacts") return 100;
+  if (source === "lead_phones") return phoneStatus === "active" ? 95 : 72;
+  if (source === "properties") return 90;
+  if (source === "sms_messages") return 68;
+  if (source === "calls_log") return 64;
+  if (source === "call_sessions") return 62;
+  if (source === "auto_cycle") return 58;
+  if (source === "intake_leads") return 40;
+  return 0;
+}
+
+export function phoneMatchReason(
+  source: PhoneMatchSource,
+  options?: { phoneStatus?: string | null },
+): string {
+  if (source === "contacts") return "Direct phone";
+  if (source === "lead_phones") {
+    return options?.phoneStatus && options.phoneStatus !== "active"
+      ? "Old lead phone"
+      : "Direct phone";
+  }
+  if (source === "properties") return "Direct phone";
+  if (source === "sms_messages") return "SMS thread";
+  if (source === "calls_log" || source === "call_sessions") return "Historical call";
+  if (source === "auto_cycle") return "Historical dial";
+  if (source === "intake_leads") return "Intake phone";
+  return "Phone match";
 }
 
 // ── The unified lookup ───────────────────────────────────────────────
@@ -185,6 +236,67 @@ export async function unifiedPhoneLookup(
     ownerName: partialProperty?.ownerName ?? null,
     ...history,
   };
+}
+
+export async function searchPhoneCandidates(
+  phone: string,
+  sb?: SupabaseClient,
+  options?: { limit?: number },
+): Promise<PhoneSearchCandidate[]> {
+  const client = sb ?? createDialerClient();
+  const digits = normalizeDigits(phone);
+
+  if (digits.length < 4) {
+    return [];
+  }
+
+  const ilike = phoneIlike(digits);
+  const limitPerSource = Math.max(3, options?.limit ?? 8);
+
+  const [
+    contactSeeds,
+    leadPhoneSeeds,
+    propertySeeds,
+    intakeSeeds,
+    callSeeds,
+    sessionSeeds,
+    smsSeeds,
+    autoCycleSeeds,
+    directMatch,
+  ] = await Promise.all([
+    findContactCandidates(client, digits, limitPerSource),
+    findLeadPhoneCandidates(client, ilike, limitPerSource),
+    findPropertyCandidates(client, ilike, limitPerSource),
+    findIntakeCandidates(client, ilike, limitPerSource),
+    findCallsLogCandidates(client, ilike, limitPerSource),
+    findCallSessionCandidates(client, ilike, limitPerSource),
+    findSmsThreadCandidates(client, ilike, limitPerSource),
+    findAutoCycleCandidates(client, ilike, limitPerSource),
+    digits.length >= 7 ? unifiedPhoneLookup(phone, client) : Promise.resolve(null),
+  ]);
+
+  const combinedSeeds: CandidateSeed[] = [
+    ...(directMatch?.matchSource
+      ? [{
+          ...directMatch,
+          matchedPhone: phone,
+          phoneStatus: directMatch.matchSource === "lead_phones" ? "active" : null,
+        }]
+      : []),
+    ...contactSeeds,
+    ...leadPhoneSeeds,
+    ...propertySeeds,
+    ...intakeSeeds,
+    ...callSeeds,
+    ...sessionSeeds,
+    ...smsSeeds,
+    ...autoCycleSeeds,
+  ];
+
+  const hydrated = await hydratePhoneCandidates(client, combinedSeeds, digits);
+  const deduped = dedupePhoneCandidates(hydrated, digits);
+
+  return deduped.slice(0, options?.limit ?? 8);
 }
 
 // ── Individual lookup functions ──────────────────────────────────────
@@ -419,6 +531,323 @@ async function lookupViaAutoCycle(
 }
 
 // ── Call history summary ─────────────────────────────────────────────
+
+async function findContactCandidates(
+  sb: SupabaseClient,
+  digits: string,
+  limit: number,
+): Promise<CandidateSeed[]> {
+  const normalizedDigits = normalizeDigits(digits);
+  const last10 = normalizedDigits.slice(-10);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb.from("contacts") as any)
+    .select("id, first_name, last_name, phone, leads!contact_id(id)")
+    .ilike("phone", `%${last10}`)
+    .limit(limit);
+
+  return (data ?? []).map((contact: Record<string, unknown>) => {
+    const leads = Array.isArray(contact.leads) ? contact.leads as Array<{ id?: string | null }> : [];
+    const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || null;
+    return {
+      leadId: leads[0]?.id ?? null,
+      matchSource: "contacts" as const,
+      matchConfidence: "direct" as const,
+      ownerName: name,
+      contactId: (contact.id as string | null) ?? null,
+      matchedPhone: (contact.phone as string | null) ?? null,
+      phoneStatus: "active",
+    };
+  });
+}
+
+async function findLeadPhoneCandidates(
+  sb: SupabaseClient,
+  ilike: string,
+  limit: number,
+): Promise<CandidateSeed[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb.from("lead_phones") as any)
+    .select("phone, lead_id, status")
+    .ilike("phone", ilike)
+    .limit(limit);
+
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    leadId: (row.lead_id as string | null) ?? null,
+    matchSource: "lead_phones" as const,
+    matchConfidence: (row.status as string | null) === "active" ? "direct" as const : "indirect" as const,
+    matchedPhone: (row.phone as string | null) ?? null,
+    phoneStatus: (row.status as string | null) ?? null,
+  }));
+}
+
+async function findPropertyCandidates(
+  sb: SupabaseClient,
+  ilike: string,
+  limit: number,
+): Promise<CandidateSeed[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb.from("properties") as any)
+    .select("id, owner_name, owner_phone, address, leads(id)")
+    .ilike("owner_phone", ilike)
+    .limit(limit);
+
+  return (data ?? []).map((property: Record<string, unknown>) => {
+    const leads = Array.isArray(property.leads) ? property.leads as Array<{ id?: string | null }> : [];
+    return {
+      leadId: leads[0]?.id ?? null,
+      matchSource: "properties" as const,
+      matchConfidence: "direct" as const,
+      ownerName: (property.owner_name as string | null) ?? null,
+      propertyAddress: (property.address as string | null) ?? null,
+      propertyId: (property.id as string | null) ?? null,
+      matchedPhone: (property.owner_phone as string | null) ?? null,
+      phoneStatus: "active",
+    };
+  });
+}
+
+async function findIntakeCandidates(
+  sb: SupabaseClient,
+  ilike: string,
+  limit: number,
+): Promise<CandidateSeed[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb.from("intake_leads") as any)
+    .select("id, owner_name, owner_phone, property_address")
+    .ilike("owner_phone", ilike)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    leadId: null,
+    matchSource: "intake_leads" as const,
+    matchConfidence: "indirect" as const,
+    ownerName: (row.owner_name as string | null) ?? null,
+    propertyAddress: (row.property_address as string | null) ?? null,
+    intakeLeadId: (row.id as string | null) ?? null,
+    matchedPhone: (row.owner_phone as string | null) ?? null,
+    phoneStatus: "active",
+  }));
+}
+
+async function findCallsLogCandidates(
+  sb: SupabaseClient,
+  ilike: string,
+  limit: number,
+): Promise<CandidateSeed[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb.from("calls_log") as any)
+    .select("lead_id, phone_dialed, created_at")
+    .ilike("phone_dialed", ilike)
+    .not("lead_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    leadId: (row.lead_id as string | null) ?? null,
+    matchSource: "calls_log" as const,
+    matchConfidence: "indirect" as const,
+    matchedPhone: (row.phone_dialed as string | null) ?? null,
+    recentCallCount: 1,
+    lastCallDate: (row.created_at as string | null) ?? null,
+    phoneStatus: "historical",
+  }));
+}
+
+async function findCallSessionCandidates(
+  sb: SupabaseClient,
+  ilike: string,
+  limit: number,
+): Promise<CandidateSeed[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb.from("call_sessions") as any)
+    .select("lead_id, phone_dialed, created_at")
+    .ilike("phone_dialed", ilike)
+    .not("lead_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    leadId: (row.lead_id as string | null) ?? null,
+    matchSource: "call_sessions" as const,
+    matchConfidence: "indirect" as const,
+    matchedPhone: (row.phone_dialed as string | null) ?? null,
+    lastCallDate: (row.created_at as string | null) ?? null,
+    phoneStatus: "historical",
+  }));
+}
+
+async function findSmsThreadCandidates(
+  sb: SupabaseClient,
+  ilike: string,
+  limit: number,
+): Promise<CandidateSeed[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb.from("sms_messages") as any)
+    .select("phone, lead_id, created_at")
+    .ilike("phone", ilike)
+    .not("lead_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    leadId: (row.lead_id as string | null) ?? null,
+    matchSource: "sms_messages" as const,
+    matchConfidence: "indirect" as const,
+    matchedPhone: (row.phone as string | null) ?? null,
+    lastCallDate: (row.created_at as string | null) ?? null,
+    phoneStatus: "historical",
+  }));
+}
+
+async function findAutoCycleCandidates(
+  sb: SupabaseClient,
+  ilike: string,
+  limit: number,
+): Promise<CandidateSeed[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (sb.from("dialer_auto_cycle_phones") as any)
+    .select("lead_id, phone")
+    .ilike("phone", ilike)
+    .not("lead_id", "is", null)
+    .limit(limit);
+
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    leadId: (row.lead_id as string | null) ?? null,
+    matchSource: "auto_cycle" as const,
+    matchConfidence: "indirect" as const,
+    matchedPhone: (row.phone as string | null) ?? null,
+    phoneStatus: "historical",
+  }));
+}
+
+async function hydratePhoneCandidates(
+  sb: SupabaseClient,
+  seeds: CandidateSeed[],
+  queryDigits: string,
+): Promise<PhoneSearchCandidate[]> {
+  const leadIds = [...new Set(seeds.map((seed) => seed.leadId).filter(Boolean))] as string[];
+  const directPropertyIds = [...new Set(seeds.map((seed) => seed.propertyId).filter(Boolean))] as string[];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const leadsPromise = leadIds.length > 0
+    ? (sb.from("leads") as any)
+        .select("id, property_id")
+        .in("id", leadIds)
+    : Promise.resolve({ data: [] });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const propertiesPromise = directPropertyIds.length > 0
+    ? (sb.from("properties") as any)
+        .select("id, owner_name, address")
+        .in("id", directPropertyIds)
+    : Promise.resolve({ data: [] });
+
+  const [{ data: leads }, { data: directProperties }] = await Promise.all([leadsPromise, propertiesPromise]);
+
+  const leadMap = new Map(
+    ((leads ?? []) as Array<{ id: string; property_id: string | null }>).map((lead) => [lead.id, lead]),
+  );
+  const propertyMap = new Map(
+    ((directProperties ?? []) as Array<{ id: string; owner_name: string | null; address: string | null }>).map((property) => [property.id, property]),
+  );
+
+  const propertyIdsFromLeads = [...new Set(
+    seeds
+      .map((seed) => {
+        if (seed.propertyId) return seed.propertyId;
+        if (!seed.leadId) return null;
+        return leadMap.get(seed.leadId)?.property_id ?? null;
+      })
+      .filter(Boolean),
+  )].filter((propertyId) => !propertyMap.has(propertyId as string)) as string[];
+
+  if (propertyIdsFromLeads.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leadProperties } = await (sb.from("properties") as any)
+      .select("id, owner_name, address")
+      .in("id", propertyIdsFromLeads);
+
+    for (const property of (leadProperties ?? []) as Array<{ id: string; owner_name: string | null; address: string | null }>) {
+      propertyMap.set(property.id, property);
+    }
+  }
+
+  return seeds
+    .map((seed) => {
+      const propertyId = seed.propertyId ?? (seed.leadId ? leadMap.get(seed.leadId)?.property_id ?? null : null);
+      const property = propertyId ? propertyMap.get(propertyId) : null;
+      const matchedPhone = seed.matchedPhone ?? null;
+      const matchSource = seed.matchSource ?? null;
+
+      return {
+        leadId: seed.leadId ?? null,
+        matchSource,
+        matchConfidence: seed.matchConfidence ?? "none",
+        ownerName: seed.ownerName ?? property?.owner_name ?? null,
+        propertyAddress: seed.propertyAddress ?? property?.address ?? null,
+        contactId: seed.contactId ?? null,
+        propertyId,
+        intakeLeadId: seed.intakeLeadId ?? null,
+        recentCallCount: seed.recentCallCount ?? 0,
+        lastCallDate: seed.lastCallDate ?? null,
+        matchedPhone,
+        matchReason: phoneMatchReason(matchSource, { phoneStatus: seed.phoneStatus ?? null }),
+        exact: isExactPhoneMatch(queryDigits, matchedPhone),
+        phoneStatus: seed.phoneStatus ?? null,
+      } satisfies PhoneSearchCandidate;
+    })
+    .filter((candidate) => candidate.matchSource);
+}
+
+function dedupePhoneCandidates(
+  candidates: PhoneSearchCandidate[],
+  queryDigits: string,
+): PhoneSearchCandidate[] {
+  const byKey = new Map<string, PhoneSearchCandidate>();
+
+  for (const candidate of candidates) {
+    const key = candidate.leadId
+      ? `lead:${candidate.leadId}`
+      : candidate.intakeLeadId
+        ? `intake:${candidate.intakeLeadId}`
+        : candidate.contactId
+          ? `contact:${candidate.contactId}`
+          : `${candidate.matchSource}:${normalizeDigits(candidate.matchedPhone ?? "")}`;
+    const existing = byKey.get(key);
+
+    if (!existing) {
+      byKey.set(key, candidate);
+      continue;
+    }
+
+    const existingScore = sourceRank(existing.matchSource, existing.phoneStatus) + (existing.exact ? 20 : 0);
+    const candidateScore = sourceRank(candidate.matchSource, candidate.phoneStatus) + (candidate.exact ? 20 : 0);
+    if (candidateScore > existingScore) {
+      byKey.set(key, candidate);
+    }
+  }
+
+  return [...byKey.values()].sort((a, b) => {
+    const exactDelta = Number(b.exact) - Number(a.exact);
+    if (exactDelta !== 0) return exactDelta;
+
+    const rankDelta = sourceRank(b.matchSource, b.phoneStatus) - sourceRank(a.matchSource, a.phoneStatus);
+    if (rankDelta !== 0) return rankDelta;
+
+    const recentDelta = (b.recentCallCount ?? 0) - (a.recentCallCount ?? 0);
+    if (recentDelta !== 0) return recentDelta;
+
+    const lastCallA = a.lastCallDate ? new Date(a.lastCallDate).getTime() : 0;
+    const lastCallB = b.lastCallDate ? new Date(b.lastCallDate).getTime() : 0;
+    if (lastCallB !== lastCallA) return lastCallB - lastCallA;
+
+    const aEndsWith = normalizeDigits(a.matchedPhone ?? "").endsWith(queryDigits);
+    const bEndsWith = normalizeDigits(b.matchedPhone ?? "").endsWith(queryDigits);
+    return Number(bEndsWith) - Number(aEndsWith);
+  });
+}
 
 async function callHistory(
   sb: SupabaseClient,

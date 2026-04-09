@@ -67,6 +67,37 @@ export async function GET(
   return NextResponse.json({
     messages: messages ?? [],
     leadInfo,
+    resolutionState: resolution.resolutionState,
+    resolutionLabel: resolution.matchReason,
+    suggestedLead: resolution.suggestedMatch
+      ? {
+          id: resolution.suggestedMatch.leadId,
+          name: resolution.suggestedMatch.ownerName ?? decoded,
+          score: resolution.suggestedMatch.priority,
+          tags: resolution.suggestedMatch.tags,
+          status: resolution.suggestedMatch.status ?? "unknown",
+          propertyAddress: resolution.suggestedMatch.propertyAddress,
+          matchReason: resolution.suggestedMatch.matchReason,
+          matchSource: resolution.suggestedMatch.matchSource,
+          matchedPhone: resolution.suggestedMatch.matchedPhone,
+          recentCallCount: resolution.suggestedMatch.recentCallCount,
+          lastCallDate: resolution.suggestedMatch.lastCallDate,
+        }
+      : null,
+    candidateMatches: resolution.candidateMatches.map((candidate) => ({
+      id: candidate.leadId,
+      name: candidate.ownerName ?? decoded,
+      score: candidate.priority,
+      tags: candidate.tags,
+      status: candidate.status ?? "unknown",
+      propertyAddress: candidate.propertyAddress,
+      matchReason: candidate.matchReason,
+      matchSource: candidate.matchSource,
+      matchedPhone: candidate.matchedPhone,
+      recentCallCount: candidate.recentCallCount,
+      lastCallDate: candidate.lastCallDate,
+    })),
+    searchDigits: resolution.searchDigits,
     markedRead: unreadIds.length,
   });
 }

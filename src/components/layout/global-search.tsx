@@ -36,14 +36,17 @@ interface SearchRecord {
   score?: number;
   scoreLabel?: "platinum" | "gold" | "silver" | "bronze";
   status?: string;
+  matchLabel?: string;
 }
 
 interface PhoneSearchApiResult {
   phone: string;
+  matchedPhone: string | null;
   leadId: string | null;
   ownerName: string | null;
   propertyAddress: string | null;
   status: string | null;
+  matchReason: string;
 }
 
 const SCORE_COLORS: Record<string, string> = {
@@ -142,7 +145,7 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
   const isPhoneLike = digits.length >= 4;
   const phonePattern = isPhoneLike ? `%${digits}%` : null;
   const phoneSearchPromise: Promise<PhoneSearchApiResult[]> =
-    digits.length >= 7
+    isPhoneLike
       ? fetch(`/api/search/phone?q=${encodeURIComponent(q)}`)
           .then(async (res) => {
             if (!res.ok) return [];
@@ -226,10 +229,15 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
     records.push({
       id: result.leadId,
       kind: result.status === "prospect" ? "prospect" : "lead",
-      primary: result.ownerName ?? formatPhone(result.phone),
-      secondary: [result.propertyAddress, formatPhone(result.phone)].filter(Boolean).join(" - "),
+      primary: result.ownerName ?? formatPhone(result.matchedPhone ?? result.phone),
+      secondary: [
+        result.matchReason,
+        result.propertyAddress,
+        formatPhone(result.matchedPhone ?? result.phone),
+      ].filter(Boolean).join(" · "),
       href: `/leads?open=${result.leadId}`,
       status: result.status ?? "lead",
+      matchLabel: result.matchReason,
     });
   }
 

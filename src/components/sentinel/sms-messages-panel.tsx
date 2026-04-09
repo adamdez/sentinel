@@ -22,6 +22,12 @@ interface SmsThread {
   lastMessageAt: string;
   direction: string;
   unreadCount: number;
+  resolutionState: "direct" | "suggested" | "unresolved";
+  matchReason: string | null;
+  matchSource: string | null;
+  suggestedLeadId: string | null;
+  suggestedLeadName: string | null;
+  suggestedPropertyAddress: string | null;
 }
 
 interface SmsMessage {
@@ -39,6 +45,29 @@ interface LeadInfo {
   score: number | null;
   tags: string[];
   status: string;
+}
+
+interface SuggestedLeadInfo extends LeadInfo {
+  propertyAddress?: string | null;
+  matchReason: string;
+  matchSource: string | null;
+  matchedPhone?: string | null;
+  recentCallCount?: number;
+  lastCallDate?: string | null;
+}
+
+interface SearchDigits {
+  last4: string | null;
+  last7: string | null;
+}
+
+interface NearbyPhoneMatch {
+  leadId: string | null;
+  ownerName: string | null;
+  propertyAddress: string | null;
+  matchedPhone: string | null;
+  matchReason: string;
+  status: string | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -112,6 +141,16 @@ function ThreadRow({
                 {formatPhone(thread.phone)}
               </span>
             )}
+            {thread.resolutionState === "suggested" && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300">
+                Needs review
+              </span>
+            )}
+            {thread.resolutionState === "unresolved" && !thread.leadId && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full border border-overlay-8 bg-overlay-4 text-muted-foreground/60">
+                Unassigned
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted-foreground/60 truncate mt-0.5">
             {thread.direction === "outbound" ? "You: " : ""}
@@ -138,6 +177,16 @@ function ThreadDetail({
 }) {
   const [messages, setMessages] = useState<SmsMessage[]>([]);
   const [leadInfo, setLeadInfo] = useState<LeadInfo | null>(null);
+  const [resolutionState, setResolutionState] = useState<"direct" | "suggested" | "unresolved">("unresolved");
+  const [resolutionLabel, setResolutionLabel] = useState<string | null>(null);
+  const [suggestedLead, setSuggestedLead] = useState<SuggestedLeadInfo | null>(null);
+  const [candidateMatches, setCandidateMatches] = useState<SuggestedLeadInfo[]>([]);
+  const [searchDigits, setSearchDigits] = useState<SearchDigits>({ last4: null, last7: null });
+  const [nearbyMatches, setNearbyMatches] = useState<SuggestedLeadInfo[]>([]);
+  const [nearbyLabel, setNearbyLabel] = useState<string | null>(null);
+  const [searchingNearby, setSearchingNearby] = useState(false);
+  const [attachingLeadId, setAttachingLeadId] = useState<string | null>(null);
+  const [dismissedReview, setDismissedReview] = useState(false);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -161,6 +210,15 @@ function ThreadDetail({
       const data = await res.json();
       setMessages(data.messages ?? []);
       setLeadInfo(data.leadInfo ?? null);
+      setResolutionState(data.resolutionState ?? "unresolved");
+      setResolutionLabel(data.resolutionLabel ?? null);
+      setSuggestedLead(data.suggestedLead ?? null);
+      setCandidateMatches(data.candidateMatches ?? []);
+      setSearchDigits(data.searchDigits ?? { last4: null, last7: null });
+      if (!data.suggestedLead) {
+        setNearbyMatches([]);
+        setNearbyLabel(null);
+      }
     }
     setLoading(false);
   }, [phone]);
@@ -172,11 +230,82 @@ function ThreadDetail({
   }, [fetchMessages]);
 
   useEffect(() => {
+    setDismissedReview(false);
+    setNearbyMatches([]);
+    setNearbyLabel(null);
+  }, [phone]);
+
+  useEffect(() => {
     if (forceScrollRef.current || shouldStickToBottomRef.current) {
       bottomRef.current?.scrollIntoView({ behavior: forceScrollRef.current ? "auto" : "smooth" });
       forceScrollRef.current = false;
     }
   }, [messages]);
+
+  const runNearbySearch = useCallback(async (digits: string, label: string) => {
+    if (!digits) return;
+    setSearchingNearby(true);
+    try {
+      const res = await fetch(`/api/search/phone?q=${encodeURIComponent(digits)}`);
+      if (!res.ok) {
+        toast.error("Unable to search nearby matches");
+        return;
+      }
+
+      const data = await res.json();
+      const mapped = ((data.results ?? []) as NearbyPhoneMatch[])
+        .filter((match) => match.leadId)
+        .map((match) => ({
+          id: match.leadId as string,
+          name: match.ownerName ?? formatPhone(match.matchedPhone ?? phone),
+          score: null,
+          tags: [],
+          status: match.status ?? "unknown",
+          propertyAddress: match.propertyAddress,
+          matchReason: match.matchReason,
+          matchSource: null,
+          matchedPhone: match.matchedPhone,
+        }));
+
+      setNearbyMatches(mapped);
+      setNearbyLabel(label);
+    } catch {
+      toast.error("Unable to search nearby matches");
+    } finally {
+      setSearchingNearby(false);
+    }
+  }, [phone]);
+
+  const handleAttach = useCallback(async (leadId: string) => {
+    if (!leadId || attachingLeadId) return;
+    setAttachingLeadId(leadId);
+    try {
+      const headers = await authHeaders();
+      const res = await fetch(`/api/twilio/sms/threads/${encodeURIComponent(phone)}/attach`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          leadId,
+          reason: resolutionState === "suggested" ? "suggested_review_attach" : "manual_review_attach",
+          addPhoneFact: true,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Unable to attach thread");
+        return;
+      }
+
+      toast.success("Thread attached to client file");
+      setDismissedReview(false);
+      await fetchMessages();
+    } catch {
+      toast.error("Unable to attach thread");
+    } finally {
+      setAttachingLeadId(null);
+    }
+  }, [attachingLeadId, fetchMessages, phone, resolutionState]);
 
   const handleSend = async () => {
     if (!draft.trim() || sending) return;
@@ -213,6 +342,10 @@ function ThreadDetail({
     }
   };
 
+  const showResolutionBanner = !dismissedReview && !leadInfo;
+  const reviewMatches = nearbyMatches.length > 0 ? nearbyMatches : candidateMatches;
+  const reviewLabel = nearbyLabel ?? resolutionLabel;
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -225,14 +358,19 @@ function ThreadDetail({
         </button>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-foreground truncate">
-            {leadInfo?.name ?? formatPhone(phone)}
+            {leadInfo?.name ?? suggestedLead?.name ?? formatPhone(phone)}
           </p>
           {leadInfo && (
             <p className="text-xs text-muted-foreground/60 truncate">
               {leadInfo.tags?.[0] ?? leadInfo.status} · {leadInfo.score ?? "—"}
             </p>
           )}
-          {!leadInfo && (
+          {!leadInfo && suggestedLead && (
+            <p className="text-xs text-muted-foreground/60 truncate">
+              {suggestedLead.matchReason} · {suggestedLead.propertyAddress ?? formatPhone(phone)}
+            </p>
+          )}
+          {!leadInfo && !suggestedLead && (
             <p className="text-xs text-muted-foreground/40 font-mono">{formatPhone(phone)}</p>
           )}
         </div>
@@ -244,7 +382,136 @@ function ThreadDetail({
             Open File
           </button>
         )}
+        {!leadInfo && suggestedLead?.id && (
+          <button
+            onClick={() => onOpenLead(suggestedLead.id)}
+            className="text-xs px-2.5 py-1 rounded-[8px] border border-overlay-8 text-muted-foreground/60 hover:text-foreground hover:border-overlay-20 transition-colors"
+          >
+            Open Suggested File
+          </button>
+        )}
       </div>
+
+      {leadInfo && (
+        <div className="mb-2 rounded-[10px] border border-primary/20 bg-primary/10 px-3 py-2">
+          <p className="text-[11px] uppercase tracking-[0.16em] text-primary/80">Matched directly</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">{resolutionLabel ?? "Direct phone"}</p>
+        </div>
+      )}
+
+      {showResolutionBanner && (
+        <div
+          className={cn(
+            "mb-2 rounded-[12px] border px-3 py-2",
+            resolutionState === "suggested"
+              ? "border-amber-500/25 bg-amber-500/10"
+              : "border-overlay-8 bg-overlay-4",
+          )}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/60">
+                {resolutionState === "suggested" ? "Needs Review" : "Unassigned"}
+              </p>
+              <p className="text-sm text-foreground mt-1">
+                {resolutionState === "suggested"
+                  ? reviewLabel ?? "Suggested from prior phone evidence"
+                  : "No file match yet"}
+              </p>
+              {suggestedLead?.propertyAddress && (
+                <p className="text-xs text-muted-foreground/60 mt-1 truncate">
+                  {suggestedLead.propertyAddress}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => setDismissedReview(true)}
+              className="text-xs px-2 py-1 rounded-[8px] border border-overlay-8 text-muted-foreground/60 hover:text-foreground transition-colors"
+            >
+              Keep unassigned
+            </button>
+          </div>
+
+          {suggestedLead?.id && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              <button
+                onClick={() => handleAttach(suggestedLead.id)}
+                disabled={attachingLeadId === suggestedLead.id}
+                className="text-xs px-2.5 py-1 rounded-[8px] border border-amber-500/30 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 transition-colors disabled:opacity-60"
+              >
+                {attachingLeadId === suggestedLead.id ? "Attaching..." : "Attach to file"}
+              </button>
+              <button
+                onClick={() => onOpenLead(suggestedLead.id)}
+                className="text-xs px-2.5 py-1 rounded-[8px] border border-overlay-8 text-muted-foreground/70 hover:text-foreground transition-colors"
+              >
+                Open suggested file
+              </button>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2 mt-3">
+            {searchDigits.last4 && (
+              <button
+                onClick={() => runNearbySearch(searchDigits.last4 as string, `Last 4: ${searchDigits.last4}`)}
+                disabled={searchingNearby}
+                className="text-xs px-2.5 py-1 rounded-[8px] border border-overlay-8 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-60"
+              >
+                Search last 4
+              </button>
+            )}
+            {searchDigits.last7 && (
+              <button
+                onClick={() => runNearbySearch(searchDigits.last7 as string, `Last 7: ${searchDigits.last7}`)}
+                disabled={searchingNearby}
+                className="text-xs px-2.5 py-1 rounded-[8px] border border-overlay-8 text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-60"
+              >
+                Search last 7
+              </button>
+            )}
+          </div>
+
+          {reviewMatches.length > 0 && (
+            <div className="space-y-2 mt-3">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground/45">
+                {nearbyLabel ? `Nearby matches · ${nearbyLabel}` : "Candidate matches"}
+              </p>
+              {reviewMatches.map((candidate) => (
+                <div
+                  key={`${candidate.id}-${candidate.matchReason}-${candidate.matchedPhone ?? ""}`}
+                  className="rounded-[10px] border border-overlay-8 bg-background/20 px-3 py-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{candidate.name}</p>
+                      <p className="text-xs text-muted-foreground/60 truncate">
+                        {[candidate.matchReason, candidate.propertyAddress, formatPhone(candidate.matchedPhone ?? phone)]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => onOpenLead(candidate.id)}
+                        className="text-xs px-2 py-1 rounded-[8px] border border-overlay-8 text-muted-foreground/70 hover:text-foreground transition-colors"
+                      >
+                        Open
+                      </button>
+                      <button
+                        onClick={() => handleAttach(candidate.id)}
+                        disabled={attachingLeadId === candidate.id}
+                        className="text-xs px-2 py-1 rounded-[8px] border border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-60"
+                      >
+                        {attachingLeadId === candidate.id ? "Attaching..." : "Attach"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       <div

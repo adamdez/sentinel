@@ -60,7 +60,9 @@ export async function POST(req: NextRequest) {
       compliant: scrub.allowed,
       blocked_reasons: scrub.blockedReasons,
       matched_lead_id: matchedLeadId,
+      resolution_state: resolution.resolutionState,
       match_source: resolution.matchSource,
+      suggested_lead_id: resolution.suggestedMatch?.leadId ?? null,
       timestamp: new Date().toISOString(),
     },
   });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import { backfillSmsLeadForPhone, resolveSmsLead } from "@/lib/sms/lead-resolution";
+import type { PhoneMatchSource } from "@/lib/dialer/phone-lookup";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,12 @@ export async function GET(req: NextRequest) {
     lastMessageAt: string;
     direction: string;
     unreadCount: number;
+    resolutionState: "direct" | "suggested" | "unresolved";
+    matchReason: string | null;
+    matchSource: PhoneMatchSource;
+    suggestedLeadId: string | null;
+    suggestedLeadName: string | null;
+    suggestedPropertyAddress: string | null;
   }>();
 
   for (const msg of (messages ?? [])) {
@@ -54,6 +61,12 @@ export async function GET(req: NextRequest) {
         lastMessageAt: msg.created_at as string,
         direction: msg.direction as string,
         unreadCount: (msg.direction === "inbound" && !msg.read_at) ? 1 : 0,
+        resolutionState: msg.lead_id ? "direct" : "unresolved",
+        matchReason: null,
+        matchSource: null,
+        suggestedLeadId: null,
+        suggestedLeadName: null,
+        suggestedPropertyAddress: null,
       });
     } else {
       if (msg.direction === "inbound" && !msg.read_at) {
@@ -61,6 +74,7 @@ export async function GET(req: NextRequest) {
       }
       if (msg.lead_id && !existing.leadId) {
         existing.leadId = msg.lead_id as string;
+        existing.resolutionState = "direct";
       }
     }
   }
@@ -102,12 +116,22 @@ export async function GET(req: NextRequest) {
         const resolution = await resolveSmsLead(sb, thread.phone);
         if (resolution.leadId) {
           thread.leadId = resolution.leadId;
+          thread.resolutionState = "direct";
+          thread.matchReason = resolution.matchReason;
+          thread.matchSource = resolution.matchSource;
           if (resolution.ownerName) {
             leadNames[resolution.leadId] = resolution.ownerName;
           }
           await backfillSmsLeadForPhone(sb, thread.phone, resolution.leadId, resolution.assignedTo);
           return;
         }
+
+        thread.resolutionState = resolution.resolutionState;
+        thread.matchReason = resolution.matchReason;
+        thread.matchSource = resolution.suggestedMatch?.matchSource ?? resolution.matchSource;
+        thread.suggestedLeadId = resolution.suggestedMatch?.leadId ?? null;
+        thread.suggestedLeadName = resolution.suggestedMatch?.ownerName ?? null;
+        thread.suggestedPropertyAddress = resolution.suggestedMatch?.propertyAddress ?? null;
 
         if (resolution.ownerName) {
           phoneLevelNames[thread.phone] = resolution.ownerName;
@@ -118,7 +142,11 @@ export async function GET(req: NextRequest) {
 
   const enrichedThreads = threads.map((t) => ({
     ...t,
-    leadName: (t.leadId ? leadNames[t.leadId] : null) ?? phoneLevelNames[t.phone] ?? null,
+    leadName:
+      (t.leadId ? leadNames[t.leadId] : null)
+      ?? t.suggestedLeadName
+      ?? phoneLevelNames[t.phone]
+      ?? null,
   }));
 
   // Sort: unread first, then by lastMessageAt DESC

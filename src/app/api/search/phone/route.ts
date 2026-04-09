@@ -12,15 +12,18 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
-import { unifiedPhoneLookup } from "@/lib/dialer/phone-lookup";
-import type { PhoneMatchSource } from "@/lib/dialer/phone-lookup";
+import { searchPhoneCandidates } from "@/lib/dialer/phone-lookup";
+import type { PhoneMatchConfidence, PhoneMatchSource } from "@/lib/dialer/phone-lookup";
 
 export interface PhoneSearchResult {
   phone: string;
+  matchedPhone: string | null;
   leadId: string | null;
   ownerName: string | null;
   propertyAddress: string | null;
   matchSource: PhoneMatchSource;
+  matchConfidence: PhoneMatchConfidence;
+  matchReason: string;
   contactId: string | null;
   propertyId: string | null;
   intakeLeadId: string | null;
@@ -40,44 +43,50 @@ export async function GET(req: NextRequest) {
   }
 
   const sb = createServerClient();
-  const result = await unifiedPhoneLookup(q, sb);
+  const candidates = await searchPhoneCandidates(q, sb, { limit: 10 });
 
-  // If we got a lead_id, fetch the lead status for the response
-  let leadStatus: string | null = null;
-  if (result.leadId) {
+  const leadIds = [...new Set(candidates.map((candidate) => candidate.leadId).filter(Boolean))] as string[];
+  let leadStatuses = new Map<string, string | null>();
+  if (leadIds.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: lead } = await (sb.from("leads") as any)
-      .select("status")
-      .eq("id", result.leadId)
-      .maybeSingle();
-    leadStatus = lead?.status ?? null;
+    const { data: leads } = await (sb.from("leads") as any)
+      .select("id, status")
+      .in("id", leadIds);
+
+    leadStatuses = new Map(
+      ((leads ?? []) as Array<{ id: string; status: string | null }>).map((lead) => [lead.id, lead.status ?? null]),
+    );
   }
 
-  // Build deeplink
-  let href: string | null = null;
-  if (result.leadId) {
-    href = `/leads?open=${result.leadId}`;
-  } else if (result.intakeLeadId) {
-    href = `/intake/${result.intakeLeadId}`;
-  }
+  const results: PhoneSearchResult[] = candidates.map((candidate) => {
+    let href: string | null = null;
+    if (candidate.leadId) {
+      href = `/leads?open=${candidate.leadId}`;
+    } else if (candidate.intakeLeadId) {
+      href = `/intake/${candidate.intakeLeadId}`;
+    }
 
-  const searchResult: PhoneSearchResult = {
-    phone: q,
-    leadId: result.leadId,
-    ownerName: result.ownerName,
-    propertyAddress: result.propertyAddress,
-    matchSource: result.matchSource,
-    contactId: result.contactId,
-    propertyId: result.propertyId,
-    intakeLeadId: result.intakeLeadId,
-    recentCallCount: result.recentCallCount,
-    lastCallDate: result.lastCallDate,
-    status: leadStatus,
-    href,
-  };
+    return {
+      phone: q,
+      matchedPhone: candidate.matchedPhone,
+      leadId: candidate.leadId,
+      ownerName: candidate.ownerName,
+      propertyAddress: candidate.propertyAddress,
+      matchSource: candidate.matchSource,
+      matchConfidence: candidate.matchConfidence,
+      matchReason: candidate.matchReason,
+      contactId: candidate.contactId,
+      propertyId: candidate.propertyId,
+      intakeLeadId: candidate.intakeLeadId,
+      recentCallCount: candidate.recentCallCount,
+      lastCallDate: candidate.lastCallDate,
+      status: candidate.leadId ? (leadStatuses.get(candidate.leadId) ?? null) : null,
+      href,
+    };
+  });
 
   return NextResponse.json({
-    results: result.matchSource ? [searchResult] : [],
+    results,
     query: q,
   });
 }
