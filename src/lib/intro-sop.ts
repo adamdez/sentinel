@@ -1,3 +1,5 @@
+import { completeOpenCallTasksForLead, projectLeadFromTasks, upsertLeadCallTask } from "@/lib/task-lead-sync";
+
 type SupabaseClientLike = {
   from: (table: string) => any;
 };
@@ -11,6 +13,7 @@ const PACIFIC_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
 
 export const INTRO_EXIT_CATEGORIES = ["nurture", "dead", "disposition", "drive_by"] as const;
 export type IntroExitCategory = (typeof INTRO_EXIT_CATEGORIES)[number];
+const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
 export interface IntroSopState {
   intro_sop_active: boolean;
@@ -138,28 +141,20 @@ export async function exitIntroSop(input: {
   };
 
   if (category === "drive_by") {
-    patch.next_action = "Drive by";
-    patch.next_action_due_at = nowIso;
     patch.status = "lead";
   } else if (category === "nurture") {
     patch.status = "nurture";
-    patch.next_action = "Nurture follow-up";
-    patch.next_action_due_at = nowIso;
   } else if (category === "dead") {
     patch.status = "dead";
-    patch.next_action = "Dead - archived";
-    patch.next_action_due_at = null;
   } else if (category === "disposition") {
     patch.status = "disposition";
-    patch.next_action = "Disposition review";
-    patch.next_action_due_at = nowIso;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: updated, error } = await (input.sb.from("leads") as any)
     .update(patch)
     .eq("id", input.leadId)
-    .select("intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category")
+    .select("assigned_to, intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category")
     .single();
 
   if (error) {
@@ -167,6 +162,33 @@ export async function exitIntroSop(input: {
       return { supported: false, state: null };
     }
     throw new Error(error.message ?? "Failed to exit intro SOP");
+  }
+
+  const assignedTo = updated?.assigned_to ?? input.userId ?? SYSTEM_USER_ID;
+  if (category === "dead") {
+    await completeOpenCallTasksForLead({
+      sb: input.sb,
+      leadId: input.leadId,
+      completionNote: "Completed after intro SOP exit to dead.",
+    });
+  } else if (category === "drive_by" || category === "nurture" || category === "disposition") {
+    await upsertLeadCallTask({
+      sb: input.sb,
+      leadId: input.leadId,
+      assignedTo,
+      title:
+        category === "drive_by"
+          ? "Drive by"
+          : category === "nurture"
+            ? "Nurture follow-up"
+            : "Disposition review",
+      dueAt: nowIso,
+      taskType: category === "drive_by" ? "drive_by" : "follow_up",
+      sourceType: "lead_follow_up",
+      sourceKey: `lead:${input.leadId}:primary_call`,
+    });
+  } else {
+    await projectLeadFromTasks(input.sb, input.leadId);
   }
 
   if (input.userId) {

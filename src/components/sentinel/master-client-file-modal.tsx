@@ -9306,14 +9306,6 @@ export function MasterClientFileModal({
                                 <AlertTriangle className="h-3.5 w-3.5 text-amber-400/70" />
                                 <span className="text-xs text-amber-400/80 font-medium">No next step scheduled</span>
                               </div>
-                              <button
-                                onClick={() => {
-                                  openCloseoutComposer();
-                                }}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-colors"
-                              >
-                                <Plus className="h-3 w-3" /> Log Outcome
-                              </button>
                             </div>
                           ) : null}
                         </div>

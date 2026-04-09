@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/api-auth";
 import { type LeadQueueResponse } from "@/lib/lead-queue-contract";
 import { buildLeadQueueRow } from "@/lib/lead-queue-server";
 import { createServerClient } from "@/lib/supabase";
+import { isCallDrivingTaskType, pickPrimaryCallTask } from "@/lib/task-lead-sync";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -166,6 +167,18 @@ function isSchemaDriftError(error: { code?: string | null; message?: string | nu
   return /does not exist/i.test(error.message ?? "");
 }
 
+type PendingLeadTask = {
+  id: string;
+  lead_id: string | null;
+  title: string | null;
+  due_at: string | null;
+  task_type: string | null;
+  status: string | null;
+  assigned_to: string | null;
+  priority?: number | null;
+  created_at?: string | null;
+};
+
 async function fetchLeadQueueRows(
   sb: ReturnType<typeof createServerClient>,
   includeNonIntro: boolean,
@@ -225,9 +238,75 @@ export async function GET(req: NextRequest) {
       return response;
     }
 
-    const propertyIds = [
+    const leadIds = [
       ...new Set(
         leadsRaw
+          .map((lead) => (lead as { id?: string | null }).id)
+          .filter((leadId): leadId is string => typeof leadId === "string" && leadId.length > 0),
+      ),
+    ];
+
+    const taskMap = new Map<string, PendingLeadTask[]>();
+    if (leadIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: pendingTasks, error: taskErr } = await (sb.from("tasks") as any)
+        .select("id, lead_id, title, due_at, task_type, status, assigned_to, priority, created_at")
+        .in("lead_id", leadIds)
+        .eq("status", "pending");
+
+      if (taskErr) {
+        console.warn("[API/leads/queue] tasks degraded:", taskErr);
+      } else if (Array.isArray(pendingTasks)) {
+        for (const task of pendingTasks as PendingLeadTask[]) {
+          if (!task.lead_id || !isCallDrivingTaskType(task.task_type)) continue;
+          const bucket = taskMap.get(task.lead_id) ?? [];
+          bucket.push(task);
+          taskMap.set(task.lead_id, bucket);
+        }
+      }
+    }
+
+    const queueLeads = leadsRaw
+      .map((lead) => {
+        const leadRecord = lead as Record<string, unknown>;
+        const leadId = typeof leadRecord.id === "string" ? leadRecord.id : null;
+        const primaryTask = leadId ? pickPrimaryCallTask(taskMap.get(leadId) ?? []) : null;
+        const isIntroLead = leadRecord.intro_sop_active !== false;
+
+        if (!primaryTask && !isIntroLead) {
+          return null;
+        }
+
+        return {
+          ...leadRecord,
+          next_action: primaryTask?.title ?? leadRecord.next_action ?? null,
+          next_action_due_at: primaryTask?.due_at ?? leadRecord.next_action_due_at ?? null,
+          next_call_scheduled_at:
+            primaryTask && (primaryTask.task_type === "callback" || primaryTask.task_type === "call_back")
+              ? primaryTask.due_at
+              : leadRecord.next_call_scheduled_at ?? null,
+          next_follow_up_at:
+            primaryTask && (primaryTask.task_type === "follow_up" || primaryTask.task_type === "drive_by")
+              ? primaryTask.due_at
+              : leadRecord.next_follow_up_at ?? null,
+        };
+      })
+      .filter((lead) => lead !== null);
+
+    if (queueLeads.length === 0) {
+      const payload: LeadQueueResponse = {
+        leads: [],
+        fetchedAt: new Date().toISOString(),
+        total: 0,
+      };
+      const response = NextResponse.json(payload);
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
+
+    const propertyIds = [
+      ...new Set(
+        queueLeads
           .map((lead) => (lead as { property_id?: string | null }).property_id)
           .filter((propertyId): propertyId is string => typeof propertyId === "string" && propertyId.length > 0),
       ),
@@ -255,7 +334,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const rows = leadsRaw.map((lead) => {
+    const rows = queueLeads.map((lead) => {
       const propertyId = (lead as { property_id?: string | null }).property_id ?? null;
       return buildLeadQueueRow(
         lead as Record<string, unknown>,

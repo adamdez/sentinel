@@ -395,14 +395,6 @@ export async function publishSession(
           .update({
             status: targetStatus,
             lock_version: (currentLead.lock_version as number) + 1,
-            next_action: input.next_action || (() => {
-              const snap = sessionResult.data.context_snapshot as { ownerName?: string | null; address?: string | null } | null;
-              const who = snap?.ownerName ?? snap?.address ?? "";
-              const suffix = who ? ` — ${who}` : "";
-              return targetStatus === "dead"
-                ? `Dead — archived from dialer${suffix}`
-                : `Nurture check-in${suffix}`;
-            })(),
             updated_at: new Date().toISOString(),
           })
           .eq("id", leadId)
@@ -418,6 +410,13 @@ export async function publishSession(
             });
           } catch (taskErr) {
             console.warn("[publish-manager] dead disposition task cleanup failed (non-fatal):", taskErr);
+          }
+        } else {
+          try {
+            const { projectLeadFromTasks } = await import("@/lib/task-lead-sync");
+            await projectLeadFromTasks(sb, leadId);
+          } catch (taskErr) {
+            console.warn("[publish-manager] nurture disposition projection refresh failed (non-fatal):", taskErr);
           }
         }
 

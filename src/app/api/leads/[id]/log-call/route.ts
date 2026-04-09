@@ -3,6 +3,16 @@ import { createServerClient } from "@/lib/supabase";
 import { dispositionCategory } from "@/lib/comm-truth";
 import { suggestNextCadenceDate } from "@/lib/call-scheduler";
 import { exitIntroSop, progressIntroSopForCallAttempt, toIntroSopState } from "@/lib/intro-sop";
+import { completeOpenCallTasksForLead, projectLeadFromTasks, upsertLeadCallTask } from "@/lib/task-lead-sync";
+
+const TERMINAL_CALL_DISPOSITIONS = new Set([
+  "dead",
+  "dead_lead",
+  "wrong_number",
+  "disconnected",
+  "do_not_call",
+  "not_interested",
+]);
 
 /**
  * POST /api/leads/[id]/log-call
@@ -111,16 +121,20 @@ export async function POST(
   }
 
   if (body.next_action) {
-    const patch: Record<string, string | null> = { next_action: body.next_action };
-    if (body.next_action_due_at) {
-      patch.next_action_due_at = body.next_action_due_at;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: patchErr } = await (sb.from("leads") as any)
-      .update(patch)
-      .eq("id", leadId);
-    if (patchErr) {
-      console.error("[LogCall] next_action patch failed:", patchErr);
+    try {
+      await upsertLeadCallTask({
+        sb,
+        leadId,
+        assignedTo: user.id,
+        title: body.next_action,
+        dueAt: body.next_action_due_at ?? null,
+        taskType: body.next_action.toLowerCase().startsWith("drive by") ? "drive_by" : "callback",
+        notes: body.notes,
+        sourceType: "lead_follow_up",
+        sourceKey: `lead:${leadId}:primary_call`,
+      });
+    } catch (taskErr) {
+      console.error("[LogCall] next_action task sync failed:", taskErr);
     }
     try {
       const { evictFromDialQueueIfDriveBy } = await import("@/lib/dial-queue");
@@ -130,6 +144,22 @@ export async function POST(
       try {
         await exitIntroSop({ sb, leadId, category: "drive_by", userId: user.id });
       } catch { /* non-fatal */ }
+    }
+  } else if (TERMINAL_CALL_DISPOSITIONS.has(body.disposition)) {
+    try {
+      await completeOpenCallTasksForLead({
+        sb,
+        leadId,
+        completionNote: `Completed after external call disposition: ${body.disposition}.`,
+      });
+    } catch (taskErr) {
+      console.error("[LogCall] terminal task cleanup failed:", taskErr);
+    }
+  } else {
+    try {
+      await projectLeadFromTasks(sb, leadId);
+    } catch (taskErr) {
+      console.error("[LogCall] lead projection refresh failed:", taskErr);
     }
   }
 

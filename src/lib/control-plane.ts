@@ -12,6 +12,7 @@ import { createServerClient } from "@/lib/supabase";
 import { refreshAccessToken, sendEmail } from "@/lib/gmail";
 import { isDnc } from "@/lib/dnc-check";
 import { startTrace, endTrace, flushLangfuse } from "@/lib/langfuse";
+import { projectLeadFromTasks, upsertLeadCallTask } from "@/lib/task-lead-sync";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -485,7 +486,7 @@ async function executeApprovedAction(item: {
       // Fetch current lead notes to append (never overwrite)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: lead, error: leadFetchErr } = await (sb4.from("leads") as any)
-        .select("id, notes")
+        .select("id, notes, assigned_to")
         .eq("id", leadId)
         .single();
 
@@ -520,12 +521,10 @@ async function executeApprovedAction(item: {
         ? `${lead.notes}\n\n${noteParts}`
         : noteParts;
 
-      // Write to leads table: next_action, next_action_due_at, notes (appended)
+      // Write seller-memory notes to the lead, then project the real callable next step from tasks.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: leadUpdateErr } = await (sb4.from("leads") as any)
         .update({
-          next_action: proposal.next_action ?? null,
-          next_action_due_at: proposal.next_action_due_at ?? null,
           notes: updatedNotes,
           updated_at: new Date().toISOString(),
         })
@@ -533,6 +532,21 @@ async function executeApprovedAction(item: {
 
       if (leadUpdateErr) {
         return { executed: false, action: item.action, reason: `lead_update_failed: ${leadUpdateErr.message}` };
+      }
+
+      if (proposal.next_action) {
+        await upsertLeadCallTask({
+          sb: sb4,
+          leadId,
+          assignedTo: lead.assigned_to ?? "00000000-0000-0000-0000-000000000000",
+          title: proposal.next_action,
+          dueAt: proposal.next_action_due_at ?? null,
+          taskType: proposal.next_action.toLowerCase().startsWith("drive by") ? "drive_by" : "follow_up",
+          sourceType: "lead_follow_up",
+          sourceKey: `lead:${leadId}:primary_call`,
+        });
+      } else {
+        await projectLeadFromTasks(sb4, leadId);
       }
 
       // Log event

@@ -24,6 +24,7 @@ import type {
   VapiFunctionResult,
 } from "./types";
 import { sendCallbackConfirmationSMS, sendDirectSMS } from "./vapi-sms";
+import { upsertLeadCallTask } from "@/lib/task-lead-sync";
 
 // ── lookup_lead ─────────────────────────────────────────────────────────────
 
@@ -194,42 +195,62 @@ export async function handleBookCallback(
     .join("\n");
 
   const loganUserId = process.env.LOGAN_USER_ID ?? "0737e969-2908-4bd6-90bd-7a4380456811";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: task, error } = await (sb.from("tasks") as any)
-    .insert({
-      title,
-      lead_id: leadId,
-      assigned_to: loganUserId,
-      due_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
-      status: "pending",
-      priority: leadId ? 3 : 2, // Higher priority for known leads
-      notes,
-    })
-    .select("id")
-    .single();
+  const dueAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+  const reason = params.reason ? `: ${params.reason}` : "";
+  let taskId: string | null = null;
 
-  if (error) {
-    console.error("[vapi-functions] Failed to create callback task:", error.message);
+  if (leadId) {
+    try {
+      taskId = await upsertLeadCallTask({
+        sb,
+        leadId,
+        assignedTo: loganUserId,
+        title: `Callback${reason}`,
+        dueAt,
+        taskType: "callback",
+        notes,
+        sourceType: "lead_follow_up",
+        sourceKey: `lead:${leadId}:primary_call`,
+      });
+    } catch (error) {
+      console.error("[vapi-functions] Failed to upsert callback task:", error);
+    }
+  } else {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: task, error } = await (sb.from("tasks") as any)
+      .insert({
+        title,
+        lead_id: leadId,
+        assigned_to: loganUserId,
+        due_at: dueAt,
+        status: "pending",
+        priority: 2,
+        task_type: "other",
+        notes,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error("[vapi-functions] Failed to create callback task:", error.message);
+      return {
+        result: JSON.stringify({
+          success: false,
+          message: "I've noted the callback request. Someone will call you back soon.",
+        }),
+      };
+    }
+
+    taskId = task?.id ?? null;
+  }
+
+  if (leadId && !taskId) {
     return {
       result: JSON.stringify({
         success: false,
         message: "I've noted the callback request. Someone will call you back soon.",
       }),
     };
-  }
-
-  // Sync task to lead's next_action fields
-  if (leadId) {
-    const dueAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
-    const reason = params.reason ? `: ${params.reason}` : "";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("leads") as any)
-      .update({
-        next_action: `Callback${reason}`,
-        next_action_due_at: dueAt,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", leadId);
   }
 
   // Update voice session to note callback was requested
@@ -258,7 +279,7 @@ export async function handleBookCallback(
     result: JSON.stringify({
       success: true,
       message: `I've scheduled a callback for ${callerName}. ${params.preferred_time ? `We'll aim for ${params.preferred_time}.` : "Someone will call you back within a couple hours."} We'll also send you a text to confirm. Is there anything else I can help with?`,
-      taskId: task.id,
+      taskId,
     }),
   };
 }

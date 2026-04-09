@@ -4,6 +4,11 @@ import { requireAuth } from "@/lib/api-auth";
 import { validateStageTransition, incrementLockVersion } from "@/lib/lead-guardrails";
 import { n8nLeadStageChanged } from "@/lib/n8n-dispatch";
 import { getFeatureFlag } from "@/lib/control-plane";
+import {
+  completeOpenCallTasksForLead,
+  projectLeadFromTasks,
+  upsertLeadCallTask,
+} from "@/lib/task-lead-sync";
 import { inngest } from "@/inngest/client";
 import type { LeadStatus, StageTransitionRequest, StageTransitionResult, StageTransitionError } from "@/lib/types";
 
@@ -56,9 +61,9 @@ export async function PATCH(
     // ── Fetch current lead state ──
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: lead, error: fetchError } = await (sb.from("leads") as any)
-      .select("id, status, lock_version, next_action")
+      .select("id, status, lock_version, next_action, assigned_to")
       .eq("id", id)
-      .single() as { data: { id: string; status: string; lock_version: number; next_action: string | null } | null; error: { message: string; code?: string } | null };
+      .single() as { data: { id: string; status: string; lock_version: number; next_action: string | null; assigned_to: string | null } | null; error: { message: string; code?: string } | null };
 
     if (fetchError || !lead) {
       return NextResponse.json<StageTransitionError>(
@@ -100,14 +105,12 @@ export async function PATCH(
     const { data: updated, error: updateError } = await (sb.from("leads") as any)
       .update({
         status: target,
-        next_action: body.next_action?.trim() ?? null,
-        next_action_due_at: body.next_action_due_at ?? null,
         lock_version: newLockVersion,
         updated_at: now,
       })
       .eq("id", id)
       .eq("lock_version", body.lock_version) // double-check via DB predicate
-      .select("id, status, next_action, next_action_due_at, lock_version")
+      .select("id, status, assigned_to, next_action, next_action_due_at, next_call_scheduled_at, next_follow_up_at, lock_version")
       .single();
 
     if (updateError) {
@@ -125,6 +128,32 @@ export async function PATCH(
     }
 
     // ── Audit log ──
+    const trimmedNextAction = body.next_action?.trim() ?? null;
+    if (target === "dead" || target === "closed") {
+      await completeOpenCallTasksForLead({
+        sb,
+        leadId: id,
+        completionNote: `Automatically completed after stage move to ${target}.`,
+      });
+    } else if (trimmedNextAction) {
+      await upsertLeadCallTask({
+        sb,
+        leadId: id,
+        assignedTo: updated.assigned_to ?? lead.assigned_to ?? user.id,
+        title: trimmedNextAction,
+        dueAt: body.next_action_due_at ?? null,
+        taskType: trimmedNextAction.toLowerCase().startsWith("drive by") ? "drive_by" : "follow_up",
+      });
+    } else {
+      await projectLeadFromTasks(sb, id);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: refreshedLead } = await (sb.from("leads") as any)
+      .select("id, status, next_action, next_action_due_at, lock_version")
+      .eq("id", id)
+      .single();
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("event_log") as any).insert({
       user_id: user.id,
@@ -211,10 +240,10 @@ export async function PATCH(
       success: true,
       lead_id: id,
       previous_status: current,
-      new_status: updated.status,
-      next_action: updated.next_action,
-      next_action_due_at: updated.next_action_due_at,
-      lock_version: updated.lock_version,
+      new_status: refreshedLead?.status ?? updated.status,
+      next_action: refreshedLead?.next_action ?? null,
+      next_action_due_at: refreshedLead?.next_action_due_at ?? null,
+      lock_version: refreshedLead?.lock_version ?? updated.lock_version,
     });
   } catch (err) {
     console.error("[API/leads/id/stage] PATCH error:", err);

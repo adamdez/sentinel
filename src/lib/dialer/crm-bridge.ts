@@ -25,6 +25,7 @@
 
 import { createDialerClient } from "./db";
 import type { CRMLeadContext } from "./types";
+import { listOpenTasksForLead, pickPrimaryCallTask } from "@/lib/task-lead-sync";
 
 /**
  * Builds a read-only CRM context snapshot for the dialer.
@@ -133,14 +134,8 @@ export async function getCRMLeadContext(
   // Reads the most recently created pending task for this lead.
   // This is the operator's (or publish-manager's) commitment from the last call.
   // Only fetch status=pending tasks — completed tasks are not actionable memory.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: openTask } = await (sb.from("tasks") as any)
-    .select("title, due_at")
-    .eq("lead_id", leadId)
-    .eq("status", "pending")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const openTasks = await listOpenTasksForLead(sb, leadId);
+  const openTask = pickPrimaryCallTask(openTasks);
 
   // ── 6. Open objections from previous calls ──────────────────
   // Gives Logan immediate context on what blocked the deal last time.
