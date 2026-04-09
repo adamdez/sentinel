@@ -74,9 +74,7 @@ export async function POST(
       zip: null,
       apn,
       owner_flags: (prop?.owner_flags as Record<string, unknown> | null) ?? null,
-      lat: null,
-      lng: null,
-      avm: null,
+      estimated_value: null,
       equity_percent: null,
     },
   });

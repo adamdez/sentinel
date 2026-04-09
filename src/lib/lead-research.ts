@@ -37,9 +37,7 @@ interface PropertyRow {
   zip: string | null;
   apn: string | null;
   owner_flags: Record<string, unknown> | null;
-  lat: number | null;
-  lng: number | null;
-  avm: number | null;
+  estimated_value: number | null;
   equity_percent: number | null;
 }
 
@@ -257,7 +255,7 @@ async function synthesizeResearchBrief(args: {
       city: args.property.city,
       county: args.property.county,
       apn: args.property.apn,
-      avm: args.property.avm,
+      estimated_value: args.property.estimated_value,
       equity_percent: args.property.equity_percent,
     }),
     "",
@@ -383,11 +381,14 @@ async function fetchLeadAndProperty(leadId: string): Promise<{ lead: LeadRow; pr
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: property, error: propertyError } = await (sb.from("properties") as any)
-    .select("id, owner_name, address, city, county, state, zip, apn, owner_flags, lat, lng, avm, equity_percent")
+    .select("id, owner_name, address, city, county, state, zip, apn, owner_flags, estimated_value, equity_percent")
     .eq("id", lead.property_id)
     .single();
 
-  if (propertyError || !property) {
+  if (propertyError) {
+    throw new Error(`Property lookup failed: ${propertyError.message ?? "unknown error"}`);
+  }
+  if (!property) {
     throw new Error("Property not found");
   }
 
@@ -627,6 +628,7 @@ async function persistLegalArtifacts(args: {
   propertyId: string;
   runId: string;
   documents: NormalizedDocument[];
+  capturedBy: string;
 }): Promise<number> {
   let count = 0;
   for (const doc of args.documents.slice(0, 20)) {
@@ -639,7 +641,7 @@ async function persistLegalArtifacts(args: {
       sourceUrl: doc.sourceUrl,
       extractedNotes: truncateText(toArtifactSummary(doc), 400),
       rawExcerpt: doc.rawExcerpt,
-      capturedBy: "unified-research",
+      capturedBy: args.capturedBy,
     });
     count += 1;
   }
@@ -651,6 +653,7 @@ async function persistPeopleArtifacts(args: {
   propertyId: string;
   runId: string;
   findings: AgentFinding[];
+  capturedBy: string;
 }): Promise<number> {
   let count = 0;
   for (const finding of args.findings.slice(0, 30)) {
@@ -663,7 +666,7 @@ async function persistPeopleArtifacts(args: {
       sourceUrl: finding.url,
       extractedNotes: truncateText(finding.finding, 400),
       rawExcerpt: finding.rawSnippet,
-      capturedBy: "openclaw",
+      capturedBy: args.capturedBy,
     });
     count += 1;
   }
@@ -765,7 +768,7 @@ function buildDeepCrawlCache(args: {
       source: doc.source,
     })),
     financial: {
-      avm: args.property.avm,
+      avm: args.property.estimated_value,
       equityPercent: args.property.equity_percent,
       availableEquity: null,
       loanBalance: null,
@@ -1016,12 +1019,14 @@ export async function runLeadResearch(options: RunLeadResearchOptions): Promise<
     propertyId: property.id,
     runId: run.id,
     documents: legal.documents,
+    capturedBy: options.startedBy,
   });
   artifactCount += await persistPeopleArtifacts({
     leadId: lead.id,
     propertyId: property.id,
     runId: run.id,
     findings: agentFindings,
+    capturedBy: options.startedBy,
   });
 
   const metadata: UnifiedResearchMetadata = {
