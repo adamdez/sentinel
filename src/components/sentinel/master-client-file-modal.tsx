@@ -1055,7 +1055,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
   const [activityLog, setActivityLog] = useState<Array<{
     id: string;
-    type: "operator_note" | "call_summary" | "ai_summary" | "event";
+    type: "operator_note" | "call_summary" | "ai_summary" | "event" | "sms";
     disposition?: string | null;
     notes?: string | null;
     created_at: string;
@@ -1065,6 +1065,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
     callLogId?: string | null;
     isAiGenerated?: boolean;
     isConfirmed?: boolean;
+    isUnread?: boolean;
   }>>([]);
 
   useEffect(() => {
@@ -1082,11 +1083,16 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
           : {};
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const [memoryRes, eventsRes] = await Promise.all([
+        const [memoryRes, eventsRes, smsRes] = await Promise.all([
           fetch(`/api/dialer/v1/leads/${cf.id}/call-memory`, { headers }).catch(() => null),
           (supabase.from("event_log") as any)
             .select("id, action, details, created_at")
             .eq("entity_id", cf.id)
+            .order("created_at", { ascending: false })
+            .limit(20),
+          (supabase.from("sms_messages") as any)
+            .select("id, phone, direction, body, created_at, read_at")
+            .eq("lead_id", cf.id)
             .order("created_at", { ascending: false })
             .limit(20),
         ]);
@@ -1127,8 +1133,28 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
           };
         });
 
+        const smsEntries = (smsRes.data ?? []).map((message: {
+          id: string;
+          phone: string | null;
+          direction: string | null;
+          body: string | null;
+          created_at: string;
+          read_at: string | null;
+        }) => {
+          const phoneDigits = (message.phone ?? "").replace(/\D/g, "").slice(-4);
+          const direction = message.direction === "outbound" ? "outbound" : "inbound";
+          return {
+            id: `sms-${message.id}`,
+            type: "sms" as const,
+            notes: (message.body ?? "").trim(),
+            created_at: message.created_at,
+            sourceLabel: `${direction === "inbound" ? "Text received" : "Text sent"}${phoneDigits ? ` • •••${phoneDigits}` : ""}`,
+            isUnread: direction === "inbound" && !message.read_at,
+          };
+        }).filter((entry) => entry.notes.length > 0);
+
         setActivityLog(
-          [...timelineEntries, ...eventEntries]
+          [...timelineEntries, ...eventEntries, ...smsEntries]
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
             .slice(0, 40),
         );
@@ -1682,7 +1708,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
       <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3.5">
 
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Recent Notes & Calls</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Recent Notes, Calls & Texts</p>
 
         <div className="flex gap-2 mb-3">
 
@@ -1722,7 +1748,9 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
                   ? "AI"
                   : entry.type === "operator_note"
                     ? "Note"
-                    : "Event";
+                    : entry.type === "sms"
+                      ? "Text"
+                      : "Event";
 
               const typeBadgeClass = entry.type === "call_summary"
                 ? "bg-overlay-8 text-foreground"
@@ -1730,6 +1758,10 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
                   ? "bg-primary/10 text-primary/80"
                   : entry.type === "operator_note"
                     ? "bg-overlay-4 text-muted-foreground"
+                    : entry.type === "sms"
+                      ? entry.isUnread
+                        ? "bg-emerald-500/12 text-emerald-300"
+                        : "bg-sky-500/10 text-sky-200"
                     : "bg-overlay-4 text-muted-foreground";
 
               return (
@@ -1753,8 +1785,18 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
                     )}
 
                     {entry.notes && (
-                      <p className={cn("text-sm line-clamp-2", entry.isAiGenerated ? "text-muted-foreground italic" : "text-foreground")}>
+                      <p className={cn(
+                        "text-sm",
+                        entry.type === "sms" ? "line-clamp-3 whitespace-pre-wrap break-words" : "line-clamp-2",
+                        entry.isAiGenerated ? "text-muted-foreground italic" : "text-foreground",
+                      )}>
                         {entry.notes}
+                      </p>
+                    )}
+
+                    {entry.type === "sms" && entry.isUnread && (
+                      <p className="text-[10px] uppercase tracking-wide text-emerald-300/80 mt-1">
+                        New inbound text
                       </p>
                     )}
 
