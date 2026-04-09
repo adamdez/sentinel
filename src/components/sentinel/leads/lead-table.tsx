@@ -624,6 +624,22 @@ export function LeadTable({
       {someSelected && (
         <div className="flex items-center gap-3 px-4 py-2 border-b border-glass-border bg-muted/[0.06]">
           <span className="text-xs text-foreground font-medium">{selectedIds.size} selected</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleBulkAddToDialQueue}
+                disabled={bulkQueueing}
+                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary/10 text-primary border border-primary/25 hover:bg-primary/20 transition-colors disabled:opacity-50"
+              >
+                {bulkQueueing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Phone className="h-3 w-3" />}
+                Add to Dial Queue ({selectedIds.size})
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs text-xs">
+              Claims unclaimed leads to you and adds them to your manual dial queue. Leads owned by someone else stay blocked.
+            </TooltipContent>
+          </Tooltip>
           <button
             onClick={handleBulkClaim}
             disabled={bulkClaiming}
@@ -641,22 +657,6 @@ export function LeadTable({
             {bulkUnclaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserMinus className="h-3 w-3" />}
             Move to Unclaimed Leads ({selectedIds.size})
           </button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={handleBulkAddToDialQueue}
-                disabled={bulkQueueing}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary/10 text-primary border border-primary/25 hover:bg-primary/20 transition-colors disabled:opacity-50"
-              >
-                {bulkQueueing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Phone className="h-3 w-3" />}
-                Add to Dial Queue ({selectedIds.size})
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs text-xs">
-              Claims unclaimed leads to you and adds them to your manual dial queue. Leads owned by someone else stay blocked.
-            </TooltipContent>
-          </Tooltip>
           <button
             onClick={handleBulkDelete}
             disabled={bulkDeleting}
@@ -728,6 +728,10 @@ export function LeadTable({
           nextActionDueAt: lead.nextActionDueAt,
           createdAt: lead.promotedAt,
           promotedAt: lead.promotedAt,
+          introSopActive: lead.introSopActive,
+          introDayCount: lead.introDayCount,
+          introLastCallDate: lead.introLastCallDate,
+          requiresIntroExitCategory: lead.requiresIntroExitCategory,
         });
 
         const overdueDays =
@@ -816,16 +820,18 @@ export function LeadTable({
                     {skipGenieMarker && (
                       <SkipGenieBadge size="sm" title={skipGenieMarker.title} />
                     )}
-                    <span
-                      className={cn(
-                        "shrink-0 text-[10px] px-1.5 py-0 rounded border font-semibold uppercase tracking-wide",
-                        lead.requiresIntroExitCategory
-                          ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
-                          : "bg-primary/10 text-primary border-primary/25",
-                      )}
-                    >
-                      {lead.requiresIntroExitCategory ? "Day 3 - Categorize" : `Day ${Math.min(3, Math.max(0, lead.introDayCount ?? 0))}/3`}
-                    </span>
+                    {wf.introBadgeLabel && (
+                      <span
+                        className={cn(
+                          "shrink-0 text-[10px] px-1.5 py-0 rounded border font-semibold uppercase tracking-wide",
+                          lead.requiresIntroExitCategory
+                            ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                            : "bg-primary/10 text-primary border-primary/25",
+                        )}
+                      >
+                        {wf.introBadgeLabel}
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                     <span
@@ -935,17 +941,16 @@ export function LeadTable({
               <span
                 className={cn(
                   "text-sm tabular-nums truncate",
-                  wf.lastTouchLabel === "No touch" ? "text-muted-foreground/40" : "text-muted-foreground",
+                  wf.lastTouchLabel === "No touch"
+                    ? "text-muted-foreground/40"
+                    : wf.lastTouchLabel === "Today"
+                      ? "text-primary"
+                      : "text-muted-foreground",
                 )}
                 title={lead.lastContactAt ?? undefined}
               >
                 {wf.lastTouchLabel}
               </span>
-              {wf.workedToday && (
-                <span className="shrink-0 rounded px-1 py-0 text-[10px] font-semibold uppercase tracking-wide text-primary bg-primary/10 border border-primary/20">
-                  Today
-                </span>
-              )}
             </div>
 
             {/* Actions (call + delete only) */}

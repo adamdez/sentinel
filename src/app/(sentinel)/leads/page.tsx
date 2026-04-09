@@ -2,12 +2,18 @@
 
 import { Suspense, useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, ChevronRight } from "lucide-react";
+import { Plus, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useModal } from "@/providers/modal-provider";
 import { LeadSegmentControl } from "@/components/sentinel/leads/lead-segment-control";
 import { LeadFilters } from "@/components/sentinel/leads/lead-filters";
@@ -516,50 +522,51 @@ function LeadsPageInner() {
               void handleSkipGenieImport(file);
             }}
           />
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-2 text-xs"
-            onClick={() => void handleExportLeads("xlsx")}
-            disabled={leads.length === 0}
-          >
-            Export XLSX
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-2 text-xs"
-            onClick={() => void handleExportLeads("csv")}
-            disabled={leads.length === 0}
-          >
-            Export CSV
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-2 text-xs"
-            onClick={() => void handleExportLeads("skipgenie_csv")}
-            disabled={leads.length === 0}
-          >
-            Skip Genie CSV
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-2 text-xs"
-            onClick={() => skipGenieInputRef.current?.click()}
-            disabled={skipGenieImporting}
-          >
-            {skipGenieImporting ? "Importing..." : "Import Skip Genie Results"}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-2 text-xs"
-            onClick={() => window.location.assign("/admin/import")}
-          >
-            Import Sheet
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2 text-xs"
+                disabled={leads.length === 0}
+              >
+                Export
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onSelect={() => void handleExportLeads("xlsx")}>
+                Export XLSX
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void handleExportLeads("csv")}>
+                Export CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void handleExportLeads("skipgenie_csv")}>
+                Skip Genie CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2 text-xs"
+                disabled={skipGenieImporting}
+              >
+                {skipGenieImporting ? "Importing..." : "Import"}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onSelect={() => skipGenieInputRef.current?.click()}>
+                Import Skip Genie Results
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => window.location.assign("/admin/import")}>
+                Import Sheet
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" className="gap-2 text-xs" onClick={() => openModal("new-prospect")}>
             <Plus className="h-3 w-3" />
             New Seller Lead

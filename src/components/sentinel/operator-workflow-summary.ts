@@ -8,6 +8,13 @@ import { deriveLeadActionSummary, type UrgencyLevel } from "@/lib/action-derivat
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import type { QualificationRoute } from "@/lib/types";
 
+const PACIFIC_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Los_Angeles",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 export interface OperatorWorkflowFields {
   status: string | null;
   qualificationRoute?: QualificationRoute | string | null;
@@ -20,12 +27,17 @@ export interface OperatorWorkflowFields {
   nextActionDueAt?: string | null;
   createdAt?: string | null;
   promotedAt?: string | null;
+  introSopActive?: boolean | null;
+  introDayCount?: number | null;
+  introLastCallDate?: string | null;
+  requiresIntroExitCategory?: boolean | null;
   now?: Date;
 }
 
 export interface OperatorWorkflowSummary {
   /** What to do now — from deriveLeadActionSummary.action */
   doNow: string;
+  introBadgeLabel: string | null;
   /** Compact due label for the effective next due datetime */
   dueLabel: string;
   effectiveDueIso: string | null;
@@ -63,6 +75,26 @@ function lastTouchFromIso(iso: string | null | undefined, now: Date): { label: s
   return { label: "Today", workedToday: true };
 }
 
+function pacificDateKey(date: Date): string {
+  return PACIFIC_DATE_FORMATTER.format(date).replace(/\//g, "-");
+}
+
+function normalizeIntroDayCount(value: number | null | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(3, Math.floor(value)));
+}
+
+function deriveIntroDisplayDay(fields: OperatorWorkflowFields, now: Date): number {
+  const introDayCount = normalizeIntroDayCount(fields.introDayCount);
+  if (introDayCount === 0) return 1;
+
+  const workedIntroToday =
+    typeof fields.introLastCallDate === "string" && fields.introLastCallDate === pacificDateKey(now);
+  if (workedIntroToday) return introDayCount;
+
+  return Math.min(3, introDayCount + 1);
+}
+
 /**
  * Build the canonical operator workflow summary from persisted lead fields.
  */
@@ -92,9 +124,47 @@ export function buildOperatorWorkflowSummary(fields: OperatorWorkflowFields): Op
     !effectiveDueIso || dueFmt.text === "n/a" ? "—" : dueFmt.text;
 
   const { label: lastTouchLabel, workedToday } = lastTouchFromIso(fields.lastContactAt, now);
+  const introActive = fields.introSopActive === true;
+  const requiresIntroExitCategory = fields.requiresIntroExitCategory === true;
+  const introDisplayDay = deriveIntroDisplayDay(fields, now);
+  const introBadgeLabel =
+    requiresIntroExitCategory
+      ? "Day 3 complete"
+      : introActive
+        ? `Day ${introDisplayDay}/3`
+        : null;
+
+  if (requiresIntroExitCategory) {
+    return {
+      doNow: "Choose category",
+      introBadgeLabel,
+      dueLabel: "Now",
+      effectiveDueIso: null,
+      dueOverdue: false,
+      lastTouchLabel,
+      workedToday,
+      urgency: "high",
+      actionable: true,
+    };
+  }
+
+  if (introActive) {
+    return {
+      doNow: workedToday ? "Done for today" : `Call day ${introDisplayDay}/3`,
+      introBadgeLabel,
+      dueLabel: workedToday ? "Due tomorrow" : "Due today",
+      effectiveDueIso: null,
+      dueOverdue: false,
+      lastTouchLabel,
+      workedToday,
+      urgency: workedToday ? "none" : "normal",
+      actionable: !workedToday,
+    };
+  }
 
   return {
     doNow: summary.action,
+    introBadgeLabel,
     dueLabel,
     effectiveDueIso,
     dueOverdue: dueFmt.overdue,

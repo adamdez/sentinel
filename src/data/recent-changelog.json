@@ -1,5 +1,30 @@
 [
   {
+    "hash": "b34a081f",
+    "date": "2026-04-09",
+    "message": "[codex] Unify dialer notes into lead timeline"
+  },
+  {
+    "hash": "0fab2a9a",
+    "date": "2026-04-09",
+    "message": "[codex] Improve SMS matching and partial phone search"
+  },
+  {
+    "hash": "59e253f4",
+    "date": "2026-04-09",
+    "message": "[codex] clarify total tax owed in client file"
+  },
+  {
+    "hash": "b9180fa6",
+    "date": "2026-04-09",
+    "message": "[codex] simplify leads bulk actions"
+  },
+  {
+    "hash": "65cfed27",
+    "date": "2026-04-09",
+    "message": "[codex] streamline dead lead resurrection"
+  },
+  {
     "hash": "4171cff8",
     "date": "2026-04-09",
     "message": "[codex] restore dead lead resurrection path"
@@ -98,30 +123,5 @@
     "hash": "b5347546",
     "date": "2026-04-09",
     "message": "[codex] Add CSV lead export option"
-  },
-  {
-    "hash": "221e47aa",
-    "date": "2026-04-09",
-    "message": "[codex] Add lead export and skip-trace phone reimport"
-  },
-  {
-    "hash": "ced23b3a",
-    "date": "2026-04-09",
-    "message": "[codex] Open client files directly from call history"
-  },
-  {
-    "hash": "e29c0adb",
-    "date": "2026-04-09",
-    "message": "[codex] Let prior seller notes unlock active moves"
-  },
-  {
-    "hash": "7eb4c80e",
-    "date": "2026-04-09",
-    "message": "[codex] Surface due lead callbacks in Today"
-  },
-  {
-    "hash": "183d1258",
-    "date": "2026-04-09",
-    "message": "[codex] Restore missed inbound recovery visibility"
   }
 ]

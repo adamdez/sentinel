@@ -76,6 +76,27 @@ describe("resolveDialerPhoneSelection", () => {
     expect(dialedPhones).toEqual(["5091111111", "5092222222", "5093333333"]);
   });
 
+  it("uses a newly saved nextPhoneId even when the stale local index points elsewhere", () => {
+    const beforeManualPick = resolveDialerPhoneSelection({
+      autoCycleMode: true,
+      leadPhones: phones,
+      phoneIndex: 0,
+      nextPhoneId: "lead-phone-1",
+      fallbackPhone: null,
+    });
+    const afterManualPick = resolveDialerPhoneSelection({
+      autoCycleMode: true,
+      leadPhones: phones,
+      phoneIndex: 0,
+      nextPhoneId: "lead-phone-2",
+      fallbackPhone: null,
+    });
+
+    expect(beforeManualPick.phone).toBe("5091111111");
+    expect(afterManualPick.phone).toBe("5092222222");
+    expect(afterManualPick.selectedIndex).toBe(1);
+  });
+
   it("falls back to the first uncalled active phone when the pointer is missing or stale", () => {
     const selection = resolveDialerPhoneSelection({
       autoCycleMode: true,

@@ -1091,6 +1091,7 @@ function DialerPageInner() {
   );
   const displayedQueue: DialerQueueLead[] = autoCycleMode ? autoCycleQueue : queue;
   const executionQueue: DialerQueueLead[] = autoCycleMode ? readyAutoCycleQueue : queue;
+  const powerDialReadyQueueExhausted = autoCycleMode && executionQueue.length === 0;
   const displayedQueueLoading = autoCycleMode ? autoCycleQueueLoading : queueLoading;
   const preferredQueue = executionQueue.length > 0 ? executionQueue : displayedQueue;
   const currentAutoCycleLead = isAutoCycleQueueLead(currentLead) ? currentLead : null;
@@ -1454,18 +1455,25 @@ function DialerPageInner() {
   const [diagLoading, setDiagLoading] = useState(false);
 
   useEffect(() => {
-    if (!currentLead && preferredQueue.length > 0) {
-      setCurrentLead(preferredQueue[0]);
+    if (!currentLead) {
+      const nextLead = autoCycleMode ? (executionQueue[0] ?? null) : (preferredQueue[0] ?? null);
+      if (!nextLead) return;
+      setCurrentLead(nextLead);
       setPhoneIndex(0);
     }
-  }, [preferredQueue, currentLead]);
+  }, [autoCycleMode, currentLead, executionQueue, preferredQueue]);
 
   useEffect(() => {
     if (!currentLead) return;
     if (displayedQueue.some((lead) => lead.id === currentLead.id)) return;
     if (fileModalOpen) return;
+    if (autoCycleMode) {
+      setCurrentLead(executionQueue[0] ?? null);
+      setPhoneIndex(0);
+      return;
+    }
     setCurrentLead(preferredQueue[0] ?? displayedQueue[0] ?? null);
-  }, [displayedQueue, preferredQueue, currentLead, fileModalOpen]);
+  }, [autoCycleMode, displayedQueue, executionQueue, preferredQueue, currentLead, fileModalOpen]);
 
   // Keep activeCallRef in sync for polling callback closures
   useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
@@ -1518,6 +1526,52 @@ function DialerPageInner() {
       Promise.resolve(refetchAutoCycleQueue()),
     ]);
   }, [refetchAutoCycleQueue, refetchQueue]);
+
+  const selectLeadPhone = useCallback(async (index: number) => {
+    const nextPhone = activeLeadPhones[index] ?? null;
+    if (!nextPhone) return;
+
+    if (!autoCycleMode || !isAutoCycleQueueLead(currentLead)) {
+      setPhoneIndex(index);
+      return;
+    }
+
+    if (callState !== "idle") return;
+
+    const previousLead = currentLead;
+    const previousIndex = selectedPhoneIndex;
+
+    setPhoneIndex(index);
+    setCurrentLead({
+      ...currentLead,
+      autoCycle: {
+        ...currentLead.autoCycle,
+        nextPhoneId: nextPhone.id,
+      },
+    });
+
+    try {
+      const res = await fetch("/api/dialer/v1/auto-cycle", {
+        method: "PATCH",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          leadId: currentLead.id,
+          nextPhoneId: nextPhone.id,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({} as { error?: string }));
+        throw new Error(data.error ?? "Could not save the selected Power Dial phone");
+      }
+
+      void refetchAutoCycleQueue();
+    } catch (error) {
+      setPhoneIndex(previousIndex);
+      setCurrentLead(previousLead);
+      toast.error(error instanceof Error ? error.message : "Could not save the selected Power Dial phone");
+    }
+  }, [activeLeadPhones, autoCycleMode, callState, currentLead, refetchAutoCycleQueue, selectedPhoneIndex]);
 
   const enterPowerDialMode = useCallback(async () => {
     if (powerDialStarting) return;
@@ -1879,7 +1933,7 @@ function DialerPageInner() {
     }
 
     if (plan.action === "next") {
-      const nextLead = displayedQueue.find((lead) => lead.id === plan.leadId) ?? null;
+      const nextLead = executionQueue.find((lead) => lead.id === plan.leadId) ?? null;
       setCurrentLead(nextLead);
       setPhoneIndex(0);
       if (autoDial && powerDialPaused && nextLead) {
@@ -1897,14 +1951,26 @@ function DialerPageInner() {
       } else if (nextLead) {
         toast.info(disposition === "dead_lead" || disposition === "disqualified" ? "Lead done — next lead loaded" : "Next lead loaded");
       } else {
-        toast.info(autoDial ? "Power Dial complete — queue finished" : "Queue complete — all leads attempted");
+        if (autoCycleMode) {
+          setCurrentLead(null);
+          setPhoneIndex(0);
+          toast.info("Power Dial complete — you've called every ready lead. Add more leads to continue.");
+        } else {
+          toast.info(autoDial ? "Power Dial complete — queue finished" : "Queue complete — all leads attempted");
+        }
       }
       return;
     }
 
     setPendingAutoDialLeadId(null);
+    if (autoCycleMode) {
+      setCurrentLead(null);
+      setPhoneIndex(0);
+      toast.info("Power Dial complete — you've called every ready lead. Add more leads to continue.");
+      return;
+    }
     toast.info(autoDial ? "Power Dial complete — queue finished" : "Queue complete — all leads attempted");
-  }, [activeLeadPhones, autoCycleMode, currentLead, displayedQueue, executionQueue, leadPhones, phoneIndex, powerDialPaused, refreshCurrentLeadPhones]);
+  }, [activeLeadPhones, autoCycleMode, currentLead, executionQueue, leadPhones, phoneIndex, powerDialPaused, refreshCurrentLeadPhones]);
 
   // ── Incoming call handler — attached to provider-managed Device ──
   useEffect(() => {
@@ -3946,9 +4012,11 @@ function DialerPageInner() {
               {autoCycleMode
                 ? powerDialStarting
                   ? "Loading the staged queue into Power Dial."
-                  : powerDialPaused
-                    ? "Power Dial is paused. Resume to continue through ready files."
-                    : "Power Dial works the same staged queue. Waiting files stay parked until due."
+                  : powerDialReadyQueueExhausted
+                    ? "Today's ready Power Dial queue is finished. Add more leads or wait for parked files to come due."
+                    : powerDialPaused
+                      ? "Power Dial is paused. Resume to continue through ready files."
+                      : "Power Dial works the same staged queue. Waiting files stay parked until due."
                 : `${displayedQueue.length} queued`}
             </p>
 
@@ -3961,7 +4029,9 @@ function DialerPageInner() {
             ) : displayedQueue.length === 0 ? (
               <div className="flex min-h-[400px] flex-col items-center justify-center text-center py-6 space-y-3">
                 <Phone className="h-7 w-7 mx-auto text-muted-foreground/15" />
-                <p className="text-sm font-medium text-foreground/70">Queue is empty</p>
+                <p className="text-sm font-medium text-foreground/70">
+                  {autoCycleMode ? "Power Dial queue is empty" : "Queue is empty"}
+                </p>
                 <a href="/leads">
                   <button className="px-5 py-2 rounded-[10px] text-xs font-bold text-primary bg-primary/[0.10] border border-primary/25
                     hover:bg-primary/[0.18] hover:border-primary/35 shadow-[0_0_14px_var(--shadow-soft)]
@@ -4261,7 +4331,7 @@ function DialerPageInner() {
                         </button>
                         {autoCycleMode && (
                           <p className="mt-1 text-xs text-emerald-300/80">
-                            Power Dial will work this file from the ready queue and park it automatically if it is waiting for tomorrow.
+                            Power Dial works this file from the ready queue and parks it after every active number has been worked for the day.
                           </p>
                         )}
                       </div>
@@ -4470,7 +4540,7 @@ function DialerPageInner() {
                                 key={lp.id}
                                 type="button"
                                 onClick={() => {
-                                  setPhoneIndex(i);
+                                  void selectLeadPhone(i);
                                 }}
                                 className={cn(
                                   "h-7 px-2.5 rounded-[8px] text-sm font-mono border transition-all flex items-center gap-1.5",
@@ -4703,8 +4773,21 @@ function DialerPageInner() {
                     <>
                       <Phone className="h-7 w-7 mx-auto text-muted-foreground/15" />
                       <p className="text-sm text-muted-foreground/50">
-                        {displayedQueue.length > 0 ? "Loading first lead…" : "Queue is empty"}
+                        {autoCycleMode
+                          ? powerDialReadyQueueExhausted
+                            ? "Today's ready Power Dial queue is finished. Add more leads to keep dialing."
+                            : displayedQueue.length > 0
+                              ? "Loading first ready lead…"
+                              : "Power Dial queue is empty"
+                          : displayedQueue.length > 0
+                            ? "Loading first lead…"
+                            : "Queue is empty"}
                       </p>
+                      {autoCycleMode && powerDialReadyQueueExhausted && (
+                        <p className="text-xs text-muted-foreground/35 max-w-[280px] mx-auto">
+                          Parked files will come back when due. If you want to keep dialing now, add more leads to the queue.
+                        </p>
+                      )}
                     </>
                   )}
                 </div>

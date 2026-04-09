@@ -253,6 +253,99 @@ export async function POST(req: NextRequest) {
   });
 }
 
+export async function PATCH(req: NextRequest) {
+  const user = await getDialerUser(req.headers.get("authorization"));
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  let body: { leadId?: string; nextPhoneId?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  if (!body.leadId || !body.nextPhoneId) {
+    return NextResponse.json({ error: "leadId and nextPhoneId are required" }, { status: 400 });
+  }
+
+  const sb = createDialerClient();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: leadRow, error: leadErr } = await (sb.from("leads") as any)
+    .select("id, status, assigned_to")
+    .eq("id", body.leadId)
+    .maybeSingle();
+
+  if (leadErr) {
+    console.error("[auto-cycle] pointer lead query failed:", leadErr.message);
+    return NextResponse.json({ error: "Failed to load Auto Cycle lead" }, { status: 500 });
+  }
+
+  if (!leadRow) {
+    return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+  }
+
+  if (leadRow.assigned_to !== user.id) {
+    return NextResponse.json({ error: "Lead must be claimed by you before updating Auto Cycle" }, { status: 403 });
+  }
+
+  if (leadRow.status !== "lead" && leadRow.status !== "prospect") {
+    return NextResponse.json({ error: "Only prospect or lead files can update Auto Cycle" }, { status: 400 });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: cycleLead, error: cycleLeadErr } = await (sb.from("dialer_auto_cycle_leads") as any)
+    .select("id")
+    .eq("lead_id", body.leadId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (cycleLeadErr) {
+    console.error("[auto-cycle] pointer load failed:", cycleLeadErr.message);
+    return NextResponse.json({ error: "Failed to load Auto Cycle pointer" }, { status: 500 });
+  }
+
+  if (!cycleLead) {
+    return NextResponse.json({ error: "Auto Cycle lead not found" }, { status: 404 });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: phoneRow, error: phoneErr } = await (sb.from("dialer_auto_cycle_phones") as any)
+    .select("id, phone_id, phone_status")
+    .eq("cycle_lead_id", cycleLead.id)
+    .eq("phone_id", body.nextPhoneId)
+    .eq("phone_status", "active")
+    .maybeSingle();
+
+  if (phoneErr) {
+    console.error("[auto-cycle] pointer phone query failed:", phoneErr.message);
+    return NextResponse.json({ error: "Failed to validate Auto Cycle phone" }, { status: 500 });
+  }
+
+  if (!phoneRow) {
+    return NextResponse.json({ error: "Selected phone is not an active Auto Cycle phone on this lead" }, { status: 400 });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: updateErr } = await (sb.from("dialer_auto_cycle_leads") as any)
+    .update({
+      next_phone_id: body.nextPhoneId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", cycleLead.id);
+
+  if (updateErr) {
+    console.error("[auto-cycle] pointer update failed:", updateErr.message);
+    return NextResponse.json({ error: "Failed to update Auto Cycle pointer" }, { status: 500 });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    lead_id: body.leadId,
+    next_phone_id: body.nextPhoneId,
+  });
+}
+
 export async function DELETE(req: NextRequest) {
   const user = await getDialerUser(req.headers.get("authorization"));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
