@@ -384,6 +384,7 @@ export function withDuplicateStatus(
 export function inboundCandidateToRecord(candidate: NormalizedInboundCandidate): NormalizedImportRecord {
   return {
     rowNumber: 1,
+    sentinelLeadId: null,
     ownerName: candidate.ownerName,
     ownerSuffix: null,
     coOwnerName: null,
