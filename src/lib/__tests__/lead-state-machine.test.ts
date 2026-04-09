@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   validateStatusTransition,
+  validateStageTransition,
   getAllowedTransitions,
   incrementLockVersion,
 } from "@/lib/lead-guardrails";
@@ -69,6 +70,10 @@ describe("validateStatusTransition", () => {
     expect(validateStatusTransition("dead", "nurture")).toBe(true);
   });
 
+  it("allows dead → lead (resurrection)", () => {
+    expect(validateStatusTransition("dead", "lead")).toBe(true);
+  });
+
   it("allows nurture → lead (re-engagement)", () => {
     expect(validateStatusTransition("nurture", "lead")).toBe(true);
   });
@@ -91,7 +96,7 @@ describe("getAllowedTransitions", () => {
     negotiation: ["disposition", "nurture", "dead"],
     disposition: ["closed", "nurture", "dead"],
     nurture: ["lead", "active", "dead"],
-    dead: ["nurture"],
+    dead: ["lead", "nurture"],
     closed: [],
   };
 
@@ -111,6 +116,27 @@ describe("incrementLockVersion", () => {
     expect(incrementLockVersion(0)).toBe(1);
     expect(incrementLockVersion(5)).toBe(6);
     expect(incrementLockVersion(99)).toBe(100);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  validateStageTransition                                           */
+/* ------------------------------------------------------------------ */
+
+describe("validateStageTransition", () => {
+  it("requires next_action when resurrecting dead → lead", () => {
+    expect(validateStageTransition("dead", "lead", null)).toEqual({
+      valid: false,
+      code: "missing_next_action",
+      message: 'A next_action is required when advancing to "lead". Describe what happens next for this lead.',
+    });
+  });
+
+  it("allows dead → lead when next_action is provided", () => {
+    expect(validateStageTransition("dead", "lead", "Call back tomorrow morning")).toEqual({
+      valid: true,
+      requiresNextAction: true,
+    });
   });
 });
 

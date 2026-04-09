@@ -120,9 +120,9 @@ const DISPO_OPTIONS: DispoMeta[] = [
   { key: "completed",      label: "Talked / Interested", icon: Phone,    color: "text-primary",        bg: "bg-primary/8 hover:bg-primary/15 border-primary/15" },
   { key: "follow_up",      label: "Callback",       icon: ArrowRight,    color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "appointment",    label: "Appointment",    icon: CalendarCheck, color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "not_interested", label: "Not Interested", icon: X,             color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "wrong_number",   label: "Wrong Number (This Number)",   icon: PhoneMissed,   color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
-  { key: "disconnected",   label: "Disconnected (This Number)",   icon: PhoneMissed,   color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
+  { key: "not_interested", label: "Not Interested", icon: X,             color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
+  { key: "wrong_number",   label: "Wrong Number (This Number)",   icon: PhoneMissed,   color: "text-amber-200",      bg: "bg-amber-500/8 hover:bg-amber-500/15 border-amber-500/15" },
+  { key: "disconnected",   label: "Disconnected (This Number)",   icon: PhoneMissed,   color: "text-amber-200",      bg: "bg-amber-500/8 hover:bg-amber-500/15 border-amber-500/15" },
   { key: "do_not_call",    label: "Do Not Call",    icon: Flag,          color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
 ];
 

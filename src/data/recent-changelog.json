@@ -1,5 +1,35 @@
 [
   {
+    "hash": "839f0f27",
+    "date": "2026-04-09",
+    "message": "[codex] keep disconnected and wrong numbers on the file"
+  },
+  {
+    "hash": "bebe3946",
+    "date": "2026-04-09",
+    "message": "[codex] refresh recent changelog"
+  },
+  {
+    "hash": "cf395c00",
+    "date": "2026-04-09",
+    "message": "[codex] unify dialer queue state and hold positive outcomes"
+  },
+  {
+    "hash": "8991ea2c",
+    "date": "2026-04-09",
+    "message": "[codex] Mark Skip Genie leads across surfaces"
+  },
+  {
+    "hash": "468101ac",
+    "date": "2026-04-09",
+    "message": "[codex] Finish Power Dial file-first flow"
+  },
+  {
+    "hash": "147fb9a0",
+    "date": "2026-04-09",
+    "message": "[codex] Finish task-first follow-up cleanup"
+  },
+  {
     "hash": "864de9ac",
     "date": "2026-04-09",
     "message": "[codex] Fix inbound intake record typing"
@@ -93,35 +123,5 @@
     "hash": "709879fb",
     "date": "2026-04-09",
     "message": "[codex] Tighten scout tax threshold and show payments behind"
-  },
-  {
-    "hash": "02387f74",
-    "date": "2026-04-09",
-    "message": "[codex] Improve Tina intake and CPA handoff flow"
-  },
-  {
-    "hash": "6ef74c92",
-    "date": "2026-04-08",
-    "message": "[codex] Fix Tina simple intake upload reset"
-  },
-  {
-    "hash": "414788bb",
-    "date": "2026-04-08",
-    "message": "[codex] Ship Tina intake and entity-review spine"
-  },
-  {
-    "hash": "48e3e814",
-    "date": "2026-04-08",
-    "message": "[codex] Turn Today into an operator command center"
-  },
-  {
-    "hash": "5144f5c8",
-    "date": "2026-04-08",
-    "message": "[codex] Relabel LeadHouse sources and remove score UI"
-  },
-  {
-    "hash": "c3e3dd5c",
-    "date": "2026-04-08",
-    "message": "[codex] Fix false answered inbound misses"
   }
 ]

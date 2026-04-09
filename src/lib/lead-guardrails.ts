@@ -22,7 +22,7 @@ const ALLOWED_TRANSITIONS: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
   negotiation: ["disposition", "nurture", "dead"],
   disposition: ["closed", "nurture", "dead"],
   nurture: ["lead", "active", "dead"],
-  dead: ["nurture"],
+  dead: ["lead", "nurture"],
   closed: [],
 };
 
