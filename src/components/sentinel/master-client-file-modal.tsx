@@ -1572,7 +1572,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
                 )}
                 {displayedTaxOwed > 0 && (
                   <span className="text-muted-foreground">
-                    Scout Owed <span className="text-foreground font-mono font-semibold">{formatCurrency(displayedTaxOwed)}</span>
+                    Total Owed <span className="text-foreground font-mono font-semibold">{formatCurrency(displayedTaxOwed)}</span>
                   </span>
                 )}
                 {paymentsBehindDisplay != null && paymentsBehindDisplay > 0 && (
