@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { useDealBuyers } from "@/hooks/use-buyers";
 import { dealBuyerStatusLabel } from "@/lib/buyer-types";
-import type { ClientFile } from "../master-client-file-helpers";
+import { buildAddress, type ClientFile } from "../master-client-file-helpers";
 
 // ── EditField ─────────────────────────────────────────────────────────────────
 
@@ -62,7 +62,15 @@ export function EditField({ label, value, onChange, placeholder, mono }: {
 
 // ── EditDetailsModal ──────────────────────────────────────────────────────────
 
-export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onClose: () => void; onSaved: () => void }) {
+export function EditDetailsModal({
+  cf,
+  onClose,
+  onSaved,
+}: {
+  cf: ClientFile;
+  onClose: () => void;
+  onSaved: (patch: Partial<ClientFile>) => void;
+}) {
   const [fields, setFields] = useState<EditFields>({
     address: cf.address?.split(",")[0]?.trim() ?? "",
     city: cf.city || "",
@@ -92,8 +100,15 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
         setError("Session expired. Please sign in again.");
         return;
       }
+      const street = fields.address.trim();
+      const city = fields.city.trim();
+      const state = fields.state.trim();
+      const zip = fields.zip.trim();
+      const ownerName = fields.owner_name.trim();
+      const apn = fields.apn.trim();
+      const propertyType = fields.property_type.trim();
+      const notes = fields.notes.trim();
 
-      const fullAddr = [fields.address, fields.city, fields.state, fields.zip].filter(Boolean).join(", ");
       const res = await fetch("/api/properties/update", {
         method: "PATCH",
         headers: {
@@ -104,14 +119,14 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
           property_id: cf.propertyId,
           lead_id: cf.id,
           fields: {
-            address: fullAddr,
-            city: fields.city,
-            state: fields.state,
-            zip: fields.zip,
-            owner_name: fields.owner_name,
-            apn: fields.apn,
-            property_type: fields.property_type || null,
-            notes: fields.notes || null,
+            address: street,
+            city,
+            state,
+            zip,
+            owner_name: ownerName,
+            apn,
+            property_type: propertyType || null,
+            notes: notes || null,
             bedrooms: fields.bedrooms ? parseInt(fields.bedrooms) : null,
             bathrooms: fields.bathrooms ? parseFloat(fields.bathrooms) : null,
             sqft: fields.sqft ? parseInt(fields.sqft) : null,
@@ -125,8 +140,28 @@ export function EditDetailsModal({ cf, onClose, onSaved }: { cf: ClientFile; onC
         setError(data.error ?? "Update failed");
         return;
       }
+      const property = data.property && typeof data.property === "object" ? data.property as Record<string, unknown> : null;
+      const nextAddress = typeof property?.address === "string" ? property.address : street;
+      const nextCity = typeof property?.city === "string" ? property.city : city;
+      const nextState = typeof property?.state === "string" ? property.state : state;
+      const nextZip = typeof property?.zip === "string" ? property.zip : zip;
       window.dispatchEvent(new CustomEvent("sentinel:refresh-dashboard"));
-      onSaved();
+      onSaved({
+        address: nextAddress,
+        city: nextCity,
+        state: nextState,
+        zip: nextZip,
+        fullAddress: buildAddress(nextAddress, nextCity, nextState, nextZip),
+        ownerName: typeof property?.owner_name === "string" ? property.owner_name : ownerName,
+        apn: typeof property?.apn === "string" ? property.apn : apn,
+        propertyType: typeof property?.property_type === "string" ? property.property_type : (propertyType || null),
+        notes: notes || null,
+        bedrooms: typeof property?.bedrooms === "number" ? property.bedrooms : (fields.bedrooms ? parseInt(fields.bedrooms, 10) : null),
+        bathrooms: typeof property?.bathrooms === "number" ? property.bathrooms : (fields.bathrooms ? parseFloat(fields.bathrooms) : null),
+        sqft: typeof property?.sqft === "number" ? property.sqft : (fields.sqft ? parseInt(fields.sqft, 10) : null),
+        yearBuilt: typeof property?.year_built === "number" ? property.year_built : (fields.year_built ? parseInt(fields.year_built, 10) : null),
+        lotSize: typeof property?.lot_size === "number" ? property.lot_size : (fields.lot_size ? parseInt(fields.lot_size, 10) : null),
+      });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");

@@ -1,6 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 
+function normalizeAddressParts(fields: Record<string, unknown>) {
+  const normalized = { ...fields };
+  const rawAddress = typeof normalized.address === "string" ? normalized.address.trim() : "";
+  const city = typeof normalized.city === "string" ? normalized.city.trim() : "";
+  const state = typeof normalized.state === "string" ? normalized.state.trim() : "";
+  const zip = typeof normalized.zip === "string" ? normalized.zip.trim() : "";
+
+  if (!rawAddress) return normalized;
+
+  const segments = rawAddress
+    .split(",")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  if (segments.length <= 1) {
+    normalized.address = rawAddress;
+    return normalized;
+  }
+
+  normalized.address = segments[0];
+  if (!city && segments[1]) normalized.city = segments[1];
+  if (!state && segments[2]) normalized.state = segments[2];
+  if (!zip && segments[3]) normalized.zip = segments[3];
+  return normalized;
+}
+
 async function requireAuthenticatedUser(req: NextRequest, sb: ReturnType<typeof createServerClient>) {
   const authHeader = req.headers.get("authorization");
   const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
@@ -23,14 +49,16 @@ async function requireAuthenticatedUser(req: NextRequest, sb: ReturnType<typeof 
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { property_id, lead_id, fields } = body;
+    const { property_id, lead_id } = body;
+    const rawFields = body.fields;
 
-    if (!property_id || !fields || typeof fields !== "object") {
+    if (!property_id || !rawFields || typeof rawFields !== "object" || Array.isArray(rawFields)) {
       return NextResponse.json(
         { error: "property_id and fields object are required" },
         { status: 400 },
       );
     }
+    const fields = normalizeAddressParts(rawFields as Record<string, unknown>);
 
     const sb = createServerClient();
     const user = await requireAuthenticatedUser(req, sb);

@@ -464,6 +464,16 @@ const DISPOSITIONS: DispoOption[] = [
 
 type CallState = "idle" | "dialing" | "connected" | "ended";
 
+function getQueueLeadPersistedPhoneCount(lead: QueueLead | AutoCycleQueueLead): number {
+  const canonicalCount = typeof lead.active_phone_count === "number" ? lead.active_phone_count : 0;
+  if (!isAutoCycleQueueLead(lead)) {
+    return canonicalCount;
+  }
+
+  const autoCycleActiveCount = lead.autoCyclePhones.filter((phone) => phone.phoneStatus === "active").length;
+  return Math.max(canonicalCount, autoCycleActiveCount);
+}
+
 function formatCurrency(n: number): string {
   if (n >= 1000000) return `$${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `$${(n / 1000).toFixed(0)}K`;
@@ -1136,9 +1146,9 @@ function DialerPageInner() {
     : null;
   const currentLeadSkipTraceState = currentLeadClientFile
     ? deriveSkipTraceUiState({
-      clientFile: currentLeadClientFile,
-      persistedPhoneCount: activeLeadPhones.length,
-    })
+        clientFile: currentLeadClientFile,
+        persistedPhoneCount: currentLead ? Math.max(activeLeadPhones.length, getQueueLeadPersistedPhoneCount(currentLead)) : activeLeadPhones.length,
+      })
     : null;
   const currentLeadSkipTraceBadge = currentLeadSkipTraceState
     ? getSkipTraceBadgeConfig(currentLeadSkipTraceState.status)
@@ -4120,13 +4130,15 @@ function DialerPageInner() {
                 </div>
                 {displayedQueue.map((lead, idx) => {
                   const isActive = currentLead?.id === lead.id;
+                  const persistedPhoneCount = getQueueLeadPersistedPhoneCount(lead);
                   const skipTraceState = lead.properties
                     ? deriveSkipTraceUiState({
-                      clientFile: clientFileFromRaw(
-                        lead as unknown as Record<string, any>,
-                        lead.properties as unknown as Record<string, any>,
-                      ),
-                    }).status
+                        clientFile: clientFileFromRaw(
+                          lead as unknown as Record<string, any>,
+                          lead.properties as unknown as Record<string, any>,
+                        ),
+                        persistedPhoneCount,
+                      }).status
                     : null;
                   const skipTraceBadge = skipTraceState
                     ? getSkipTraceBadgeConfig(skipTraceState)

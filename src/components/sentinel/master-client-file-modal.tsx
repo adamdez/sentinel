@@ -9651,7 +9651,10 @@ export function MasterClientFileModal({
 
               onClose={() => setEditOpen(false)}
 
-              onSaved={() => onRefresh?.()}
+              onSaved={(patch) => {
+                setClientFilePatch((prev) => ({ ...(prev ?? {}), ...patch }));
+                onRefresh?.();
+              }}
 
             />
 

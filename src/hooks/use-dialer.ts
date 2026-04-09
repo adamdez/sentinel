@@ -41,6 +41,7 @@ export interface QueueLead {
   follow_up_date?: string | null;
   skip_trace_status?: string | null;
   skip_trace_completed_at?: string | null;
+  active_phone_count?: number;
   last_contact_at: string | null;
   promoted_at: string | null;
   call_sequence_step: number;
@@ -219,6 +220,7 @@ export function useDialerQueue(limit = 7) {
       }
 
       let leadPhoneMap: Record<string, string> = {};
+      let leadPhoneCountMap: Record<string, number> = {};
       if (leadIds.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data: phoneRows } = await (supabase.from("lead_phones") as any)
@@ -234,6 +236,7 @@ export function useDialerQueue(limit = 7) {
             if (!leadPhoneMap[row.lead_id]) {
               leadPhoneMap[row.lead_id] = row.phone;
             }
+            leadPhoneCountMap[row.lead_id] = (leadPhoneCountMap[row.lead_id] ?? 0) + 1;
           }
         }
       }
@@ -248,6 +251,7 @@ export function useDialerQueue(limit = 7) {
         return {
           ...lead,
           properties: lead.properties ? { ...lead.properties, owner_phone: fallbackPhone } : lead.properties,
+          active_phone_count: leadPhoneCountMap[lead.id] ?? 0,
           predictiveScore: predScore,
           blendedPriority,
         };
