@@ -8,7 +8,7 @@ import {
   ExternalLink, Phone, MessageSquare, Mail, MapPin, User, Lock,
   Loader2, Save, Pencil, ImageIcon, Contact2, Crosshair, Smartphone,
   Scale, Calendar, FileText, Users, XCircle, RotateCcw, ChevronDown,
-  ArrowUp, CheckCircle2, AlertCircle,
+  ArrowUp, CheckCircle2, AlertCircle, Plus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -31,12 +31,15 @@ import { SkipTraceStatusControl } from "@/components/sentinel/skip-trace-status-
 import type { PhoneDetail, EmailDetail, SkipTraceOverlay, SkipTraceError } from "./contact-types";
 import type { LeadPhone } from "@/lib/dialer/types";
 
-export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceResult, skipTraceError, onDial, onSms, calling, onRefresh }: {
+export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceResult, skipTraceError, onDial, onSms, calling, onRefresh, leadPhones, phonesLoading, onRefreshLeadPhones }: {
   cf: ClientFile; overlay: SkipTraceOverlay | null;
   onSkipTrace: () => void; skipTracing: boolean;
   skipTraceResult?: string | null; skipTraceError?: SkipTraceError | null;
   onDial: (phone: string) => void; onSms: (phone: string) => void;
   calling: boolean; onRefresh?: () => void;
+  leadPhones: LeadPhone[];
+  phonesLoading: boolean;
+  onRefreshLeadPhones: () => Promise<void>;
 }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const prRaw = (cf.ownerFlags?.pr_raw ?? {}) as Record<string, any>;
@@ -58,28 +61,13 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
   const persons = overlay?.persons ?? (cf.ownerFlags?.persons as Record<string, unknown>[]) ?? [];
 
   // Phone roster from lead_phones table (canonical source)
-  const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
-  const [phonesLoading, setPhonesLoading] = useState(false);
   const [deadReasonFor, setDeadReasonFor] = useState<string | null>(null);
   const [driveBySaving, setDriveBySaving] = useState(false);
-
-  const fetchPhones = useCallback(async () => {
-    if (!cf.id) return;
-    setPhonesLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers: Record<string, string> = {};
-      if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
-      const res = await fetch(`/api/leads/${cf.id}/phones`, { headers });
-      if (res.ok) {
-        const data = await res.json();
-        setLeadPhones(data.phones ?? []);
-      }
-    } catch { /* silent */ }
-    finally { setPhonesLoading(false); }
-  }, [cf.id]);
-
-  useEffect(() => { fetchPhones(); }, [fetchPhones]);
+  const [addingPhone, setAddingPhone] = useState(false);
+  const [addingPhoneSaving, setAddingPhoneSaving] = useState(false);
+  const [newPhoneValue, setNewPhoneValue] = useState("");
+  const [newPhoneLabel, setNewPhoneLabel] = useState<LeadPhone["label"]>("mobile");
+  const [newPhonePrimary, setNewPhonePrimary] = useState(false);
 
   const handlePhoneAction = useCallback(async (
     phoneId: string,
@@ -106,14 +94,14 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
               : `Phone marked ${status}`,
         );
         if (data.all_phones_dead) toast.warning("All phones are now dead for this lead");
-        fetchPhones();
+        void onRefreshLeadPhones();
         onRefresh?.();
       } else {
         toast.error("Failed to update phone");
       }
     } catch { toast.error("Network error"); }
     setDeadReasonFor(null);
-  }, [cf.id, fetchPhones, onRefresh]);
+  }, [cf.id, onRefresh, onRefreshLeadPhones]);
 
   // Fallback to legacy data when lead_phones is empty
   const rawManualPhones = (cf.ownerFlags?.manual_phones as string[] | undefined) ?? [];
@@ -143,6 +131,10 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
     sourceVendor: cf.sourceVendor,
     sourceListName: cf.sourceListName,
   }), [cf.ownerFlags, cf.sourceListName, cf.sourceVendor]);
+
+  useEffect(() => {
+    setNewPhonePrimary(activeLeadPhoneCount === 0);
+  }, [activeLeadPhoneCount]);
 
   // ── Mailing address from PR raw data ──
   const prMailAddr = prRaw.MailAddress ?? prRaw.MailingAddress ?? null;
@@ -350,6 +342,48 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
     }
   }, [cf.id, onRefresh]);
 
+  const handleAddPhone = useCallback(async () => {
+    setAddingPhoneSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired. Please sign in again.");
+        return;
+      }
+
+      const res = await fetch(`/api/leads/${cf.id}/phones`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          phone: newPhoneValue,
+          label: newPhoneLabel,
+          make_primary: newPhonePrimary,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) {
+        toast.error(data.error ?? "Failed to add phone");
+        return;
+      }
+
+      toast.success(newPhonePrimary ? "Phone added and set as primary" : "Phone added");
+      setNewPhoneValue("");
+      setNewPhoneLabel("mobile");
+      setNewPhonePrimary(false);
+      setAddingPhone(false);
+      void onRefreshLeadPhones();
+      onRefresh?.();
+    } catch {
+      toast.error("Failed to add phone");
+    } finally {
+      setAddingPhoneSaving(false);
+    }
+  }, [cf.id, newPhoneLabel, newPhonePrimary, newPhoneValue, onRefresh, onRefreshLeadPhones]);
+
   return (
     <div className="space-y-4 max-w-[680px] mx-auto">
       {/* ── Street View / Satellite Image ── */}
@@ -525,6 +559,19 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
           </p>
           <div className="flex items-center gap-1.5">
             {phonesLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/40" />}
+            <button
+              type="button"
+              onClick={() => {
+                setAddingPhone((prev) => !prev);
+                setNewPhoneValue("");
+                setNewPhoneLabel("mobile");
+                setNewPhonePrimary(activeLeadPhoneCount === 0);
+              }}
+              className="h-6 px-2.5 rounded-md text-xs font-semibold bg-muted/10 text-foreground border border-border/20 hover:bg-muted/20 transition-colors flex items-center gap-1"
+            >
+              <Plus className="h-3 w-3" />
+              Add phone
+            </button>
             {!hasPhones && !useLeadPhones && skipStatus === "not_run" && (
               <button
                 onClick={onSkipTrace}
@@ -537,6 +584,56 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
             )}
           </div>
         </div>
+        {addingPhone && (
+          <div className="rounded-[10px] border border-overlay-8 bg-overlay-3 p-2.5 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={newPhoneValue}
+                onChange={(e) => setNewPhoneValue(e.target.value)}
+                placeholder="(509) 555-1234"
+                className="min-w-[180px] flex-1 bg-overlay-4 border border-overlay-10 rounded-md px-3 py-1.5 text-sm font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:border-primary/30"
+              />
+              <select
+                value={newPhoneLabel}
+                onChange={(e) => setNewPhoneLabel(e.target.value as LeadPhone["label"])}
+                className="bg-overlay-4 border border-overlay-10 rounded-md px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:border-primary/30"
+              >
+                <option value="mobile">Mobile</option>
+                <option value="landline">Landline</option>
+                <option value="voip">VoIP</option>
+                <option value="unknown">Unknown</option>
+              </select>
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={newPhonePrimary}
+                  onChange={(e) => setNewPhonePrimary(e.target.checked)}
+                  className="rounded border-overlay-10 bg-overlay-4"
+                />
+                Make primary
+              </label>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleAddPhone()}
+                disabled={addingPhoneSaving || newPhoneValue.replace(/\D/g, "").length < 10}
+                className="h-7 px-3 rounded-md text-sm font-semibold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-all flex items-center gap-1 disabled:opacity-40"
+              >
+                {addingPhoneSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                {addingPhoneSaving ? "Adding..." : "Save phone"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddingPhone(false)}
+                disabled={addingPhoneSaving}
+                className="h-7 px-3 rounded-md text-sm font-semibold border border-overlay-10 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
         <div className="space-y-1.5">
           {useLeadPhones ? (
             /* ── API-driven phone roster from lead_phones ── */

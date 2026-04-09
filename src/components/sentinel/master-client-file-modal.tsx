@@ -101,7 +101,7 @@ import {
 } from "@/lib/valuation";
 
 import { useCallNotes } from "@/hooks/use-call-notes";
-import type { RepeatCallMemory, LeadNoteTimelineItem } from "@/lib/dialer/types";
+import type { LeadPhone, RepeatCallMemory, LeadNoteTimelineItem } from "@/lib/dialer/types";
 import { buildLeadNotesPreview } from "@/lib/dialer/note-preview";
 
 import { CompsMap, getSatelliteTileUrl, getGoogleStreetViewLink, haversine, scoreComp, getCompQualityLabel, getCompRationale, type CompProperty, type SubjectProperty, type CompScore } from "@/components/sentinel/comps/comps-map";
@@ -937,13 +937,13 @@ function derivePaymentsBehindDisplay(
 
 
 
-function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, onSkipTrace, skipTracing, skipTraceResult }: {
+function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, onSkipTrace, skipTracing, skipTraceResult, persistedPhoneCount = 0 }: {
 
   cf: ClientFile; computedArv: number; activityRefreshToken: number;
 
   onDial: (phone: string) => void; calling: boolean;
 
-  onSkipTrace?: () => void; skipTracing?: boolean; skipTraceResult?: string | null;
+  onSkipTrace?: () => void; skipTracing?: boolean; skipTraceResult?: string | null; persistedPhoneCount?: number;
 
 }) {
 
@@ -954,6 +954,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
   const skipTraceUi = deriveSkipTraceUiState({
     clientFile: cf,
     sessionHasResults: Boolean(skipTraceResult),
+    persistedPhoneCount,
   });
   const skipGenieMarker = deriveSkipGenieMarker({
     ownerFlags: cf.ownerFlags,
@@ -1151,7 +1152,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
             sourceLabel: `${direction === "inbound" ? "Text received" : "Text sent"}${phoneDigits ? ` • •••${phoneDigits}` : ""}`,
             isUnread: direction === "inbound" && !message.read_at,
           };
-        }).filter((entry) => entry.notes.length > 0);
+        }).filter((entry: { notes: string }) => entry.notes.length > 0);
 
         setActivityLog(
           [...timelineEntries, ...eventEntries, ...smsEntries]
@@ -4504,6 +4505,10 @@ export function MasterClientFileModal({
 
   const [skipTraceError, setSkipTraceError] = useState<SkipTraceError | null>(null);
 
+  const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
+
+  const [phonesLoading, setPhonesLoading] = useState(false);
+
   const [selectedComps, setSelectedComps] = useState<CompProperty[]>([]);
 
   const [computedArv, setComputedArv] = useState(
@@ -4522,6 +4527,42 @@ export function MasterClientFileModal({
 
       : 0
 
+  );
+
+  const refreshLeadPhones = useCallback(async () => {
+    if (!incomingClientFile?.id) {
+      setLeadPhones([]);
+      setPhonesLoading(false);
+      return;
+    }
+
+    setPhonesLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {};
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      const res = await fetch(`/api/leads/${incomingClientFile.id}/phones`, { headers });
+      if (!res.ok) return;
+      const data = await res.json();
+      setLeadPhones(data.phones ?? []);
+    } catch {
+      // Fall back to lead snapshot data if canonical phone fetch fails.
+    } finally {
+      setPhonesLoading(false);
+    }
+  }, [incomingClientFile?.id]);
+
+  useEffect(() => {
+    setLeadPhones([]);
+  }, [incomingClientFile?.id]);
+
+  useEffect(() => {
+    void refreshLeadPhones();
+  }, [refreshLeadPhones]);
+
+  const activeLeadPhoneCount = useMemo(
+    () => leadPhones.filter((phone) => phone.status === "active").length,
+    [leadPhones],
   );
 
   const [editOpen, setEditOpen] = useState(false);
@@ -7801,6 +7842,7 @@ export function MasterClientFileModal({
       clientFile,
       sessionHasResults: Boolean(skipTraceResult),
       sessionFailed: skipTraceError != null,
+      persistedPhoneCount: activeLeadPhoneCount,
     });
     if (preflight.status === "skipped" || preflight.status === "skip_empty") {
       toast.message("This file has already been skip traced.");
@@ -7891,6 +7933,7 @@ export function MasterClientFileModal({
 
         console.log(`[SkipTrace Perf] Total: ${total}ms | API: ${Math.round(tApi - t0)}ms`);
 
+        void refreshLeadPhones();
         onRefresh?.();
 
       } else {
@@ -7943,7 +7986,7 @@ export function MasterClientFileModal({
 
     }
 
-  }, [clientFile, onRefresh]);
+  }, [activeLeadPhoneCount, clientFile, onRefresh, refreshLeadPhones, skipTraceError, skipTraceResult]);
 
 
 
@@ -9475,13 +9518,14 @@ export function MasterClientFileModal({
                           onSkipTrace={handleSkipTrace}
                           skipTracing={skipTracing}
                           skipTraceResult={skipTraceResult}
+                          persistedPhoneCount={activeLeadPhoneCount}
                         />
                       </div>
                     )}
 
                     {activeTab === "contact" && (
 
-                      <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceError={skipTraceError} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} />
+                      <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceError={skipTraceError} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} leadPhones={leadPhones} phonesLoading={phonesLoading} onRefreshLeadPhones={refreshLeadPhones} />
 
                     )}
 

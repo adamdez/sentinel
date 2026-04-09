@@ -6,6 +6,10 @@ function normalizePhoneDigits(value: string): string {
   return value.replace(/\D/g, "").slice(-10);
 }
 
+function formatLeadPhoneValue(digits: string): string {
+  return `+1${digits}`;
+}
+
 function buildLegacyFallbackPhones(input: {
   ownerPhone: string | null;
   ownerFlags: Record<string, unknown> | null;
@@ -145,6 +149,136 @@ export async function GET(
     });
   } catch (err) {
     console.error("[GET /api/leads/[id]/phones] unexpected error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+/**
+ * POST /api/leads/[id]/phones
+ *
+ * Adds a new canonical lead_phones row for a lead. Optionally promotes the new
+ * number to primary and syncs properties.owner_phone for legacy readers.
+ */
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const sb = createServerClient();
+    const user = await requireAuth(req, sb);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { id: leadId } = await params;
+    const body = await req.json().catch(() => ({}));
+    const { phone, label, make_primary } = body as {
+      phone?: string;
+      label?: "mobile" | "landline" | "voip" | "unknown";
+      make_primary?: boolean;
+    };
+
+    const digits = normalizePhoneDigits(phone ?? "");
+    if (digits.length !== 10) {
+      return NextResponse.json({ error: "Phone must be a valid 10-digit US number" }, { status: 400 });
+    }
+
+    const normalizedLabel = ["mobile", "landline", "voip", "unknown"].includes(label ?? "")
+      ? (label as "mobile" | "landline" | "voip" | "unknown")
+      : "unknown";
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: leadRow, error: leadErr } = await (sb.from("leads") as any)
+      .select("id, property_id")
+      .eq("id", leadId)
+      .single();
+
+    if (leadErr || !leadRow) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existingRows, error: existingErr } = await (sb.from("lead_phones") as any)
+      .select("id, phone, position, is_primary, status")
+      .eq("lead_id", leadId)
+      .order("position", { ascending: true })
+      .order("created_at", { ascending: true });
+
+    if (existingErr) {
+      console.error("[POST /api/leads/[id]/phones] existing rows query error:", existingErr);
+      return NextResponse.json({ error: "Failed to inspect existing phones" }, { status: 500 });
+    }
+
+    const rows = (existingRows ?? []) as Array<Record<string, unknown>>;
+    const duplicate = rows.some((row) => normalizePhoneDigits(String(row.phone ?? "")) === digits);
+    if (duplicate) {
+      return NextResponse.json({ error: "Phone already exists on this lead" }, { status: 409 });
+    }
+
+    const nextPosition = Math.max(
+      -1,
+      ...rows.map((row) => typeof row.position === "number" ? row.position : -1),
+    ) + 1;
+
+    const hasActivePrimary = rows.some((row) => row.status === "active" && row.is_primary === true);
+    const shouldMakePrimary = make_primary === true || !hasActivePrimary;
+    const formattedPhone = formatLeadPhoneValue(digits);
+
+    if (shouldMakePrimary) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("lead_phones") as any)
+        .update({ is_primary: false })
+        .eq("lead_id", leadId);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: insertedPhone, error: insertErr } = await (sb.from("lead_phones") as any)
+      .insert({
+        lead_id: leadId,
+        property_id: leadRow.property_id,
+        phone: formattedPhone,
+        label: normalizedLabel,
+        source: "manual_entry",
+        status: "active",
+        dead_reason: null,
+        is_primary: shouldMakePrimary,
+        position: nextPosition,
+      })
+      .select("id, phone, is_primary")
+      .single();
+
+    if (insertErr) {
+      console.error("[POST /api/leads/[id]/phones] insert error:", insertErr);
+      return NextResponse.json({ error: "Failed to add phone" }, { status: 500 });
+    }
+
+    if (shouldMakePrimary && leadRow.property_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (sb.from("properties") as any)
+        .update({ owner_phone: formattedPhone })
+        .eq("id", leadRow.property_id);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("event_log") as any).insert({
+      user_id: user.id,
+      action: "phone.added",
+      entity_type: "lead_phone",
+      entity_id: insertedPhone?.id ?? `${leadId}:${formattedPhone}`,
+      details: {
+        lead_id: leadId,
+        property_id: leadRow.property_id ?? null,
+        phone: formattedPhone,
+        label: normalizedLabel,
+        source: "manual_entry",
+        marked_primary: shouldMakePrimary,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      phone: insertedPhone ?? { phone: formattedPhone, is_primary: shouldMakePrimary },
+    });
+  } catch (err) {
+    console.error("[POST /api/leads/[id]/phones] unexpected error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
