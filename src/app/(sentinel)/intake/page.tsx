@@ -60,6 +60,7 @@ export default function IntakePage() {
   const [editingLead, setEditingLead] = useState<IntakeLead | null>(null);
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
+  const [openLeadId, setOpenLeadId] = useState<string | null>(null);
 
   // Fetch leads
   const fetchLeads = async () => {
@@ -116,6 +117,20 @@ export default function IntakePage() {
       supabase.removeChannel(channel);
     };
   }, [statusFilter, sourceFilter, dateRange]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setOpenLeadId(params.get("open"));
+  }, []);
+
+  useEffect(() => {
+    if (!openLeadId || editingLead || showClaimModal || leads.length === 0) return;
+    const matchedLead = leads.find((lead) => lead.id === openLeadId);
+    if (matchedLead) {
+      setEditingLead(matchedLead);
+    }
+  }, [editingLead, leads, openLeadId, showClaimModal]);
 
   // Refetch after claim modal closes
   const handleClaimSuccess = () => {

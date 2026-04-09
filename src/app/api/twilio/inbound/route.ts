@@ -114,32 +114,42 @@ async function resolveMissedCallContext(
   sb: ReturnType<typeof createServerClient>,
   phone: string,
   leadIdHint?: string | null,
-): Promise<{ leadId: string | null; leadName: string; assignedTo: string | null }> {
+): Promise<{
+  leadId: string | null;
+  leadName: string;
+  assignedTo: string | null;
+  intakeLeadId: string | null;
+  propertyAddress: string | null;
+  ownerName: string | null;
+}> {
   const defaultLeadName = "Unknown caller";
-  const { resolveSmsLead } = await import("@/lib/sms/lead-resolution");
+  const { unifiedPhoneLookup } = await import("@/lib/dialer/phone-lookup");
 
   const phoneContext = phone
-    ? await resolveSmsLead(sb, phone)
-    : {
-        leadId: null,
-        ownerName: null,
-        assignedTo: null,
-      };
+    ? await unifiedPhoneLookup(phone, sb)
+    : null;
 
-  let leadId = leadIdHint ?? phoneContext.leadId ?? null;
-  let leadName = phoneContext.ownerName ?? defaultLeadName;
-  let assignedTo = phoneContext.assignedTo ?? null;
+  let leadId = leadIdHint ?? phoneContext?.leadId ?? null;
+  let leadName = phoneContext?.ownerName ?? defaultLeadName;
+  let assignedTo: string | null = null;
+  let ownerName = phoneContext?.ownerName ?? null;
+  let propertyAddress = phoneContext?.propertyAddress ?? null;
+  const intakeLeadId = phoneContext?.intakeLeadId ?? null;
 
   if (leadId) {
     const leadOwnerContext = await getLeadOwnerContext(sb, leadId);
     assignedTo = leadOwnerContext.assignedTo ?? assignedTo;
     leadName = leadOwnerContext.ownerName ?? leadName;
+    ownerName = leadOwnerContext.ownerName ?? ownerName;
   }
 
   return {
     leadId,
     leadName,
     assignedTo,
+    intakeLeadId,
+    propertyAddress,
+    ownerName,
   };
 }
 
@@ -213,6 +223,13 @@ export async function POST(req: NextRequest) {
               callSid,
               siteUrl,
               fallbackUserId: routePlan.primaryUserId,
+              routeMeta: {
+                dialedToNumber: originalTo || null,
+                routePrimary: routePlan.primaryStep,
+                routeSecondary: routePlan.secondaryStep,
+                routeReason: "browser_chain_canceled",
+                callEndReason: "caller_canceled",
+              },
             });
           }
         } catch (err) {
@@ -284,7 +301,7 @@ export async function POST(req: NextRequest) {
         '<?xml version="1.0" encoding="UTF-8"?>',
         "<Response>",
         ...stopInboundStreamLines,
-        `  <Dial callerId="${callerIdForJeff}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status&amp;callLogId=${encodeURIComponent(safeChainCallLogId)}${routeParams}" method="POST">`,
+        `  <Dial callerId="${callerIdForJeff}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status&amp;callLogId=${encodeURIComponent(safeChainCallLogId)}${routeParams}&amp;vapiRoute=operator_missed" method="POST">`,
         `    <Number>${vapiNumber}</Number>`,
         "  </Dial>",
         "</Response>",
@@ -305,6 +322,13 @@ export async function POST(req: NextRequest) {
               callSid,
               siteUrl,
               fallbackUserId: routePlan.primaryUserId,
+              routeMeta: {
+                dialedToNumber: originalTo || null,
+                routePrimary: routePlan.primaryStep,
+                routeSecondary: routePlan.secondaryStep,
+                routeReason: "browser_chain_exhausted",
+                callEndReason: "no_answer",
+              },
             });
           }
         } catch (err) {
@@ -358,9 +382,26 @@ export async function POST(req: NextRequest) {
       dialStatus === "canceled"  ||
       (dialStatus === "completed" && !wasAnswered);
 
+    const vapiRoute = url.searchParams.get("vapiRoute");
+
     after(async () => {
       try {
-        if (wasAnswered) {
+        if (wasAnswered && vapiRoute === "operator_missed") {
+          await handleMissedInbound({
+            fromNumber,
+            callSid,
+            siteUrl,
+            fallbackUserId: routePlan.primaryUserId,
+            routeMeta: {
+              dialedToNumber: url.searchParams.get("originalTo"),
+              routePrimary: routePlan.primaryStep,
+              routeSecondary: routePlan.secondaryStep,
+              routeReason: "answered_by_jeff_after_browser_miss",
+              callEndReason: "answered_by_jeff",
+            },
+            sendSellerSms: false,
+          });
+        } else if (wasAnswered) {
           await handleAnsweredInbound({
             fromNumber,
             callSid,
@@ -373,6 +414,13 @@ export async function POST(req: NextRequest) {
             callSid,
             siteUrl,
             fallbackUserId: routePlan.primaryUserId,
+            routeMeta: {
+              dialedToNumber: url.searchParams.get("originalTo"),
+              routePrimary: routePlan.primaryStep,
+              routeSecondary: routePlan.secondaryStep,
+              routeReason: vapiRoute === "after_hours" ? "after_hours_missed" : "call_status_missed",
+              callEndReason: dialStatus || callStatus || "no_answer",
+            },
           });
         }
       } catch (err) {
@@ -533,7 +581,7 @@ export async function POST(req: NextRequest) {
     twiml = [
       '<?xml version="1.0" encoding="UTF-8"?>',
       "<Response>",
-      `  <Dial callerId="${callerIdForJeff}" timeout="60" action="${siteUrl}/api/twilio/inbound?type=call_status${chainParams}" method="POST">`,
+      `  <Dial callerId="${callerIdForJeff}" timeout="60" action="${siteUrl}/api/twilio/inbound?type=call_status${chainParams}&amp;vapiRoute=after_hours" method="POST">`,
       `    <Number>${vapiNumber}</Number>`,
       "  </Dial>",
       "</Response>",
@@ -643,6 +691,100 @@ export async function GET(req: NextRequest) {
   return POST(req);
 }
 
+type InboundOperatorStep = "logan" | "adam";
+
+interface MissedInboundRouteMeta {
+  dialedToNumber?: string | null;
+  routePrimary?: InboundOperatorStep | null;
+  routeSecondary?: InboundOperatorStep | null;
+  routeReason?: string | null;
+  callEndReason?: string | null;
+}
+
+async function upsertMissedCallsLog(input: {
+  sb: ReturnType<typeof createServerClient>;
+  callSid: string;
+  fromNumber: string;
+  leadId: string | null;
+  fallbackUserId: string | null;
+}): Promise<{ callLogId: string | null }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: updatedRows, error: updateErr } = await (input.sb.from("calls_log") as any)
+    .update({
+      disposition: "missed",
+      lead_id: input.leadId,
+    })
+    .eq("twilio_sid", input.callSid)
+    .eq("direction", "inbound")
+    .in("disposition", ["in_progress", "initiating", "ringing_prospect", "completed"])
+    .select("id")
+    .limit(1);
+
+  if (updateErr) {
+    console.error("[inbound] calls_log missed update failed:", updateErr.message);
+  }
+
+  const updatedId = Array.isArray(updatedRows) && updatedRows.length > 0
+    ? (updatedRows[0]?.id as string | null) ?? null
+    : null;
+
+  if (updatedId) {
+    return { callLogId: updatedId };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: insertedRows, error: insertErr } = await (input.sb.from("calls_log") as any)
+    .insert({
+      lead_id: input.leadId,
+      user_id: input.fallbackUserId,
+      phone_dialed: input.fromNumber || null,
+      twilio_sid: input.callSid,
+      disposition: "missed",
+      direction: "inbound",
+    })
+    .select("id")
+    .limit(1);
+
+  if (insertErr) {
+    console.error("[inbound] calls_log missed backfill insert failed:", insertErr.message);
+    return { callLogId: null };
+  }
+
+  const insertedId = Array.isArray(insertedRows) && insertedRows.length > 0
+    ? (insertedRows[0]?.id as string | null) ?? null
+    : null;
+
+  return { callLogId: insertedId };
+}
+
+async function hasRecentSellerFacingRecoverySMS(
+  sb: ReturnType<typeof createServerClient>,
+  to: string,
+  sinceIso: string,
+): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (sb.from("sms_messages") as any)
+    .select("body, created_at")
+    .eq("direction", "outbound")
+    .eq("phone", to)
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  if (error) {
+    console.error("[inbound] recent seller SMS lookup failed:", error.message);
+    return false;
+  }
+
+  const rows = (data ?? []) as Array<{ body?: string | null }>;
+  return rows.some((row) => {
+    const body = (row.body ?? "").toLowerCase();
+    return body.includes("thanks for calling dominion home deals")
+      || body.includes("we tried to connect you")
+      || body.includes("we missed your call at dominion home deals");
+  });
+}
+
 // ── handleMissedInbound ───────────────────────────────────────────────────────
 // Core missed-call recovery logic.
 // 1. Look up lead by phone number (best effort — won't always match).
@@ -654,17 +796,28 @@ async function handleMissedInbound({
   callSid,
   siteUrl: _siteUrl,
   fallbackUserId,
+  routeMeta,
+  sendSellerSms = true,
 }: {
   fromNumber: string;
   callSid: string;
   siteUrl: string;
   fallbackUserId?: string | null;
+  routeMeta?: MissedInboundRouteMeta;
+  sendSellerSms?: boolean;
 }) {
   const sb = createServerClient();
   const now = new Date();
 
   // ── 1. Match lead by phone via unified lookup (all phone tables) ──────────
-  const { leadId, leadName, assignedTo } = await resolveMissedCallContext(sb, fromNumber);
+  const {
+    leadId,
+    leadName,
+    assignedTo,
+    intakeLeadId,
+    propertyAddress,
+    ownerName,
+  } = await resolveMissedCallContext(sb, fromNumber);
 
   // ── 2. Create urgent callback task ────────────────────────────────────────
   const dueAt = nextBusinessMorningPacific();
@@ -696,6 +849,14 @@ async function handleMissedInbound({
     taskId = taskRow?.id ?? null;
   }
 
+  const { callLogId } = await upsertMissedCallsLog({
+    sb,
+    callSid,
+    fromNumber,
+    leadId,
+    fallbackUserId: taskAssignee,
+  });
+
   // ── 3. Write inbound.missed dialer_event ──────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: eventErr } = await (sb.from("dialer_events") as any)
@@ -711,6 +872,15 @@ async function handleMissedInbound({
         lead_matched: !!leadId,
         task_due_at: dueAt.toISOString(),
         missed_at: now.toISOString(),
+        dialed_to_number: routeMeta?.dialedToNumber ?? null,
+        route_primary: routeMeta?.routePrimary ?? null,
+        route_secondary: routeMeta?.routeSecondary ?? null,
+        route_reason: routeMeta?.routeReason ?? null,
+        call_end_reason: routeMeta?.callEndReason ?? null,
+        intake_lead_id: intakeLeadId,
+        property_address: propertyAddress,
+        owner_name: ownerName,
+        calls_log_id: callLogId,
       },
     });
 
@@ -719,20 +889,6 @@ async function handleMissedInbound({
   }
 
   // ── Update calls_log disposition from in_progress → missed ─────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: logErr } = await (sb.from("calls_log") as any)
-    .update({
-      disposition: "missed",
-      lead_id: leadId,
-    })
-    .eq("twilio_sid", callSid)
-    .eq("direction", "inbound")
-    .in("disposition", ["in_progress", "initiating", "ringing_prospect"]);
-
-  if (logErr) {
-    console.error("[inbound] calls_log missed update failed:", logErr.message);
-  }
-
   // ── 4. SMS both operators — missed inbound call ───────────────────────────
   try {
     const { sendDirectSMS } = await import("@/providers/voice/vapi-sms");
@@ -746,6 +902,23 @@ async function handleMissedInbound({
     console.log("[inbound] Missed call SMS sent to operators");
   } catch (smsErr) {
     console.error("[inbound] Missed call SMS failed:", smsErr);
+  }
+
+  if (sendSellerSms && fromNumber) {
+    try {
+      const recentWindowStart = new Date(now.getTime() - 20 * 60_000).toISOString();
+      const alreadyMessaged = await hasRecentSellerFacingRecoverySMS(sb, fromNumber, recentWindowStart);
+      if (!alreadyMessaged) {
+        const { sendMissedInboundSMS } = await import("@/providers/voice/vapi-sms");
+        await sendMissedInboundSMS({
+          to: fromNumber,
+          callerName: ownerName ?? null,
+          leadId,
+        });
+      }
+    } catch (smsErr) {
+      console.error("[inbound] Seller missed-call SMS failed:", smsErr);
+    }
   }
 
   console.log("[inbound] Missed inbound handled:", {

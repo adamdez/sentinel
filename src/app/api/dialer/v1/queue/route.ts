@@ -36,6 +36,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import { readEventTaskId } from "@/lib/dialer/dialer-events";
+import { unifiedPhoneLookup } from "@/lib/dialer/phone-lookup";
 
 // ─────────────────────────────────────────────────────────────
 // Output types
@@ -88,6 +89,25 @@ export interface MissedInbound {
   routing_action:  string | null;   // routing action from classify event
   is_classified:   boolean;
   source:          "event" | "calls_log_fallback";
+  dialed_to_number: string | null;
+  route_primary: "logan" | "adam" | null;
+  route_secondary: "logan" | "adam" | null;
+  route_reason: string | null;
+  match_kind: "lead" | "intake" | "unknown";
+  owner_name: string | null;
+  property_address: string | null;
+  lead_source: string | null;
+  call_log_id: string | null;
+  voice_session_id: string | null;
+  voicemail_url: string | null;
+  voicemail_duration: number | null;
+  jeff_summary: string | null;
+  jeff_callback_requested: boolean;
+  jeff_callback_time: string | null;
+  seller_sms_sent: boolean;
+  open_target_type: "lead" | "intake" | "phone_lookup" | null;
+  open_target_id: string | null;
+  final_state: "voicemail_recorded" | "jeff_message" | "callback_booked" | "hung_up" | "answered_unclassified" | "unresolved";
 }
 
 export interface UnclassifiedAnswered {
@@ -370,6 +390,25 @@ export async function GET(req: NextRequest) {
           routing_action: classifyInfo?.routing_action ?? null,
           is_classified:  !!classifyInfo,
           source:         "event",
+          dialed_to_number: (meta.dialed_to_number as string) ?? null,
+          route_primary: ((meta.route_primary as "logan" | "adam" | null) ?? null),
+          route_secondary: ((meta.route_secondary as "logan" | "adam" | null) ?? null),
+          route_reason: (meta.route_reason as string) ?? null,
+          match_kind: e.lead_id ? "lead" : "unknown",
+          owner_name: (meta.owner_name as string) ?? null,
+          property_address: (meta.property_address as string) ?? null,
+          lead_source: null,
+          call_log_id: (meta.calls_log_id as string) ?? null,
+          voice_session_id: null,
+          voicemail_url: null,
+          voicemail_duration: null,
+          jeff_summary: null,
+          jeff_callback_requested: false,
+          jeff_callback_time: null,
+          seller_sms_sent: false,
+          open_target_type: e.lead_id ? "lead" : null,
+          open_target_id: e.lead_id,
+          final_state: (meta.call_end_reason as string) === "caller_canceled" ? "hung_up" : "unresolved",
         };
       });
   }
@@ -411,6 +450,25 @@ export async function GET(req: NextRequest) {
           routing_action: null,
           is_classified: false,
           source: "calls_log_fallback",
+          dialed_to_number: null,
+          route_primary: null,
+          route_secondary: null,
+          route_reason: null,
+          match_kind: row.lead_id ? "lead" : "unknown",
+          owner_name: null,
+          property_address: null,
+          lead_source: null,
+          call_log_id: row.id,
+          voice_session_id: null,
+          voicemail_url: null,
+          voicemail_duration: null,
+          jeff_summary: null,
+          jeff_callback_requested: false,
+          jeff_callback_time: null,
+          seller_sms_sent: false,
+          open_target_type: row.lead_id ? "lead" : null,
+          open_target_id: row.lead_id,
+          final_state: "unresolved",
         });
         if (missedInbound.length >= limit) break;
       }
@@ -421,6 +479,234 @@ export async function GET(req: NextRequest) {
   // inbound.answered calls that have no corresponding inbound.classified event.
   // These are answered calls where Logan never logged a caller type — routing leakage.
   // Capped to last 24h to avoid surfacing stale calls.
+  if (missedInbound.length > 0) {
+    const phoneLookups = await Promise.all(
+      missedInbound.map(async (item) => ({
+        eventId: item.event_id,
+        lookup: item.from_number !== "unknown" ? await unifiedPhoneLookup(item.from_number, sb) : null,
+      })),
+    );
+    const lookupMap = new Map(phoneLookups.map((entry) => [entry.eventId, entry.lookup]));
+
+    const leadIds = [...new Set(
+      missedInbound
+        .map((item) => item.lead_id ?? lookupMap.get(item.event_id)?.leadId ?? null)
+        .filter((value): value is string => typeof value === "string" && value.length > 0),
+    )];
+    const intakeIds = [...new Set(
+      phoneLookups
+        .map((entry) => entry.lookup?.intakeLeadId ?? null)
+        .filter((value): value is string => typeof value === "string" && value.length > 0),
+    )];
+    const phoneNumbers = [...new Set(
+      missedInbound
+        .map((item) => item.from_number)
+        .filter((value) => value !== "unknown"),
+    )];
+    const callLogIds = [...new Set(
+      missedInbound
+        .map((item) => item.call_log_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0),
+    )];
+
+    let leadSourceMap = new Map<string, string | null>();
+    if (leadIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: leadRows } = await (sb.from("leads") as any)
+        .select("id, source_category")
+        .in("id", leadIds);
+      leadSourceMap = new Map((leadRows ?? []).map((row: { id: string; source_category: string | null }) => [row.id, row.source_category ?? null]));
+    }
+
+    let intakeSourceMap = new Map<string, string | null>();
+    if (intakeIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: intakeRows } = await (sb.from("intake_leads") as any)
+        .select("id, source_category")
+        .in("id", intakeIds);
+      intakeSourceMap = new Map((intakeRows ?? []).map((row: { id: string; source_category: string | null }) => [row.id, row.source_category ?? null]));
+    }
+
+    const callLogMap = new Map<string, {
+      id: string;
+      voicemail_url: string | null;
+      voicemail_duration: number | null;
+    }>();
+    if (callLogIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: callLogRows } = await (sb.from("calls_log") as any)
+        .select("id, voicemail_url, voicemail_duration")
+        .in("id", callLogIds);
+      for (const row of (callLogRows ?? []) as Array<{
+        id: string;
+        voicemail_url: string | null;
+        voicemail_duration: number | null;
+      }>) {
+        callLogMap.set(row.id, row);
+      }
+    }
+
+    const jeffByPhone = new Map<string, Array<{
+      voice_session_id: string;
+      summary: string | null;
+      callback_requested: boolean;
+      callback_due_at: string | null;
+      callback_timing_text: string | null;
+      created_at: string;
+    }>>();
+    if (phoneNumbers.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: jeffRows } = await (sb.from("jeff_interactions") as any)
+        .select("voice_session_id, caller_phone, summary, callback_requested, callback_due_at, callback_timing_text, created_at")
+        .in("caller_phone", phoneNumbers)
+        .gte("created_at", new Date(now.getTime() - 3 * 86_400_000).toISOString())
+        .order("created_at", { ascending: false });
+      for (const row of (jeffRows ?? []) as Array<{
+        voice_session_id: string;
+        caller_phone: string | null;
+        summary: string | null;
+        callback_requested: boolean | null;
+        callback_due_at: string | null;
+        callback_timing_text: string | null;
+        created_at: string;
+      }>) {
+        if (!row.caller_phone) continue;
+        const existing = jeffByPhone.get(row.caller_phone) ?? [];
+        existing.push({
+          voice_session_id: row.voice_session_id,
+          summary: row.summary ?? null,
+          callback_requested: Boolean(row.callback_requested),
+          callback_due_at: row.callback_due_at ?? null,
+          callback_timing_text: row.callback_timing_text ?? null,
+          created_at: row.created_at,
+        });
+        jeffByPhone.set(row.caller_phone, existing);
+      }
+    }
+
+    const voiceByPhone = new Map<string, Array<{
+      id: string;
+      summary: string | null;
+      callback_requested: boolean;
+      created_at: string;
+    }>>();
+    if (phoneNumbers.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: voiceRows } = await (sb.from("voice_sessions") as any)
+        .select("id, from_number, summary, callback_requested, created_at")
+        .eq("direction", "inbound")
+        .in("from_number", phoneNumbers)
+        .gte("created_at", new Date(now.getTime() - 3 * 86_400_000).toISOString())
+        .order("created_at", { ascending: false });
+      for (const row of (voiceRows ?? []) as Array<{
+        id: string;
+        from_number: string | null;
+        summary: string | null;
+        callback_requested: boolean | null;
+        created_at: string;
+      }>) {
+        if (!row.from_number) continue;
+        const existing = voiceByPhone.get(row.from_number) ?? [];
+        existing.push({
+          id: row.id,
+          summary: row.summary ?? null,
+          callback_requested: Boolean(row.callback_requested),
+          created_at: row.created_at,
+        });
+        voiceByPhone.set(row.from_number, existing);
+      }
+    }
+
+    const smsByPhone = new Map<string, Array<{ created_at: string }>>();
+    if (phoneNumbers.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: smsRows } = await (sb.from("sms_messages") as any)
+        .select("phone, created_at")
+        .eq("direction", "outbound")
+        .in("phone", phoneNumbers)
+        .gte("created_at", new Date(now.getTime() - 3 * 86_400_000).toISOString())
+        .order("created_at", { ascending: false });
+      for (const row of (smsRows ?? []) as Array<{ phone: string | null; created_at: string }>) {
+        if (!row.phone) continue;
+        const existing = smsByPhone.get(row.phone) ?? [];
+        existing.push({ created_at: row.created_at });
+        smsByPhone.set(row.phone, existing);
+      }
+    }
+
+    const pickRelevant = <T extends { created_at: string }>(rows: T[] | undefined, missedAt: string): T | null => {
+      if (!rows || rows.length === 0) return null;
+      const missedTime = new Date(missedAt).getTime();
+      return rows.find((row) => new Date(row.created_at).getTime() >= missedTime - 10 * 60_000) ?? rows[0] ?? null;
+    };
+
+    missedInbound = missedInbound.map((item) => {
+      const lookup = lookupMap.get(item.event_id) ?? null;
+      const effectiveLeadId = item.lead_id ?? lookup?.leadId ?? null;
+      const intakeLeadId = lookup?.intakeLeadId ?? null;
+      const ownerName = lookup?.ownerName ?? item.owner_name ?? null;
+      const propertyAddress = lookup?.propertyAddress ?? item.property_address ?? null;
+      const matchKind: MissedInbound["match_kind"] = effectiveLeadId
+        ? "lead"
+        : intakeLeadId
+          ? "intake"
+          : "unknown";
+      const openTargetType: MissedInbound["open_target_type"] = effectiveLeadId
+        ? "lead"
+        : intakeLeadId
+          ? "intake"
+          : lookup?.matchSource
+            ? "phone_lookup"
+            : null;
+      const openTargetId = effectiveLeadId ?? intakeLeadId ?? (openTargetType === "phone_lookup" ? item.from_number : null);
+      const callLog = item.call_log_id ? (callLogMap.get(item.call_log_id) ?? null) : null;
+      const jeffRecord = pickRelevant(jeffByPhone.get(item.from_number), item.missed_at);
+      const voiceRecord = pickRelevant(voiceByPhone.get(item.from_number), item.missed_at);
+      const sellerSmsSent = (smsByPhone.get(item.from_number) ?? []).some(
+        (row) => new Date(row.created_at).getTime() >= new Date(item.missed_at).getTime(),
+      );
+      const jeffSummary = jeffRecord?.summary ?? voiceRecord?.summary ?? null;
+      const jeffCallbackRequested = Boolean(jeffRecord?.callback_requested ?? voiceRecord?.callback_requested ?? false);
+      const jeffCallbackTime = jeffRecord?.callback_timing_text ?? jeffRecord?.callback_due_at ?? null;
+
+      let finalState: MissedInbound["final_state"] = item.final_state;
+      if (callLog?.voicemail_url) {
+        finalState = "voicemail_recorded";
+      } else if (jeffCallbackRequested) {
+        finalState = "callback_booked";
+      } else if (jeffSummary) {
+        finalState = "jeff_message";
+      } else if (item.route_reason === "answered_by_jeff_after_browser_miss") {
+        finalState = "answered_unclassified";
+      }
+
+      return {
+        ...item,
+        lead_id: effectiveLeadId,
+        lead_matched: matchKind === "lead",
+        match_kind: matchKind,
+        owner_name: ownerName,
+        property_address: propertyAddress,
+        lead_source: effectiveLeadId
+          ? (leadSourceMap.get(effectiveLeadId) ?? null)
+          : intakeLeadId
+            ? (intakeSourceMap.get(intakeLeadId) ?? null)
+            : null,
+        call_log_id: callLog?.id ?? item.call_log_id,
+        voice_session_id: jeffRecord?.voice_session_id ?? voiceRecord?.id ?? null,
+        voicemail_url: callLog?.voicemail_url ?? null,
+        voicemail_duration: callLog?.voicemail_duration ?? null,
+        jeff_summary: jeffSummary,
+        jeff_callback_requested: jeffCallbackRequested,
+        jeff_callback_time: jeffCallbackTime,
+        seller_sms_sent: sellerSmsSent,
+        open_target_type: openTargetType,
+        open_target_id: openTargetId,
+        final_state: finalState,
+      };
+    });
+  }
+
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60_000).toISOString();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: answeredEvents, error: answeredErr } = await (sb.from("dialer_events") as any)

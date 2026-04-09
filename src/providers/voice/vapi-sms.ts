@@ -21,6 +21,31 @@ interface CallbackSMSParams {
   leadId?: string | null;
 }
 
+interface SellerFacingSMSLogParams {
+  to: string;
+  body: string;
+  twilioData: Record<string, unknown>;
+  leadId?: string | null;
+}
+
+async function logSellerFacingSMS(params: SellerFacingSMSLogParams): Promise<void> {
+  try {
+    const sb = createServerClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (sb.from("sms_messages") as any).insert({
+      phone: params.to,
+      direction: "outbound",
+      body: params.body,
+      twilio_sid: params.twilioData.sid ?? null,
+      twilio_status: params.twilioData.status ?? "sent",
+      lead_id: params.leadId ?? null,
+      user_id: "00000000-0000-0000-0000-000000000000",
+    });
+  } catch (logErr) {
+    console.error("[vapi-sms] Failed to log seller-facing SMS to sms_messages:", logErr);
+  }
+}
+
 /**
  * Send a callback confirmation SMS to the caller after Vapi books a callback.
  * Blueprint PR-9: "send confirmation SMS via Twilio when callback is booked."
@@ -74,21 +99,12 @@ export async function sendCallbackConfirmationSMS(
 
     // C2: Log seller-facing SMS to sms_messages for thread visibility
     const twilioData = await res.json().catch(() => ({}));
-    try {
-      const sb = createServerClient();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sb.from("sms_messages") as any).insert({
-        phone: params.to,
-        direction: "outbound",
-        body: body,
-        twilio_sid: twilioData.sid ?? null,
-        twilio_status: twilioData.status ?? "sent",
-        lead_id: params.leadId ?? null,
-        user_id: "00000000-0000-0000-0000-000000000000",
-      });
-    } catch (logErr) {
-      console.error("[vapi-sms] Failed to log callback SMS to sms_messages:", logErr);
-    }
+    await logSellerFacingSMS({
+      to: params.to,
+      body,
+      twilioData,
+      leadId: params.leadId ?? null,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[vapi-sms] Failed to send callback SMS:", msg);
@@ -188,23 +204,73 @@ export async function sendTransferFailedSMS(
 
     // C2: Log seller-facing SMS to sms_messages for thread visibility
     const twilioData = await res.json().catch(() => ({}));
-    try {
-      const sb = createServerClient();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (sb.from("sms_messages") as any).insert({
-        phone: to,
-        direction: "outbound",
-        body: body,
-        twilio_sid: twilioData.sid ?? null,
-        twilio_status: twilioData.status ?? "sent",
-        lead_id: leadId ?? null,
-        user_id: "00000000-0000-0000-0000-000000000000",
-      });
-    } catch (logErr) {
-      console.error("[vapi-sms] Failed to log transfer-failed SMS to sms_messages:", logErr);
-    }
+    await logSellerFacingSMS({
+      to,
+      body,
+      twilioData,
+      leadId: leadId ?? null,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[vapi-sms] Transfer-failed SMS failed:", msg);
+  }
+}
+
+export async function sendMissedInboundSMS(params: {
+  to: string;
+  callerName?: string | null;
+  leadId?: string | null;
+}): Promise<void> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID;
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+
+  if (!accountSid || !authToken || !fromNumber || !params.to) {
+    return;
+  }
+
+  const greeting = params.callerName?.trim()
+    ? `Hi ${params.callerName.trim()},`
+    : "Hi there,";
+  const body = `${greeting} we missed your call at Dominion Home Deals. We'll call you back as soon as we can. If you'd rather text, just reply here with the best time to reach you.`;
+
+  try {
+    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+    const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${auth}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        To: params.to,
+        From: fromNumber,
+        Body: body,
+      }).toString(),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      console.error(`[vapi-sms] Missed-inbound SMS error ${res.status}: ${errBody.slice(0, 200)}`);
+    }
+
+    const twilioData = await res.json().catch(() => ({}));
+    await logSellerFacingSMS({
+      to: params.to,
+      body,
+      twilioData,
+      leadId: params.leadId ?? null,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[vapi-sms] Missed-inbound SMS failed:", msg);
   }
 }
