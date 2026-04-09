@@ -32,7 +32,7 @@ export function RecentSellerNotes({
 
   return (
     <div className={cn("rounded-xl border border-border/20 bg-muted/[0.04] p-3 space-y-2", className)}>
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/65">
+      <div className="ops-text-meta flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/65">
         <MessageSquare className="h-3 w-3" />
         {title}
       </div>
@@ -48,10 +48,10 @@ export function RecentSellerNotes({
               className={cn(index > 0 && "border-t border-border/10 pt-2")}
             >
               <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground/45">
+                <span className="ops-text-faint text-[10px] uppercase tracking-wide text-muted-foreground/45">
                   {item.sourceLabel}
                 </span>
-                <span className="text-[10px] text-muted-foreground/40 shrink-0">
+                <span className="ops-text-faint shrink-0 text-[10px] text-muted-foreground/40">
                   {formatNoteTimestamp(item.createdAt)}
                 </span>
               </div>
@@ -63,7 +63,9 @@ export function RecentSellerNotes({
                     <span
                       className={cn(
                         "leading-snug",
-                        item.isAiGenerated && !item.isConfirmed ? "text-muted-foreground/65 italic" : "text-foreground/80",
+                        item.isAiGenerated && !item.isConfirmed
+                          ? "ops-text-meta text-muted-foreground/65 italic"
+                          : "ops-text-body text-foreground/80",
                       )}
                     >
                       {line}

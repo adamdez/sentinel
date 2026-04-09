@@ -8721,13 +8721,13 @@ export function MasterClientFileModal({
 
           >
 
-            <div
+              <div
 
-              className="flex-1 overflow-hidden rounded-[16px] border border-overlay-8 modal-glass flex flex-row"
+               className="ops-light-surface flex flex-1 flex-row overflow-hidden rounded-[16px] border border-overlay-8 modal-glass"
 
-              data-operator-safe
+               data-operator-safe
 
-            >
+              >
 
             <div className="flex-1 overflow-hidden flex flex-col min-w-0">
 

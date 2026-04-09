@@ -182,12 +182,12 @@ type KpiKey = "myOutbound" | "myInbound" | "myLiveAnswers" | "myAvgTalkTime" | "
 type Period = "today" | "week" | "month" | "all";
 
 const KPI_META: Record<KpiKey, { label: string; icon: React.ElementType; color: string; glow: string; teamKey: KpiKey; format?: (v: number) => string }> = {
-  myOutbound:    { label: "My Outbound",    icon: PhoneForwarded, color: "text-primary",        glow: "var(--shadow-soft)",  teamKey: "teamOutbound" },
-  myInbound:     { label: "My Inbound",     icon: PhoneIncoming,  color: "text-foreground",  glow: "var(--shadow-soft)", teamKey: "teamInbound" },
-  myLiveAnswers: { label: "Outbounds Answered", icon: Phone,       color: "text-foreground", glow: "var(--shadow-soft)", teamKey: "myLiveAnswers" },
-  myAvgTalkTime: { label: "Avg Talk Time",  icon: Timer,          color: "text-foreground",  glow: "var(--shadow-soft)", teamKey: "myAvgTalkTime", format: (s) => s > 0 ? `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}` : "0:00" },
-  teamOutbound:  { label: "Team Outbound",  icon: Users,          color: "text-foreground",    glow: "var(--shadow-soft)", teamKey: "teamOutbound" },
-  teamInbound:   { label: "Team Inbound",   icon: Users,          color: "text-foreground",    glow: "var(--shadow-soft)", teamKey: "teamInbound" },
+  myOutbound:    { label: "My Outbound",    icon: PhoneForwarded, color: "ops-text-accent text-primary", glow: "var(--shadow-soft)", teamKey: "teamOutbound" },
+  myInbound:     { label: "My Inbound",     icon: PhoneIncoming,  color: "ops-text-body text-foreground", glow: "var(--shadow-soft)", teamKey: "teamInbound" },
+  myLiveAnswers: { label: "Outbounds Answered", icon: Phone,       color: "ops-text-body text-foreground", glow: "var(--shadow-soft)", teamKey: "myLiveAnswers" },
+  myAvgTalkTime: { label: "Avg Talk Time",  icon: Timer,          color: "ops-text-body text-foreground", glow: "var(--shadow-soft)", teamKey: "myAvgTalkTime", format: (s) => s > 0 ? `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}` : "0:00" },
+  teamOutbound:  { label: "Team Outbound",  icon: Users,          color: "ops-text-body text-foreground", glow: "var(--shadow-soft)", teamKey: "teamOutbound" },
+  teamInbound:   { label: "Team Inbound",   icon: Users,          color: "ops-text-body text-foreground", glow: "var(--shadow-soft)", teamKey: "teamInbound" },
 };
 
 const PERIOD_LABELS: { key: Period; label: string }[] = [
@@ -373,11 +373,11 @@ const KPI_GROUPS: Array<{
   accentClass: string;
   format?: (value: number) => string;
 }> = [
-  { key: "outbound", label: "Outbound", icon: PhoneForwarded, accentClass: "text-primary" },
-  { key: "pickups", label: "Pickups", icon: Phone, accentClass: "text-emerald-300" },
-  { key: "inbound", label: "Inbound", icon: PhoneIncoming, accentClass: "text-foreground" },
-  { key: "missedCalls", label: "Missed Calls", icon: PhoneOff, accentClass: "text-amber-300" },
-  { key: "talkTimeSec", label: "Talk Time", icon: Timer, accentClass: "text-sky-300", format: formatTalkTime },
+  { key: "outbound", label: "Outbound", icon: PhoneForwarded, accentClass: "ops-text-accent text-primary" },
+  { key: "pickups", label: "Pickups", icon: Phone, accentClass: "ops-text-body text-foreground" },
+  { key: "inbound", label: "Inbound", icon: PhoneIncoming, accentClass: "ops-text-body text-foreground" },
+  { key: "missedCalls", label: "Missed Calls", icon: PhoneOff, accentClass: "ops-text-warning text-amber-300" },
+  { key: "talkTimeSec", label: "Talk Time", icon: Timer, accentClass: "ops-text-body text-foreground", format: formatTalkTime },
 ];
 
 function DialerKpiGroup({

@@ -29,7 +29,7 @@ export function PageShell({ title, description, children, actions, operatorSafe 
       initial={hydrated ? { opacity: 0 } : false}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.1 }}
-      className="flex-1 overflow-auto"
+      className="ops-light-surface flex-1 overflow-auto"
       {...(operatorSafe ? { "data-operator-safe": "" } : {})}
     >
       <div className="p-6 space-y-6">
@@ -65,7 +65,7 @@ export function PageShell({ title, description, children, actions, operatorSafe 
                 initial={hydrated ? { opacity: 0, x: -8 } : false}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.03, duration: 0.1, ease: "easeOut" }}
-                className="text-sm text-muted-foreground/70 mt-1"
+                className="ops-text-meta mt-1 text-sm text-muted-foreground/70"
               >
                 {description}
               </motion.p>

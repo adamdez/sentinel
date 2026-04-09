@@ -43,7 +43,7 @@ export function SellerMemoryPreview({ leadId, className = "" }: Props) {
 
   if (loading) {
     return (
-      <div className={`flex items-center gap-2 py-2 text-xs text-muted-foreground/45 ${className}`}>
+      <div className={`ops-text-faint flex items-center gap-2 py-2 text-xs text-muted-foreground/45 ${className}`}>
         <Loader2 className="h-3 w-3 animate-spin" />
         Loading recent notes...
       </div>

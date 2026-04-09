@@ -2240,3 +2240,106 @@ html[data-sentinel-theme="psalm20"] ::selection {
   background: rgba(201,168,76,0.25);
   color: #e8e0d4;
 }
+
+/* Light-mode operator contrast ramp */
+html[data-sentinel-theme="light"] {
+  --ops-light-text-strong: #09090b;
+  --ops-light-text-body: #18181b;
+  --ops-light-text-support: #27272a;
+  --ops-light-text-meta: #3f3f46;
+  --ops-light-text-faint: #52525b;
+  --ops-light-text-accent: #18181b;
+  --ops-light-text-warning: #713f12;
+  --ops-light-text-danger: #991b1b;
+  --ops-light-text-success: #166534;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface .ops-text-strong {
+  color: var(--ops-light-text-strong) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface .ops-text-body {
+  color: var(--ops-light-text-body) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface .ops-text-support {
+  color: var(--ops-light-text-support) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface .ops-text-meta {
+  color: var(--ops-light-text-meta) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface .ops-text-faint {
+  color: var(--ops-light-text-faint) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface .ops-text-accent {
+  color: var(--ops-light-text-accent) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface .ops-text-warning {
+  color: var(--ops-light-text-warning) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface .ops-text-danger {
+  color: var(--ops-light-text-danger) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface .ops-text-success {
+  color: var(--ops-light-text-success) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/20"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/25"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/30"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/35"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/40"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/45"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/50"] {
+  color: var(--ops-light-text-faint) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/55"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/60"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/65"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/70"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-muted-foreground/75"] {
+  color: var(--ops-light-text-meta) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-foreground/70"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-foreground/80"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-foreground/85"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-foreground/90"] {
+  color: var(--ops-light-text-body) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-primary/50"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-primary/60"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-primary/65"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-primary/70"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-primary/80"] {
+  color: var(--ops-light-text-accent) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-amber-"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-yellow-"] {
+  color: var(--ops-light-text-warning) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-emerald-"] {
+  color: var(--ops-light-text-success) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-sky-"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-violet-"],
+html[data-sentinel-theme="light"] .ops-light-surface [class*="text-blue-"] {
+  color: var(--ops-light-text-accent) !important;
+}
+
+html[data-sentinel-theme="light"] .ops-light-surface .skip-genie-badge {
+  border-color: rgba(113, 63, 18, 0.18) !important;
+  background: rgba(113, 63, 18, 0.08) !important;
+  color: var(--ops-light-text-warning) !important;
+}

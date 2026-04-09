@@ -106,10 +106,10 @@ function formatPhone(phone: string): string {
 function urgencyTextClass(urgency: UrgencyLevel): string {
   switch (urgency) {
     case "critical": return "text-red-400 font-semibold";
-    case "high": return "text-amber-400";
-    case "normal": return "text-muted-foreground/70";
-    case "low": return "text-muted-foreground/50";
-    case "none": return "text-muted-foreground/40";
+    case "high": return "ops-text-warning text-amber-400";
+    case "normal": return "ops-text-meta text-muted-foreground/70";
+    case "low": return "ops-text-faint text-muted-foreground/50";
+    case "none": return "ops-text-faint text-muted-foreground/40";
   }
 }
 
@@ -597,7 +597,7 @@ export function LeadTable({
         <p className="text-sm text-muted-foreground">
           Loading leads…
         </p>
-        <p className="text-sm text-muted-foreground/65 mt-1">
+        <p className="ops-text-meta mt-1 text-sm text-muted-foreground/65">
           Pulling the live queue now.
         </p>
       </div>
@@ -611,7 +611,7 @@ export function LeadTable({
         <p className="text-sm text-muted-foreground">
           No leads match current filters.
         </p>
-        <p className="text-sm text-muted-foreground/65 mt-1">
+        <p className="ops-text-meta mt-1 text-sm text-muted-foreground/65">
           Clear a filter to expand the queue.
         </p>
       </div>
@@ -652,7 +652,7 @@ export function LeadTable({
             type="button"
             onClick={handleBulkMoveToUnclaimed}
             disabled={bulkUnclaiming}
-            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/25 hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+            className="ops-text-warning flex items-center gap-1.5 rounded-md border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 transition-colors disabled:opacity-50 hover:bg-amber-500/20"
           >
             {bulkUnclaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserMinus className="h-3 w-3" />}
             Move to Unclaimed Leads ({selectedIds.size})
@@ -778,7 +778,7 @@ export function LeadTable({
                       "h-6 w-6 flex items-center justify-center rounded-md transition-colors disabled:cursor-default",
                       lead.status === "active"
                         ? "text-primary bg-primary/10"
-                        : "text-muted-foreground/35 hover:text-primary hover:bg-primary/10",
+                        : "ops-text-faint text-muted-foreground/35 hover:text-primary hover:bg-primary/10",
                     )}
                   >
                     <UserCheck className="h-3.5 w-3.5" />
@@ -807,7 +807,7 @@ export function LeadTable({
                       </span>
                     )}
                     {lead.nextAction?.toLowerCase().startsWith("drive by") && (
-                      <span className="shrink-0 text-xs px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/25 font-bold uppercase tracking-wide flex items-center gap-1">
+                      <span className="ops-text-warning flex shrink-0 items-center gap-1 rounded-md border border-amber-500/25 bg-amber-500/15 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-amber-400">
                         <MapPin className="h-3 w-3" />
                         Drive By
                       </span>
@@ -825,7 +825,7 @@ export function LeadTable({
                         className={cn(
                           "shrink-0 text-[10px] px-1.5 py-0 rounded border font-semibold uppercase tracking-wide",
                           lead.requiresIntroExitCategory
-                            ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                            ? "ops-text-warning bg-amber-500/10 text-amber-300 border-amber-500/30"
                             : "bg-primary/10 text-primary border-primary/25",
                         )}
                       >
@@ -841,11 +841,11 @@ export function LeadTable({
                       {formatOwnerName(lead.ownerName)}
                     </span>
                     {lead.ownerPhone ? (
-                      <span className="text-sm text-foreground/80 tabular-nums shrink-0">
+                      <span className="ops-text-body shrink-0 text-sm tabular-nums text-foreground/80">
                         {formatPhone(lead.ownerPhone)}
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground/30 shrink-0">No phone</span>
+                      <span className="ops-text-faint shrink-0 text-xs text-muted-foreground/30">No phone</span>
                     )}
                   </div>
                   {lead.distressSignals.length > 0 && (
@@ -856,7 +856,7 @@ export function LeadTable({
                         </span>
                       ))}
                       {lead.distressSignals.length > 3 && (
-                        <span className="text-[10px] text-muted-foreground/50">+{lead.distressSignals.length - 3}</span>
+                        <span className="ops-text-faint text-[10px] text-muted-foreground/50">+{lead.distressSignals.length - 3}</span>
                       )}
                     </div>
                   )}
@@ -868,17 +868,17 @@ export function LeadTable({
                     <p className="text-sm font-medium">{lead.sellerSituationSummaryShort}</p>
                   )}
                   {lead.recommendedCallAngle && (
-                    <p className="text-xs text-muted-foreground"><span className="text-primary font-medium">Call angle:</span> {lead.recommendedCallAngle}</p>
+                    <p className="ops-text-meta text-xs text-muted-foreground"><span className="ops-text-accent font-medium text-primary">Call angle:</span> {lead.recommendedCallAngle}</p>
                   )}
                   {(lead.topFact1 || lead.topFact2 || lead.topFact3) && (
-                    <ul className="text-xs text-muted-foreground space-y-0.5">
+                    <ul className="ops-text-meta space-y-0.5 text-xs text-muted-foreground">
                       {lead.topFact1 && <li>• {lead.topFact1}</li>}
                       {lead.topFact2 && <li>• {lead.topFact2}</li>}
                       {lead.topFact3 && <li>• {lead.topFact3}</li>}
                     </ul>
                   )}
                   {!lead.sellerSituationSummaryShort && lead.notes && (
-                    <p className="text-xs text-muted-foreground line-clamp-3">{lead.notes}</p>
+                    <p className="ops-text-meta line-clamp-3 text-xs text-muted-foreground">{lead.notes}</p>
                   )}
                 </TooltipContent>
               )}
@@ -892,7 +892,7 @@ export function LeadTable({
                 </span>
               ) : null}
               <span
-                className="truncate text-xs font-medium text-muted-foreground/90"
+                className="ops-text-meta truncate text-xs font-medium text-muted-foreground/90"
                 title={sourceLabel}
                 style={{ WebkitFontSmoothing: "antialiased" }}
               >
@@ -916,7 +916,7 @@ export function LeadTable({
                     e.stopPropagation();
                     void chooseIntroExitCategory(lead.id);
                   }}
-                  className="mt-1 text-xs font-semibold text-amber-300 hover:text-amber-200 disabled:opacity-50 text-left"
+                  className="ops-text-warning mt-1 text-left text-xs font-semibold text-amber-300 hover:text-amber-200 disabled:opacity-50"
                 >
                   {introActionLeadId === lead.id ? "Updating..." : "Choose category"}
                 </button>
@@ -942,10 +942,10 @@ export function LeadTable({
                 className={cn(
                   "text-sm tabular-nums truncate",
                   wf.lastTouchLabel === "No touch"
-                    ? "text-muted-foreground/40"
+                    ? "ops-text-faint text-muted-foreground/40"
                     : wf.lastTouchLabel === "Today"
                       ? "text-primary"
-                      : "text-muted-foreground",
+                      : "ops-text-meta text-muted-foreground",
                 )}
                 title={lead.lastContactAt ?? undefined}
               >
@@ -960,7 +960,7 @@ export function LeadTable({
                   <button
                     onClick={() => void applyIntroExit(lead.id, "drive_by")}
                     disabled={introActionLeadId === lead.id}
-                    className="h-6 w-6 flex items-center justify-center rounded-md text-amber-300/80 hover:text-amber-200 hover:bg-amber-500/10 transition-colors disabled:opacity-40"
+                    className="ops-text-warning h-6 w-6 flex items-center justify-center rounded-md text-amber-300/80 transition-colors hover:bg-amber-500/10 hover:text-amber-200 disabled:opacity-40"
                   >
                     <MapPin className="h-3.5 w-3.5" />
                   </button>
@@ -972,7 +972,7 @@ export function LeadTable({
                   <button
                     onClick={() => addToJeffQueue(lead.id)}
                     disabled={queuingId === lead.id}
-                    className="h-6 w-6 flex items-center justify-center rounded-md text-violet-300/80 hover:text-violet-200 hover:bg-violet-500/10 transition-colors disabled:opacity-40"
+                    className="ops-text-accent h-6 w-6 flex items-center justify-center rounded-md text-violet-300/80 transition-colors hover:bg-violet-500/10 hover:text-violet-200 disabled:opacity-40"
                   >
                     {queuingId === lead.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
                   </button>

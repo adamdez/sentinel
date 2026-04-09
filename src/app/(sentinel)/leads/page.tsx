@@ -579,7 +579,7 @@ function LeadsPageInner() {
         {/* Active filter banner from Today deep-link */}
         {inboundFilter && FILTER_LABELS[inboundFilter] && (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-primary/20 bg-primary/[0.04]">
-            <span className="text-xs font-medium text-primary">
+            <span className="ops-text-accent text-xs font-medium text-primary">
               Filtered: {FILTER_LABELS[inboundFilter]}
             </span>
             <button
@@ -672,7 +672,7 @@ function LeadsPageInner() {
 
         {/* Row 3: Dialer-prep quick-filters — only non-redundant prep controls */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-semibold text-muted-foreground/50 uppercase tracking-wider mr-0.5">Prep</span>
+          <span className="ops-text-faint mr-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/50">Prep</span>
           <button
             onClick={() => updateFilter("hasPhone", filters.hasPhone === "yes" ? "any" : "yes")}
             className={cn(
@@ -787,27 +787,27 @@ function LeadsPageInner() {
                     <div key={item.label} className="grid grid-cols-[1.4fr_repeat(4,80px)] gap-2 rounded-[10px] border border-overlay-6 bg-overlay-2 px-3 py-2 text-sm">
                       <div>
                         <p className="font-semibold text-foreground">{item.label}</p>
-                        <p className="text-sm text-muted-foreground/65">{item.leads} leads</p>
+                        <p className="ops-text-meta text-sm text-muted-foreground/65">{item.leads} leads</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-muted-foreground/70">Contact</p>
+                        <p className="ops-text-meta text-muted-foreground/70">Contact</p>
                         <p className="font-medium text-foreground">{item.contactRate}%</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-muted-foreground/70">Offer Path</p>
+                        <p className="ops-text-meta text-muted-foreground/70">Offer Path</p>
                         <p className="font-medium text-foreground">{item.offerPathRate}%</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-muted-foreground/70">Closed</p>
+                        <p className="ops-text-meta text-muted-foreground/70">Closed</p>
                         <p className="font-medium text-foreground">{item.closedRate}%</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-muted-foreground/70">Count</p>
+                        <p className="ops-text-meta text-muted-foreground/70">Count</p>
                         <p className="font-medium text-foreground">{item.leads}</p>
                       </div>
                     </div>
                   )) : (
-                    <p className="text-sm text-muted-foreground/60">Source metrics will appear once leads are worked.</p>
+                    <p className="ops-text-meta text-sm text-muted-foreground/60">Source metrics will appear once leads are worked.</p>
                   )}
                 </div>
               </div>
@@ -818,10 +818,10 @@ function LeadsPageInner() {
                   {nicheMetrics.length > 0 ? nicheMetrics.map((item) => (
                     <div key={item.tag} className="flex items-center justify-between rounded-[10px] border border-overlay-6 bg-overlay-2 px-3 py-2 text-sm">
                       <span className="font-medium text-foreground">{item.label}</span>
-                      <span className="text-muted-foreground/75">{item.count}</span>
+                      <span className="ops-text-meta text-muted-foreground/75">{item.count}</span>
                     </div>
                   )) : (
-                    <p className="text-sm text-muted-foreground/60">No niche tags tracked yet.</p>
+                    <p className="ops-text-meta text-sm text-muted-foreground/60">No niche tags tracked yet.</p>
                   )}
                 </div>
               </div>

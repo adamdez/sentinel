@@ -18,7 +18,7 @@ export function SkipGenieBadge({
     <span
       title={title ?? "Imported from Skip Genie"}
       className={cn(
-        "inline-flex items-center rounded-md border font-semibold shrink-0",
+        "skip-genie-badge inline-flex items-center rounded-md border font-semibold shrink-0",
         "border-amber-500/25 bg-amber-500/10 text-amber-200",
         compact ? "gap-1 px-2 py-0.5 text-[11px]" : "gap-1.5 px-3 py-1.5 text-xs",
         className,
