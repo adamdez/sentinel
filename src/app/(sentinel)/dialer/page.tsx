@@ -91,6 +91,22 @@ type DialerStats = {
   teamInbound: number;
 };
 
+type IdleRailAttentionState = {
+  hasUnreadSms: boolean;
+  hasMissedQueueItems: boolean;
+};
+
+type SmsThreadsAttentionResponse = {
+  totalUnread?: number;
+};
+
+type QueueAttentionResponse = {
+  missed_inbound?: unknown[];
+  unclassified_answered?: unknown[];
+};
+
+const IDLE_RAIL_ATTENTION_REFRESH_MS = 10_000;
+
 async function fetchDialerKpis(
   _userId: string,
   period: "today" | "week" | "month" | "all",
@@ -1426,6 +1442,11 @@ function DialerPageInner() {
 
   // Missed calls
   const [missedCalls, setMissedCalls] = useState<Array<{ phone: string; time: string; id: string }>>([]);
+  const [idleRailAttention, setIdleRailAttention] = useState<IdleRailAttentionState>({
+    hasUnreadSms: false,
+    hasMissedQueueItems: false,
+  });
+  const idleRailAttentionRefreshRef = useRef(false);
 
   // Twilio diagnostics + real-time call status
   const [currentCallSid, setCurrentCallSid] = useState<string | null>(null);
@@ -1508,6 +1529,74 @@ function DialerPageInner() {
       Promise.resolve(refetchAutoCycleQueue()),
     ]);
   }, [refetchAutoCycleQueue, refetchQueue]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const refreshIdleRailAttention = async () => {
+      if (idleRailAttentionRefreshRef.current) return;
+      idleRailAttentionRefreshRef.current = true;
+
+      try {
+        const headers = await authHeaders();
+        const [smsResult, queueResult] = await Promise.allSettled([
+          fetch("/api/twilio/sms/threads", { headers, cache: "no-store" }),
+          fetch("/api/dialer/v1/queue?limit=1", { headers, cache: "no-store" }),
+        ]);
+
+        let hasUnreadSms = false;
+        let hasMissedQueueItems = false;
+
+        if (smsResult.status === "fulfilled") {
+          if (smsResult.value.ok) {
+            const smsData = await smsResult.value.json() as SmsThreadsAttentionResponse;
+            hasUnreadSms = (smsData.totalUnread ?? 0) > 0;
+          } else {
+            console.warn("[Dialer] Failed to refresh SMS attention state:", smsResult.value.status);
+          }
+        } else {
+          console.warn("[Dialer] Failed to refresh SMS attention state:", smsResult.reason);
+        }
+
+        if (queueResult.status === "fulfilled") {
+          if (queueResult.value.ok) {
+            const queueData = await queueResult.value.json() as QueueAttentionResponse;
+            hasMissedQueueItems =
+              (queueData.missed_inbound?.length ?? 0) > 0
+              || (queueData.unclassified_answered?.length ?? 0) > 0;
+          } else {
+            console.warn("[Dialer] Failed to refresh missed attention state:", queueResult.value.status);
+          }
+        } else {
+          console.warn("[Dialer] Failed to refresh missed attention state:", queueResult.reason);
+        }
+
+        if (!isActive) return;
+
+        setIdleRailAttention((previous) => (
+          previous.hasUnreadSms === hasUnreadSms
+          && previous.hasMissedQueueItems === hasMissedQueueItems
+            ? previous
+            : {
+                hasUnreadSms,
+                hasMissedQueueItems,
+              }
+        ));
+      } finally {
+        idleRailAttentionRefreshRef.current = false;
+      }
+    };
+
+    void refreshIdleRailAttention();
+    const interval = window.setInterval(() => {
+      void refreshIdleRailAttention();
+    }, IDLE_RAIL_ATTENTION_REFRESH_MS);
+
+    return () => {
+      isActive = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const selectLeadPhone = useCallback(async (index: number) => {
     const nextPhone = activeLeadPhones[index] ?? null;
@@ -4944,10 +5033,14 @@ function DialerPageInner() {
                   {/* ── Tab selector: Missed / History / SMS ── */}
                   <div className="flex items-center gap-0.5 mb-2 rounded-[8px] border border-overlay-6 bg-overlay-2 p-0.5">
                     {([
-                      { key: "missed" as const, label: "Missed" },
-                      { key: "history" as const, label: "History" },
-                      { key: "sms" as const, label: "SMS" },
-                    ] as const).map(({ key, label }) => (
+                      {
+                        key: "missed" as const,
+                        label: "Missed",
+                        attention: idleRailAttention.hasMissedQueueItems || missedCalls.length > 0,
+                      },
+                      { key: "history" as const, label: "History", attention: false },
+                      { key: "sms" as const, label: "SMS", attention: idleRailAttention.hasUnreadSms },
+                    ] as const).map(({ key, label, attention }) => (
                       <button
                         key={key}
                         type="button"
@@ -4959,7 +5052,15 @@ function DialerPageInner() {
                             : "text-muted-foreground/55 hover:text-foreground border border-transparent",
                         )}
                       >
-                        {label}
+                        <span className="inline-flex items-center justify-center gap-1.5">
+                          {label}
+                          {attention && (
+                            <span className="relative flex h-2 w-2">
+                              <span className="absolute inline-flex h-full w-full rounded-full bg-red-500/70 animate-ping" />
+                              <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.65)]" />
+                            </span>
+                          )}
+                        </span>
                       </button>
                     ))}
                   </div>
