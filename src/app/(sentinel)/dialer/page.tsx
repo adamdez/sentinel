@@ -1427,8 +1427,9 @@ function DialerPageInner() {
   useEffect(() => {
     if (!currentLead) return;
     if (displayedQueue.some((lead) => lead.id === currentLead.id)) return;
+    if (fileModalOpen) return;
     setCurrentLead(displayedQueue[0] ?? null);
-  }, [displayedQueue, currentLead]);
+  }, [displayedQueue, currentLead, fileModalOpen]);
 
   // Keep activeCallRef in sync for polling callback closures
   useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
@@ -1635,6 +1636,41 @@ function DialerPageInner() {
         })
     ).catch(() => {});
   }, [currentLead?.id]);
+
+  const openLeadClientFile = useCallback(async (leadId: string) => {
+    const queuedLead = displayedQueue.find((lead) => lead.id === leadId);
+    if (queuedLead) {
+      setCurrentLead(queuedLead);
+      setPhoneIndex(0);
+      setFileModalOpen(true);
+      return;
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from("leads") as any)
+        .select("*, properties(*)")
+        .eq("id", leadId)
+        .single();
+
+      if (error || !data) {
+        toast.error("Could not open that lead right now.");
+        return;
+      }
+
+      setCurrentLead({
+        ...data,
+        predictiveScore: null,
+        blendedPriority: typeof data.priority === "number" ? data.priority : 0,
+        compliant: true,
+        scrubbing: false,
+      } as QueueLead);
+      setPhoneIndex(0);
+      setFileModalOpen(true);
+    } catch {
+      toast.error("Could not open that lead right now.");
+    }
+  }, [displayedQueue]);
 
   const runLeadSkipTrace = useCallback(async (lead: QueueLead, manual = false) => {
     if (!lead.properties?.id || leadSkipTracingId) return;
@@ -4737,6 +4773,7 @@ function DialerPageInner() {
                                 key={entry.id}
                                 entry={entry}
                                 allHistory={callHistory}
+                                onOpenLead={openLeadClientFile}
                                 onDial={(phone) => {
                                   setManualPhone(phone.replace(/\D/g, "").replace(/^1/, "").slice(0, 10));
                                   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -4882,7 +4919,17 @@ function formatDuration(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-function CallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry; allHistory: CallHistoryEntry[]; onDial: (phone: string) => void }) {
+function CallHistoryRow({
+  entry,
+  allHistory,
+  onDial,
+  onOpenLead,
+}: {
+  entry: CallHistoryEntry;
+  allHistory: CallHistoryEntry[];
+  onDial: (phone: string) => void;
+  onOpenLead: (leadId: string) => void | Promise<void>;
+}) {
   const [notesOpen, setNotesOpen] = useState(false);
   const style = DISPO_STYLES[entry.disposition] ?? { color: "text-muted-foreground", bg: "bg-overlay-3 border-overlay-6" };
   const isInbound = entry.direction === "inbound";
@@ -4971,17 +5018,18 @@ function CallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry
 
         {/* Open Lead button — always visible when linked to a lead */}
         {hasLead && (
-          <a
-            href={`/leads?open=${entry.lead_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={() => {
+              if (entry.lead_id) void onOpenLead(entry.lead_id);
+            }}
             className="h-7 w-7 rounded-[8px] flex items-center justify-center shrink-0
               bg-overlay-4 hover:bg-overlay-8 border border-overlay-8 hover:border-overlay-15
               text-muted-foreground/50 hover:text-foreground transition-all"
             title="Open lead detail"
           >
             <ArrowUpRight className="h-3 w-3" />
-          </a>
+          </button>
         )}
       </div>
 
@@ -5033,7 +5081,17 @@ function CallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry
   );
 }
 
-function CompactCallHistoryRow({ entry, allHistory, onDial }: { entry: CallHistoryEntry; allHistory: CallHistoryEntry[]; onDial: (phone: string) => void }) {
+function CompactCallHistoryRow({
+  entry,
+  allHistory,
+  onDial,
+  onOpenLead,
+}: {
+  entry: CallHistoryEntry;
+  allHistory: CallHistoryEntry[];
+  onDial: (phone: string) => void;
+  onOpenLead: (leadId: string) => void | Promise<void>;
+}) {
   const [notesOpen, setNotesOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const style = DISPO_STYLES[entry.disposition] ?? { color: "text-muted-foreground", bg: "bg-overlay-3 border-overlay-6" };
@@ -5161,16 +5219,18 @@ function CompactCallHistoryRow({ entry, allHistory, onDial }: { entry: CallHisto
                 </button>
               )}
               {hasLead && (
-                <a
-                  href={`/leads?open=${entry.lead_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActionsOpen(false);
+                    if (entry.lead_id) void onOpenLead(entry.lead_id);
+                  }}
                   className="inline-flex items-center gap-1.5 rounded-[8px] border border-overlay-8 bg-overlay-3 px-2 py-1 text-[11px] font-medium text-muted-foreground/70 transition-all hover:bg-overlay-4 hover:text-foreground"
                   title="Open lead detail"
                 >
                   <ArrowUpRight className="h-3 w-3" />
                   <span>Open Lead</span>
-                </a>
+                </button>
               )}
             </div>
           )}
