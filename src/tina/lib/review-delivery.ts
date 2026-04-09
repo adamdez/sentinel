@@ -7,6 +7,7 @@ import { buildTinaFilingApprovalReport } from "@/tina/lib/filing-approval";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { buildTinaLiveAcceptanceReport } from "@/tina/lib/live-acceptance";
 import { buildTinaMefReadinessReport } from "@/tina/lib/mef-readiness";
+import { buildTinaSCorpPrepReport } from "@/tina/lib/s-corp-prep";
 import { buildTinaSCorpReviewReport } from "@/tina/lib/s-corp-review";
 import { buildTinaTransactionReconciliationReport } from "@/tina/lib/transaction-reconciliation";
 import type { TinaWorkspaceDraft } from "@/tina/types";
@@ -61,6 +62,7 @@ export function buildTinaReviewDeliveryReport(
   const reconciliation = buildTinaTransactionReconciliationReport(draft);
   const mefReadiness = buildTinaMefReadinessReport(draft);
   const entityIntakeContract = buildTinaEntityReturnIntakeContract(draft);
+  const sCorpPrep = buildTinaSCorpPrepReport(draft);
   const sCorpReview = buildTinaSCorpReviewReport(draft);
 
   const currentFileFragile = liveAcceptance.currentFileCohorts.filter(
@@ -96,6 +98,20 @@ export function buildTinaReviewDeliveryReport(
               "1120-S review spine",
               sCorpReview.status === "blocked" ? "blocked" : "ready",
               sCorpReview.summary
+            ),
+          ]),
+      ...(sCorpPrep.status === "unsupported"
+        ? []
+        : [
+            buildCheck(
+              "s_corp_prep_spine",
+              "1120-S prep spine",
+              sCorpPrep.status === "blocked"
+                ? "blocked"
+                : sCorpPrep.status === "needs_review"
+                  ? "needs_review"
+                  : "ready",
+              sCorpPrep.summary
             ),
           ]),
       buildCheck(

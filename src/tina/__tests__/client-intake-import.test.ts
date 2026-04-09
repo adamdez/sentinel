@@ -3,6 +3,8 @@ import {
   buildTinaClientIntakeBatchReview,
   buildTinaClientIntakeProfilePatch,
   inferTinaClientIntakeCandidate,
+  inferTinaClientIntakeCandidateFromFile,
+  resolveTinaClientIntakeCandidates,
 } from "@/tina/lib/client-intake-import";
 
 describe("inferTinaClientIntakeCandidate", () => {
@@ -83,6 +85,18 @@ describe("inferTinaClientIntakeCandidate", () => {
     expect(candidate.requestId).toBe("unusual-items");
     expect(candidate.approvalNeeded).toBe(true);
     expect(candidate.confidence).not.toBe("high");
+  });
+
+  it("keeps a source-pack pdf in approval-needed mode instead of pretending it is structured intake", async () => {
+    const file = new File(["%PDF-1.4 mock source pack"], "01_cedar_ridge_window_cleaning_llc_source_pack.pdf", {
+      type: "application/pdf",
+    });
+
+    const candidate = await inferTinaClientIntakeCandidateFromFile(file);
+
+    expect(candidate.requestId).toBe("unclassified");
+    expect(candidate.approvalNeeded).toBe(true);
+    expect(candidate.confidence).toBe("low");
   });
 });
 
@@ -175,5 +189,35 @@ describe("buildTinaClientIntakeProfilePatch", () => {
     expect(patch.hasPayroll).toBe(true);
     expect(patch.paysContractors).toBe(true);
     expect(patch.businessName).toBe("North Ridge Home Services LLC");
+  });
+});
+
+describe("resolveTinaClientIntakeCandidates", () => {
+  it("applies human overrides without dropping the rest of the candidate evidence", () => {
+    const resolved = resolveTinaClientIntakeCandidates({
+      review: buildTinaClientIntakeBatchReview([
+        {
+          fileName: "source-pack.pdf",
+          requestId: "unclassified",
+          requestLabel: "Needs human mapping",
+          category: "supporting_document",
+          markAsPriorReturn: false,
+          confidence: "low",
+          score: 0,
+          reasons: ["Tina could not confidently map this file yet."],
+          approvalNeeded: true,
+          laneHints: ["schedule_c_single_member_llc"],
+          businessNameHint: "Cedar Ridge Window Cleaning LLC",
+          taxYearHint: "2025",
+        },
+      ]),
+      overrides: {
+        "source-pack.pdf": "business-description",
+      },
+    });
+
+    expect(resolved[0].requestId).toBe("business-description");
+    expect(resolved[0].approvalNeeded).toBe(false);
+    expect(resolved[0].laneHints).toContain("schedule_c_single_member_llc");
   });
 });

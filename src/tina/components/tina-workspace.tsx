@@ -1093,7 +1093,7 @@ export function TinaWorkspace() {
 
   async function downloadCpaPacket() {
     setCpaDownloadState("running");
-    setCpaDownloadMessage("Tina is packing your CPA review notes into a file...");
+    setCpaDownloadMessage("Tina is packaging her work for CPA review...");
 
     try {
       const headers = await sentinelAuthHeaders();
@@ -1126,10 +1126,10 @@ export function TinaWorkspace() {
       window.URL.revokeObjectURL(url);
 
       setCpaDownloadState("idle");
-      setCpaDownloadMessage("Tina downloaded the CPA review notes.");
+      setCpaDownloadMessage("Tina downloaded Tina's work for CPA review.");
     } catch {
       setCpaDownloadState("error");
-      setCpaDownloadMessage("Tina could not download the CPA notes yet. Try again in a moment.");
+      setCpaDownloadMessage("Tina could not download the CPA review packet yet. Try again in a moment.");
     }
   }
 
@@ -3338,9 +3338,9 @@ export function TinaWorkspace() {
 
       <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-white">CPA handoff packet</CardTitle>
+          <CardTitle className="text-white">Download Tina&apos;s work for CPA review</CardTitle>
           <p className="text-sm leading-6 text-zinc-300">
-            This shows what Tina would hand to a reviewer right now, what is ready, and what still needs care before download makes sense.
+            This is the packet Tina prepares for a CPA. Build it here, then download it to print, email, or hand to a reviewer.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -3410,7 +3410,7 @@ export function TinaWorkspace() {
               ) : (
                 <Save className="h-4 w-4" />
               )}
-              Download packet notes
+              Download Tina&apos;s work for CPA review
             </Button>
             {cpaHandoffMessage ? (
               <p

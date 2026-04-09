@@ -44,6 +44,10 @@ import {
   ingestTinaReviewerTraffic,
   upsertTinaReviewerOutcomeMemory,
 } from "@/tina/lib/reviewer-outcomes";
+import {
+  buildTinaReviewerCorrectionCapture,
+  type TinaReviewerCorrectionCaptureInput,
+} from "@/tina/lib/reviewer-correction-capture";
 import { importTinaReviewerTraffic } from "@/tina/lib/reviewer-traffic-import";
 import { deriveCurrentFileTags } from "@/tina/lib/live-acceptance";
 import { markTinaScheduleCDraftStale } from "@/tina/lib/schedule-c-draft";
@@ -494,6 +498,23 @@ export function useTinaDraft() {
     return imported;
   }
 
+  function captureReviewerCorrection(input: TinaReviewerCorrectionCaptureInput) {
+    const captured = buildTinaReviewerCorrectionCapture(input);
+
+    setDraft((current) =>
+      stampDraft({
+        ...current,
+        reviewerOutcomeMemory: ingestTinaReviewerTraffic(current.reviewerOutcomeMemory, {
+          overrides: captured.override ? [captured.override] : [],
+          outcomes: [captured.outcome],
+        }),
+        taxPositionMemory: markTinaTaxPositionMemoryStale(current.taxPositionMemory),
+      })
+    );
+
+    return captured;
+  }
+
   function saveBenchmarkProposalDecision(args: {
     skillId: string;
     cohortTag: TinaWorkspaceDraft["benchmarkProposalDecisions"][number]["cohortTag"];
@@ -704,6 +725,7 @@ export function useTinaDraft() {
     addReviewerOutcome,
     ingestReviewerTraffic,
     importReviewerTrafficBatch,
+    captureReviewerCorrection,
     saveBenchmarkProposalDecision,
     resetDraft,
   };

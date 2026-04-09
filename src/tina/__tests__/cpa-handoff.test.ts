@@ -119,11 +119,15 @@ describe("buildTinaCpaHandoff", () => {
     const reviewArtifact = snapshot.artifacts.find(
       (artifact) => artifact.id === "s-corp-review-spine"
     );
+    const prepArtifact = snapshot.artifacts.find(
+      (artifact) => artifact.id === "s-corp-prep-spine"
+    );
 
     expect(snapshot.status).toBe("complete");
     expect(snapshot.summary).toContain("entity-return CPA intake review");
     expect(intakeArtifact?.title).toContain("1120-S");
     expect(reviewArtifact?.title).toContain("1120-S review spine");
+    expect(prepArtifact?.title).toContain("1120-S prep spine");
   });
 
   it("waits for the package check before building the packet", () => {

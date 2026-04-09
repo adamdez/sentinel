@@ -5,6 +5,7 @@ import { buildTinaFinalPackageQualityReport } from "@/tina/lib/final-package-qua
 import { buildTinaMefReadinessReport } from "@/tina/lib/mef-readiness";
 import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { buildTinaPlanningReport } from "@/tina/lib/planning-report";
+import { buildTinaSCorpPrepReport } from "@/tina/lib/s-corp-prep";
 import { buildTinaSCorpReviewReport } from "@/tina/lib/s-corp-review";
 import { buildTinaScheduleCExportContract } from "@/tina/lib/schedule-c-export-contract";
 import { buildTinaTransactionReconciliationReport } from "@/tina/lib/transaction-reconciliation";
@@ -122,6 +123,7 @@ function buildEntityReturnIntakeHandoff(
   now: string
 ): TinaCpaHandoffSnapshot {
   const entityContract = buildTinaEntityReturnIntakeContract(draft);
+  const sCorpPrep = buildTinaSCorpPrepReport(draft);
   const sCorpReview = buildTinaSCorpReviewReport(draft);
   const requiredChecklistItems = checklist.filter(
     (item) => item.priority === "required" && item.status === "needed"
@@ -241,6 +243,27 @@ function buildEntityReturnIntakeHandoff(
             ),
             sourceDocumentIds: Array.from(
               new Set(sCorpReview.sections.flatMap((section) => section.sourceDocumentIds))
+            ),
+          }),
+        ]),
+    ...(sCorpPrep.status === "unsupported"
+      ? []
+      : [
+          buildArtifact({
+            id: "s-corp-prep-spine",
+            title: "1120-S prep spine",
+            status:
+              sCorpPrep.status === "blocked"
+                ? "blocked"
+                : sCorpPrep.status === "needs_review"
+                  ? "waiting"
+                  : "ready",
+            summary: sCorpPrep.summary,
+            includes: sCorpPrep.sections.map(
+              (section) => `${section.title}: ${section.status.replace(/_/g, " ")}`
+            ),
+            sourceDocumentIds: Array.from(
+              new Set(sCorpPrep.sections.flatMap((section) => section.sourceDocumentIds))
             ),
           }),
         ]),

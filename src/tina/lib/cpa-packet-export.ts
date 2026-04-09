@@ -13,6 +13,7 @@ import { buildTinaNumericProofRows } from "@/tina/lib/numeric-proof";
 import { buildTinaPlanningReport } from "@/tina/lib/planning-report";
 import { buildTinaReviewDeliveryReport } from "@/tina/lib/review-delivery";
 import { buildTinaReviewTraceRows } from "@/tina/lib/review-trace";
+import { buildTinaSCorpPrepReport } from "@/tina/lib/s-corp-prep";
 import { buildTinaSCorpReviewReport } from "@/tina/lib/s-corp-review";
 import { buildTinaScheduleCExportContract } from "@/tina/lib/schedule-c-export-contract";
 import { buildTinaScheduleCScenarioProfile } from "@/tina/lib/schedule-c-scenario-profile";
@@ -53,6 +54,7 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
   const reviewDelivery = buildTinaReviewDeliveryReport(draft);
   const exportContract = buildTinaScheduleCExportContract(draft);
   const entityIntakeContract = buildTinaEntityReturnIntakeContract(draft);
+  const sCorpPrep = buildTinaSCorpPrepReport(draft);
   const sCorpReview = buildTinaSCorpReviewReport(draft);
   const scenarioProfile = buildTinaScheduleCScenarioProfile(draft);
   const currentFileReality = buildTinaCurrentFileReviewerReality(draft);
@@ -133,6 +135,20 @@ export function buildTinaCpaPacketExport(draft: TinaWorkspaceDraft): TinaCpaPack
       sCorpReview.sections.forEach((section) => {
         lines.push(`- ${section.title} [${section.status}]`);
         lines.push(`  - ${section.summary}`);
+        section.includes.forEach((item) => {
+          lines.push(`  - ${item}`);
+        });
+      });
+    }
+    if (sCorpPrep.status !== "unsupported") {
+      lines.push("", "## 1120-S prep spine");
+      lines.push(`- Status: ${sCorpPrep.status.replace(/_/g, " ")}`);
+      lines.push(`- ${sCorpPrep.summary}`);
+      lines.push(`- Next step: ${sCorpPrep.nextStep}`);
+      sCorpPrep.sections.forEach((section) => {
+        lines.push(`- ${section.title} [${section.status}]`);
+        lines.push(`  - ${section.summary}`);
+        lines.push(`  - Next prep action: ${section.nextPrepAction}`);
         section.includes.forEach((item) => {
           lines.push(`  - ${item}`);
         });

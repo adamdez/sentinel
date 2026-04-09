@@ -91,6 +91,7 @@ describe("buildTinaCpaPacketExport", () => {
 
     expect(exportFile.contents).toContain("## Entity-return intake contract");
     expect(exportFile.contents).toContain("## 1120-S review spine");
+    expect(exportFile.contents).toContain("## 1120-S prep spine");
     expect(exportFile.contents).toContain("1120-S / S-Corp");
   });
 

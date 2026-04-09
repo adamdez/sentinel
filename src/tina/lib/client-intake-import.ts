@@ -78,6 +78,11 @@ export interface TinaClientIntakeImportResult {
   review: TinaClientIntakeBatchReview;
 }
 
+function isSpreadsheetLikeFileName(fileName: string): boolean {
+  const normalized = fileName.toLowerCase();
+  return normalized.endsWith(".csv") || normalized.endsWith(".xlsx") || normalized.endsWith(".xls");
+}
+
 export const TINA_CLIENT_INTAKE_REQUEST_OPTIONS: TinaClientIntakeRequestOption[] = [
   { id: "prior-return", label: "Prior-year filed return", category: "prior_return", markAsPriorReturn: true },
   { id: "profit-loss", label: "Full-year profit and loss", category: "supporting_document" },
@@ -390,24 +395,56 @@ export function buildTinaClientIntakeProfilePatch(
   return patch;
 }
 
+export async function inferTinaClientIntakeCandidateFromFile(
+  file: File
+): Promise<TinaClientIntakeCandidate> {
+  if (!isSpreadsheetLikeFileName(file.name)) {
+    return inferTinaClientIntakeCandidate({
+      fileName: file.name,
+      headers: [],
+      sampleRows: [],
+      rowCount: 0,
+    });
+  }
+
+  const workbook = await parseImportWorkbook(file);
+  const chosenSheet = workbook.sheets.find((sheet) => sheet.name === workbook.chosenSheet) ?? workbook.sheets[0];
+
+  return inferTinaClientIntakeCandidate({
+    fileName: file.name,
+    headers: chosenSheet?.headers ?? [],
+    sampleRows: chosenSheet?.sampleRows ?? [],
+    rowCount: chosenSheet?.rowCount ?? 0,
+  });
+}
+
+export function resolveTinaClientIntakeCandidates(input: {
+  review: TinaClientIntakeBatchReview;
+  overrides?: Partial<Record<string, TinaClientIntakeRequestId>>;
+}): TinaClientIntakeCandidate[] {
+  return input.review.candidates.map((candidate) => {
+    const overrideRequestId = input.overrides?.[candidate.fileName];
+    if (!overrideRequestId || overrideRequestId === candidate.requestId) return candidate;
+    const option = getRequestOption(overrideRequestId);
+    return {
+      ...candidate,
+      requestId: overrideRequestId,
+      requestLabel: option.label,
+      category: option.category,
+      markAsPriorReturn: Boolean(option.markAsPriorReturn),
+      approvalNeeded: false,
+      reasons: [...candidate.reasons, `Human approved mapping to ${option.label}.`],
+    };
+  });
+}
+
 export async function analyzeTinaClientIntakeFiles(
   files: File[]
 ): Promise<TinaClientIntakeBatchReview> {
   const candidates: TinaClientIntakeCandidate[] = [];
 
   for (const file of files) {
-    const workbook = await parseImportWorkbook(file);
-    const chosenSheet =
-      workbook.sheets.find((sheet) => sheet.name === workbook.chosenSheet) ?? workbook.sheets[0];
-
-    candidates.push(
-      inferTinaClientIntakeCandidate({
-        fileName: file.name,
-        headers: chosenSheet?.headers ?? [],
-        sampleRows: chosenSheet?.sampleRows ?? [],
-        rowCount: chosenSheet?.rowCount ?? 0,
-      })
-    );
+    candidates.push(await inferTinaClientIntakeCandidateFromFile(file));
   }
 
   return buildTinaClientIntakeBatchReview(candidates);
@@ -421,6 +458,7 @@ function inferMimeType(file: File): string {
     return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   }
   if (normalized.endsWith(".xls")) return "application/vnd.ms-excel";
+  if (normalized.endsWith(".pdf")) return "application/pdf";
   return "application/octet-stream";
 }
 
@@ -447,20 +485,7 @@ export async function importTinaClientIntakeFiles(input: {
   overrides?: Partial<Record<string, TinaClientIntakeRequestId>>;
 }): Promise<TinaClientIntakeImportResult> {
   const imported: TinaImportedClientIntakeDocument[] = [];
-  const resolvedCandidates = input.review.candidates.map((candidate) => {
-    const overrideRequestId = input.overrides?.[candidate.fileName];
-    if (!overrideRequestId || overrideRequestId === candidate.requestId) return candidate;
-    const option = getRequestOption(overrideRequestId);
-    return {
-      ...candidate,
-      requestId: overrideRequestId,
-      requestLabel: option.label,
-      category: option.category,
-      markAsPriorReturn: Boolean(option.markAsPriorReturn),
-      approvalNeeded: false,
-      reasons: [...candidate.reasons, `Human approved mapping to ${option.label}.`],
-    };
-  });
+  const resolvedCandidates = resolveTinaClientIntakeCandidates(input);
 
   for (const file of input.files) {
     const candidate = resolvedCandidates.find((item) => item.fileName === file.name);

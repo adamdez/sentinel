@@ -1,15 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, FileUp, Loader2, ShieldCheck, UploadCloud } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle2, Download, ExternalLink, FileUp, Loader2, ShieldCheck, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
 import { buildTinaChecklist } from "@/tina/lib/checklist";
 import {
   analyzeTinaClientIntakeFiles,
-  importTinaClientIntakeFiles,
+  buildTinaClientIntakeBatchReview,
+  buildTinaClientIntakeProfilePatch,
+  resolveTinaClientIntakeCandidates,
   TINA_CLIENT_INTAKE_REQUEST_OPTIONS,
   type TinaClientIntakeBatchReview,
   type TinaClientIntakeRequestId,
@@ -19,6 +22,14 @@ import { recommendTinaFilingLane } from "@/tina/lib/filing-lane";
 import { useTinaDraft } from "@/tina/hooks/use-tina-draft";
 import { buildTinaGuidedShellContract } from "@/tina/lib/guided-shell";
 import { deriveCurrentFileTags } from "@/tina/lib/live-acceptance";
+import { buildTinaReviewerCorrectionTargets } from "@/tina/lib/reviewer-correction-capture";
+import type {
+  TinaDocumentReading,
+  TinaReviewerOutcomePhase,
+  TinaReviewerOutcomeVerdict,
+  TinaReviewerOverrideSeverity,
+  TinaStoredDocument,
+} from "@/tina/types";
 
 type ImportFormat = "csv" | "json" | "auto";
 
@@ -44,6 +55,7 @@ export function TinaSimpleWorkspace() {
   const {
     draft,
     hydrated,
+    captureReviewerCorrection,
     importReviewerTrafficBatch,
     ingestDocumentWithReading,
     syncStatus,
@@ -51,6 +63,7 @@ export function TinaSimpleWorkspace() {
   } = useTinaDraft();
   const guidedShell = useMemo(() => buildTinaGuidedShellContract(draft), [draft]);
   const currentTags = useMemo(() => deriveCurrentFileTags(draft), [draft]);
+  const correctionTargets = useMemo(() => buildTinaReviewerCorrectionTargets(draft), [draft]);
   const intakeReport = useMemo(() => buildTinaClientIntakeReviewReport(draft), [draft]);
   const checklist = useMemo(
     () => buildTinaChecklist(draft, recommendTinaFilingLane(draft.profile)),
@@ -62,6 +75,8 @@ export function TinaSimpleWorkspace() {
   const [isAnalyzingIntake, setIsAnalyzingIntake] = useState(false);
   const [isImportingIntake, setIsImportingIntake] = useState(false);
   const [intakeMessage, setIntakeMessage] = useState<string | null>(null);
+  const [cpaDownloadState, setCpaDownloadState] = useState<"idle" | "running" | "error">("idle");
+  const [cpaDownloadMessage, setCpaDownloadMessage] = useState<string | null>(null);
   const [importContent, setImportContent] = useState("");
   const [importFormat, setImportFormat] = useState<ImportFormat>("auto");
   const [importFileName, setImportFileName] = useState<string | null>(null);
@@ -72,6 +87,33 @@ export function TinaSimpleWorkspace() {
     warnings: string[];
   } | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [correctionTargetValue, setCorrectionTargetValue] = useState("");
+  const [correctionPhase, setCorrectionPhase] = useState<TinaReviewerOutcomePhase>("package");
+  const [correctionVerdict, setCorrectionVerdict] = useState<TinaReviewerOutcomeVerdict>("revised");
+  const [correctionSummary, setCorrectionSummary] = useState("");
+  const [correctionLessons, setCorrectionLessons] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [correctionBeforeState, setCorrectionBeforeState] = useState("");
+  const [correctionAfterState, setCorrectionAfterState] = useState("");
+  const [correctionSeverity, setCorrectionSeverity] =
+    useState<TinaReviewerOverrideSeverity>("material");
+  const [correctionDecidedBy, setCorrectionDecidedBy] = useState("");
+  const [correctionSummaryCard, setCorrectionSummaryCard] = useState<{
+    targetLabel: string;
+    verdict: TinaReviewerOutcomeVerdict;
+    overrideSaved: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    if (correctionTargets.length === 0) {
+      setCorrectionTargetValue("");
+      return;
+    }
+
+    if (!correctionTargets.some((target) => target.value === correctionTargetValue)) {
+      setCorrectionTargetValue(correctionTargets[0].value);
+    }
+  }, [correctionTargets, correctionTargetValue]);
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -101,7 +143,7 @@ export function TinaSimpleWorkspace() {
       setIntakeFiles([]);
       setIntakeReview(null);
       setIntakeOverrides({});
-      setIntakeMessage("Tina could not analyze that intake batch yet. Try CSV or spreadsheet extracts.");
+      setIntakeMessage("Tina could not analyze that intake batch yet. Try PDF, CSV, or spreadsheet files.");
     } finally {
       setIsAnalyzingIntake(false);
       input.value = "";
@@ -115,17 +157,60 @@ export function TinaSimpleWorkspace() {
     setIntakeMessage("Tina is importing the client intake packet into this workspace...");
 
     try {
-      const imported = await importTinaClientIntakeFiles({
-        files: intakeFiles,
+      const resolvedCandidates = resolveTinaClientIntakeCandidates({
         review: intakeReview,
         overrides: intakeOverrides,
       });
+      let importedCount = 0;
 
-      imported.imported.forEach(({ document, reading, candidate }) => {
-        ingestDocumentWithReading(document, reading, candidate.markAsPriorReturn);
-      });
+      for (const file of intakeFiles) {
+        const candidate = resolvedCandidates.find((item) => item.fileName === file.name);
+        if (!candidate) continue;
 
-      const patch = imported.profilePatch;
+        const headers = await sentinelAuthHeaders(false);
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("category", candidate.category);
+        formData.append("taxYear", draft.profile.taxYear || candidate.taxYearHint || "unknown-year");
+        if (candidate.requestId !== "unclassified") {
+          formData.append("requestId", candidate.requestId);
+          formData.append("requestLabel", candidate.requestLabel);
+        }
+
+        const uploadRes = await fetch("/api/tina/documents", {
+          method: "POST",
+          headers,
+          body: formData,
+        });
+        if (!uploadRes.ok) {
+          throw new Error(`upload failed for ${file.name}`);
+        }
+
+        const uploadPayload = (await uploadRes.json()) as { document?: TinaStoredDocument };
+        if (!uploadPayload.document) {
+          throw new Error(`missing uploaded document for ${file.name}`);
+        }
+
+        const readHeaders = await sentinelAuthHeaders();
+        const readRes = await fetch("/api/tina/documents/read", {
+          method: "POST",
+          headers: readHeaders,
+          body: JSON.stringify({ document: uploadPayload.document }),
+        });
+        if (!readRes.ok) {
+          throw new Error(`read failed for ${file.name}`);
+        }
+
+        const readPayload = (await readRes.json()) as { reading?: TinaDocumentReading };
+        if (!readPayload.reading) {
+          throw new Error(`missing document reading for ${file.name}`);
+        }
+
+        ingestDocumentWithReading(uploadPayload.document, readPayload.reading, candidate.markAsPriorReturn);
+        importedCount += 1;
+      }
+
+      const patch = buildTinaClientIntakeProfilePatch(resolvedCandidates);
       if (patch.businessName && draft.profile.businessName.trim().length === 0) {
         updateProfile("businessName", patch.businessName);
       }
@@ -152,11 +237,11 @@ export function TinaSimpleWorkspace() {
       }
 
       setIntakeMessage(
-        `Tina imported ${imported.imported.length} client file${
-          imported.imported.length === 1 ? "" : "s"
+        `Tina imported ${importedCount} client file${
+          importedCount === 1 ? "" : "s"
         } into the workspace.`
       );
-      setIntakeReview(imported.review);
+      setIntakeReview(buildTinaClientIntakeBatchReview(resolvedCandidates));
       setIntakeFiles([]);
     } catch {
       setIntakeMessage("Tina could not import that intake batch yet.");
@@ -170,6 +255,52 @@ export function TinaSimpleWorkspace() {
     setIntakeReview(null);
     setIntakeOverrides({});
     setIntakeMessage(null);
+  }
+
+  async function downloadCpaPacket() {
+    setCpaDownloadState("running");
+    setCpaDownloadMessage("Tina is packaging her work for CPA review...");
+
+    try {
+      const headers = await sentinelAuthHeaders();
+      const res = await fetch("/api/tina/cpa-packet/export", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ draft }),
+      });
+
+      if (!res.ok) throw new Error("packet export failed");
+
+      const payload = (await res.json()) as {
+        fileName?: string;
+        mimeType?: string;
+        contents?: string;
+      };
+
+      if (!payload.fileName || !payload.mimeType || typeof payload.contents !== "string") {
+        throw new Error("missing export payload");
+      }
+
+      const blob = new Blob([payload.contents], { type: payload.mimeType });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = payload.fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+
+      setCpaDownloadState("idle");
+      setCpaDownloadMessage("Tina downloaded her CPA review packet.");
+    } catch {
+      setCpaDownloadState("error");
+      setCpaDownloadMessage("Tina could not download the CPA packet yet. Try again in a moment.");
+    }
+  }
+
+  function openFullWorkspace() {
+    window.location.href = "/tina";
   }
 
   function handleImport() {
@@ -200,6 +331,42 @@ export function TinaSimpleWorkspace() {
     setImportFormat("auto");
     setDecidedBy("");
     setImportSummary(null);
+  }
+
+  function handleCaptureCorrection() {
+    const target = correctionTargets.find((item) => item.value === correctionTargetValue);
+    if (!target) return;
+
+    const captured = captureReviewerCorrection({
+      targetType: target.targetType,
+      targetId: target.targetId,
+      targetLabel: target.label,
+      phase: correctionPhase,
+      verdict: correctionVerdict,
+      summary: correctionSummary,
+      lessons: correctionLessons
+        .split(/\r?\n|[|;]/)
+        .map((lesson) => lesson.trim())
+        .filter((lesson) => lesson.length > 0),
+      caseTags: currentTags,
+      decidedBy: correctionDecidedBy.trim().length > 0 ? correctionDecidedBy.trim() : null,
+      sourceDocumentIds: target.sourceDocumentIds,
+      beforeState: correctionBeforeState,
+      afterState: correctionAfterState,
+      reason: correctionReason,
+      overrideSeverity: correctionSeverity,
+    });
+
+    setCorrectionSummaryCard({
+      targetLabel: target.label,
+      verdict: captured.outcome.verdict,
+      overrideSaved: captured.override !== null,
+    });
+    setCorrectionSummary("");
+    setCorrectionLessons("");
+    setCorrectionReason("");
+    setCorrectionBeforeState("");
+    setCorrectionAfterState("");
   }
 
   return (
@@ -323,6 +490,48 @@ export function TinaSimpleWorkspace() {
               </>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+        <CardHeader className="space-y-2">
+          <CardTitle className="text-white">Download Tina&apos;s work for CPA review</CardTitle>
+          <p className="text-sm leading-6 text-zinc-300">
+            This is the main handoff action. Tina will export the packet you can print, email, or hand to a CPA reviewer.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-3xl border border-white/10 bg-black/20 px-4 py-4 text-sm text-zinc-200">
+            {guidedShell.safeToSendToCpa
+              ? "Tina believes this packet is currently safe to send to a CPA reviewer."
+              : "Tina can still export her current work, but she does not think the packet is fully safe to send yet."}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="button" onClick={downloadCpaPacket} disabled={cpaDownloadState === "running"}>
+              {cpaDownloadState === "running" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              Download Tina&apos;s work for CPA review
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-white/10 bg-white/5 text-zinc-100 hover:bg-white/8"
+              onClick={openFullWorkspace}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open full Tina workspace
+            </Button>
+          </div>
+
+          {cpaDownloadMessage ? (
+            <p className={`text-sm ${cpaDownloadState === "error" ? "text-amber-200" : "text-zinc-300"}`}>
+              {cpaDownloadMessage}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -634,6 +843,206 @@ export function TinaSimpleWorkspace() {
               <p className="mt-2 text-sm leading-6 text-zinc-300">{item.reason}</p>
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card className="border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_16px_60px_rgba(0,0,0,0.3)]">
+        <CardHeader className="space-y-2">
+          <CardTitle className="text-white">Reviewer correction capture</CardTitle>
+          <p className="text-sm leading-6 text-zinc-300">
+            Use this when the CPA changes Tina's packet. Tina saves the override trail and the learning outcome together so the same mistake does not stay invisible.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-zinc-200">Target in the current packet</label>
+                <select
+                  value={correctionTargetValue}
+                  onChange={(event) => setCorrectionTargetValue(event.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100 outline-none"
+                >
+                  {correctionTargets.length > 0 ? (
+                    correctionTargets.map((target) => (
+                      <option key={target.value} value={target.value}>
+                        {target.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">No current packet targets yet</option>
+                  )}
+                </select>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-zinc-200">Phase</label>
+                  <select
+                    value={correctionPhase}
+                    onChange={(event) => setCorrectionPhase(event.target.value as TinaReviewerOutcomePhase)}
+                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100 outline-none"
+                  >
+                    <option value="intake">Intake</option>
+                    <option value="cleanup">Cleanup</option>
+                    <option value="tax_review">Tax review</option>
+                    <option value="package">Package</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-zinc-200">Verdict</label>
+                  <select
+                    value={correctionVerdict}
+                    onChange={(event) => setCorrectionVerdict(event.target.value as TinaReviewerOutcomeVerdict)}
+                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100 outline-none"
+                  >
+                    <option value="accepted">Accepted</option>
+                    <option value="revised">Revised</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-zinc-200">Override severity</label>
+                  <select
+                    value={correctionSeverity}
+                    onChange={(event) => setCorrectionSeverity(event.target.value as TinaReviewerOverrideSeverity)}
+                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-zinc-100 outline-none"
+                  >
+                    <option value="minor">Minor</option>
+                    <option value="material">Material</option>
+                    <option value="blocking">Blocking</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-zinc-200">What changed</label>
+                <Textarea
+                  value={correctionSummary}
+                  onChange={(event) => setCorrectionSummary(event.target.value)}
+                  placeholder="Example: CPA moved shareholder-paid phone charges out of expenses and into distributions."
+                  className="min-h-[100px] border-white/10 bg-black/20 text-zinc-100 placeholder:text-zinc-500"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-zinc-200">Before state</label>
+                  <Textarea
+                    value={correctionBeforeState}
+                    onChange={(event) => setCorrectionBeforeState(event.target.value)}
+                    placeholder="What Tina said before review"
+                    className="min-h-[96px] border-white/10 bg-black/20 text-zinc-100 placeholder:text-zinc-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-zinc-200">After state</label>
+                  <Textarea
+                    value={correctionAfterState}
+                    onChange={(event) => setCorrectionAfterState(event.target.value)}
+                    placeholder="What the CPA changed it to"
+                    className="min-h-[96px] border-white/10 bg-black/20 text-zinc-100 placeholder:text-zinc-500"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-zinc-200">Why the reviewer changed it</label>
+                <Textarea
+                  value={correctionReason}
+                  onChange={(event) => setCorrectionReason(event.target.value)}
+                  placeholder="Example: officer-paid item was personal and should not stay inside deductible expenses."
+                  className="min-h-[88px] border-white/10 bg-black/20 text-zinc-100 placeholder:text-zinc-500"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_240px]">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-zinc-200">Lessons Tina should remember</label>
+                  <Textarea
+                    value={correctionLessons}
+                    onChange={(event) => setCorrectionLessons(event.target.value)}
+                    placeholder="One lesson per line. Example: Shareholder-paid personal charges should default to distribution review, not operating expense."
+                    className="min-h-[96px] border-white/10 bg-black/20 text-zinc-100 placeholder:text-zinc-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-zinc-200">Reviewed by</label>
+                  <Input
+                    value={correctionDecidedBy}
+                    onChange={(event) => setCorrectionDecidedBy(event.target.value)}
+                    placeholder="CPA reviewer name"
+                    className="border-white/10 bg-black/20 text-zinc-100 placeholder:text-zinc-500"
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleCaptureCorrection}
+                disabled={!hydrated || correctionTargets.length === 0 || correctionSummary.trim().length === 0}
+                className="bg-emerald-300 text-zinc-950 hover:bg-emerald-200"
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Save reviewer correction
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                  Current file case tags
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {currentTags.length > 0 ? (
+                    currentTags.map((tag) => (
+                      <span
+                        key={`capture-${tag}`}
+                        className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs text-emerald-50"
+                      >
+                        {tag.replace(/_/g, " ")}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm text-zinc-300">No case tags inferred yet.</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                  Latest saved correction
+                </div>
+                {correctionSummaryCard ? (
+                  <div className="mt-3 space-y-2 text-sm text-zinc-200">
+                    <div className="flex items-center gap-2 text-emerald-100">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Saved {correctionSummaryCard.verdict} feedback for {correctionSummaryCard.targetLabel}.
+                    </div>
+                    <div>
+                      Override trail: {correctionSummaryCard.overrideSaved ? "saved" : "not needed"}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm leading-6 text-zinc-300">
+                    No manual reviewer correction has been saved in this session yet.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+                  What this does
+                </div>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-zinc-300">
+                  <li>- Saves the exact packet target the reviewer changed.</li>
+                  <li>- Records the before/after state when the packet was revised.</li>
+                  <li>- Feeds the lesson into Tina's reviewer-memory loop for future files.</li>
+                </ul>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

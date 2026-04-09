@@ -376,6 +376,9 @@ describe("buildTinaReviewDeliveryReport", () => {
     expect(report.checks.find((check) => check.id === "s_corp_review_spine")?.status).toBe(
       "ready"
     );
+    expect(report.checks.find((check) => check.id === "s_corp_prep_spine")?.status).toBe(
+      "ready"
+    );
   });
 
   it("blocks sending when package readiness is still blocked", () => {
