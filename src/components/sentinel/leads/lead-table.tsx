@@ -11,6 +11,7 @@ import {
   Trash2,
   Loader2,
   UserCheck,
+  UserMinus,
   Zap,
   MapPin,
 } from "lucide-react";
@@ -133,6 +134,7 @@ export function LeadTable({
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkClaiming, setBulkClaiming] = useState(false);
   const [bulkAutoCycling, setBulkAutoCycling] = useState(false);
+  const [bulkUnclaiming, setBulkUnclaiming] = useState(false);
   const [bulkQueueing, setBulkQueueing] = useState(false);
   const [bulkJeffQueueing, setBulkJeffQueueing] = useState(false);
   const [introActionLeadId, setIntroActionLeadId] = useState<string | null>(null);
@@ -297,6 +299,64 @@ export function LeadTable({
       onRefresh?.();
     }
   }, [selectedIds, currentUserId, onRefresh, leads]);
+
+  const handleBulkMoveToUnclaimed = useCallback(async () => {
+    const selectedLeads = leads.filter((lead) => selectedIds.has(lead.id));
+    const claimedLeadIds = selectedLeads
+      .filter((lead) => typeof lead.assignedTo === "string" && lead.assignedTo.trim().length > 0)
+      .map((lead) => lead.id);
+    const skippedCount = selectedLeads.length - claimedLeadIds.length;
+    const count = claimedLeadIds.length;
+    if (selectedLeads.length === 0) return;
+    if (count === 0) {
+      toast.error("None of the selected leads are currently claimed.");
+      return;
+    }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error("Session expired. Please sign in again.");
+      return;
+    }
+    setBulkUnclaiming(true);
+    let succeeded = 0;
+    let failed = 0;
+    try {
+      const results = await runWithConcurrency(claimedLeadIds, BULK_ACTION_CONCURRENCY, async (id) => {
+        try {
+          const res = await fetch("/api/prospects", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              lead_id: id,
+              assigned_to: null,
+            }),
+          });
+          return res.ok;
+        } catch {
+          return false;
+        }
+      });
+      for (const ok of results) {
+        if (ok) succeeded++;
+        else failed++;
+      }
+    } finally {
+      setBulkUnclaiming(false);
+      setSelectedIds(new Set());
+      if (failed > 0 || skippedCount > 0) {
+        const pieces = [`Moved ${succeeded} to Unclaimed Leads`];
+        if (failed > 0) pieces.push(`failed ${failed}`);
+        if (skippedCount > 0) pieces.push(`skipped ${skippedCount} already unclaimed`);
+        toast.error(pieces.join(", "));
+      } else {
+        toast.success(`Moved ${succeeded} lead${succeeded > 1 ? "s" : ""} to Unclaimed Leads`);
+      }
+      onRefresh?.();
+    }
+  }, [selectedIds, onRefresh, leads]);
 
   const handleBulkAddToAutoCycle = useCallback(async () => {
     const count = selectedIds.size;
@@ -572,6 +632,15 @@ export function LeadTable({
             {bulkClaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3 w-3" />}
             Claim Leads ({selectedIds.size})
           </button>
+          <button
+            type="button"
+            onClick={handleBulkMoveToUnclaimed}
+            disabled={bulkUnclaiming}
+            className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/25 hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+          >
+            {bulkUnclaiming ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserMinus className="h-3 w-3" />}
+            Move to Unclaimed Leads ({selectedIds.size})
+          </button>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -586,38 +655,6 @@ export function LeadTable({
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs text-xs">
               Claims unclaimed leads to you and adds them to your manual dial queue. Leads owned by someone else stay blocked.
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={handleBulkAddToAutoCycle}
-                disabled={bulkAutoCycling}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
-              >
-                {bulkAutoCycling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                Auto Cycle / Jeff ({selectedIds.size})
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs text-xs">
-              Adds claimed leads to the dialer Auto Cycle queue (same list Jeff uses). Each lead must be yours, in Lead stage, and have a phone.
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={handleBulkAddToJeffQueue}
-                disabled={bulkJeffQueueing}
-                className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-violet-500/10 text-violet-300 border border-violet-500/25 hover:bg-violet-500/20 transition-colors disabled:opacity-50"
-              >
-                {bulkJeffQueueing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />}
-                Add to Jeff Queue ({selectedIds.size})
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs text-xs">
-              Adds the selected leads to Jeff&apos;s supervised queue so Adam can control exactly who Jeff is allowed to call.
             </TooltipContent>
           </Tooltip>
           <button
