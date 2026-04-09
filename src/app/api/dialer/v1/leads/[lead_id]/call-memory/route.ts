@@ -12,6 +12,7 @@ import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import type { RepeatCallMemory, MemorySource } from "@/lib/dialer/types";
 import { buildSellerMemoryBullets } from "@/lib/dialer/post-call-structure";
 import { buildRecentCallMemoryEntries, fetchLeadNoteTimeline } from "@/lib/dialer/lead-note-timeline";
+import { buildLeadNotesPreview } from "@/lib/dialer/note-preview";
 
 type RouteContext = { params: Promise<{ lead_id: string }> };
 
@@ -107,6 +108,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     dealTemperature: (pcs?.deal_temperature as string | null) ?? null,
     fallbackText: fallbackSummary,
   });
+  const notesPreview = buildLeadNotesPreview(timelineData.noteTimeline);
 
   const memory: RepeatCallMemory = {
     leadId: lead_id,
@@ -115,6 +117,7 @@ export async function GET(req: NextRequest, { params }: RouteContext) {
     decisionMakerConfirmed: dmConfirmed,
     recentCalls,
     noteTimeline: timelineData.noteTimeline,
+    notesPreview,
     daysSinceLastLiveAnswer,
     daysSinceLastContact,
     lastCallSummary,

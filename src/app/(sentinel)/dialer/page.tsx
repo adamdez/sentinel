@@ -527,16 +527,6 @@ function getQualificationGapNames(lead: QueueLead): string[] {
 
 // Builds a labeled note scaffold for fields still missing on the lead.
 // Returns empty string if all fields are already captured (no scaffold needed).
-function buildNoteScaffold(lead: QueueLead): string {
-  const lines: string[] = [];
-  if (lead.seller_timeline == null)           lines.push("Timeline: ");
-  if (lead.motivation_level == null)          lines.push("Motivation: ");
-  if (lead.decision_maker_confirmed !== true) lines.push("Decision maker: ");
-  if (lead.price_expectation == null)         lines.push("Asking price: ");
-  if (lead.condition_level == null)           lines.push("Condition: ");
-  return lines.join("\n");
-}
-
 function compactCallAssistPrompts(params: {
   route: string | null;
   nextActionLabel: string;
@@ -1174,8 +1164,6 @@ function DialerPageInner() {
   });
   // Tracks whether the note scaffold has been seeded for the current call session.
   // Reset to false each time callState returns to idle so the next call starts fresh.
-  const noteScaffoldSeeded = useRef(false);
-
   // Live notes realtime subscription is below manualCallLogId declaration
 
   // Fetch phone roster when lead changes
@@ -1210,22 +1198,6 @@ function DialerPageInner() {
 
   // Seed structured note scaffold once when call first becomes connected (session-backed only).
   // Only fires when callNotes is empty — never overwrites operator input.
-  useEffect(() => {
-    if (callState === "idle") {
-      noteScaffoldSeeded.current = false;
-      return;
-    }
-    if (callState !== "connected") return;
-    if (!dialerSessionId) return;         // session-backed path only
-    if (noteScaffoldSeeded.current) return;
-    if (!currentLead) return;
-    noteScaffoldSeeded.current = true;
-    setCallNotes((prev) => {
-      if (prev.trim()) return prev;       // don't overwrite if operator already typed
-      return buildNoteScaffold(currentLead);
-    });
-  }, [callState, dialerSessionId, currentLead]);
-
   // Quick Manual Dial state
   const searchParams = useSearchParams();
   const [manualPhone, setManualPhone] = useState(() => {

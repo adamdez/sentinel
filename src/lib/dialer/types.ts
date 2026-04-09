@@ -208,6 +208,22 @@ export interface LeadNoteTimelineItem {
   durationSec?: number | null;
 }
 
+export interface LeadNotesPreviewItem {
+  id: string;
+  sourceType: LeadNoteSourceType;
+  sourceLabel: string;
+  content: string;
+  createdAt: string;
+  callLogId: string | null;
+  sessionId: string | null;
+  isAiGenerated: boolean;
+  isConfirmed: boolean;
+}
+
+export interface LeadNotesPreview {
+  items: LeadNotesPreviewItem[];
+}
+
 /**
  * A single historical call entry for the memory surface.
  * Shows up to 3 of these in the repeat-call memory block.
@@ -252,6 +268,8 @@ export interface RepeatCallMemory {
   recentCalls: CallMemoryEntry[];
   /** Unified lead note timeline with provenance for dialer/client-file consumers. */
   noteTimeline: LeadNoteTimelineItem[];
+  /** Notes-first preview derived from the unified timeline. */
+  notesPreview: LeadNotesPreview;
 
   // ── Staleness signal ──────────────────────────────────────
   /** Days since last live answer (disposition = completed/follow_up/appointment/offer_made).

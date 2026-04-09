@@ -1,5 +1,10 @@
 [
   {
+    "hash": "69f5c85c",
+    "date": "2026-04-09",
+    "message": "[codex] Polish power dial queue controls"
+  },
+  {
     "hash": "b34a081f",
     "date": "2026-04-09",
     "message": "[codex] Unify dialer notes into lead timeline"
@@ -118,10 +123,5 @@
     "hash": "09f4bf5c",
     "date": "2026-04-09",
     "message": "[codex] Surface legal research provider failures"
-  },
-  {
-    "hash": "b5347546",
-    "date": "2026-04-09",
-    "message": "[codex] Add CSV lead export option"
   }
 ]

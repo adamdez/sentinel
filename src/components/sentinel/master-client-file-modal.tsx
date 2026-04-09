@@ -102,6 +102,7 @@ import {
 
 import { useCallNotes } from "@/hooks/use-call-notes";
 import type { RepeatCallMemory, LeadNoteTimelineItem } from "@/lib/dialer/types";
+import { buildLeadNotesPreview } from "@/lib/dialer/note-preview";
 
 import { CompsMap, getSatelliteTileUrl, getGoogleStreetViewLink, haversine, scoreComp, getCompQualityLabel, getCompRationale, type CompProperty, type SubjectProperty, type CompScore } from "@/components/sentinel/comps/comps-map";
 
@@ -133,7 +134,7 @@ import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
 
 import { NumericInput } from "@/components/sentinel/numeric-input";
 
-import { SellerMemoryPreview } from "@/components/sentinel/seller-memory-preview";
+import { RecentSellerNotes } from "@/components/sentinel/recent-seller-notes";
 
 import { supabase } from "@/lib/supabase";
 
@@ -962,7 +963,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
   const [leadMemory, setLeadMemory] = useState<RepeatCallMemory | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
-  const sellerContinuity = leadMemory?.lastCallSummary?.trim() || cf.sellerSituationSummaryShort?.trim() || null;
+  const hasRecentSellerNotes = (leadMemory?.notesPreview.items.length ?? 0) > 0;
 
 
 
@@ -1211,6 +1212,23 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
           },
           ...prev.noteTimeline,
         ],
+        notesPreview: buildLeadNotesPreview([
+          {
+            id: `local-note:${now}`,
+            sourceType: "operator_note",
+            sourceLabel: "Operator note",
+            content,
+            createdAt: now,
+            leadId: cf.id,
+            sessionId: null,
+            callLogId: null,
+            isAiGenerated: false,
+            isConfirmed: true,
+            disposition: "operator_note",
+            durationSec: 0,
+          },
+          ...prev.noteTimeline,
+        ]),
         lastCallSummary: content,
       } : prev);
       setNoteDraft("");
@@ -1399,7 +1417,10 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
         {/* --�----�-- 2. DISTRESS SIGNALS --�----�-- */}
 
-        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
+        <div className={cn(
+          "rounded-[10px] border border-overlay-8 bg-overlay-2 p-3",
+          !hasRecentSellerNotes && "col-span-2",
+        )}>
 
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Distress Signals</p>
 
@@ -1539,14 +1560,13 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
         {/* --�----�-- 3. SELLER MEMORY --�----�-- */}
 
-        {sellerContinuity && (
-          <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3">
-
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Seller Memory</p>
-
-            <p className="text-sm text-foreground line-clamp-3">{sellerContinuity}</p>
-
-          </div>
+        {hasRecentSellerNotes && (
+          <RecentSellerNotes
+            preview={leadMemory?.notesPreview}
+            title="Recent Seller Notes"
+            className="!rounded-[10px] !border-overlay-8 !bg-overlay-2"
+            maxItems={3}
+          />
         )}
 
       </div>

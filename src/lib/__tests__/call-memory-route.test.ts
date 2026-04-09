@@ -137,6 +137,14 @@ describe("GET /api/dialer/v1/leads/[lead_id]/call-memory", () => {
       noteSourceLabel: "Operator note",
       aiSummary: "AI call summary",
     });
+    expect(payload.memory.notesPreview.items).toEqual([
+      expect.objectContaining({
+        id: "session_note:note-1",
+        sourceType: "operator_note",
+        sourceLabel: "Operator note",
+        content: "Operator timestamp note",
+      }),
+    ]);
     expect(payload.memory.noteTimeline.map((entry: { sourceType: string }) => entry.sourceType)).toEqual([
       "call_summary",
       "ai_summary",
