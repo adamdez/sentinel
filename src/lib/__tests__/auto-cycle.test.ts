@@ -19,7 +19,11 @@ describe("isAutoCycleLeadExitDisposition", () => {
   it("exits the lead on live-answer outcomes", () => {
     expect(isAutoCycleLeadExitDisposition("completed")).toBe(true);
     expect(isAutoCycleLeadExitDisposition("not_interested")).toBe(true);
+    expect(isAutoCycleLeadExitDisposition("follow_up")).toBe(true);
     expect(isAutoCycleLeadExitDisposition("appointment")).toBe(true);
+    expect(isAutoCycleLeadExitDisposition("offer_made")).toBe(true);
+    expect(isAutoCycleLeadExitDisposition("do_not_call")).toBe(true);
+    expect(isAutoCycleLeadExitDisposition("disqualified")).toBe(true);
   });
 
   it("keeps the lead in cycle for no-answer style outcomes", () => {

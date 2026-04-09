@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  evictFromDialQueueIfAutoCycleStatusStopsImmediateWork,
   evictFromDialQueueIfTerminalDisposition,
   hasCompletedSkipTrace,
   queueLeadIdsForUser,
   removeLeadFromDialQueue,
   runSkipTraceForQueuedLeads,
+  shouldEvictFromDialQueueForAutoCycleStatus,
   shouldEvictFromDialQueueForDisposition,
 } from "@/lib/dial-queue";
 
@@ -273,6 +275,13 @@ describe("dial queue service", () => {
     expect(shouldEvictFromDialQueueForDisposition(null)).toBe(false);
   });
 
+  it("marks waiting and exited auto-cycle states as queue-evicting", () => {
+    expect(shouldEvictFromDialQueueForAutoCycleStatus("waiting")).toBe(true);
+    expect(shouldEvictFromDialQueueForAutoCycleStatus("exited")).toBe(true);
+    expect(shouldEvictFromDialQueueForAutoCycleStatus("ready")).toBe(false);
+    expect(shouldEvictFromDialQueueForAutoCycleStatus(null)).toBe(false);
+  });
+
   it("evicts a queued lead on terminal disposition", async () => {
     const row = {
       id: "lead-1",
@@ -287,6 +296,28 @@ describe("dial queue service", () => {
       sb as never,
       "lead-1",
       "not_interested",
+    );
+
+    expect(removed).toBe(true);
+    expect(row.dial_queue_active).toBe(false);
+    expect(row.dial_queue_added_at).toBeNull();
+    expect(row.dial_queue_added_by).toBeNull();
+  });
+
+  it("evicts a queued lead when auto-cycle parks it for later", async () => {
+    const row = {
+      id: "lead-1",
+      assigned_to: "adam",
+      dial_queue_active: true,
+      dial_queue_added_at: "2026-03-30T12:00:00.000Z",
+      dial_queue_added_by: "adam",
+    };
+    const sb = createMockSb([row]);
+
+    const removed = await evictFromDialQueueIfAutoCycleStatusStopsImmediateWork(
+      sb as never,
+      "lead-1",
+      "waiting",
     );
 
     expect(removed).toBe(true);

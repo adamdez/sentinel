@@ -32,6 +32,7 @@ import { QuickTaskSetter } from "@/components/sentinel/quick-task-setter";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { supabase } from "@/lib/supabase";
 import type { PublishDisposition } from "@/lib/dialer/types";
+import { isAutoCycleLeadExitDisposition } from "@/lib/dialer/auto-cycle";
 import { PostCallDraftPanel } from "@/components/sentinel/post-call-draft-panel";
 import type { PostCallDraft, ObjectionCapture } from "@/components/sentinel/post-call-draft-panel";
 import { QualGapStripCompact } from "@/components/sentinel/qual-gap-strip";
@@ -686,9 +687,12 @@ export function PostCallPanel({
       taskCreated: typeof publishData?.task_id === "string",
     });
     setPromoteFactsInfo(null);
+    const shouldAutoAdvance = AUTO_ADVANCE_DISPOS.has(dispo)
+      || (autoCycleEnabled && isAutoCycleLeadExitDisposition(dispo));
+
     if (!leadId) {
       setTimeout(() => onComplete(dispo), 850);
-    } else if (AUTO_ADVANCE_DISPOS.has(dispo)) {
+    } else if (shouldAutoAdvance) {
       setTimeout(() => onComplete(dispo), AUTO_ADVANCE_DELAY_MS);
     }
   };

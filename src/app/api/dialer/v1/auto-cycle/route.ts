@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     .select("*, properties(*)")
     .in("id", leadIds)
     .eq("assigned_to", user.id)
-    .eq("status", "lead");
+    .in("status", ["prospect", "lead"]);
 
   if (leadErr) {
     console.error("[auto-cycle] lead detail query failed:", leadErr.message);
@@ -145,8 +145,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Lead must be claimed by you before entering Auto Cycle" }, { status: 403 });
   }
 
-  if (leadRow.status !== "lead") {
-    return NextResponse.json({ error: "Only leads in Lead stage can enter Auto Cycle" }, { status: 400 });
+  if (leadRow.status !== "lead" && leadRow.status !== "prospect") {
+    return NextResponse.json({ error: "Only prospect or lead files can enter Auto Cycle" }, { status: 400 });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

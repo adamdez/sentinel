@@ -18,6 +18,7 @@ import {
   type AutoCyclePhoneRowLike,
 } from "./auto-cycle";
 import type { PublishDisposition } from "./types";
+import { evictFromDialQueueIfAutoCycleStatusStopsImmediateWork } from "@/lib/dial-queue";
 
 // ── Disposition translation: Vapi → Auto-cycle ─────────────────────
 
@@ -295,6 +296,18 @@ export async function processAutoCycleOutcome(
   if (leadUpdateErr) {
     console.error("[auto-cycle-outcome] lead update failed:", leadUpdateErr.message);
     throw new Error(`Failed to update cycle lead: ${leadUpdateErr.message}`);
+  }
+
+  if (leadPatch.cycle_status === "waiting" || leadPatch.cycle_status === "exited") {
+    try {
+      await evictFromDialQueueIfAutoCycleStatusStopsImmediateWork(
+        sb,
+        leadId,
+        leadPatch.cycle_status,
+      );
+    } catch (queueErr) {
+      console.warn("[auto-cycle-outcome] queue eviction failed (non-fatal):", queueErr);
+    }
   }
 
   return {

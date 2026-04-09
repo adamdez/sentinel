@@ -28,8 +28,33 @@ const TERMINAL_QUEUE_DISPOSITIONS = new Set([
   "not_interested",
 ]);
 
+const AUTO_CYCLE_QUEUE_EVICT_STATUSES = new Set([
+  "waiting",
+  "exited",
+]);
+
 export function shouldEvictFromDialQueueForDisposition(disposition: string | null | undefined): boolean {
   return typeof disposition === "string" && TERMINAL_QUEUE_DISPOSITIONS.has(disposition.toLowerCase());
+}
+
+export function shouldEvictFromDialQueueForAutoCycleStatus(status: string | null | undefined): boolean {
+  return typeof status === "string" && AUTO_CYCLE_QUEUE_EVICT_STATUSES.has(status.toLowerCase());
+}
+
+async function clearLeadFromDialQueue(
+  sb: SupabaseClientLike,
+  leadId: string,
+): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb.from("leads") as any)
+    .update({
+      dial_queue_active: false,
+      dial_queue_added_at: null,
+      dial_queue_added_by: null,
+    })
+    .eq("id", leadId)
+    .eq("dial_queue_active", true);
+  return !error;
 }
 
 /**
@@ -43,19 +68,11 @@ export async function evictFromDialQueueIfDriveBy(
   nextAction: string | null | undefined,
 ): Promise<boolean> {
   if (!isDriveByNextAction(nextAction)) return false;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (sb.from("leads") as any)
-    .update({
-      dial_queue_active: false,
-      dial_queue_added_at: null,
-      dial_queue_added_by: null,
-    })
-    .eq("id", leadId)
-    .eq("dial_queue_active", true);
-  if (error) {
-    console.warn(`[DialQueue] evict-on-drive-by failed for ${leadId}:`, error.message);
+  const removed = await clearLeadFromDialQueue(sb, leadId);
+  if (!removed) {
+    console.warn(`[DialQueue] evict-on-drive-by failed for ${leadId}`);
   }
-  return !error;
+  return removed;
 }
 
 /**
@@ -68,19 +85,24 @@ export async function evictFromDialQueueIfTerminalDisposition(
   disposition: string | null | undefined,
 ): Promise<boolean> {
   if (!shouldEvictFromDialQueueForDisposition(disposition)) return false;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (sb.from("leads") as any)
-    .update({
-      dial_queue_active: false,
-      dial_queue_added_at: null,
-      dial_queue_added_by: null,
-    })
-    .eq("id", leadId)
-    .eq("dial_queue_active", true);
-  if (error) {
-    console.warn(`[DialQueue] evict-on-terminal-disposition failed for ${leadId}:`, error.message);
+  const removed = await clearLeadFromDialQueue(sb, leadId);
+  if (!removed) {
+    console.warn(`[DialQueue] evict-on-terminal-disposition failed for ${leadId}`);
   }
-  return !error;
+  return removed;
+}
+
+export async function evictFromDialQueueIfAutoCycleStatusStopsImmediateWork(
+  sb: SupabaseClientLike,
+  leadId: string,
+  cycleStatus: string | null | undefined,
+): Promise<boolean> {
+  if (!shouldEvictFromDialQueueForAutoCycleStatus(cycleStatus)) return false;
+  const removed = await clearLeadFromDialQueue(sb, leadId);
+  if (!removed) {
+    console.warn(`[DialQueue] evict-on-auto-cycle-status failed for ${leadId}`);
+  }
+  return removed;
 }
 
 export interface DialQueueMutationResult {
