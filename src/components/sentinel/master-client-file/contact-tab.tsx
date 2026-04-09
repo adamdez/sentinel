@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { deriveSkipGenieMarker } from "@/lib/skip-genie";
 import { toast } from "sonner";
 import {
   type ClientFile,
@@ -25,6 +26,7 @@ import {
   getGoogleStreetViewLink,
 } from "@/components/sentinel/comps/comps-map";
 import { CopyBtn } from "../master-client-file-parts";
+import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
 import type { PhoneDetail, EmailDetail, SkipTraceOverlay, SkipTraceError } from "./contact-types";
 import type { LeadPhone } from "@/lib/dialer/types";
 
@@ -124,6 +126,11 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
     sessionFailed,
     persistedPhoneCount: activeLeadPhoneCount,
   }), [activeLeadPhoneCount, cf, sessionFailed, sessionHasResults]);
+  const skipGenieMarker = useMemo(() => deriveSkipGenieMarker({
+    ownerFlags: cf.ownerFlags,
+    sourceVendor: cf.sourceVendor,
+    sourceListName: cf.sourceListName,
+  }), [cf.ownerFlags, cf.sourceListName, cf.sourceVendor]);
 
   // ── Mailing address from PR raw data ──
   const prMailAddr = prRaw.MailAddress ?? prRaw.MailingAddress ?? null;
@@ -168,7 +175,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
     for (const pd of phoneDetails) addUnique(pd.number);
     if (phones.length === 0 && cf.ownerPhone) addUnique(cf.ownerPhone);
     for (const ip of importPhones) addUnique(ip);
-    const MIN_PHONE_SLOTS = 3;
+    const MIN_PHONE_SLOTS = 5;
     while (phones.length < MIN_PHONE_SLOTS) phones.push("");
     return phones;
   })();
@@ -377,6 +384,9 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <Contact2 className="h-4 w-4 text-primary/60" />
           Contact Information
+          {skipGenieMarker && (
+            <SkipGenieBadge size="sm" title={skipGenieMarker.title} />
+          )}
           {(skipStatus === "skipped" || skipStatus === "skip_empty") && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <CheckCircle2 className="h-3 w-3" />Skipped

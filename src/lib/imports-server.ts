@@ -196,6 +196,35 @@ function extractImportedPhoneDetails(record: NormalizedImportRecord): ImportedPh
   return details;
 }
 
+function isSkipGenieImport(args: {
+  record: NormalizedImportRecord;
+  defaults: {
+    sourceChannel: string;
+    sourceVendor: string;
+    sourceListName: string;
+  };
+}): boolean {
+  const sourceTexts = [
+    args.record.sourceVendor,
+    args.record.sourceListName,
+    args.defaults.sourceVendor,
+    args.defaults.sourceListName,
+    args.defaults.sourceChannel,
+  ]
+    .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    .map((value) => value.toLowerCase().replace(/[^a-z0-9]+/g, ""));
+
+  if (sourceTexts.some((value) => value.includes("skipgenie"))) {
+    return true;
+  }
+
+  return Object.keys(args.record.rawRowPayload ?? {}).some((key) => (
+    /^mobile[1-5]$/i.test(key)
+    || /^phone(?:10|[1-9])$/i.test(key)
+    || /^phone_type(?:10|[1-9])$/i.test(key)
+  ));
+}
+
 export async function findDuplicateCandidate(
   sb: SupabaseLike,
   record: NormalizedImportRecord,
@@ -461,12 +490,28 @@ export async function updateExistingRecordFromImport(args: {
   const ownerFlags = asObject(property?.owner_flags) ?? {};
   const prospecting = asObject(ownerFlags.prospecting_intake) ?? {};
   const outbound = asObject(ownerFlags.outbound_intake) ?? {};
+  const skipGenie = asObject(ownerFlags.skip_genie) ?? {};
   const importedPhoneDetails = extractImportedPhoneDetails(record);
   const primaryImportedPhone = importedPhoneDetails[0]?.digits ?? null;
+  const skipGenieImport = isSkipGenieImport({ record, defaults });
+  const importTimestamp = new Date().toISOString();
 
   const propertyPatch: Record<string, unknown> = {
     owner_flags: {
       ...ownerFlags,
+      ...(skipGenieImport
+        ? {
+          skip_genie: {
+            ...skipGenie,
+            status: "enriched",
+            imported_at: importTimestamp,
+            import_batch_id: defaults.importBatchId,
+            source_vendor: record.sourceVendor ?? defaults.sourceVendor,
+            source_list_name: record.sourceListName ?? defaults.sourceListName,
+            phone_count: importedPhoneDetails.length,
+          },
+        }
+        : {}),
       co_owner_name: record.coOwnerName ?? ownerFlags.co_owner_name,
       mailing_address: ownerFlags.mailing_address ?? (
         record.mailingAddress

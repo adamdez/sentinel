@@ -155,6 +155,8 @@ import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-wor
 
 import { formatOwnerName } from "@/lib/format-name";
 import { isPplLeadSource } from "@/lib/lead-source";
+import { deriveSkipGenieMarker } from "@/lib/skip-genie";
+import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
 
 import { toast } from "sonner";
 
@@ -951,6 +953,11 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
     sessionHasResults: Boolean(skipTraceResult),
   });
   const alreadySkipTraced = skipTraceUi.status === "skipped" || skipTraceUi.status === "skip_empty";
+  const skipGenieMarker = deriveSkipGenieMarker({
+    ownerFlags: cf.ownerFlags,
+    sourceVendor: cf.sourceVendor,
+    sourceListName: cf.sourceListName,
+  });
 
   const { loading: callHistoryLoading } = useCallNotes(cf.id, 20, activityRefreshToken);
   const sellerContinuity = cf.sellerSituationSummaryShort?.trim() || null;
@@ -1300,21 +1307,26 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
           </div>
 
-          {onSkipTrace && (
-            alreadySkipTraced ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                Skipped
-              </span>
-            ) : (
-              <button
-                onClick={onSkipTrace}
-                disabled={skipTracing}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50 shrink-0"
-              >
-                {skipTracing ? "Skipping..." : "Skip Trace"}
-              </button>
-            )
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {skipGenieMarker && (
+              <SkipGenieBadge title={skipGenieMarker.title} />
+            )}
+            {onSkipTrace && (
+              alreadySkipTraced ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                  Skipped
+                </span>
+              ) : (
+                <button
+                  onClick={onSkipTrace}
+                  disabled={skipTracing}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {skipTracing ? "Skipping..." : "Skip Trace"}
+                </button>
+              )
+            )}
+          </div>
 
 
 

@@ -71,7 +71,9 @@ import {
   deriveSkipTraceUiState,
   type SkipTraceUiState,
 } from "@/components/sentinel/master-client-file-helpers";
+import { deriveSkipGenieMarker } from "@/lib/skip-genie";
 import { formatDueDateLabel } from "@/lib/due-date-label";
+import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -1123,6 +1125,13 @@ function DialerPageInner() {
     : null;
   const currentLeadSkipTraceBadge = currentLeadSkipTraceState
     ? getSkipTraceBadgeConfig(currentLeadSkipTraceState.status)
+    : null;
+  const currentLeadSkipGenieMarker = currentLeadClientFile
+    ? deriveSkipGenieMarker({
+      ownerFlags: currentLeadClientFile.ownerFlags,
+      sourceVendor: currentLeadClientFile.sourceVendor,
+      sourceListName: currentLeadClientFile.sourceListName,
+    })
     : null;
   const currentLeadSkipTraceActionable =
     currentLeadSkipTraceState != null
@@ -4262,6 +4271,12 @@ function DialerPageInner() {
                               {currentLeadSkipTraceBadge.label}
                             </Badge>
                           )
+                        )}
+                        {currentLeadSkipGenieMarker && (
+                          <SkipGenieBadge
+                            size="sm"
+                            title={currentLeadSkipGenieMarker.title}
+                          />
                         )}
                         {!currentLead.compliant && !ghostMode && (
                           <Badge variant="destructive" className="text-sm">

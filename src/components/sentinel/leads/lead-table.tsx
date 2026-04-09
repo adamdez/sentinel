@@ -26,8 +26,10 @@ import {
 } from "@/components/ui/tooltip";
 import { type LeadRow } from "@/lib/leads-data";
 import { buildLeadSourceLabel, isPplLeadSource } from "@/lib/lead-source";
+import { deriveSkipGenieMarker } from "@/lib/skip-genie";
 import type { UrgencyLevel } from "@/lib/action-derivation";
 import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-workflow-summary";
+import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
 import type { SortField, SortDir } from "@/hooks/use-leads";
 import { cn } from "@/lib/utils";
 import { LogCallModal } from "./log-call-modal";
@@ -672,6 +674,11 @@ export function LeadTable({
           intakeMethod: lead.intakeMethod,
           sourceListName: lead.sourceListName,
         });
+        const skipGenieMarker = deriveSkipGenieMarker({
+          ownerFlags: lead.ownerFlags,
+          sourceVendor: lead.sourceVendor,
+          sourceListName: lead.sourceListName,
+        });
         const wf = buildOperatorWorkflowSummary({
           status: lead.status,
           qualificationRoute: lead.qualificationRoute,
@@ -768,6 +775,9 @@ export function LeadTable({
                       <span className="shrink-0 text-[10px] px-1.5 py-0 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold uppercase tracking-wide">
                         Queued
                       </span>
+                    )}
+                    {skipGenieMarker && (
+                      <SkipGenieBadge size="sm" title={skipGenieMarker.title} />
                     )}
                     <span
                       className={cn(
