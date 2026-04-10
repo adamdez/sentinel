@@ -10,6 +10,7 @@ import {
   normalizePhoneForCompare,
   pickAutoCyclePhoneIdByPosition,
   planNextAutoCyclePhoneCall,
+  shouldDisplayAutoCycleLead,
   shouldStopAutoCycleForNoResponseRound,
 } from "@/lib/dialer/auto-cycle";
 
@@ -66,6 +67,10 @@ describe("daily round helpers", () => {
   it("builds the next-round and 30-day due dates from the current call time", () => {
     expect(buildAutoCycleNextRoundDueAt(now)).toBe("2026-03-25T10:00:00.000Z");
     expect(buildAutoCycleThirtyDayFollowUpDueAt(now)).toBe("2026-04-23T10:00:00.000Z");
+  });
+
+  it("keeps the same Pacific local time and skips weekends for the next call day", () => {
+    expect(buildAutoCycleNextRoundDueAt(new Date("2026-04-10T21:00:00.000Z"))).toBe("2026-04-13T21:00:00.000Z");
   });
 
   it("stops the power dialer after three unanswered call days", () => {
@@ -312,5 +317,28 @@ describe("deriveLeadCycleState", () => {
     expect(state.exitReason).toBe("completed");
     expect(state.remainingPhones).toBe(0);
     expect(state.readyNow).toBe(false);
+  });
+});
+
+describe("shouldDisplayAutoCycleLead", () => {
+  it("keeps staged leads visible even when they are waiting", () => {
+    expect(shouldDisplayAutoCycleLead(
+      { dial_queue_active: true },
+      { readyNow: false },
+    )).toBe(true);
+  });
+
+  it("brings due leads back even after they left the staged queue", () => {
+    expect(shouldDisplayAutoCycleLead(
+      { dial_queue_active: false },
+      { readyNow: true },
+    )).toBe(true);
+  });
+
+  it("hides parked waiting leads once they leave the staged queue", () => {
+    expect(shouldDisplayAutoCycleLead(
+      { dial_queue_active: false },
+      { readyNow: false },
+    )).toBe(false);
   });
 });

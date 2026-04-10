@@ -346,4 +346,88 @@ describe("processAutoCycleOutcome", () => {
     expect(state.phones.every((phone) => phone.phone_status === "exited")).toBe(true);
     expect(mockEvictQueue).toHaveBeenCalled();
   });
+
+  it("evicts a no-response file from the staged queue once today's phones are exhausted", async () => {
+    const state = {
+      lead: {
+        id: "lead-1",
+        status: "lead",
+        assigned_to: "user-1",
+      },
+      cycleLead: {
+        id: "cycle-1",
+        lead_id: "lead-1",
+        user_id: "user-1",
+        cycle_status: "ready",
+        current_round: 1,
+        next_due_at: "2026-04-09T20:30:00.000Z",
+        next_phone_id: "phone-2",
+        last_outcome: null,
+        exit_reason: null,
+      },
+      phones: [
+        {
+          id: "row-1",
+          cycle_lead_id: "cycle-1",
+          lead_id: "lead-1",
+          phone_id: "phone-1",
+          phone: "+15095550101",
+          phone_position: 1,
+          attempt_count: 1,
+          next_attempt_number: 2,
+          next_due_at: "2026-04-10T21:00:00.000Z",
+          last_attempt_at: "2026-04-09T20:45:00.000Z",
+          last_outcome: "voicemail",
+          voicemail_drop_next: false,
+          phone_status: "active",
+          exit_reason: null,
+        },
+        {
+          id: "row-2",
+          cycle_lead_id: "cycle-1",
+          lead_id: "lead-1",
+          phone_id: "phone-2",
+          phone: "+15095550102",
+          phone_position: 2,
+          attempt_count: 0,
+          next_attempt_number: 1,
+          next_due_at: "2026-04-09T20:30:00.000Z",
+          last_attempt_at: null,
+          last_outcome: null,
+          voicemail_drop_next: false,
+          phone_status: "active",
+          exit_reason: null,
+        },
+      ],
+    };
+
+    mockCreateClient.mockReturnValue(createMockSupabase(state));
+    const { processAutoCycleOutcome } = await import("@/lib/dialer/auto-cycle-outcome");
+
+    const result = await processAutoCycleOutcome({
+      leadId: "lead-1",
+      disposition: "voicemail",
+      phoneNumber: "+15095550102",
+      source: "operator",
+      userId: "user-1",
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      cycleStatus: "waiting",
+      nextDueAt: "2026-04-10T21:00:00.000Z",
+      nextPhoneId: "phone-1",
+    });
+    expect(state.cycleLead.cycle_status).toBe("waiting");
+    expect(state.phones.filter((phone) => phone.phone_status === "active").map((phone) => phone.next_attempt_number)).toEqual([1, 1]);
+    expect(state.phones.filter((phone) => phone.phone_status === "active").map((phone) => phone.next_due_at)).toEqual([
+      "2026-04-10T21:00:00.000Z",
+      "2026-04-10T21:00:00.000Z",
+    ]);
+    expect(mockEvictQueue).toHaveBeenCalledWith(
+      expect.anything(),
+      "lead-1",
+      "waiting",
+    );
+  });
 });

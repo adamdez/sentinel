@@ -36,6 +36,7 @@ export interface AutoCyclePhoneRowLike {
 
 const AUTO_CYCLE_DAY_MS = 24 * 60 * 60_000;
 export const AUTO_CYCLE_MAX_NO_RESPONSE_ROUNDS = 3;
+const PACIFIC_TIME_ZONE = "America/Los_Angeles";
 
 const LEAD_EXIT_DISPOSITIONS = new Set<PublishDisposition>([
   "not_interested",
@@ -63,8 +64,112 @@ export function isAutoCycleManualHoldDisposition(disposition: PublishDisposition
   return MANUAL_HOLD_DISPOSITIONS.has(disposition);
 }
 
+function getPacificParts(date: Date) {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: PACIFIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+
+  return {
+    year: read("year"),
+    month: read("month"),
+    day: read("day"),
+    hour: read("hour"),
+    minute: read("minute"),
+    second: read("second"),
+    millisecond: date.getUTCMilliseconds(),
+  };
+}
+
+function getPacificOffsetMinutes(date: Date): number {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: PACIFIC_TIME_ZONE,
+    timeZoneName: "shortOffset",
+    hour: "2-digit",
+  });
+  const timeZoneName = formatter.formatToParts(date).find((part) => part.type === "timeZoneName")?.value ?? "GMT-8";
+  const match = timeZoneName.match(/^GMT(?:(?<sign>[+-])(?<hours>\d{1,2})(?::(?<minutes>\d{2}))?)?$/);
+  if (!match?.groups?.sign) return 0;
+
+  const hours = Number(match.groups.hours ?? "0");
+  const minutes = Number(match.groups.minutes ?? "0");
+  const direction = match.groups.sign === "-" ? -1 : 1;
+  return direction * (hours * 60 + minutes);
+}
+
+function pacificLocalToUtcIso(parts: {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  millisecond: number;
+}): string {
+  let utcMs = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+    parts.millisecond,
+  );
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const offsetMinutes = getPacificOffsetMinutes(new Date(utcMs));
+    const adjustedUtcMs = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+      parts.second,
+      parts.millisecond,
+    ) - offsetMinutes * 60_000;
+    if (adjustedUtcMs === utcMs) break;
+    utcMs = adjustedUtcMs;
+  }
+
+  return new Date(utcMs).toISOString();
+}
+
+function addPacificBusinessDays(date: Date, businessDays: number) {
+  const parts = getPacificParts(date);
+  const pacificMidday = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 12, 0, 0, 0));
+  let remaining = businessDays;
+
+  while (remaining > 0) {
+    pacificMidday.setUTCDate(pacificMidday.getUTCDate() + 1);
+    const weekday = pacificMidday.getUTCDay();
+    if (weekday !== 0 && weekday !== 6) {
+      remaining -= 1;
+    }
+  }
+
+  return {
+    year: pacificMidday.getUTCFullYear(),
+    month: pacificMidday.getUTCMonth() + 1,
+    day: pacificMidday.getUTCDate(),
+    hour: parts.hour,
+    minute: parts.minute,
+    second: parts.second,
+    millisecond: parts.millisecond,
+  };
+}
+
 export function buildAutoCycleNextRoundDueAt(now = new Date()): string {
-  return new Date(now.getTime() + AUTO_CYCLE_DAY_MS).toISOString();
+  return pacificLocalToUtcIso(addPacificBusinessDays(now, 1));
 }
 
 export function buildAutoCycleThirtyDayFollowUpDueAt(now = new Date()): string {
@@ -167,4 +272,11 @@ export function deriveLeadCycleState(
     voicemailDropNext: Boolean(nextPhone?.voicemailDropNext),
     remainingPhones: activePhones.length,
   };
+}
+
+export function shouldDisplayAutoCycleLead(
+  lead: { dial_queue_active?: boolean | null },
+  autoCycle: Pick<AutoCycleLeadState, "readyNow">,
+): boolean {
+  return lead.dial_queue_active === true || autoCycle.readyNow;
 }

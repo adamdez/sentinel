@@ -7,6 +7,13 @@ type SupabaseClientLike = {
   from: (table: string) => any;
 };
 
+const PACIFIC_DATE_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Los_Angeles",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 const QUEUE_SKIP_TRACE_CONCURRENCY = 3;
 const QUEUE_SKIP_TRACE_PROPERTY_SELECT = "properties(id, address, city, state, zip, owner_name, owner_flags)";
 
@@ -17,6 +24,10 @@ export interface QueueLeadSelection {
   dial_queue_active: boolean | null;
   status: string | null;
   next_action: string | null;
+  intro_sop_active?: boolean | null;
+  intro_last_call_date?: string | null;
+  intro_completed_at?: string | null;
+  intro_exit_category?: string | null;
 }
 
 export function isDriveByNextAction(nextAction: string | null | undefined): boolean {
@@ -34,6 +45,7 @@ const TERMINAL_QUEUE_DISPOSITIONS = new Set([
 ]);
 
 const AUTO_CYCLE_QUEUE_EVICT_STATUSES = new Set([
+  "waiting",
   "exited",
 ]);
 
@@ -268,6 +280,17 @@ export function hasCompletedSkipTrace(input: QueueSkipTraceEligibility): boolean
   return false;
 }
 
+function pacificDateKey(date: Date): string {
+  return PACIFIC_DATE_FORMATTER.format(date).replace(/\//g, "-");
+}
+
+function wasWorkedInIntroToday(row: QueueLeadSelection, now = new Date()): boolean {
+  return row.intro_sop_active !== false
+    && !row.intro_exit_category
+    && typeof row.intro_last_call_date === "string"
+    && row.intro_last_call_date === pacificDateKey(now);
+}
+
 export async function queueLeadIdsForUser(input: {
   sb: SupabaseClientLike;
   userId: string;
@@ -280,7 +303,7 @@ export async function queueLeadIdsForUser(input: {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await ((input.sb.from("leads") as any)
-    .select("id, property_id, assigned_to, status, next_action")
+    .select("id, property_id, assigned_to, dial_queue_active, status, next_action, intro_sop_active, intro_last_call_date, intro_completed_at, intro_exit_category")
     .in("id", leadIds));
 
   if (error) {
@@ -305,6 +328,11 @@ export async function queueLeadIdsForUser(input: {
     }
 
     if (isNonDialingNextAction(row.next_action)) {
+      conflictedIds.push(leadId);
+      continue;
+    }
+
+    if (wasWorkedInIntroToday(row)) {
       conflictedIds.push(leadId);
       continue;
     }

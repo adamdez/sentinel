@@ -245,6 +245,37 @@ describe("dial queue service", () => {
     expect(rows[1]?.assigned_to).toBe("adam");
   });
 
+  it("blocks re-queueing an intro file that was already worked today", async () => {
+    const sb = createMockSb([
+      {
+        id: "lead-1",
+        assigned_to: "adam",
+        dial_queue_active: false,
+        property_id: "prop-1",
+        status: "lead",
+        next_action: null,
+        intro_sop_active: true,
+        intro_last_call_date: "2026-04-10",
+        intro_completed_at: null,
+        intro_exit_category: null,
+      },
+    ]);
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-10T17:00:00.000Z"));
+
+    const result = await queueLeadIdsForUser({
+      sb: sb as never,
+      userId: "adam",
+      leadIds: ["lead-1"],
+    });
+
+    expect(result.queuedIds).toEqual([]);
+    expect(result.conflictedIds).toEqual(["lead-1"]);
+    expect(result.missingIds).toEqual([]);
+    vi.useRealTimers();
+  });
+
   it("removes a lead from the dial queue without unassigning it", async () => {
     const row = {
       id: "lead-1",
@@ -276,7 +307,7 @@ describe("dial queue service", () => {
   });
 
   it("keeps waiting auto-cycle leads staged but evicts exited ones", () => {
-    expect(shouldEvictFromDialQueueForAutoCycleStatus("waiting")).toBe(false);
+    expect(shouldEvictFromDialQueueForAutoCycleStatus("waiting")).toBe(true);
     expect(shouldEvictFromDialQueueForAutoCycleStatus("exited")).toBe(true);
     expect(shouldEvictFromDialQueueForAutoCycleStatus("ready")).toBe(false);
     expect(shouldEvictFromDialQueueForAutoCycleStatus(null)).toBe(false);
@@ -304,7 +335,7 @@ describe("dial queue service", () => {
     expect(row.dial_queue_added_by).toBeNull();
   });
 
-  it("keeps a queued lead staged when auto-cycle parks it for later", async () => {
+  it("evicts a queued lead when auto-cycle parks it for tomorrow", async () => {
     const row = {
       id: "lead-1",
       assigned_to: "adam",
@@ -320,10 +351,10 @@ describe("dial queue service", () => {
       "waiting",
     );
 
-    expect(removed).toBe(false);
-    expect(row.dial_queue_active).toBe(true);
-    expect(row.dial_queue_added_at).toBe("2026-03-30T12:00:00.000Z");
-    expect(row.dial_queue_added_by).toBe("adam");
+    expect(removed).toBe(true);
+    expect(row.dial_queue_active).toBe(false);
+    expect(row.dial_queue_added_at).toBeNull();
+    expect(row.dial_queue_added_by).toBeNull();
   });
 
   it("evicts a queued lead once auto-cycle exits it entirely", async () => {

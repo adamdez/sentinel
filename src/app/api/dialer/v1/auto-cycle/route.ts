@@ -6,6 +6,7 @@ import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import {
   deriveLeadCycleState,
   mapAutoCyclePhoneState,
+  shouldDisplayAutoCycleLead,
   type AutoCycleLeadRowLike,
   type AutoCyclePhoneRowLike,
 } from "@/lib/dialer/auto-cycle";
@@ -93,6 +94,10 @@ export async function GET(req: NextRequest) {
       };
     })
     .filter((item): item is NonNullable<typeof item> => item !== null)
+    .filter((item) => shouldDisplayAutoCycleLead(
+      item.lead as { dial_queue_active?: boolean | null },
+      item.auto_cycle,
+    ))
     .sort((a, b) => {
       const bucketA = a.auto_cycle.readyNow ? 0 : 1;
       const bucketB = b.auto_cycle.readyNow ? 0 : 1;

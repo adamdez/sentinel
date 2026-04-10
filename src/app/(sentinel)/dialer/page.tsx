@@ -3147,6 +3147,12 @@ function DialerPageInner() {
       totalCalls: currentLead.total_calls,
       createdAt: currentLead.promoted_at,
       promotedAt: currentLead.promoted_at,
+      introSopActive: currentLead.intro_sop_active,
+      introDayCount: currentLead.intro_day_count,
+      introLastCallDate: currentLead.intro_last_call_date,
+      requiresIntroExitCategory:
+        typeof currentLead.intro_completed_at === "string"
+        && !(typeof currentLead.intro_exit_category === "string" && currentLead.intro_exit_category.trim().length > 0),
     });
     const leadHistory = callHistory.find((entry) => entry.lead_id === currentLead.id);
     const recentOutcome = leadHistory?.disposition ?? currentLead.disposition_code ?? "none";
@@ -4119,6 +4125,12 @@ function DialerPageInner() {
                     totalCalls: lead.total_calls,
                     createdAt: lead.promoted_at,
                     promotedAt: lead.promoted_at,
+                    introSopActive: lead.intro_sop_active,
+                    introDayCount: lead.intro_day_count,
+                    introLastCallDate: lead.intro_last_call_date,
+                    requiresIntroExitCategory:
+                      typeof lead.intro_completed_at === "string"
+                      && !(typeof lead.intro_exit_category === "string" && lead.intro_exit_category.trim().length > 0),
                   });
                   const rowDueLabel = powerDialRow
                     ? (powerDialRow.autoCycle.cycleStatus === "paused"
