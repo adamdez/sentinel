@@ -127,6 +127,7 @@ import {
 import { useCoachSurface } from "@/providers/coach-provider";
 
 import { useTwilio } from "@/providers/twilio-provider";
+import { useModal } from "@/providers/modal-provider";
 
 import { useSentinelStore } from "@/lib/store";
 
@@ -159,6 +160,12 @@ import { formatOwnerName } from "@/lib/format-name";
 import { isPplLeadSource } from "@/lib/lead-source";
 import { deriveSkipGenieMarker } from "@/lib/skip-genie";
 import { isDeepDiveNextAction } from "@/lib/deep-dive";
+import {
+  fetchRelatedOwnerLeadCandidates,
+  filterRelatedOwnerLeads,
+  ownerCollisionLabel,
+  type RelatedOwnerLeadSummary,
+} from "@/lib/owner-collision";
 import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
 import { SkipTraceStatusControl } from "@/components/sentinel/skip-trace-status-control";
 
@@ -943,13 +950,16 @@ function derivePaymentsBehindDisplay(
 
 
 
-function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, onSkipTrace, skipTracing, skipTraceResult, persistedPhoneCount = 0 }: {
+function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, onSkipTrace, skipTracing, skipTraceResult, persistedPhoneCount = 0, relatedOwnerLeads = [], relatedOwnerLoading = false, onOpenRelatedLead }: {
 
   cf: ClientFile; computedArv: number; activityRefreshToken: number;
 
   onDial: (phone: string) => void; calling: boolean;
 
   onSkipTrace?: () => void; skipTracing?: boolean; skipTraceResult?: string | null; persistedPhoneCount?: number;
+  relatedOwnerLeads?: RelatedOwnerLeadSummary[];
+  relatedOwnerLoading?: boolean;
+  onOpenRelatedLead?: (leadId: string) => void;
 
 }) {
 
@@ -1412,6 +1422,36 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
             {cf.isAbsentee && Boolean(cf.ownerFlags?.mailing_address) && (
               <p className="text-xs text-muted-foreground/60">Mailing: {String(cf.ownerFlags.mailing_address)}</p>
             )}
+
+            {relatedOwnerLoading ? (
+              <div className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/[0.06] px-2 py-1 text-[11px] text-amber-100/80">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Checking for other same-owner files...
+              </div>
+            ) : relatedOwnerLeads.length > 0 ? (
+              <div className="mt-2 rounded-[10px] border border-amber-500/20 bg-amber-500/[0.06] p-2.5">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-amber-200/90">
+                  <Link2 className="h-3 w-3" />
+                  {ownerCollisionLabel(relatedOwnerLeads.length)}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {relatedOwnerLeads.map((relatedLead) => (
+                    <button
+                      key={`${cf.id}-${relatedLead.leadId}`}
+                      type="button"
+                      onClick={() => onOpenRelatedLead?.(relatedLead.leadId)}
+                      className="rounded-md border border-amber-500/20 bg-amber-500/[0.08] px-2 py-1 text-left text-[11px] text-amber-50 hover:bg-amber-500/[0.14]"
+                    >
+                      <span className="font-medium">{relatedLead.address ?? "Unknown address"}</span>
+                      <span className="text-amber-100/70">
+                        {relatedLead.status ? ` · ${statusLabel(relatedLead.status)}` : ""}
+                        {relatedLead.phone ? ` · ${relatedLead.phone}` : ""}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
           </div>
 
@@ -4466,6 +4506,7 @@ export function MasterClientFileModal({
 }: MasterClientFileModalProps) {
 
   const router = useRouter();
+  const { openModal } = useModal();
 
   const { startCall, callState: twilioCallState } = useTwilio();
 
@@ -4703,6 +4744,8 @@ export function MasterClientFileModal({
   const [hasSavedReport, setHasSavedReport] = useState(false);
 
   const [loadingReport, setLoadingReport] = useState(false);
+  const [relatedOwnerLeads, setRelatedOwnerLeads] = useState<RelatedOwnerLeadSummary[]>([]);
+  const [relatedOwnerLoading, setRelatedOwnerLoading] = useState(false);
 
   const deepCrawlCheckedRef = useRef<string | null>(null);
   const lastCloseoutSignalRef = useRef(openCloseoutComposerSignal ?? 0);
@@ -4717,6 +4760,41 @@ export function MasterClientFileModal({
     [incomingClientFile, clientFilePatch, leadPhones, ownerFlagsOverride],
 
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRelatedOwnerLeads() {
+      if (!clientFile?.id || !clientFile.ownerName) {
+        setRelatedOwnerLeads([]);
+        setRelatedOwnerLoading(false);
+        return;
+      }
+
+      setRelatedOwnerLoading(true);
+      try {
+        const candidates = await fetchRelatedOwnerLeadCandidates(supabase, clientFile.ownerName);
+        if (cancelled) return;
+
+        const related = filterRelatedOwnerLeads(candidates, {
+          excludeLeadId: clientFile.id,
+          excludePropertyId: clientFile.propertyId ?? null,
+          limit: 4,
+        });
+        setRelatedOwnerLeads(related);
+      } catch {
+        if (!cancelled) setRelatedOwnerLeads([]);
+      } finally {
+        if (!cancelled) setRelatedOwnerLoading(false);
+      }
+    }
+
+    void loadRelatedOwnerLeads();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [clientFile?.id, clientFile?.ownerName, clientFile?.propertyId]);
 
   const { notes: activityNotes } = useCallNotes(clientFile?.id, 20, activityRefreshToken);
   const hasActivityNoteContext = activityNotes.some((entry) =>
@@ -9565,6 +9643,9 @@ export function MasterClientFileModal({
                           skipTracing={skipTracing}
                           skipTraceResult={skipTraceResult}
                           persistedPhoneCount={activeLeadPhoneCount}
+                          relatedOwnerLeads={relatedOwnerLeads}
+                          relatedOwnerLoading={relatedOwnerLoading}
+                          onOpenRelatedLead={(leadId) => openModal("client-file", { leadId })}
                         />
                       </div>
                     )}

@@ -19,11 +19,18 @@ import {
   MapPin,
   Globe,
   Loader2,
+  Link2,
   type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useModal } from "@/providers/modal-provider";
 import { cn, formatPhone } from "@/lib/utils";
+import {
+  fetchRelatedOwnerLeadCandidates,
+  filterRelatedOwnerLeads,
+  ownerCollisionLabel,
+  type RelatedOwnerLeadSummary,
+} from "@/lib/owner-collision";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -37,12 +44,18 @@ interface SearchRecord {
   scoreLabel?: "platinum" | "gold" | "silver" | "bronze";
   status?: string;
   matchLabel?: string;
+  leadId?: string | null;
+  propertyId?: string | null;
+  ownerCollisionName?: string | null;
+  relatedOwnerLeadCount?: number;
+  relatedOwnerLeads?: RelatedOwnerLeadSummary[];
 }
 
 interface PhoneSearchApiResult {
   phone: string;
   matchedPhone: string | null;
   leadId: string | null;
+  propertyId?: string | null;
   ownerName: string | null;
   propertyAddress: string | null;
   status: string | null;
@@ -285,6 +298,8 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
 
     records.push({
       id: result.leadId,
+      leadId: result.leadId,
+      propertyId: result.propertyId ?? null,
       kind: result.status === "prospect" ? "prospect" : "lead",
       primary: result.ownerName ?? formatPhone(result.matchedPhone ?? result.phone),
       secondary: [
@@ -295,6 +310,7 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
       href: `/leads?open=${result.leadId}`,
       status: result.status ?? "lead",
       matchLabel: result.matchReason,
+      ownerCollisionName: result.ownerName ?? null,
     });
   }
 
@@ -313,6 +329,8 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
 
     records.push({
       id: resultId,
+      leadId: lead?.id ?? null,
+      propertyId: p.id,
       kind: isProspect ? "prospect" : "lead",
       primary: p.owner_name ?? "Unknown",
       secondary: secondaryParts.join(", "),
@@ -320,6 +338,7 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
       score: score > 0 ? score : undefined,
       scoreLabel: score > 0 ? labelFromScore(score) : undefined,
       status: lead?.status ?? "prospect",
+      ownerCollisionName: p.owner_name ?? null,
     });
   }
 
@@ -335,6 +354,8 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
     const contactName = [c.first_name, c.last_name].filter(Boolean).join(" ") || "Unknown";
     records.push({
       id: resultId,
+      leadId: lead?.id ?? null,
+      propertyId: lead?.property_id ?? null,
       kind: lead ? (lead.status === "prospect" ? "prospect" : "lead") : "contact",
       primary: contactName,
       secondary: [c.phone, c.email].filter(Boolean).join(" · "),
@@ -344,6 +365,29 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
       status: lead?.status ?? "contact",
     });
   }
+
+  const ownerCollisionCache = new Map<string, RelatedOwnerLeadSummary[]>();
+  await Promise.all(records.map(async (record) => {
+    if (!record.leadId || !record.ownerCollisionName) return;
+
+    const cacheKey = record.ownerCollisionName.toLowerCase().trim();
+    let candidates = ownerCollisionCache.get(cacheKey);
+    if (!candidates) {
+      candidates = await fetchRelatedOwnerLeadCandidates(supabase, record.ownerCollisionName);
+      ownerCollisionCache.set(cacheKey, candidates);
+    }
+
+    const relatedOwnerLeads = filterRelatedOwnerLeads(candidates, {
+      excludeLeadId: record.leadId,
+      excludePropertyId: record.propertyId ?? null,
+      limit: 3,
+    });
+
+    if (relatedOwnerLeads.length > 0) {
+      record.relatedOwnerLeadCount = relatedOwnerLeads.length;
+      record.relatedOwnerLeads = relatedOwnerLeads;
+    }
+  }));
 
   return records.sort((a, b) => {
     const rankDiff = rankSearchRecord(b, q) - rankSearchRecord(a, q);
@@ -617,69 +661,98 @@ export function GlobalSearch() {
                       const isActive = i === activeIndex;
 
                       return (
-                        <button
+                        <div
                           key={rec.id}
                           onMouseEnter={() => setActiveIndex(i)}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            if (rec.href !== "#") handleOpenLead(rec.id);
-                          }}
                           className={cn(
-                            "flex items-center gap-3 w-full text-left px-3 py-2.5 transition-colors",
+                            "transition-colors",
                             isActive ? "bg-overlay-6" : "hover:bg-overlay-3"
                           )}
                         >
-                          <div
-                            className={cn(
-                              "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
-                              KIND_COLORS[rec.kind] ?? "bg-overlay-4 border-overlay-6 text-muted-foreground"
-                            )}
+                          <button
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              if (rec.href !== "#") handleOpenLead(rec.id);
+                            }}
+                            className="flex items-center gap-3 w-full text-left px-3 py-2.5"
                           >
-                            <Icon className="h-3.5 w-3.5" />
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <p
-                              className="text-sm font-semibold truncate text-foreground"
-                              style={{
-                                textShadow: isActive ? "0 1px 0 var(--shadow-soft)" : undefined,
-                                WebkitFontSmoothing: "antialiased",
-                              }}
-                            >
-                              <HighlightMatch text={rec.primary} query={query} />
-                            </p>
-                            <p className="text-sm text-muted-foreground truncate">
-                              <HighlightMatch text={rec.secondary} query={query} />
-                            </p>
-                          </div>
-
-                          {rec.score != null && rec.scoreLabel && (
-                            <span
+                            <div
                               className={cn(
-                                "text-xs px-1.5 py-0.5 rounded border font-bold shrink-0",
-                                SCORE_COLORS[rec.scoreLabel]
+                                "h-7 w-7 rounded-md flex items-center justify-center shrink-0 border",
+                                KIND_COLORS[rec.kind] ?? "bg-overlay-4 border-overlay-6 text-muted-foreground"
                               )}
                             >
-                              {rec.scoreLabel === "platinum" && (
-                                <Flame className="h-2 w-2 inline mr-0.5" />
-                              )}
-                              {rec.score}
-                            </span>
-                          )}
+                              <Icon className="h-3.5 w-3.5" />
+                            </div>
 
-                          {rec.status && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-overlay-4 text-muted-foreground border border-overlay-6 shrink-0">
-                              {statusLabel(rec.status)}
-                            </span>
-                          )}
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className="text-sm font-semibold truncate text-foreground"
+                                style={{
+                                  textShadow: isActive ? "0 1px 0 var(--shadow-soft)" : undefined,
+                                  WebkitFontSmoothing: "antialiased",
+                                }}
+                              >
+                                <HighlightMatch text={rec.primary} query={query} />
+                              </p>
+                              <p className="text-sm text-muted-foreground truncate">
+                                <HighlightMatch text={rec.secondary} query={query} />
+                              </p>
+                            </div>
 
-                          <ArrowRight
-                            className={cn(
-                              "h-3 w-3 shrink-0 transition-colors",
-                              isActive ? "text-primary/60" : "text-muted-foreground/20"
+                            {rec.score != null && rec.scoreLabel && (
+                              <span
+                                className={cn(
+                                  "text-xs px-1.5 py-0.5 rounded border font-bold shrink-0",
+                                  SCORE_COLORS[rec.scoreLabel]
+                                )}
+                              >
+                                {rec.scoreLabel === "platinum" && (
+                                  <Flame className="h-2 w-2 inline mr-0.5" />
+                                )}
+                                {rec.score}
+                              </span>
                             )}
-                          />
-                        </button>
+
+                            {rec.status && (
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-overlay-4 text-muted-foreground border border-overlay-6 shrink-0">
+                                {statusLabel(rec.status)}
+                              </span>
+                            )}
+
+                            <ArrowRight
+                              className={cn(
+                                "h-3 w-3 shrink-0 transition-colors",
+                                isActive ? "text-primary/60" : "text-muted-foreground/20"
+                              )}
+                            />
+                          </button>
+
+                          {rec.relatedOwnerLeadCount && rec.relatedOwnerLeads && rec.relatedOwnerLeads.length > 0 && (
+                            <div className="px-3 pb-2 pl-[52px]">
+                              <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-300/85">
+                                <Link2 className="h-3 w-3" />
+                                {ownerCollisionLabel(rec.relatedOwnerLeadCount)}
+                              </div>
+                              <div className="mt-1 flex flex-wrap gap-1.5">
+                                {rec.relatedOwnerLeads.map((relatedLead) => (
+                                  <button
+                                    key={`${rec.id}-${relatedLead.leadId}`}
+                                    onMouseDown={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      handleOpenLead(relatedLead.leadId);
+                                    }}
+                                    className="rounded-md border border-amber-500/20 bg-amber-500/[0.08] px-2 py-1 text-[11px] text-amber-100 hover:bg-amber-500/[0.14]"
+                                  >
+                                    {relatedLead.address ?? "Unknown address"}
+                                    {relatedLead.status ? ` · ${statusLabel(relatedLead.status)}` : ""}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </>
