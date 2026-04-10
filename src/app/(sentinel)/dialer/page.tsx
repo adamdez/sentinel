@@ -73,6 +73,7 @@ import {
   type DialerKpiSnapshot,
 } from "@/lib/dialer-kpis";
 import {
+  COUNTY_LINKS,
   sourceDisplayLabel,
   buildSourceLabel,
   clientFileFromRaw,
@@ -849,6 +850,7 @@ function LiveAnswerIntelPanel({
   const {
     displayedTaxOwed,
     displayLotSize,
+    displayTaxAssessed,
     displayValue,
     displayValueLabel,
     displayOwnerName,
@@ -967,6 +969,10 @@ function LiveAnswerIntelPanel({
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground/55">Lot</span>
           <span className="font-mono text-foreground">{displayLotSize ?? "—"}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground/55">Tax Assessed</span>
+          <span className="font-mono text-foreground">{displayTaxAssessed != null && displayTaxAssessed > 0 ? formatMoneyFull(displayTaxAssessed) : "—"}</span>
         </div>
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground/55">Tax Owed</span>
@@ -4657,6 +4663,12 @@ function DialerPageInner() {
                         const displayBedrooms = numberFromUnknown(p?.bedrooms);
                         const displayBathrooms = numberFromUnknown(p?.bathrooms);
                         const equityDisplay = formatDialerEquityDisplay(currentLead.properties);
+                        const countyKey = typeof currentLead.properties?.county === "string"
+                          ? currentLead.properties.county.trim().toLowerCase()
+                          : "";
+                        const scoutParcelUrl = displayParcel && countyKey === "spokane"
+                          ? COUNTY_LINKS.spokane.assessor(displayParcel)
+                          : null;
                         return (
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                         <span className="font-mono text-foreground">{activeCallPhoneLabel}</span>
@@ -4688,7 +4700,19 @@ function DialerPageInner() {
                         {displaySqft != null ? (
                           <span>{displaySqft.toLocaleString()} sqft</span>
                         ) : displayParcel ? (
-                          <span>Parcel {displayParcel}</span>
+                          scoutParcelUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => window.open(scoutParcelUrl, "_blank", "noopener,noreferrer")}
+                              className="inline-flex items-center gap-1 text-primary hover:text-primary/80 hover:underline"
+                              title={`Open Spokane SCOUT for parcel ${displayParcel}`}
+                            >
+                              <span>Parcel {displayParcel}</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </button>
+                          ) : (
+                            <span>Parcel {displayParcel}</span>
+                          )
                         ) : null}
                         {displayYearBuilt != null ? (
                           <span>Built {displayYearBuilt}</span>

@@ -26,7 +26,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { resolveTerminalDispositionTargetStatus } from "./terminal-disposition-policy";
+import { buildTerminalDispositionLeadPatch, resolveTerminalDispositionTargetStatus } from "./terminal-disposition-policy";
 import {
   TERMINAL_STATUSES,
   PUBLISH_DISPOSITIONS,
@@ -391,15 +391,44 @@ export async function publishSession(
         .single();
 
       if (currentLead && !["nurture", "dead", "closed"].includes(currentLead.status as string)) {
+        const terminalPatch = buildTerminalDispositionLeadPatch({
+          disposition: input.disposition as "not_interested" | "disqualified" | "dead_lead" | "do_not_call",
+          lockVersion: typeof currentLead.lock_version === "number" ? currentLead.lock_version : null,
+          nowIso: new Date().toISOString(),
+        });
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (sb.from("leads") as any)
-          .update({
-            status: targetStatus,
-            lock_version: (currentLead.lock_version as number) + 1,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", leadId)
-          .eq("lock_version", currentLead.lock_version);
+        let terminalUpdate = (sb.from("leads") as any)
+          .update(terminalPatch)
+          .eq("id", leadId);
+
+        if (typeof currentLead.lock_version === "number") {
+          terminalUpdate = terminalUpdate.eq("lock_version", currentLead.lock_version);
+        }
+
+        const { data: updatedLead, error: terminalLeadErr } = await terminalUpdate
+          .select("id, status")
+          .maybeSingle();
+
+        if (!updatedLead && !terminalLeadErr) {
+          const retryPatch: Record<string, unknown> = { ...terminalPatch };
+          if (typeof currentLead.lock_version !== "number") {
+            delete retryPatch.lock_version;
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const retryResult = await (sb.from("leads") as any)
+            .update(retryPatch)
+            .eq("id", leadId)
+            .select("id, status")
+            .maybeSingle();
+
+          if (retryResult.error || !retryResult.data) {
+            throw retryResult.error ?? new Error("Terminal disposition lead update matched zero rows");
+          }
+        } else if (terminalLeadErr) {
+          throw terminalLeadErr;
+        }
 
         if (targetStatus === "dead") {
           try {

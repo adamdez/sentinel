@@ -8,6 +8,7 @@ import { DEEP_DIVE_NEXT_ACTION, isDeepDiveNextAction } from "@/lib/deep-dive";
 type DeepDiveLeadRow = {
   id: string;
   status: string | null;
+  assigned_to: string | null;
   next_action: string | null;
   next_action_due_at: string | null;
   last_contact_at: string | null;
@@ -37,6 +38,7 @@ export async function GET(req: NextRequest) {
     .select(`
       id,
       status,
+      assigned_to,
       next_action,
       next_action_due_at,
       last_contact_at,
@@ -120,6 +122,7 @@ export async function GET(req: NextRequest) {
     return {
       id: lead.id,
       status: lead.status,
+      assigned_to: lead.assigned_to,
       next_action: lead.next_action,
       next_action_due_at: lead.next_action_due_at,
       last_contact_at: lead.last_contact_at,

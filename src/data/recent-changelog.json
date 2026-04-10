@@ -1,5 +1,10 @@
 [
   {
+    "hash": "082f2eb9",
+    "date": "2026-04-10",
+    "message": "[codex] Preload dialer equity on queue entry"
+  },
+  {
     "hash": "34de30df",
     "date": "2026-04-10",
     "message": "[codex] Add owner collision review hints"
@@ -118,10 +123,5 @@
     "hash": "e8bf4785",
     "date": "2026-04-09",
     "message": "[codex] make seller memory notes-first"
-  },
-  {
-    "hash": "69f5c85c",
-    "date": "2026-04-09",
-    "message": "[codex] Polish power dial queue controls"
   }
 ]
