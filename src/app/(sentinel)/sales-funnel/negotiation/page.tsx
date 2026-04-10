@@ -12,6 +12,7 @@ import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
+import { compareRowText, compareRowTime, sortRowsWithComparator } from "@/hooks/use-leads-sort";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import { LogCallModal } from "@/components/sentinel/leads/log-call-modal";
 import { supabase } from "@/lib/supabase";
@@ -64,10 +65,36 @@ export default function NegotiationPage() {
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<"updated_at" | "owner_name" | "address">("updated_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const { rows, loading, error, totalCount, refetch } = useLeadsByStatus("negotiation", { search, sortField, sortDir });
+  const { rows: rawRows, loading, error, totalCount, refetch } = useLeadsByStatus("negotiation", { search, sortField, sortDir });
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
   const [logCallRow, setLogCallRow] = useState<ProspectRow | null>(null);
   const [movingToDispo, setMovingToDispo] = useState<string | null>(null);
+
+  const rows = useMemo(() => sortRowsWithComparator(rawRows, (a, b) => {
+    if (sortField === "address") {
+      return (
+        compareRowText(a, b, (row) => row.address, sortDir) ||
+        compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+        compareRowText(a, b, (row) => row.id, sortDir)
+      );
+    }
+
+    if (sortField === "owner_name") {
+      return (
+        compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+        compareRowText(a, b, (row) => row.address, sortDir) ||
+        compareRowTime(a, b, (row) => row.created_at, sortDir) ||
+        compareRowText(a, b, (row) => row.id, sortDir)
+      );
+    }
+
+    return (
+      compareRowTime(a, b, (row) => row.created_at, sortDir) ||
+      compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+      compareRowText(a, b, (row) => row.address, sortDir) ||
+      compareRowText(a, b, (row) => row.id, sortDir)
+    );
+  }), [rawRows, sortDir, sortField]);
 
   const handleMoveToDispo = async (row: ProspectRow, e: React.MouseEvent) => {
     e.stopPropagation();

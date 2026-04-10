@@ -1,4 +1,4 @@
-import { deriveLeadActionSummary, type UrgencyLevel } from "@/lib/action-derivation";
+import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-workflow-summary";
 import { leadSourceSortKey } from "@/lib/lead-source";
 import type { LeadStatus, QualificationRoute } from "@/lib/types";
 
@@ -28,15 +28,102 @@ export interface SortableLeadRow {
   lastContactAt: string | null;
   totalCalls: number;
   promotedAt: string;
+  nextAction?: string | null;
+  nextActionDueAt?: string | null;
+  introSopActive?: boolean | null;
+  introDayCount?: number | null;
+  introLastCallDate?: string | null;
+  requiresIntroExitCategory?: boolean | null;
 }
 
-const URGENCY_SORT_RANK: Record<UrgencyLevel, number> = {
-  critical: 0,
-  high: 1,
-  normal: 2,
-  low: 3,
-  none: 4,
-};
+function compareNumber(a: number, b: number, dir: SortDir): number {
+  return dir === "asc" ? a - b : b - a;
+}
+
+function compareText(a: string, b: string, dir: SortDir): number {
+  const result = a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
+  return dir === "asc" ? result : -result;
+}
+
+function compareNullableTime(
+  aIso: string | null | undefined,
+  bIso: string | null | undefined,
+  dir: SortDir,
+  missing: "first" | "last" = "last",
+): number {
+  const aMs = toMs(aIso);
+  const bMs = toMs(bIso);
+
+  if (aMs == null && bMs == null) return 0;
+  if (aMs == null) return missing === "first" ? -1 : 1;
+  if (bMs == null) return missing === "first" ? 1 : -1;
+
+  return compareNumber(aMs, bMs, dir);
+}
+
+function toMs(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
+
+function stableCompare(a: SortableLeadRow, b: SortableLeadRow, dir: SortDir): number {
+  return (
+    compareText(a.ownerName, b.ownerName, dir) ||
+    compareText(a.address, b.address, dir) ||
+    compareNullableTime(a.promotedAt, b.promotedAt, dir) ||
+    compareText(a.id, b.id, dir)
+  );
+}
+
+function doNowSortParts(lead: SortableLeadRow): {
+  label: string;
+  normalizedLabel: string;
+  numericHint: number | null;
+  dueIso: string | null;
+} {
+  const workflow = buildOperatorWorkflowSummary({
+    status: lead.status,
+    qualificationRoute: lead.qualificationRoute,
+    assignedTo: lead.assignedTo,
+    nextCallScheduledAt: lead.nextCallScheduledAt,
+    nextFollowUpAt: lead.followUpDate,
+    lastContactAt: lead.lastContactAt,
+    totalCalls: lead.totalCalls,
+    nextAction: lead.nextAction,
+    nextActionDueAt: lead.nextActionDueAt,
+    createdAt: lead.promotedAt,
+    promotedAt: lead.promotedAt,
+    introSopActive: lead.introSopActive,
+    introDayCount: lead.introDayCount,
+    introLastCallDate: lead.introLastCallDate,
+    requiresIntroExitCategory: lead.requiresIntroExitCategory,
+  });
+
+  const label = workflow.doNow.trim();
+  const normalizedLabel = label
+    .toLowerCase()
+    .replace(/day\s+\d+\/\d+/g, "day #/#")
+    .replace(/<\d+d/g, "#d")
+    .replace(/\b\d+d\b/g, "#d")
+    .replace(/\bin\s+\d+d\b/g, "in #d")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const numericMatch =
+    label.match(/day\s+(\d+)\/\d+/i) ??
+    label.match(/(\d+)d overdue/i) ??
+    label.match(/in\s+(\d+)d/i) ??
+    label.match(/(\d+)d since/i) ??
+    label.match(/no contact in\s+(\d+)d/i);
+
+  return {
+    label,
+    normalizedLabel,
+    numericHint: numericMatch?.[1] ? Number(numericMatch[1]) : null,
+    dueIso: workflow.effectiveDueIso,
+  };
+}
 
 export function sortLeadRows<T extends SortableLeadRow>(
   leads: T[],
@@ -44,83 +131,94 @@ export function sortLeadRows<T extends SortableLeadRow>(
   sortDir: SortDir,
 ): T[] {
   const copy = [...leads];
-  const dir = sortDir === "asc" ? 1 : -1;
-
-  let urgencyCache: Map<string, number> | null = null;
-  if (sortField === "followUp") {
-    urgencyCache = new Map();
-    for (const lead of copy) {
-      const summary = deriveLeadActionSummary({
-        status: lead.status,
-        qualificationRoute: lead.qualificationRoute,
-        assignedTo: lead.assignedTo,
-        nextCallScheduledAt: lead.nextCallScheduledAt,
-        nextFollowUpAt: lead.followUpDate,
-        lastContactAt: lead.lastContactAt,
-        totalCalls: lead.totalCalls,
-        createdAt: lead.promotedAt,
-        promotedAt: lead.promotedAt,
-      });
-      urgencyCache.set(lead.id, URGENCY_SORT_RANK[summary.urgency]);
-    }
-  }
+  const doNowCache = sortField === "followUp"
+    ? new Map(copy.map((lead) => [lead.id, doNowSortParts(lead)]))
+    : null;
 
   copy.sort((a, b) => {
-    // Active leads always float to the top regardless of sort field
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-
     switch (sortField) {
       case "score":
-        return (a.score.composite - b.score.composite) * dir;
+        return compareNumber(a.score.composite, b.score.composite, sortDir) || stableCompare(a, b, sortDir);
       case "priority":
-        return (a.predictivePriority - b.predictivePriority) * dir;
+        return compareNumber(a.predictivePriority, b.predictivePriority, sortDir) || stableCompare(a, b, sortDir);
       case "followUp": {
-        const ar = urgencyCache?.get(a.id) ?? 4;
-        const br = urgencyCache?.get(b.id) ?? 4;
-        if (ar !== br) return (ar - br) * dir;
+        const aDoNow = doNowCache?.get(a.id);
+        const bDoNow = doNowCache?.get(b.id);
+        if (!aDoNow || !bDoNow) return stableCompare(a, b, sortDir);
 
-        const aDate = a.nextCallScheduledAt
-          ? new Date(a.nextCallScheduledAt).getTime()
-          : a.followUpDate
-            ? new Date(a.followUpDate).getTime()
-            : Infinity;
-        const bDate = b.nextCallScheduledAt
-          ? new Date(b.nextCallScheduledAt).getTime()
-          : b.followUpDate
-            ? new Date(b.followUpDate).getTime()
-            : Infinity;
-        if (aDate !== bDate) return (aDate - bDate) * dir;
-
-        const aPromotedAt = a.promotedAt ? new Date(a.promotedAt).getTime() : Infinity;
-        const bPromotedAt = b.promotedAt ? new Date(b.promotedAt).getTime() : Infinity;
-        return (aPromotedAt - bPromotedAt) * dir;
+        return (
+          compareText(aDoNow.normalizedLabel, bDoNow.normalizedLabel, sortDir) ||
+          compareNumber(aDoNow.numericHint ?? Number.POSITIVE_INFINITY, bDoNow.numericHint ?? Number.POSITIVE_INFINITY, sortDir) ||
+          compareText(aDoNow.label, bDoNow.label, sortDir) ||
+          compareNullableTime(aDoNow.dueIso, bDoNow.dueIso, sortDir) ||
+          stableCompare(a, b, sortDir)
+        );
       }
       case "due": {
-        const aD = a.nextCallScheduledAt ?? a.followUpDate;
-        const bD = b.nextCallScheduledAt ?? b.followUpDate;
-        const aMs = aD ? new Date(aD).getTime() : Infinity;
-        const bMs = bD ? new Date(bD).getTime() : Infinity;
-        return (aMs - bMs) * dir;
+        const aDue = a.nextActionDueAt ?? a.nextCallScheduledAt ?? a.followUpDate;
+        const bDue = b.nextActionDueAt ?? b.nextCallScheduledAt ?? b.followUpDate;
+        return compareNullableTime(aDue, bDue, sortDir) || stableCompare(a, b, sortDir);
       }
       case "lastTouch": {
-        const aL = a.lastContactAt ? new Date(a.lastContactAt).getTime() : -Infinity;
-        const bL = b.lastContactAt ? new Date(b.lastContactAt).getTime() : -Infinity;
-        return (aL - bL) * dir;
+        return compareNullableTime(a.lastContactAt, b.lastContactAt, sortDir, "last") || stableCompare(a, b, sortDir);
       }
       case "address":
-        return a.address.localeCompare(b.address) * dir;
+        return compareText(a.address, b.address, sortDir) || compareText(a.ownerName, b.ownerName, sortDir) || compareText(a.id, b.id, sortDir);
       case "owner":
-        return a.ownerName.localeCompare(b.ownerName) * dir;
+        return compareText(a.ownerName, b.ownerName, sortDir) || compareText(a.address, b.address, sortDir) || compareText(a.id, b.id, sortDir);
       case "source":
-        return leadSourceSortKey(a).localeCompare(leadSourceSortKey(b)) * dir;
+        return compareText(leadSourceSortKey(a), leadSourceSortKey(b), sortDir) || stableCompare(a, b, sortDir);
       case "equity":
-        return ((a.equityPercent ?? 0) - (b.equityPercent ?? 0)) * dir;
+        return compareNumber(a.equityPercent ?? Number.NEGATIVE_INFINITY, b.equityPercent ?? Number.NEGATIVE_INFINITY, sortDir) || stableCompare(a, b, sortDir);
       case "status":
-        return a.status.localeCompare(b.status) * dir;
+        return compareText(a.status, b.status, sortDir) || stableCompare(a, b, sortDir);
       default:
-        return 0;
+        return stableCompare(a, b, sortDir);
     }
   });
 
   return copy;
+}
+
+export function sortRowsWithComparator<T>(
+  rows: T[],
+  compare: (a: T, b: T) => number,
+): T[] {
+  return [...rows].sort(compare);
+}
+
+export function compareRowText<T>(
+  a: T,
+  b: T,
+  accessor: (row: T) => string | null | undefined,
+  dir: SortDir,
+): number {
+  return compareText(accessor(a) ?? "", accessor(b) ?? "", dir);
+}
+
+export function compareRowTime<T>(
+  a: T,
+  b: T,
+  accessor: (row: T) => string | null | undefined,
+  dir: SortDir,
+  missing: "first" | "last" = "last",
+): number {
+  return compareNullableTime(accessor(a), accessor(b), dir, missing);
+}
+
+export function compareRowNumber<T>(
+  a: T,
+  b: T,
+  accessor: (row: T) => number | null | undefined,
+  dir: SortDir,
+  missing: "first" | "last" = "last",
+): number {
+  const aValue = accessor(a);
+  const bValue = accessor(b);
+
+  if (aValue == null && bValue == null) return 0;
+  if (aValue == null) return missing === "first" ? -1 : 1;
+  if (bValue == null) return missing === "first" ? 1 : -1;
+
+  return compareNumber(aValue, bValue, dir);
 }

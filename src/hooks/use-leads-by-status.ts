@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import type { ProspectRow } from "@/hooks/use-prospects";
 import type { AIScore } from "@/lib/types";
 import { buildLeadSourceLabel } from "@/lib/lead-source";
+import { compareRowNumber, compareRowText, compareRowTime, sortRowsWithComparator } from "./use-leads-sort";
 
 // ── Row builder (mirrors use-prospects.ts buildRows) ────────────────────
 
@@ -217,17 +218,36 @@ export function useLeadsByStatus(status: string, opts: UseLeadsByStatusOptions =
       );
     }
 
-    const dir = sortDir === "desc" ? -1 : 1;
-    filtered = [...filtered].sort((a, b) => {
+    filtered = sortRowsWithComparator(filtered, (a, b) => {
       switch (sortField) {
         case "composite_score":
-          return (b.composite_score - a.composite_score) * dir;
+          return (
+            compareRowNumber(a, b, (row) => row.composite_score, sortDir) ||
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         case "updated_at":
-          return ((a.updated_at ?? a.created_at ?? "").localeCompare(b.updated_at ?? b.created_at ?? "")) * dir;
+          return (
+            compareRowTime(a, b, (row) => row.updated_at ?? row.created_at, sortDir) ||
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         case "owner_name":
-          return a.owner_name.localeCompare(b.owner_name) * dir;
+          return (
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowTime(a, b, (row) => row.updated_at ?? row.created_at, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         case "address":
-          return a.address.localeCompare(b.address) * dir;
+          return (
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowTime(a, b, (row) => row.updated_at ?? row.created_at, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         default:
           return 0;
       }

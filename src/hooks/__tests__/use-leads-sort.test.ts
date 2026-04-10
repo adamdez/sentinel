@@ -18,52 +18,99 @@ function buildLead(overrides: Partial<SortableLeadRow> & Pick<SortableLeadRow, "
     lastContactAt: null,
     totalCalls: 0,
     promotedAt: "2026-03-10T10:00:00Z",
+    nextAction: null,
+    nextActionDueAt: null,
+    introSopActive: false,
+    introDayCount: 0,
+    introLastCallDate: null,
+    requiresIntroExitCategory: false,
     ...overrides,
   };
 }
 
 describe("sortLeadRows", () => {
-  it("floats active leads above higher-scoring inactive leads", () => {
+  it("uses the chosen score sort instead of forcing pinned rows to the top", () => {
     const leads = [
       buildLead({ id: "inactive-hot", pinned: false, score: { composite: 99 } }),
       buildLead({ id: "active-cold", pinned: true, score: { composite: 10 } }),
     ];
 
     expect(sortLeadRows(leads, "score", "desc").map((lead) => lead.id)).toEqual([
-      "active-cold",
       "inactive-hot",
+      "active-cold",
     ]);
   });
 
-  it("applies active-first ordering before follow-up urgency", () => {
+  it("sorts Do Now by the visible label family instead of hidden urgency buckets", () => {
     const leads = [
       buildLead({
-        id: "inactive-overdue",
+        id: "new-lead",
+        pinned: true,
+        promotedAt: "2026-03-10T10:00:00Z",
+      }),
+      buildLead({
+        id: "callback-overdue",
         pinned: false,
         totalCalls: 2,
         lastContactAt: "2026-03-09T10:00:00Z",
-        nextCallScheduledAt: "2026-03-10T10:00:00Z",
+        nextCallScheduledAt: "2026-03-10T09:00:00Z",
       }),
-      buildLead({ id: "active-no-action", pinned: true }),
+      buildLead({
+        id: "done-for-today",
+        pinned: false,
+        introSopActive: true,
+        introDayCount: 1,
+        introLastCallDate: "2026-03-10",
+      }),
     ];
 
     expect(sortLeadRows(leads, "followUp", "asc").map((lead) => lead.id)).toEqual([
-      "active-no-action",
-      "inactive-overdue",
+      "done-for-today",
+      "callback-overdue",
+      "new-lead",
     ]);
   });
 
-  it("keeps the existing score order within the active group", () => {
+  it("sorts Due by the visible effective due date even when pinned differs", () => {
     const leads = [
-      buildLead({ id: "active-low", pinned: true, score: { composite: 30 } }),
-      buildLead({ id: "active-high", pinned: true, score: { composite: 80 } }),
-      buildLead({ id: "inactive-top", pinned: false, score: { composite: 100 } }),
+      buildLead({
+        id: "later-due",
+        pinned: true,
+        nextCallScheduledAt: "2026-03-12T10:00:00Z",
+      }),
+      buildLead({
+        id: "earlier-due",
+        pinned: false,
+        nextActionDueAt: "2026-03-11T10:00:00Z",
+      }),
     ];
 
-    expect(sortLeadRows(leads, "score", "desc").map((lead) => lead.id)).toEqual([
-      "active-high",
-      "active-low",
-      "inactive-top",
-    ]);
+    expect(sortLeadRows(leads, "due", "asc").map((lead) => lead.id)).toEqual(["earlier-due", "later-due"]);
+  });
+
+  it("sorts Last Touch by actual recency instead of pin state", () => {
+    const leads = [
+      buildLead({
+        id: "older-touch",
+        pinned: true,
+        lastContactAt: "2026-03-08T10:00:00Z",
+      }),
+      buildLead({
+        id: "newer-touch",
+        pinned: false,
+        lastContactAt: "2026-03-10T10:00:00Z",
+      }),
+    ];
+
+    expect(sortLeadRows(leads, "lastTouch", "desc").map((lead) => lead.id)).toEqual(["newer-touch", "older-touch"]);
+  });
+
+  it("keeps equal visible values stable with tie-breakers", () => {
+    const leads = [
+      buildLead({ id: "b", ownerName: "Hill", address: "100 Main St" }),
+      buildLead({ id: "a", ownerName: "Hill", address: "100 Main St" }),
+    ];
+
+    expect(sortLeadRows(leads, "owner", "asc").map((lead) => lead.id)).toEqual(["a", "b"]);
   });
 });

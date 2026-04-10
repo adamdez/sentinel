@@ -11,6 +11,7 @@ import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
+import { compareRowText, compareRowTime, sortRowsWithComparator } from "@/hooks/use-leads-sort";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import { toast } from "sonner";
 import type { ProspectRow } from "@/hooks/use-prospects";
@@ -85,11 +86,25 @@ export default function NurturePage() {
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
 
   const rows = useMemo(() => {
-    if (sortField !== "updated_at") return rawRows;
-    return [...rawRows].sort((a, b) => {
-      const aKey = followUpUrgency(a.promoted_at).sortKey;
-      const bKey = followUpUrgency(b.promoted_at).sortKey;
-      return sortDir === "asc" ? aKey - bKey : bKey - aKey;
+    return sortRowsWithComparator(rawRows, (a, b) => {
+      if (sortField === "address") {
+        return (
+          compareRowText(a, b, (row) => row.address, sortDir) ||
+          compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+          compareRowText(a, b, (row) => row.id, sortDir)
+        );
+      }
+
+      const aUrgency = followUpUrgency(a.promoted_at);
+      const bUrgency = followUpUrgency(b.promoted_at);
+      return (
+        compareRowText(aUrgency, bUrgency, (row) => row.label, sortDir) ||
+        (sortDir === "asc" ? aUrgency.sortKey - bUrgency.sortKey : bUrgency.sortKey - aUrgency.sortKey) ||
+        compareRowTime(a, b, (row) => row.promoted_at, sortDir) ||
+        compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+        compareRowText(a, b, (row) => row.address, sortDir) ||
+        compareRowText(a, b, (row) => row.id, sortDir)
+      );
     });
   }, [rawRows, sortField, sortDir]);
 

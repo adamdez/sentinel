@@ -8,6 +8,7 @@ import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
+import { compareRowText, sortRowsWithComparator } from "@/hooks/use-leads-sort";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import { supabase } from "@/lib/supabase";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
@@ -88,24 +89,56 @@ export default function ActivePage() {
   }, []);
 
   const rows = useMemo(() => {
-    const dir = sortDir === "asc" ? 1 : -1;
-    return [...rawRows].sort((a, b) => {
+    return sortRowsWithComparator(rawRows, (a, b) => {
       switch (sortField) {
         case "owner_name":
-          return a.owner_name.localeCompare(b.owner_name) * dir;
+          return (
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         case "address":
-          return a.address.localeCompare(b.address) * dir;
+          return (
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         case "source":
-          return a.source.localeCompare(b.source) * dir;
+          return (
+            compareRowText(a, b, (row) => row.source, sortDir) ||
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         case "assigned_to":
-          return labelOrDash(assignedNames[a.assigned_to ?? ""]).localeCompare(labelOrDash(assignedNames[b.assigned_to ?? ""])) * dir;
+          return (
+            compareRowText(a, b, (row) => labelOrDash(assignedNames[row.assigned_to ?? ""]), sortDir) ||
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         case "next_action":
-          return labelOrDash(a.next_action).localeCompare(labelOrDash(b.next_action)) * dir;
+          return (
+            compareRowText(a, b, (row) => labelOrDash(row.next_action), sortDir) ||
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         case "last_contact_at":
-          return (touchValue(a) - touchValue(b)) * dir;
+          return (
+            (sortDir === "asc" ? touchValue(a) - touchValue(b) : touchValue(b) - touchValue(a)) ||
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         case "next_action_due_at":
         default:
-          return (dueValue(a) - dueValue(b)) * dir;
+          return (
+            (sortDir === "asc" ? dueValue(a) - dueValue(b) : dueValue(b) - dueValue(a)) ||
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
       }
     });
   }, [assignedNames, rawRows, sortDir, sortField]);

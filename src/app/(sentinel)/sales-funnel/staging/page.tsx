@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn, formatCurrency } from "@/lib/utils";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
+import { compareRowText, compareRowTime, sortRowsWithComparator } from "@/hooks/use-leads-sort";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -75,11 +76,21 @@ export default function StagingPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const rows = useMemo(() => {
-    if (sortField !== "updated_at") return rawRows;
-    return [...rawRows].sort((a, b) => {
-      const aTime = new Date(a.created_at).getTime();
-      const bTime = new Date(b.created_at).getTime();
-      return sortDir === "asc" ? aTime - bTime : bTime - aTime;
+    return sortRowsWithComparator(rawRows, (a, b) => {
+      if (sortField === "address") {
+        return (
+          compareRowText(a, b, (row) => row.address, sortDir) ||
+          compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+          compareRowText(a, b, (row) => row.id, sortDir)
+        );
+      }
+
+      return (
+        compareRowTime(a, b, (row) => row.created_at, sortDir) ||
+        compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+        compareRowText(a, b, (row) => row.address, sortDir) ||
+        compareRowText(a, b, (row) => row.id, sortDir)
+      );
     });
   }, [rawRows, sortField, sortDir]);
 

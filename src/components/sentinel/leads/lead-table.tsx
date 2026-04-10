@@ -694,7 +694,7 @@ export function LeadTable({
           currentDir={sortDir}
           onSort={onSort}
           className="text-left"
-          title="Sort: active first, then urgency, then due date"
+          title="Sort by the visible Do Now state"
         />
         <SortHeader label="Due" field="due" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Last Touch" field="lastTouch" currentField={sortField} currentDir={sortDir} onSort={onSort} />

@@ -8,6 +8,7 @@ import { GlassCard } from "@/components/sentinel/glass-card";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import { useLeadsByStatus } from "@/hooks/use-leads-by-status";
+import { compareRowText, compareRowTime, sortRowsWithComparator } from "@/hooks/use-leads-sort";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import type { ProspectRow } from "@/hooks/use-prospects";
 
@@ -34,16 +35,30 @@ export default function ClosedPage() {
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
 
   const rows = useMemo(() => {
-    const dir = sortDir === "asc" ? 1 : -1;
-    return [...rawRows].sort((a, b) => {
+    return sortRowsWithComparator(rawRows, (a, b) => {
       switch (sortField) {
         case "owner_name":
-          return a.owner_name.localeCompare(b.owner_name) * dir;
+          return (
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowTime(a, b, (row) => row.updated_at ?? row.created_at, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         case "address":
-          return a.address.localeCompare(b.address) * dir;
+          return (
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowTime(a, b, (row) => row.updated_at ?? row.created_at, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
         case "updated_at":
         default:
-          return ((a.updated_at ?? a.created_at ?? "").localeCompare(b.updated_at ?? b.created_at ?? "")) * dir;
+          return (
+            compareRowTime(a, b, (row) => row.updated_at ?? row.created_at, sortDir) ||
+            compareRowText(a, b, (row) => row.owner_name, sortDir) ||
+            compareRowText(a, b, (row) => row.address, sortDir) ||
+            compareRowText(a, b, (row) => row.id, sortDir)
+          );
       }
     });
   }, [rawRows, sortDir, sortField]);
