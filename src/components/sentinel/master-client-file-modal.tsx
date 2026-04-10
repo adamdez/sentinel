@@ -158,6 +158,7 @@ import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-wor
 import { formatOwnerName } from "@/lib/format-name";
 import { isPplLeadSource } from "@/lib/lead-source";
 import { deriveSkipGenieMarker } from "@/lib/skip-genie";
+import { isDeepDiveNextAction } from "@/lib/deep-dive";
 import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
 import { SkipTraceStatusControl } from "@/components/sentinel/skip-trace-status-control";
 
@@ -4669,7 +4670,7 @@ export function MasterClientFileModal({
   const [reassigning, setReassigning] = useState(false);
 
   const [activeUpdating, setActiveUpdating] = useState(false);
-  const [moveTarget, setMoveTarget] = useState<"" | WorkflowStageId | "drive_by">("");
+  const [moveTarget, setMoveTarget] = useState<"" | WorkflowStageId | "drive_by" | "deep_dive">("");
 
 
 
@@ -8524,6 +8525,44 @@ export function MasterClientFileModal({
     stageNextActionDueAt,
   ]);
 
+  const handleParkForDeepDive = useCallback(async () => {
+    if (!clientFile?.id) return false;
+
+    setStageUpdating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired. Please sign in again.");
+        return false;
+      }
+
+      const res = await fetch(`/api/dialer/v1/deep-dive/${clientFile.id}/park`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not park for deep dive");
+        return false;
+      }
+
+      applyLeadPatchFromResponse(data);
+      toast.success("Parked for Deep Dive");
+      onRefresh?.();
+      return true;
+    } catch (err) {
+      console.error("[MCF] Deep dive park error:", err);
+      toast.error("Could not park for deep dive");
+      return false;
+    } finally {
+      setStageUpdating(false);
+    }
+  }, [applyLeadPatchFromResponse, clientFile, onRefresh]);
+
   const handleApplyMove = useCallback(async () => {
     if (!clientFile || !moveTarget) return;
 
@@ -8546,6 +8585,12 @@ export function MasterClientFileModal({
       setCloseoutDateTouched(false);
       setNextActionEditorOpen(false);
       setNoteEditorOpen(false);
+      setMoveTarget("");
+      return;
+    }
+
+    if (moveTarget === "deep_dive") {
+      await handleParkForDeepDive();
       setMoveTarget("");
       return;
     }
@@ -8592,6 +8637,7 @@ export function MasterClientFileModal({
   }, [
     allowedTransitions,
     clientFile,
+    handleParkForDeepDive,
     handleToggleActive,
     moveTarget,
     moveLeadToStage,
@@ -8614,6 +8660,9 @@ export function MasterClientFileModal({
   const moveMenuOptions = useMemo(() => {
     if (!clientFile) return [];
 
+    const deepDiveCurrent = isDeepDiveNextAction(clientFile.nextAction);
+    const canParkDeepDive = currentStage !== "dead" && currentStage !== "closed" && !deepDiveCurrent;
+
     return [
       ...WORKFLOW_STAGE_OPTIONS.map((stage) => ({
         id: stage.id,
@@ -8629,6 +8678,11 @@ export function MasterClientFileModal({
         id: "drive_by" as const,
         label: "Drive By",
         disabled: false,
+      },
+      {
+        id: "deep_dive" as const,
+        label: deepDiveCurrent ? "Deep Dive (Current)" : "Deep Dive",
+        disabled: !canParkDeepDive,
       },
     ];
   }, [allowedMoveStatuses, clientFile, currentStage]);
@@ -8963,7 +9017,7 @@ export function MasterClientFileModal({
                     <div className="flex items-center gap-1">
                       <select
                       value={moveTarget}
-                      onChange={(e) => setMoveTarget(e.target.value as "" | WorkflowStageId | "drive_by")}
+                      onChange={(e) => setMoveTarget(e.target.value as "" | WorkflowStageId | "drive_by" | "deep_dive")}
                       className="h-7 rounded-md border border-overlay-15 bg-overlay-4 px-2 text-xs text-foreground focus:outline-none focus:border-primary/30"
                       aria-label="Move file"
                     >

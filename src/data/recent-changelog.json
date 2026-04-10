@@ -1,5 +1,15 @@
 [
   {
+    "hash": "ec7dca8e",
+    "date": "2026-04-10",
+    "message": "[codex] Ship dialer communication search and closeout fallback"
+  },
+  {
+    "hash": "f2d881b0",
+    "date": "2026-04-10",
+    "message": "[codex] Add related contact evidence lane"
+  },
+  {
     "hash": "39fed6cf",
     "date": "2026-04-10",
     "message": "[codex] Ship remaining dialer note work"
@@ -113,15 +123,5 @@
     "hash": "65cfed27",
     "date": "2026-04-09",
     "message": "[codex] streamline dead lead resurrection"
-  },
-  {
-    "hash": "4171cff8",
-    "date": "2026-04-09",
-    "message": "[codex] restore dead lead resurrection path"
-  },
-  {
-    "hash": "839f0f27",
-    "date": "2026-04-09",
-    "message": "[codex] keep disconnected and wrong numbers on the file"
   }
 ]
