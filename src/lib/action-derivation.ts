@@ -16,6 +16,7 @@
  */
 
 import { isStale, daysSinceContact, isContacted } from "./comm-truth";
+import { isDeepDiveNextAction } from "./deep-dive";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -99,7 +100,7 @@ function hoursSince(isoDate: string | null | undefined, now: Date): number | nul
  *
  * Rule cascade (first match wins, ordered by urgency):
  *
- *  0. VARIES  — Drive by override (when next_action starts with "Drive by")
+ *  0. VARIES  — Deep dive / Drive by override (when next_action is an intentional prep task)
  *  1. CRITICAL — Overdue callback or follow-up
  *  2. CRITICAL — Uncontacted active lead >24h old (speed-to-lead failure)
  *  3. HIGH    — Stale contact (>7d, active status, not dead/closed)
@@ -142,6 +143,37 @@ export function deriveLeadActionSummary(input: ActionDerivationInput): ActionSum
   // When the operator explicitly set a non-phone next step, honor it
   // before the call-based rules fire.
   const nextActionNorm = (input.nextAction ?? "").toLowerCase();
+  if (isDeepDiveNextAction(input.nextAction)) {
+    const dueMs = parseMs(input.nextActionDueAt);
+    if (dueMs !== null) {
+      if (dueMs < nowMs) {
+        const overdueDays = Math.max(1, Math.ceil((nowMs - dueMs) / (1000 * 60 * 60 * 24)));
+        return {
+          action: `Deep dive — ${overdueDays}d overdue`,
+          reason: `Research prep was due ${overdueDays} day${overdueDays === 1 ? "" : "s"} ago. Review the file before it returns to calling.`,
+          urgency: "high",
+          actionType: "review",
+          isActionable: true,
+        };
+      }
+      const daysUntil = Math.floor((dueMs - nowMs) / (1000 * 60 * 60 * 24));
+      const label = daysUntil === 0 ? "today" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil}d`;
+      return {
+        action: `Deep dive — ${label}`,
+        reason: `This file is parked for deeper research ${label}. Complete prep before dialing it again.`,
+        urgency: daysUntil === 0 ? "normal" : "low",
+        actionType: "review",
+        isActionable: daysUntil === 0,
+      };
+    }
+    return {
+      action: "Deep dive — no date set",
+      reason: "This file is parked for research, but no prep window is scheduled yet.",
+      urgency: "normal",
+      actionType: "review",
+      isActionable: true,
+    };
+  }
   if (nextActionNorm.startsWith("drive by")) {
     const dueMs = parseMs(input.nextActionDueAt);
     if (dueMs !== null) {

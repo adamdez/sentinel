@@ -12,7 +12,7 @@ import {
   Skull, Heart, Search, Ghost, Zap, ChevronRight, Timer,
   Sparkles, DollarSign, Loader2, SkipForward, MessageSquare,
   X, Send, Shield, CheckCircle2, History, ArrowDownLeft, ArrowUpRight, Pause, Play,
-  AlertTriangle, Wifi, WifiOff, RefreshCw, FileText, ExternalLink, MapPin, MoreHorizontal,
+  AlertTriangle, Wifi, WifiOff, RefreshCw, FileText, ExternalLink, MapPin, MoreHorizontal, FileSearch,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -1443,6 +1443,7 @@ function DialerPageInner() {
   const [diagOpen, setDiagOpen] = useState(false);
   const [diagResults, setDiagResults] = useState<{ name: string; status: string; message: string; detail?: string }[] | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
+  const [deepDiveLeadId, setDeepDiveLeadId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentLead) {
@@ -1686,6 +1687,31 @@ function DialerPageInner() {
 
     await applyIntroExitForLead(leadId, choice as "nurture" | "dead" | "disposition" | "drive_by");
   }, [applyIntroExitForLead]);
+
+  const handleMarkDeepDive = useCallback(async (lead: QueueLead, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (callState !== "idle") return;
+    setDeepDiveLeadId(lead.id);
+    try {
+      const res = await fetch(`/api/dialer/v1/deep-dive/${encodeURIComponent(lead.id)}/park`, {
+        method: "POST",
+        headers: await authHeaders(),
+      });
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not park file for deep dive");
+        return;
+      }
+      setLeadSmsOpen(false);
+      setPendingAutoDialLeadId(null);
+      await refreshQueues();
+      toast.success("Parked for Deep Dive");
+    } catch {
+      toast.error("Could not park file for deep dive");
+    } finally {
+      setDeepDiveLeadId(null);
+    }
+  }, [callState, refreshQueues]);
 
   const openLeadNextStepFix = useCallback((lead: QueueLead, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -3115,6 +3141,8 @@ function DialerPageInner() {
       assignedTo: currentLead.assigned_to,
       nextCallScheduledAt: currentLead.next_call_scheduled_at,
       nextFollowUpAt: currentLead.next_follow_up_at ?? currentLead.follow_up_date,
+      nextAction: currentLead.next_action,
+      nextActionDueAt: currentLead.next_action_due_at,
       lastContactAt: currentLead.last_contact_at,
       totalCalls: currentLead.total_calls,
       createdAt: currentLead.promoted_at,
@@ -4085,6 +4113,8 @@ function DialerPageInner() {
                     assignedTo: lead.assigned_to,
                     nextCallScheduledAt: lead.next_call_scheduled_at,
                     nextFollowUpAt: lead.next_follow_up_at ?? lead.follow_up_date,
+                    nextAction: lead.next_action,
+                    nextActionDueAt: lead.next_action_due_at,
                     lastContactAt: lead.last_contact_at,
                     totalCalls: lead.total_calls,
                     createdAt: lead.promoted_at,
@@ -4143,6 +4173,15 @@ function DialerPageInner() {
                             title="Mark Drive By"
                           >
                             <MapPin className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => void handleMarkDeepDive(lead, e)}
+                            disabled={deepDiveLeadId === lead.id}
+                            className="shrink-0 p-0.5 rounded text-primary/55 hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-40"
+                            title="Park for Deep Dive"
+                          >
+                            {deepDiveLeadId === lead.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
                           </button>
                           <button
                             type="button"
@@ -4587,6 +4626,15 @@ function DialerPageInner() {
                             title={autoCycleMode ? "Skip to next ready file" : "Skip to next lead"}
                           >
                             <SkipForward className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            onClick={() => void handleMarkDeepDive(currentLead)}
+                            disabled={deepDiveLeadId === currentLead.id}
+                            variant="outline"
+                            className="gap-1.5 border-primary/20 text-primary hover:bg-primary/10"
+                          >
+                            {deepDiveLeadId === currentLead.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
+                            Deep Dive
                           </Button>
                           <Button
                             onClick={() => {

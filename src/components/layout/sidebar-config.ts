@@ -17,6 +17,7 @@ import {
   Bug,
   Megaphone,
   Car,
+  FileSearch,
   Contact,
   Inbox,
   Heart,
@@ -50,6 +51,7 @@ export const primaryItems: NavItem[] = [
   { label: "Dead", href: "/sales-funnel/dead", icon: Skull },
   { label: "Closed", href: "/sales-funnel/closed", icon: CircleCheckBig },
   { label: "Drive By", href: "/drive-by", icon: Car },
+  { label: "Deep Dive", href: "/deep-dive", icon: FileSearch },
 ];
 
 export const toolsSection: NavSection = {

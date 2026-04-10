@@ -116,4 +116,28 @@ describe("buildOperatorWorkflowSummary intro flow", () => {
     expect(summary.doNow).toBe("Needs next step");
     expect(summary.lastTouchLabel).toBe("Today");
   });
+
+  it("surfaces deep-dive files as an intentional prep lane", () => {
+    const summary = buildOperatorWorkflowSummary({
+      status: "lead",
+      qualificationRoute: "follow_up",
+      assignedTo: "user-1",
+      nextCallScheduledAt: null,
+      nextFollowUpAt: null,
+      lastContactAt: "2026-04-09T18:00:00Z",
+      totalCalls: 2,
+      nextAction: "Deep Dive",
+      nextActionDueAt: "2026-04-09T23:30:00Z",
+      createdAt: "2026-04-08T16:00:00Z",
+      promotedAt: "2026-04-08T16:00:00Z",
+      introSopActive: false,
+      requiresIntroExitCategory: false,
+      now: NOW,
+    });
+
+    expect(summary.introBadgeLabel).toBeNull();
+    expect(summary.doNow).toBe("Deep dive — today");
+    expect(summary.dueLabel).toBe("Due today");
+    expect(summary.lastTouchLabel).toBe("Today");
+  });
 });

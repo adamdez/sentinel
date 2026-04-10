@@ -1,6 +1,7 @@
 import { canUserClaimLead, normalizeAssignedUserId } from "@/lib/lead-ownership";
 import { runSkipTraceIntel } from "@/lib/skiptrace-intel";
 import { runWithConcurrency } from "@/lib/async-batch";
+import { isDeepDiveNextAction } from "@/lib/deep-dive";
 
 type SupabaseClientLike = {
   from: (table: string) => any;
@@ -20,6 +21,10 @@ export interface QueueLeadSelection {
 
 export function isDriveByNextAction(nextAction: string | null | undefined): boolean {
   return typeof nextAction === "string" && nextAction.toLowerCase().startsWith("drive by");
+}
+
+export function isNonDialingNextAction(nextAction: string | null | undefined): boolean {
+  return isDriveByNextAction(nextAction) || isDeepDiveNextAction(nextAction);
 }
 
 const TERMINAL_QUEUE_DISPOSITIONS = new Set([
@@ -299,7 +304,7 @@ export async function queueLeadIdsForUser(input: {
       continue;
     }
 
-    if (isDriveByNextAction(row.next_action)) {
+    if (isNonDialingNextAction(row.next_action)) {
       conflictedIds.push(leadId);
       continue;
     }

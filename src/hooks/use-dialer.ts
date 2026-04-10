@@ -6,6 +6,7 @@ import { scrubLeadClient } from "@/lib/compliance";
 import { useSentinelStore } from "@/lib/store";
 import type { QualificationRoute } from "@/lib/types";
 import type { AutoCycleLeadState, AutoCyclePhoneState } from "@/lib/dialer/types";
+import { isDeepDiveNextAction } from "@/lib/deep-dive";
 import type {
   DialerKpiPreset,
   DialerKpiRange,
@@ -97,6 +98,7 @@ function shouldRenderInDialQueue(lead: QueueLead): boolean {
   if (TERMINAL_QUEUE_DISPOSITIONS.has(disposition)) return false;
   const nextAction = (lead.next_action ?? "").toLowerCase();
   if (nextAction.startsWith("drive by")) return false;
+  if (isDeepDiveNextAction(lead.next_action)) return false;
   return true;
 }
 
@@ -353,7 +355,7 @@ export function useAutoCycleQueue(limit = 12) {
         blendedPriority: lead.priority,
         autoCycle: auto_cycle,
         autoCyclePhones: phones,
-      }));
+      })).filter((lead) => !isDeepDiveNextAction(lead.next_action));
 
       const scrubbed = await Promise.all(
         rows.map(async (lead) => {

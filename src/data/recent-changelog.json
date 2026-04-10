@@ -1,5 +1,65 @@
 [
   {
+    "hash": "b107e8b1",
+    "date": "2026-04-10",
+    "message": "[codex] Harden dialer and client file state flow"
+  },
+  {
+    "hash": "6cf6ea78",
+    "date": "2026-04-09",
+    "message": "[codex] Fix deep search legal dates and links"
+  },
+  {
+    "hash": "14e25c75",
+    "date": "2026-04-09",
+    "message": "[codex] Unify client-file phone truth and add phone entry"
+  },
+  {
+    "hash": "c5b0ad18",
+    "date": "2026-04-09",
+    "message": "[codex] Fix deep search review coherence"
+  },
+  {
+    "hash": "6748a678",
+    "date": "2026-04-09",
+    "message": "[codex] Fix deep search property hydration"
+  },
+  {
+    "hash": "bc270e68",
+    "date": "2026-04-09",
+    "message": "[codex] Add SMS to client file activity timeline"
+  },
+  {
+    "hash": "e6b7975d",
+    "date": "2026-04-09",
+    "message": "[codex] Unify skip-trace controls across dialer surfaces"
+  },
+  {
+    "hash": "5713607c",
+    "date": "2026-04-09",
+    "message": "[codex] Unify dialer skip-trace badge truth"
+  },
+  {
+    "hash": "fdd4e7a0",
+    "date": "2026-04-09",
+    "message": "[codex] Add dialer inbox attention dots"
+  },
+  {
+    "hash": "be8be913",
+    "date": "2026-04-09",
+    "message": "[codex] Harden light mode contrast on operator surfaces"
+  },
+  {
+    "hash": "0b58aa2b",
+    "date": "2026-04-09",
+    "message": "[codex] Surface active phone during live calls"
+  },
+  {
+    "hash": "e8bf4785",
+    "date": "2026-04-09",
+    "message": "[codex] make seller memory notes-first"
+  },
+  {
     "hash": "69f5c85c",
     "date": "2026-04-09",
     "message": "[codex] Polish power dial queue controls"
@@ -63,65 +123,5 @@
     "hash": "147fb9a0",
     "date": "2026-04-09",
     "message": "[codex] Finish task-first follow-up cleanup"
-  },
-  {
-    "hash": "864de9ac",
-    "date": "2026-04-09",
-    "message": "[codex] Fix inbound intake record typing"
-  },
-  {
-    "hash": "593b3810",
-    "date": "2026-04-09",
-    "message": "[codex] Fix dialer follow-up regressions"
-  },
-  {
-    "hash": "11aae24c",
-    "date": "2026-04-09",
-    "message": "[codex] Clarify Skip Genie review fallback"
-  },
-  {
-    "hash": "5b081c8d",
-    "date": "2026-04-09",
-    "message": "[codex] Repair prospects route test harness"
-  },
-  {
-    "hash": "77bec774",
-    "date": "2026-04-09",
-    "message": "[codex] Merge dossier and legal into deep search"
-  },
-  {
-    "hash": "2242c829",
-    "date": "2026-04-09",
-    "message": "[codex] Preserve Skip Genie review handoff"
-  },
-  {
-    "hash": "ab57b216",
-    "date": "2026-04-09",
-    "message": "[codex] Add direct Skip Genie result import"
-  },
-  {
-    "hash": "507e54e3",
-    "date": "2026-04-09",
-    "message": "[codex] Harden Skip Genie return imports"
-  },
-  {
-    "hash": "e8f57a44",
-    "date": "2026-04-09",
-    "message": "[codex] Collapse lead follow-up into task-first workflow"
-  },
-  {
-    "hash": "c5662a03",
-    "date": "2026-04-09",
-    "message": "[codex] Add Spokane Scout lead queue filters"
-  },
-  {
-    "hash": "5a120938",
-    "date": "2026-04-09",
-    "message": "[codex] Add Skip Genie lead export round-trip"
-  },
-  {
-    "hash": "09f4bf5c",
-    "date": "2026-04-09",
-    "message": "[codex] Surface legal research provider failures"
   }
 ]

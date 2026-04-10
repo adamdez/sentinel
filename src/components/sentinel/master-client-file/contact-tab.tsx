@@ -8,7 +8,7 @@ import {
   ExternalLink, Phone, MessageSquare, Mail, MapPin, User, Lock,
   Loader2, Save, Pencil, ImageIcon, Contact2, Crosshair, Smartphone,
   Scale, Calendar, FileText, Users, XCircle, RotateCcw, ChevronDown,
-  ArrowUp, CheckCircle2, AlertCircle, Plus,
+  ArrowUp, CheckCircle2, AlertCircle, Plus, FileSearch,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -65,6 +65,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
   // Phone roster from lead_phones table (canonical source)
   const [deadReasonFor, setDeadReasonFor] = useState<string | null>(null);
   const [driveBySaving, setDriveBySaving] = useState(false);
+  const [deepDiveSaving, setDeepDiveSaving] = useState(false);
   const [addingPhone, setAddingPhone] = useState(false);
   const [addingPhoneSaving, setAddingPhoneSaving] = useState(false);
   const [newPhoneValue, setNewPhoneValue] = useState("");
@@ -359,6 +360,35 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
     }
   }, [cf.id, onRefresh]);
 
+  const handleMarkDeepDive = useCallback(async () => {
+    setDeepDiveSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Session expired. Please sign in again.");
+        return;
+      }
+      const res = await fetch(`/api/dialer/v1/deep-dive/${cf.id}/park`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not park for deep dive");
+        return;
+      }
+      toast.success("Parked for Deep Dive");
+      onRefresh?.();
+    } catch {
+      toast.error("Could not park for deep dive");
+    } finally {
+      setDeepDiveSaving(false);
+    }
+  }, [cf.id, onRefresh]);
+
   const handleAddPhone = useCallback(async () => {
     setAddingPhoneSaving(true);
     try {
@@ -463,6 +493,14 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
           >
             <MapPin className="h-3 w-3" />
             {driveBySaving ? "Saving..." : "Drive By"}
+          </button>
+          <button
+            onClick={handleMarkDeepDive}
+            disabled={deepDiveSaving}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-primary/12 text-primary border border-primary/25 hover:bg-primary/22 transition-colors disabled:opacity-50"
+          >
+            <FileSearch className="h-3 w-3" />
+            {deepDiveSaving ? "Saving..." : "Deep Dive"}
           </button>
         </h3>
         <div className="flex items-center gap-2">
