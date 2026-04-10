@@ -1,5 +1,10 @@
 [
   {
+    "hash": "4e5b39f9",
+    "date": "2026-04-10",
+    "message": "[codex] Finalize dialer open work"
+  },
+  {
     "hash": "dbbb9216",
     "date": "2026-04-10",
     "message": "[codex] Ship open Sentinel agent work"
@@ -118,10 +123,5 @@
     "hash": "bebe3946",
     "date": "2026-04-09",
     "message": "[codex] refresh recent changelog"
-  },
-  {
-    "hash": "cf395c00",
-    "date": "2026-04-09",
-    "message": "[codex] unify dialer queue state and hold positive outcomes"
   }
 ]

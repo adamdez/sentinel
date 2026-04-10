@@ -151,4 +151,66 @@ describe("GET /api/dialer/v1/leads/[lead_id]/call-memory", () => {
       "operator_note",
     ]);
   });
+
+  it("surfaces deterministic fallback call notes when a worked call has no saved summary", async () => {
+    mocks.createDialerClient.mockReturnValue(createDialerClientDouble({
+      calls_log: [
+        {
+          id: "call-1",
+          lead_id: "lead-1",
+          dialer_session_id: "session-1",
+          disposition: "voicemail",
+          notes: null,
+          ai_summary: null,
+          duration_sec: 19,
+          started_at: "2026-04-10T18:00:00.000Z",
+          summary_timestamp: null,
+        },
+      ],
+      call_sessions: [
+        {
+          id: "session-1",
+          lead_id: "lead-1",
+          started_at: "2026-04-10T18:00:00.000Z",
+        },
+      ],
+      session_notes: [],
+      leads: [
+        {
+          id: "lead-1",
+          decision_maker_note: null,
+          decision_maker_confirmed: false,
+        },
+      ],
+      post_call_structures: [],
+    }));
+
+    const { GET } = await import("@/app/api/dialer/v1/leads/[lead_id]/call-memory/route");
+    const response = await GET(
+      new Request("http://localhost/api/dialer/v1/leads/lead-1/call-memory", {
+        headers: { authorization: "Bearer test-token" },
+      }) as never,
+      { params: Promise.resolve({ lead_id: "lead-1" }) },
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.memory.lastCallSummary).toBe("Left voicemail on Apr 10, 2026 • 19s");
+    expect(payload.memory.recentCalls[0]).toMatchObject({
+      notes: "Left voicemail on Apr 10, 2026 • 19s",
+      noteSourceLabel: "Call activity",
+      aiSummary: null,
+      preferSource: "notes",
+    });
+    expect(payload.memory.notesPreview.items).toEqual([
+      expect.objectContaining({
+        sourceType: "system_call",
+        sourceLabel: "Call activity",
+        content: "Left voicemail on Apr 10, 2026 • 19s",
+      }),
+    ]);
+    expect(payload.memory.noteTimeline.map((entry: { sourceType: string }) => entry.sourceType)).toEqual([
+      "system_call",
+    ]);
+  });
 });

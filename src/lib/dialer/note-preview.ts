@@ -18,7 +18,8 @@ function previewRank(item: LeadNoteTimelineItem): number {
   if (item.sourceType === "operator_note") return 0;
   if (item.sourceType === "call_summary") return 1;
   if (item.sourceType === "ai_summary" && item.isConfirmed) return 2;
-  return 3;
+  if (item.sourceType === "ai_summary") return 3;
+  return 4;
 }
 
 function previewGroupKey(item: LeadNoteTimelineItem): string {

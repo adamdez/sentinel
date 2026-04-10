@@ -74,6 +74,78 @@ describe("buildLeadNoteTimeline", () => {
       isConfirmed: false,
     });
   });
+
+  it("adds a deterministic fallback call note when a worked call has no operator or AI summary", () => {
+    const timeline = buildLeadNoteTimeline({
+      leadId: "lead-1",
+      callRows: [
+        {
+          id: "call-1",
+          lead_id: "lead-1",
+          dialer_session_id: "session-1",
+          disposition: "voicemail",
+          notes: null,
+          ai_summary: null,
+          duration_sec: 19,
+          started_at: "2026-04-10T18:00:00.000Z",
+          summary_timestamp: null,
+        },
+      ],
+      sessionNotes: [],
+    });
+
+    expect(timeline).toEqual([
+      expect.objectContaining({
+        id: "system_call:call-1",
+        sourceType: "system_call",
+        sourceLabel: "Call activity",
+        content: "Left voicemail on Apr 10, 2026 • 19s",
+        disposition: "voicemail",
+        durationSec: 19,
+      }),
+    ]);
+  });
+
+  it("does not add a fallback note when richer human or AI content exists", () => {
+    const withHumanSummary = buildLeadNoteTimeline({
+      leadId: "lead-1",
+      callRows: [
+        {
+          id: "call-1",
+          lead_id: "lead-1",
+          dialer_session_id: "session-1",
+          disposition: "voicemail",
+          notes: "Published summary",
+          ai_summary: null,
+          duration_sec: 19,
+          started_at: "2026-04-10T18:00:00.000Z",
+          summary_timestamp: null,
+        },
+      ],
+      sessionNotes: [],
+    });
+
+    const withAiSummary = buildLeadNoteTimeline({
+      leadId: "lead-1",
+      callRows: [
+        {
+          id: "call-2",
+          lead_id: "lead-1",
+          dialer_session_id: "session-2",
+          disposition: "no_answer",
+          notes: null,
+          ai_summary: "AI recap",
+          duration_sec: 0,
+          started_at: "2026-04-10T18:30:00.000Z",
+          summary_timestamp: null,
+        },
+      ],
+      sessionNotes: [],
+    });
+
+    expect(withHumanSummary.some((item) => item.sourceType === "system_call")).toBe(false);
+    expect(withAiSummary.some((item) => item.sourceType === "system_call")).toBe(false);
+  });
 });
 
 describe("buildRecentCallMemoryEntries", () => {
@@ -175,5 +247,37 @@ describe("buildRecentCallMemoryEntries", () => {
 
     expect(recentCalls).toHaveLength(1);
     expect(recentCalls[0]?.callLogId).toBe("call-actual");
+  });
+
+  it("uses fallback call activity when no richer note exists", () => {
+    const callRows = [
+      {
+        id: "call-1",
+        lead_id: "lead-1",
+        dialer_session_id: "session-1",
+        disposition: "wrong_number",
+        notes: null,
+        ai_summary: null,
+        duration_sec: 12,
+        started_at: "2026-04-10T18:00:00.000Z",
+        summary_timestamp: null,
+      },
+    ];
+
+    const timeline = buildLeadNoteTimeline({
+      leadId: "lead-1",
+      callRows,
+      sessionNotes: [],
+    });
+
+    const recentCalls = buildRecentCallMemoryEntries(callRows, timeline, 3);
+
+    expect(recentCalls[0]).toMatchObject({
+      callLogId: "call-1",
+      notes: "Marked number wrong on Apr 10, 2026 • 12s",
+      noteSourceLabel: "Call activity",
+      aiSummary: null,
+      preferSource: "notes",
+    });
   });
 });

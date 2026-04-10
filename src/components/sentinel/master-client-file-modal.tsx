@@ -1061,7 +1061,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
   const [activityLog, setActivityLog] = useState<Array<{
     id: string;
-    type: "operator_note" | "call_summary" | "ai_summary" | "event" | "sms";
+    type: "operator_note" | "call_summary" | "ai_summary" | "system_call" | "event" | "sms";
     disposition?: string | null;
     notes?: string | null;
     created_at: string;
@@ -1749,6 +1749,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
             {activityLog.map((entry) => {
 
               const typeBadge = entry.type === "call_summary"
+                || entry.type === "system_call"
                 ? "Call"
                 : entry.type === "ai_summary"
                   ? "AI"
@@ -1759,6 +1760,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
                       : "Event";
 
               const typeBadgeClass = entry.type === "call_summary"
+                || entry.type === "system_call"
                 ? "bg-overlay-8 text-foreground"
                 : entry.type === "ai_summary"
                   ? "bg-primary/10 text-primary/80"
@@ -1806,7 +1808,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
                       </p>
                     )}
 
-                    {entry.type === "call_summary" && entry.duration_sec != null && entry.duration_sec > 0 && (
+                    {(entry.type === "call_summary" || entry.type === "system_call") && entry.duration_sec != null && entry.duration_sec > 0 && (
 
                       <p className="text-xs text-muted-foreground/50">{Math.floor(entry.duration_sec / 60)}m {entry.duration_sec % 60}s</p>
 

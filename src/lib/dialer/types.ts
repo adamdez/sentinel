@@ -191,7 +191,7 @@ export interface AutoCyclePhoneState {
  */
 export type MemorySource = "operator" | "ai" | "system";
 
-export type LeadNoteSourceType = "operator_note" | "call_summary" | "ai_summary";
+export type LeadNoteSourceType = "operator_note" | "call_summary" | "ai_summary" | "system_call";
 
 export interface LeadNoteTimelineItem {
   id: string;

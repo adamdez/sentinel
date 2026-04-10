@@ -46,6 +46,52 @@ function sourceLabelForSessionNote(row: SessionNoteTimelineRow): string {
   return row.is_ai_generated ? "AI note" : "Session note";
 }
 
+const FALLBACK_DISPOSITION_LABELS: Record<string, string> = {
+  voicemail: "Left voicemail",
+  no_answer: "No answer",
+  wrong_number: "Marked number wrong",
+  disconnected: "Marked line disconnected",
+  do_not_call: "Marked do not call",
+  dead_phone: "Marked phone dead",
+  completed: "Completed call",
+  follow_up: "Call completed, follow-up needed",
+  appointment: "Set appointment",
+  not_interested: "Seller not interested",
+};
+
+function formatFallbackCallDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDuration(durationSec: number | null | undefined): string | null {
+  if (typeof durationSec !== "number" || !Number.isFinite(durationSec) || durationSec <= 0) {
+    return null;
+  }
+
+  const minutes = Math.floor(durationSec / 60);
+  const seconds = durationSec % 60;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
+function buildFallbackCallNote(row: CallLogTimelineRow): string | null {
+  const disposition = row.disposition ?? null;
+  if (!disposition) return null;
+
+  const label = FALLBACK_DISPOSITION_LABELS[disposition];
+  if (!label) return null;
+
+  const parts = [`${label} on ${formatFallbackCallDate(row.started_at)}`];
+  const duration = formatDuration(row.duration_sec);
+  if (duration) parts.push(duration);
+  return parts.join(" • ");
+}
+
 export function buildLeadNoteTimeline(args: {
   leadId: string;
   callRows: CallLogTimelineRow[];
@@ -65,6 +111,9 @@ export function buildLeadNoteTimeline(args: {
     const noteContent = trimmed(row.notes);
     const aiSummary = trimmed(row.ai_summary);
     const createdAt = row.summary_timestamp ?? row.started_at;
+    const fallbackContent = !noteContent && !aiSummary
+      ? buildFallbackCallNote(row)
+      : null;
 
     if (noteContent) {
       const sourceType = disposition === "operator_note" ? "operator_note" : "call_summary";
@@ -73,6 +122,23 @@ export function buildLeadNoteTimeline(args: {
         sourceType,
         sourceLabel: sourceType === "operator_note" ? "Operator note" : "Call summary",
         content: noteContent,
+        createdAt,
+        leadId: args.leadId,
+        sessionId: row.dialer_session_id ?? null,
+        callLogId: row.id,
+        isAiGenerated: false,
+        isConfirmed: true,
+        disposition,
+        durationSec: row.duration_sec ?? null,
+      });
+    }
+
+    if (fallbackContent) {
+      timeline.push({
+        id: `system_call:${row.id}`,
+        sourceType: "system_call",
+        sourceLabel: "Call activity",
+        content: fallbackContent,
         createdAt,
         leadId: args.leadId,
         sessionId: row.dialer_session_id ?? null,
@@ -146,8 +212,9 @@ export function buildRecentCallMemoryEntries(
       );
       const operatorNote = related.find((item) => item.sourceType === "operator_note");
       const callSummary = related.find((item) => item.sourceType === "call_summary");
+      const fallbackCallNote = related.find((item) => item.sourceType === "system_call");
       const aiSummary = related.find((item) => item.sourceType === "ai_summary");
-      const preferredOperatorContent = operatorNote ?? callSummary ?? null;
+      const preferredOperatorContent = operatorNote ?? callSummary ?? fallbackCallNote ?? null;
 
       return {
         callLogId: row.id,
