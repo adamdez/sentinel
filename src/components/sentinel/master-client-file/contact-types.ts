@@ -36,3 +36,30 @@ export interface SkipTraceError {
   tier_reached?: string;
   address_issues?: string[];
 }
+
+export interface RelatedContactAttachment {
+  id: string;
+  name: string;
+  mime_type: string;
+  size_bytes: number;
+  storage_path: string;
+  kind: "image" | "file";
+  created_at: string;
+}
+
+export interface RelatedContactAttachmentView extends RelatedContactAttachment {
+  signed_url?: string | null;
+}
+
+export interface RelatedContact {
+  id: string;
+  name: string;
+  relation: string;
+  phone: string | null;
+  email: string | null;
+  note: string;
+  source: "manual" | string;
+  attachments: RelatedContactAttachment[];
+  created_at: string;
+  updated_at: string;
+}

@@ -8,7 +8,7 @@ import {
   ExternalLink, Phone, MessageSquare, Mail, MapPin, User, Lock,
   Loader2, Save, Pencil, ImageIcon, Contact2, Crosshair, Smartphone,
   Scale, Calendar, FileText, Users, XCircle, RotateCcw, ChevronDown,
-  ArrowUp, CheckCircle2, AlertCircle, Plus, FileSearch,
+  ArrowUp, CheckCircle2, AlertCircle, Plus, FileSearch, Trash2, Paperclip, Upload,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -28,9 +28,133 @@ import {
 import { CopyBtn } from "../master-client-file-parts";
 import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
 import { SkipTraceStatusControl } from "@/components/sentinel/skip-trace-status-control";
-import type { PhoneDetail, EmailDetail, SkipTraceOverlay, SkipTraceError } from "./contact-types";
+import type {
+  PhoneDetail,
+  EmailDetail,
+  SkipTraceOverlay,
+  SkipTraceError,
+  RelatedContact,
+  RelatedContactAttachment,
+  RelatedContactAttachmentView,
+} from "./contact-types";
 import type { LeadPhone } from "@/lib/dialer/types";
 import { buildClientFilePatchFromPropertyRecord } from "./client-file-state";
+
+type ContactView = "primary" | "related";
+
+type PendingAttachment = {
+  id: string;
+  file: File;
+  kind: "image" | "file";
+  preview_url: string | null;
+};
+
+type RelatedContactDraft = {
+  id: string;
+  name: string;
+  relation: string;
+  phone: string;
+  email: string;
+  note: string;
+  source: string;
+  attachments: RelatedContactAttachmentView[];
+  created_at: string;
+  updated_at: string;
+  pendingAttachments: PendingAttachment[];
+  removedStoragePaths: string[];
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeRelatedContacts(value: unknown): RelatedContact[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!isRecord(entry)) return [];
+    if (typeof entry.id !== "string" || typeof entry.name !== "string" || typeof entry.relation !== "string") {
+      return [];
+    }
+
+    const attachments = Array.isArray(entry.attachments)
+      ? entry.attachments.flatMap((attachment) => {
+        if (!isRecord(attachment)) return [];
+        if (
+          typeof attachment.id !== "string"
+          || typeof attachment.name !== "string"
+          || typeof attachment.mime_type !== "string"
+          || typeof attachment.size_bytes !== "number"
+          || typeof attachment.storage_path !== "string"
+          || (attachment.kind !== "image" && attachment.kind !== "file")
+          || typeof attachment.created_at !== "string"
+        ) {
+          return [];
+        }
+
+        return [{
+          id: attachment.id,
+          name: attachment.name,
+          mime_type: attachment.mime_type,
+          size_bytes: attachment.size_bytes,
+          storage_path: attachment.storage_path,
+          kind: attachment.kind,
+          created_at: attachment.created_at,
+        }];
+      })
+      : [];
+
+    return [{
+      id: entry.id,
+      name: entry.name,
+      relation: entry.relation,
+      phone: typeof entry.phone === "string" && entry.phone.trim().length > 0 ? entry.phone : null,
+      email: typeof entry.email === "string" && entry.email.trim().length > 0 ? entry.email : null,
+      note: typeof entry.note === "string" ? entry.note : "",
+      source: typeof entry.source === "string" ? entry.source : "manual",
+      attachments,
+      created_at: typeof entry.created_at === "string" ? entry.created_at : new Date().toISOString(),
+      updated_at: typeof entry.updated_at === "string" ? entry.updated_at : new Date().toISOString(),
+    }];
+  });
+}
+
+function createDraftFromContact(contact?: RelatedContact): RelatedContactDraft {
+  const now = new Date().toISOString();
+  return {
+    id: contact?.id ?? globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`,
+    name: contact?.name ?? "",
+    relation: contact?.relation ?? "",
+    phone: contact?.phone ?? "",
+    email: contact?.email ?? "",
+    note: contact?.note ?? "",
+    source: contact?.source ?? "manual",
+    attachments: (contact?.attachments ?? []).map((attachment) => ({ ...attachment, signed_url: null })),
+    created_at: contact?.created_at ?? now,
+    updated_at: contact?.updated_at ?? now,
+    pendingAttachments: [],
+    removedStoragePaths: [],
+  };
+}
+
+function revokePendingAttachments(attachments: PendingAttachment[]) {
+  for (const attachment of attachments) {
+    if (attachment.preview_url) URL.revokeObjectURL(attachment.preview_url);
+  }
+}
+
+function formatAttachmentSize(sizeBytes: number): string {
+  if (sizeBytes < 1024) return `${sizeBytes} B`;
+  if (sizeBytes < 1024 * 1024) return `${Math.round(sizeBytes / 1024)} KB`;
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function getAuthHeaders(contentType?: string): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = {};
+  if (contentType) headers["Content-Type"] = contentType;
+  if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+  return headers;
+}
 
 export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceResult, skipTraceError, onDial, onSms, calling, onRefresh, onPatched, leadPhones, phonesLoading, onRefreshLeadPhones }: {
   cf: ClientFile; overlay: SkipTraceOverlay | null;
@@ -71,6 +195,12 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
   const [newPhoneValue, setNewPhoneValue] = useState("");
   const [newPhoneLabel, setNewPhoneLabel] = useState<LeadPhone["label"]>("mobile");
   const [newPhonePrimary, setNewPhonePrimary] = useState(false);
+  const [contactView, setContactView] = useState<ContactView>("primary");
+  const [attachmentUrls, setAttachmentUrls] = useState<Record<string, string>>({});
+  const [attachmentUrlsLoading, setAttachmentUrlsLoading] = useState(false);
+  const [relatedDraft, setRelatedDraft] = useState<RelatedContactDraft | null>(null);
+  const [relatedSaving, setRelatedSaving] = useState(false);
+  const [relatedDeletingId, setRelatedDeletingId] = useState<string | null>(null);
 
   const handlePhoneAction = useCallback(async (
     phoneId: string,
@@ -120,6 +250,10 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
   const emailDetails: EmailDetail[] = overlay?.emailDetails
     ?? (cf.ownerFlags?.all_emails as EmailDetail[] | undefined)?.filter((e) => typeof e === "object" && e !== null && "email" in e)
     ?? [];
+  const relatedContacts = useMemo(
+    () => normalizeRelatedContacts(cf.ownerFlags?.related_contacts),
+    [cf.ownerFlags],
+  );
 
   const useLeadPhones = leadPhones.length > 0;
   const activeLeadPhoneCount = leadPhones.filter((phone) => phone.status === "active").length;
@@ -223,6 +357,43 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
     if (editing) return;
     setEmailSlots(initialEmails);
   }, [editing, initialEmails]);
+
+  useEffect(() => {
+    if (contactView !== "related" || !cf.propertyId || relatedContacts.length === 0) {
+      setAttachmentUrls({});
+      setAttachmentUrlsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setAttachmentUrlsLoading(true);
+    void (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/properties/${cf.propertyId}/related-contacts/attachments`, { headers });
+        const payload = await res.json().catch(() => ({} as {
+          attachments?: Array<{ attachment_id: string; signed_url: string }>;
+        }));
+        if (!res.ok || cancelled) return;
+
+        const nextUrls: Record<string, string> = {};
+        for (const item of payload.attachments ?? []) {
+          if (typeof item.attachment_id === "string" && typeof item.signed_url === "string") {
+            nextUrls[item.attachment_id] = item.signed_url;
+          }
+        }
+        if (!cancelled) setAttachmentUrls(nextUrls);
+      } catch {
+        if (!cancelled) setAttachmentUrls({});
+      } finally {
+        if (!cancelled) setAttachmentUrlsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cf.propertyId, contactView, relatedContacts]);
 
   const updatePhone = (i: number, val: string) => {
     setPhoneSlots((prev) => { const next = [...prev]; next[i] = val; return next; });
@@ -431,6 +602,228 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
     }
   }, [cf.id, newPhoneLabel, newPhonePrimary, newPhoneValue, onRefresh, onRefreshLeadPhones]);
 
+  const persistRelatedContacts = useCallback(async (nextContacts: RelatedContact[]) => {
+    const headers = await getAuthHeaders("application/json");
+    const res = await fetch("/api/properties/update", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        property_id: cf.propertyId,
+        lead_id: cf.id,
+        fields: {
+          owner_flags: {
+            related_contacts: nextContacts,
+            contact_updated_at: new Date().toISOString(),
+          },
+        },
+      }),
+    });
+
+    const data = await res.json().catch(() => ({} as { error?: string; success?: boolean; property?: Record<string, unknown> }));
+    if (!res.ok || data.error || !data.success) {
+      throw new Error(data.error ?? `HTTP ${res.status}`);
+    }
+
+    const property = data.property && typeof data.property === "object"
+      ? data.property as Record<string, unknown>
+      : null;
+
+    onPatched?.(buildClientFilePatchFromPropertyRecord({
+      property,
+      fallback: {
+        ownerFlags: {
+          ...(cf.ownerFlags ?? {}),
+          related_contacts: nextContacts,
+          contact_updated_at: new Date().toISOString(),
+        },
+      },
+    }));
+    onRefresh?.();
+  }, [cf.id, cf.ownerFlags, cf.propertyId, onPatched, onRefresh]);
+
+  const handleRelatedDraftField = useCallback((field: keyof RelatedContactDraft, value: string) => {
+    setRelatedDraft((prev) => prev ? { ...prev, [field]: value } : prev);
+  }, []);
+
+  const handleRelatedFilesSelected = useCallback((files: FileList | File[]) => {
+    const selectedFiles = Array.from(files);
+    if (selectedFiles.length === 0) return;
+
+    setRelatedDraft((prev) => {
+      if (!prev) return prev;
+      const pendingAttachments = selectedFiles.map((file) => ({
+        id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${file.name}`,
+        file,
+        kind: file.type.startsWith("image/") ? "image" : "file",
+        preview_url: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+      }));
+      return {
+        ...prev,
+        pendingAttachments: [...prev.pendingAttachments, ...pendingAttachments],
+      };
+    });
+  }, []);
+
+  const handleRelatedPaste = useCallback((event: React.ClipboardEvent<HTMLDivElement>) => {
+    const files = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file")
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file));
+
+    if (files.length === 0) return;
+    event.preventDefault();
+    handleRelatedFilesSelected(files);
+    toast.success(files.length === 1 ? "Attachment added to contact draft" : "Attachments added to contact draft");
+  }, [handleRelatedFilesSelected]);
+
+  const handleRemovePendingAttachment = useCallback((pendingId: string) => {
+    setRelatedDraft((prev) => {
+      if (!prev) return prev;
+      const target = prev.pendingAttachments.find((attachment) => attachment.id === pendingId);
+      if (target?.preview_url) URL.revokeObjectURL(target.preview_url);
+      return {
+        ...prev,
+        pendingAttachments: prev.pendingAttachments.filter((attachment) => attachment.id !== pendingId),
+      };
+    });
+  }, []);
+
+  const handleRemovePersistedAttachment = useCallback((attachment: RelatedContactAttachmentView) => {
+    setRelatedDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        attachments: prev.attachments.filter((item) => item.id !== attachment.id),
+        removedStoragePaths: attachment.storage_path
+          ? [...prev.removedStoragePaths, attachment.storage_path]
+          : prev.removedStoragePaths,
+      };
+    });
+  }, []);
+
+  const closeRelatedDraft = useCallback(() => {
+    setRelatedDraft((prev) => {
+      if (prev) revokePendingAttachments(prev.pendingAttachments);
+      return null;
+    });
+  }, []);
+
+  const uploadRelatedAttachment = useCallback(async (contactId: string, file: File) => {
+    const headers = await getAuthHeaders();
+    const formData = new FormData();
+    formData.set("contactId", contactId);
+    formData.set("file", file);
+
+    const res = await fetch(`/api/properties/${cf.propertyId}/related-contacts/attachments`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    const payload = await res.json().catch(() => ({} as {
+      error?: string;
+      attachment?: RelatedContactAttachmentView;
+    }));
+    if (!res.ok || !payload.attachment) {
+      throw new Error(payload.error ?? "Failed to upload attachment");
+    }
+    return payload.attachment;
+  }, [cf.propertyId]);
+
+  const handleSaveRelatedContact = useCallback(async () => {
+    if (!relatedDraft) return;
+    if (!relatedDraft.name.trim()) {
+      toast.error("Add a contact name before saving");
+      return;
+    }
+
+    setRelatedSaving(true);
+    const now = new Date().toISOString();
+    const keptAttachments = relatedDraft.attachments.map(({ signed_url: _signedUrl, ...attachment }) => attachment);
+    const uploadedAttachments: RelatedContactAttachment[] = [];
+    const uploadedSignedUrls: Record<string, string> = {};
+
+    try {
+      for (const pending of relatedDraft.pendingAttachments) {
+        const uploaded = await uploadRelatedAttachment(relatedDraft.id, pending.file);
+        const { signed_url, ...attachment } = uploaded;
+        uploadedAttachments.push(attachment);
+        if (signed_url) uploadedSignedUrls[attachment.id] = signed_url;
+      }
+
+      const nextContact: RelatedContact = {
+        id: relatedDraft.id,
+        name: relatedDraft.name.trim(),
+        relation: relatedDraft.relation.trim(),
+        phone: relatedDraft.phone.trim() || null,
+        email: relatedDraft.email.trim() || null,
+        note: relatedDraft.note.trim(),
+        source: relatedDraft.source || "manual",
+        attachments: [...keptAttachments, ...uploadedAttachments],
+        created_at: relatedDraft.created_at || now,
+        updated_at: now,
+      };
+
+      const nextContacts = relatedContacts.some((contact) => contact.id === nextContact.id)
+        ? relatedContacts.map((contact) => contact.id === nextContact.id ? nextContact : contact)
+        : [nextContact, ...relatedContacts];
+
+      await persistRelatedContacts(nextContacts);
+
+      for (const storagePath of relatedDraft.removedStoragePaths) {
+        await fetch(`/api/properties/${cf.propertyId}/related-contacts/attachments`, {
+          method: "DELETE",
+          headers: await getAuthHeaders("application/json"),
+          body: JSON.stringify({ storagePath }),
+        }).catch(() => null);
+      }
+
+      setAttachmentUrls((prev) => ({ ...prev, ...uploadedSignedUrls }));
+      toast.success("Related contact saved");
+      closeRelatedDraft();
+    } catch (error) {
+      for (const uploaded of uploadedAttachments) {
+        await fetch(`/api/properties/${cf.propertyId}/related-contacts/attachments`, {
+          method: "DELETE",
+          headers: await getAuthHeaders("application/json"),
+          body: JSON.stringify({ storagePath: uploaded.storage_path }),
+        }).catch(() => null);
+      }
+      console.error("[Contact] Related contact save error:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to save related contact");
+    } finally {
+      setRelatedSaving(false);
+    }
+  }, [cf.propertyId, closeRelatedDraft, persistRelatedContacts, relatedContacts, relatedDraft, uploadRelatedAttachment]);
+
+  const handleDeleteRelatedContact = useCallback(async (contactId: string) => {
+    const target = relatedContacts.find((contact) => contact.id === contactId);
+    if (!target) return;
+
+    setRelatedDeletingId(contactId);
+    try {
+      const nextContacts = relatedContacts.filter((contact) => contact.id !== contactId);
+      await persistRelatedContacts(nextContacts);
+      await Promise.all(target.attachments.map(async (attachment) => {
+        await fetch(`/api/properties/${cf.propertyId}/related-contacts/attachments`, {
+          method: "DELETE",
+          headers: await getAuthHeaders("application/json"),
+          body: JSON.stringify({ storagePath: attachment.storage_path }),
+        }).catch(() => null);
+      }));
+      setAttachmentUrls((prev) => {
+        const next = { ...prev };
+        for (const attachment of target.attachments) delete next[attachment.id];
+        return next;
+      });
+      toast.success("Related contact removed");
+    } catch (error) {
+      console.error("[Contact] Related contact delete error:", error);
+      toast.error("Failed to remove related contact");
+    } finally {
+      setRelatedDeletingId(null);
+    }
+  }, [cf.propertyId, persistRelatedContacts, relatedContacts]);
+
   return (
     <div className="space-y-4 max-w-[680px] mx-auto">
       {/* ── Street View / Satellite Image ── */}
@@ -504,7 +897,33 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
           </button>
         </h3>
         <div className="flex items-center gap-2">
-          {editing ? (
+          <div className="inline-flex rounded-[10px] border border-overlay-10 bg-overlay-2 p-1">
+            <button
+              type="button"
+              onClick={() => setContactView("primary")}
+              className={cn(
+                "px-3 py-1.5 rounded-[8px] text-xs font-semibold transition-colors",
+                contactView === "primary"
+                  ? "bg-overlay-8 text-foreground border border-overlay-15"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Primary Contact
+            </button>
+            <button
+              type="button"
+              onClick={() => setContactView("related")}
+              className={cn(
+                "px-3 py-1.5 rounded-[8px] text-xs font-semibold transition-colors",
+                contactView === "related"
+                  ? "bg-overlay-8 text-foreground border border-overlay-15"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Related Contacts
+            </button>
+          </div>
+          {contactView === "primary" && (editing ? (
             <>
               <button
                 onClick={() => setEditing(false)}
@@ -526,10 +945,12 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
             >
               <Pencil className="h-3 w-3" />Edit
             </button>
-          )}
+          ))}
         </div>
       </div>
 
+      {contactView === "primary" ? (
+        <>
       {(skipTraceError || durableFailureReason) && (
         <div className="rounded-[10px] border border-red-500/20 bg-red-500/5 p-3 space-y-1.5">
           <div className="flex items-center gap-1.5 text-red-300 text-sm font-semibold">
@@ -1004,11 +1425,293 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
 
       {/* ── Text Messages ── */}
       <LeadSmsPreview phone={cf.ownerPhone ?? null} onSms={onSms} />
+        </>
+      ) : (
+        <RelatedContactsWorkspace
+          relatedContacts={relatedContacts}
+          draft={relatedDraft}
+          attachmentUrls={attachmentUrls}
+          attachmentUrlsLoading={attachmentUrlsLoading}
+          relatedSaving={relatedSaving}
+          relatedDeletingId={relatedDeletingId}
+          onStartAdd={() => setRelatedDraft(createDraftFromContact())}
+          onStartEdit={(contact) => setRelatedDraft(createDraftFromContact(contact))}
+          onCloseDraft={closeRelatedDraft}
+          onDraftFieldChange={handleRelatedDraftField}
+          onDraftPaste={handleRelatedPaste}
+          onDraftFilesSelected={handleRelatedFilesSelected}
+          onRemovePendingAttachment={handleRemovePendingAttachment}
+          onRemovePersistedAttachment={handleRemovePersistedAttachment}
+          onSaveDraft={() => void handleSaveRelatedContact()}
+          onDeleteContact={(contactId) => void handleDeleteRelatedContact(contactId)}
+          onDial={onDial}
+          onSms={onSms}
+          calling={calling}
+          ownerFlags={cf.ownerFlags}
+        />
+      )}
     </div>
   );
 }
 
 // ── Legal / Probate metadata from vendor list import ──────────────────
+
+function RelatedContactsWorkspace({
+  relatedContacts,
+  draft,
+  attachmentUrls,
+  attachmentUrlsLoading,
+  relatedSaving,
+  relatedDeletingId,
+  onStartAdd,
+  onStartEdit,
+  onCloseDraft,
+  onDraftFieldChange,
+  onDraftPaste,
+  onDraftFilesSelected,
+  onRemovePendingAttachment,
+  onRemovePersistedAttachment,
+  onSaveDraft,
+  onDeleteContact,
+  onDial,
+  onSms,
+  calling,
+  ownerFlags,
+}: {
+  relatedContacts: RelatedContact[];
+  draft: RelatedContactDraft | null;
+  attachmentUrls: Record<string, string>;
+  attachmentUrlsLoading: boolean;
+  relatedSaving: boolean;
+  relatedDeletingId: string | null;
+  onStartAdd: () => void;
+  onStartEdit: (contact: RelatedContact) => void;
+  onCloseDraft: () => void;
+  onDraftFieldChange: (field: keyof RelatedContactDraft, value: string) => void;
+  onDraftPaste: (event: React.ClipboardEvent<HTMLDivElement>) => void;
+  onDraftFilesSelected: (files: FileList | File[]) => void;
+  onRemovePendingAttachment: (pendingId: string) => void;
+  onRemovePersistedAttachment: (attachment: RelatedContactAttachmentView) => void;
+  onSaveDraft: () => void;
+  onDeleteContact: (contactId: string) => void;
+  onDial: (phone: string) => void;
+  onSms: (phone: string) => void;
+  calling: boolean;
+  ownerFlags: Record<string, any> | null | undefined;
+}) {
+  const importedContactCount = [
+    ownerFlags?.survivor_contact,
+    ownerFlags?.petitioner_contact,
+    ownerFlags?.attorney_contact,
+    ownerFlags?.deceased_person,
+  ].filter(Boolean).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Users className="h-3 w-3" />Related Contacts
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground/70">
+              Save next of kin, executors, attorneys, neighbors, tenants, and other researched contacts with notes and supporting evidence.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onStartAdd}
+            className="h-8 px-3 rounded-md text-sm font-semibold bg-primary/12 text-primary border border-primary/25 hover:bg-primary/22 transition-colors flex items-center gap-1"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add Contact
+          </button>
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground/60">
+          <span>{relatedContacts.length} manual</span>
+          <span>•</span>
+          <span>{importedContactCount} imported</span>
+          {attachmentUrlsLoading && (
+            <>
+              <span>•</span>
+              <span className="inline-flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Loading evidence
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {draft && (
+        <div className="rounded-[12px] border border-primary/20 bg-overlay-2 p-4 space-y-3" onPaste={onDraftPaste}>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-foreground">
+              {relatedContacts.some((contact) => contact.id === draft.id) ? "Edit related contact" : "Add related contact"}
+            </p>
+            <p className="text-xs text-muted-foreground/50">Paste screenshots directly here or upload files below.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <input value={draft.name} onChange={(e) => onDraftFieldChange("name", e.target.value)} placeholder="Full name" className="bg-overlay-4 border border-overlay-10 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/35 focus:outline-none focus:border-primary/30" />
+            <input value={draft.relation} onChange={(e) => onDraftFieldChange("relation", e.target.value)} placeholder="Relation" className="bg-overlay-4 border border-overlay-10 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/35 focus:outline-none focus:border-primary/30" />
+            <input value={draft.phone} onChange={(e) => onDraftFieldChange("phone", e.target.value)} placeholder="Phone" className="bg-overlay-4 border border-overlay-10 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/35 focus:outline-none focus:border-primary/30" />
+            <input value={draft.email} onChange={(e) => onDraftFieldChange("email", e.target.value)} placeholder="Email" className="bg-overlay-4 border border-overlay-10 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/35 focus:outline-none focus:border-primary/30" />
+            <textarea value={draft.note} onChange={(e) => onDraftFieldChange("note", e.target.value)} placeholder="Research notes, context, callback guidance, and anything else worth remembering later." className="col-span-2 min-h-[120px] bg-overlay-4 border border-overlay-10 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/35 focus:outline-none focus:border-primary/30 resize-y" />
+          </div>
+
+          <div className="rounded-[10px] border border-dashed border-overlay-10 bg-overlay-3 p-3 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">Evidence</p>
+                <p className="text-xs text-muted-foreground/55">Paste screenshots or upload images, PDFs, and files tied to this contact.</p>
+              </div>
+              <label className="h-8 px-3 rounded-md text-sm font-semibold bg-muted/10 text-foreground border border-border/20 hover:bg-muted/20 transition-colors flex items-center gap-1 cursor-pointer">
+                <Upload className="h-3.5 w-3.5" />
+                Upload
+                <input type="file" multiple className="hidden" onChange={(e) => { if (e.target.files) onDraftFilesSelected(e.target.files); e.currentTarget.value = ""; }} />
+              </label>
+            </div>
+            {(draft.attachments.length > 0 || draft.pendingAttachments.length > 0) ? (
+              <div className="space-y-2">
+                {draft.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {draft.attachments.map((attachment) => (
+                      <EvidenceChip key={attachment.id} attachment={{ ...attachment, signed_url: attachment.signed_url ?? attachmentUrls[attachment.id] ?? null }} onRemove={() => onRemovePersistedAttachment(attachment)} />
+                    ))}
+                  </div>
+                )}
+                {draft.pendingAttachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {draft.pendingAttachments.map((attachment) => (
+                      <PendingEvidenceChip key={attachment.id} attachment={attachment} onRemove={() => onRemovePendingAttachment(attachment.id)} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground/45">No evidence attached yet.</p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onSaveDraft} disabled={relatedSaving} className="h-8 px-3 rounded-md text-sm font-semibold bg-primary/12 text-primary border border-primary/25 hover:bg-primary/22 transition-colors disabled:opacity-50 flex items-center gap-1">
+              {relatedSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              {relatedSaving ? "Saving..." : "Save Contact"}
+            </button>
+            <button type="button" onClick={onCloseDraft} disabled={relatedSaving} className="h-8 px-3 rounded-md text-sm font-semibold border border-overlay-10 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {relatedContacts.length > 0 ? (
+        <div className="space-y-3">
+          {relatedContacts.map((contact) => (
+            <div key={contact.id} className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-foreground">{contact.name}</span>
+                    <Badge variant="outline" className="text-xs py-0 px-1 border-border/30 text-foreground">{contact.relation || "Related contact"}</Badge>
+                    <Badge variant="outline" className="text-xs py-0 px-1 border-primary/30 text-primary">Manual</Badge>
+                  </div>
+                  {contact.note && <p className="mt-2 text-sm text-foreground/90 whitespace-pre-wrap">{contact.note}</p>}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button type="button" onClick={() => onStartEdit(contact)} className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground border border-border/20 hover:bg-muted/20 transition-colors flex items-center gap-1">
+                    <Pencil className="h-3 w-3" />Edit
+                  </button>
+                  <button type="button" onClick={() => onDeleteContact(contact.id)} disabled={relatedDeletingId === contact.id} className="h-7 px-2 rounded-md text-sm font-semibold bg-red-500/8 text-red-300 border border-red-500/20 hover:bg-red-500/16 transition-colors disabled:opacity-50 flex items-center gap-1">
+                    {relatedDeletingId === contact.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}Delete
+                  </button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 text-sm">
+                {contact.phone && (
+                  <>
+                    <button type="button" onClick={() => onDial(contact.phone)} disabled={calling} className="h-7 px-2 rounded-md text-sm font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors disabled:opacity-30 flex items-center gap-1">
+                      <Phone className="h-3 w-3" />Dial
+                    </button>
+                    <button type="button" onClick={() => onSms(contact.phone)} className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground border border-border/20 hover:bg-muted/20 transition-colors flex items-center gap-1">
+                      <MessageSquare className="h-3 w-3" />Text
+                    </button>
+                    <span className="inline-flex items-center gap-1 text-muted-foreground/70"><Phone className="h-3 w-3" />{contact.phone}</span>
+                  </>
+                )}
+                {contact.email && <a href={`mailto:${contact.email}`} className="inline-flex items-center gap-1 text-primary hover:underline"><Mail className="h-3 w-3" />{contact.email}</a>}
+              </div>
+              {contact.attachments.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-wider text-muted-foreground/50">Evidence</p>
+                  <div className="flex flex-wrap gap-2">
+                    {contact.attachments.map((attachment) => (
+                      <EvidenceChip key={attachment.id} attachment={{ ...attachment, signed_url: attachmentUrls[attachment.id] ?? null }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-[12px] border border-dashed border-overlay-8 bg-overlay-2 p-6 text-center">
+          <Users className="h-6 w-6 text-muted-foreground/30 mx-auto mb-2" />
+          <p className="text-sm font-medium text-foreground">No related contacts saved yet</p>
+          <p className="mt-1 text-sm text-muted-foreground/60">Add heirs, executors, siblings, attorneys, neighbors, or other contacts uncovered during next-of-kin and probate research.</p>
+        </div>
+      )}
+
+      <ImportedLegalSection ownerFlags={ownerFlags} />
+      <ImportedContactsSection ownerFlags={ownerFlags} onDial={onDial} onSms={onSms} calling={calling} />
+    </div>
+  );
+}
+
+function EvidenceChip({ attachment, onRemove }: { attachment: RelatedContactAttachmentView; onRemove?: () => void }) {
+  const signedUrl = attachment.signed_url ?? null;
+  const isImage = attachment.kind === "image";
+
+  return (
+    <div className="relative rounded-[10px] border border-overlay-8 bg-overlay-3 overflow-hidden">
+      {isImage && signedUrl ? (
+        <a href={signedUrl} target="_blank" rel="noreferrer" className="block">
+          <img src={signedUrl} alt={attachment.name} className="h-24 w-24 object-cover" />
+        </a>
+      ) : (
+        <a href={signedUrl ?? "#"} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-overlay-4" onClick={(event) => { if (!signedUrl) event.preventDefault(); }}>
+          <Paperclip className="h-3.5 w-3.5 text-muted-foreground/60" />
+          <span className="max-w-[180px] truncate">{attachment.name}</span>
+          <span className="text-xs text-muted-foreground/50">{formatAttachmentSize(attachment.size_bytes)}</span>
+        </a>
+      )}
+      {onRemove && (
+        <button type="button" onClick={onRemove} className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/55 text-white flex items-center justify-center hover:bg-black/75">
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function PendingEvidenceChip({ attachment, onRemove }: { attachment: PendingAttachment; onRemove: () => void }) {
+  return (
+    <div className="relative rounded-[10px] border border-dashed border-primary/30 bg-primary/[0.05] overflow-hidden">
+      {attachment.kind === "image" && attachment.preview_url ? (
+        <img src={attachment.preview_url} alt={attachment.file.name} className="h-24 w-24 object-cover opacity-80" />
+      ) : (
+        <div className="flex items-center gap-2 px-3 py-2 text-sm text-foreground">
+          <Upload className="h-3.5 w-3.5 text-primary/70" />
+          <span className="max-w-[180px] truncate">{attachment.file.name}</span>
+          <span className="text-xs text-muted-foreground/50">{formatAttachmentSize(attachment.file.size)}</span>
+        </div>
+      )}
+      <button type="button" onClick={onRemove} className="absolute top-1 right-1 h-6 w-6 rounded-full bg-black/55 text-white flex items-center justify-center hover:bg-black/75">
+        <Trash2 className="h-3 w-3" />
+      </button>
+    </div>
+  );
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function ImportedLegalSection({ ownerFlags }: { ownerFlags: Record<string, any> | null | undefined }) {

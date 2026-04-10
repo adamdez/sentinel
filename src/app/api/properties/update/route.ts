@@ -153,6 +153,7 @@ export async function PATCH(req: NextRequest) {
         || "manual_phones" in ownerFlagsPatch
         || "manual_emails" in ownerFlagsPatch
         || "mailing_address" in ownerFlagsPatch
+        || "related_contacts" in ownerFlagsPatch
       );
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
