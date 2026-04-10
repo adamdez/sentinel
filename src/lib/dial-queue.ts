@@ -2,6 +2,7 @@ import { canUserClaimLead, normalizeAssignedUserId } from "@/lib/lead-ownership"
 import { runSkipTraceIntel } from "@/lib/skiptrace-intel";
 import { runWithConcurrency } from "@/lib/async-batch";
 import { isDeepDiveNextAction } from "@/lib/deep-dive";
+import { buildDialQueueEquityOwnerFlags } from "@/lib/dialer/equity";
 
 type SupabaseClientLike = {
   from: (table: string) => any;
@@ -28,6 +29,12 @@ export interface QueueLeadSelection {
   intro_last_call_date?: string | null;
   intro_completed_at?: string | null;
   intro_exit_category?: string | null;
+  properties?: {
+    id?: string | null;
+    estimated_value?: number | null;
+    equity_percent?: number | null;
+    owner_flags?: Record<string, unknown> | null;
+  } | null;
 }
 
 export function isDriveByNextAction(nextAction: string | null | undefined): boolean {
@@ -72,6 +79,41 @@ async function clearLeadFromDialQueue(
     .eq("id", leadId)
     .eq("dial_queue_active", true);
   return !error;
+}
+
+async function hydrateQueuedLeadEquity(
+  sb: SupabaseClientLike,
+  rows: QueueLeadSelection[],
+): Promise<void> {
+  const hydrationCandidates = rows
+    .filter((row) => row.property_id && row.properties)
+    .map((row) => ({
+      propertyId: row.property_id as string,
+      nextOwnerFlags: buildDialQueueEquityOwnerFlags(row.properties),
+    }))
+    .filter((row): row is { propertyId: string; nextOwnerFlags: Record<string, unknown> } => Boolean(row.nextOwnerFlags));
+
+  if (hydrationCandidates.length === 0) return;
+
+  await Promise.all(
+    hydrationCandidates.map(async ({ propertyId, nextOwnerFlags }) => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error } = await ((sb.from("properties") as any)
+          .update({
+            owner_flags: nextOwnerFlags,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", propertyId));
+
+        if (error) {
+          console.error(`[dial-queue] equity hydration failed for property ${propertyId}:`, error.message ?? error);
+        }
+      } catch (error) {
+        console.error(`[dial-queue] equity hydration threw for property ${propertyId}:`, error);
+      }
+    }),
+  );
 }
 
 /**
@@ -304,7 +346,7 @@ export async function queueLeadIdsForUser(input: {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await ((input.sb.from("leads") as any)
-    .select("id, property_id, assigned_to, dial_queue_active, status, next_action, intro_sop_active, intro_last_call_date, intro_completed_at, intro_exit_category")
+    .select("id, property_id, assigned_to, dial_queue_active, status, next_action, intro_sop_active, intro_last_call_date, intro_completed_at, intro_exit_category, properties(id, estimated_value, equity_percent, owner_flags)")
     .in("id", leadIds));
 
   if (error) {
@@ -416,6 +458,13 @@ export async function queueLeadIdsForUser(input: {
     } else {
       conflictedIds.push(leadId);
     }
+  }
+
+  if (queuedIds.length > 0) {
+    await hydrateQueuedLeadEquity(
+      input.sb,
+      rows.filter((row) => queuedIds.includes(row.id)),
+    );
   }
 
   return { queuedIds, conflictedIds, missingIds };

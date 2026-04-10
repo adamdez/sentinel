@@ -91,6 +91,7 @@ import {
   selectInitialDialerLead,
 } from "@/lib/dialer/dialer-ui-state";
 import { matchesCommunicationSearch } from "@/lib/dialer/communication-search";
+import { formatDialerEquityDisplay } from "@/lib/dialer/equity";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -708,6 +709,7 @@ function isUnknownOwnerName(value: string | null | undefined): boolean {
 function deriveDialerPropertyContext(property: QueueLead["properties"] | null | undefined): {
   displayedTaxOwed: number | null;
   displayLotSize: string | null;
+  displayTaxAssessed: number | null;
   displayValue: number | null;
   displayValueLabel: "ARV" | "Assessed";
   displaySqft: number | null;
@@ -721,6 +723,7 @@ function deriveDialerPropertyContext(property: QueueLead["properties"] | null | 
     return {
       displayedTaxOwed: null,
       displayLotSize: null,
+      displayTaxAssessed: null,
       displayValue: null,
       displayValueLabel: "ARV",
       displaySqft: null,
@@ -803,6 +806,7 @@ function deriveDialerPropertyContext(property: QueueLead["properties"] | null | 
   return {
     displayedTaxOwed,
     displayLotSize,
+    displayTaxAssessed: assessedValue,
     displayValue,
     displayValueLabel,
     displaySqft,
@@ -872,6 +876,7 @@ function LiveAnswerIntelPanel({
         ? "AVM estimate"
         : "No value yet";
   const quickScreen = estimatedValue && estimatedValue > 0 ? calculateQuickScreen(estimatedValue) : null;
+  const equityDisplay = formatDialerEquityDisplay(lead.properties);
   const valuationHint = compCount > 0
     ? "Use this ARV anchor and confirm condition fast."
     : quickScreen
@@ -949,7 +954,7 @@ function LiveAnswerIntelPanel({
         </div>
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground/55">Equity</span>
-          <span className="font-mono text-foreground">{lead.properties?.equity_percent != null ? `${lead.properties.equity_percent}%` : "—"}</span>
+          <span className="font-mono text-foreground">{equityDisplay.combinedText ?? "—"}</span>
         </div>
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground/55">CMV</span>
@@ -4639,6 +4644,7 @@ function DialerPageInner() {
                         const {
                           displayedTaxOwed,
                           displayLotSize,
+                          displayTaxAssessed,
                           displayValue,
                           displayValueLabel,
                           displaySqft,
@@ -4647,20 +4653,21 @@ function DialerPageInner() {
                           displayPropertyType,
                           isPendingEnrichment,
                         } = deriveDialerPropertyContext(currentLead.properties);
-                        const p = currentLead.properties as Record<string, unknown> | null;
+                        const p = (currentLead.properties ?? {}) as Record<string, unknown>;
                         const displayBedrooms = numberFromUnknown(p?.bedrooms);
                         const displayBathrooms = numberFromUnknown(p?.bathrooms);
+                        const equityDisplay = formatDialerEquityDisplay(currentLead.properties);
                         return (
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                         <span className="font-mono text-foreground">{activeCallPhoneLabel}</span>
                         <span className="text-muted-foreground/40">|</span>
                         <span>{displayValueLabel} <span className="text-foreground font-medium">{displayValue != null ? formatMoneyFull(displayValue) : "—"}</span></span>
-                        <span>Equity <span className="text-foreground font-medium">{(() => {
+                        <span>Equity <span className="text-foreground font-medium">{equityDisplay.combinedText ?? "—"}</span></span>{false && (() => {
                           if (p?.equity_percent != null) return `${p.equity_percent}%`;
                           const flags = recordFromUnknown(p?.owner_flags);
                           const avail = Number(flags?.available_equity);
                           if (avail > 0) return `$${avail.toLocaleString()}`;
-                          const arv = displayValue;
+                          const arv = displayValue ?? 0;
                           const loan = Number(flags?.total_loan_balance ?? p?.total_loan_balance);
                           if (arv && loan > 0) {
                             const eq = arv - loan;
@@ -4668,7 +4675,10 @@ function DialerPageInner() {
                           }
                           if (flags?.is_free_clear || flags?.freeAndClear) return "100%";
                           return "—";
-                        })()}</span></span>
+                        })()}
+                        {displayTaxAssessed != null && displayTaxAssessed > 0 && (
+                          <span>Tax Assessed <span className="text-foreground font-medium">{formatMoneyFull(displayTaxAssessed)}</span></span>
+                        )}
                         <span className="text-muted-foreground/40">|</span>
                         {displayBedrooms != null || displayBathrooms != null ? (
                           <span>{displayBedrooms ?? "—"}bd/{displayBathrooms ?? "—"}ba</span>

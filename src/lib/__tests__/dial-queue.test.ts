@@ -21,6 +21,9 @@ type LeadRow = Record<string, unknown>;
 
 function createMockSb(rows: LeadRow[]) {
   const leads = rows;
+  const properties = rows
+    .map((row) => row.properties)
+    .filter((property): property is Record<string, unknown> => Boolean(property && typeof property === "object"));
 
   const buildSelectChain = (currentRows: LeadRow[]) => ({
     eq(column: string, value: unknown) {
@@ -42,13 +45,43 @@ function createMockSb(rows: LeadRow[]) {
 
   return {
     from(table: string) {
-      if (table !== "leads" && table !== "dialer_events") {
+      if (table !== "leads" && table !== "dialer_events" && table !== "properties") {
         throw new Error(`Unexpected table ${table}`);
       }
 
       if (table === "dialer_events") {
         return {
           insert: async () => ({ error: null }),
+        };
+      }
+
+      if (table === "properties") {
+        return {
+          update(values: Record<string, unknown>) {
+            let matchingRows = [...properties];
+            const applyUpdate = () => {
+              if (matchingRows.length === 0) {
+                return { error: { message: "not found" } };
+              }
+              for (const row of matchingRows) {
+                Object.assign(row, values);
+              }
+              return { error: null };
+            };
+
+            const chain = {
+              eq(column: string, value: unknown) {
+                matchingRows = matchingRows.filter((candidate) => candidate[column] === value);
+                return chain;
+              },
+              then(onFulfilled: (value: { error: { message: string } | null }) => unknown, onRejected?: (reason: unknown) => unknown) {
+                const result = applyUpdate();
+                return Promise.resolve(result).then(onFulfilled, onRejected);
+              },
+            };
+
+            return chain;
+          },
         };
       }
 
@@ -243,6 +276,121 @@ describe("dial queue service", () => {
     expect(result.queuedIds).toEqual(["lead-1", "lead-2"]);
     expect(rows[0]?.assigned_to).toBe("adam");
     expect(rows[1]?.assigned_to).toBe("adam");
+  });
+
+  it("hydrates available equity on queued properties when AVM and loan balance are present", async () => {
+    const property = {
+      id: "prop-1",
+      estimated_value: 250000,
+      equity_percent: 72,
+      owner_flags: {
+        total_loan_balance: 70000,
+      },
+    };
+    const sb = createMockSb([
+      {
+        id: "lead-1",
+        assigned_to: null,
+        dial_queue_active: false,
+        property_id: "prop-1",
+        status: "lead",
+        properties: property,
+      },
+    ]);
+
+    const result = await queueLeadIdsForUser({
+      sb: sb as never,
+      userId: "adam",
+      leadIds: ["lead-1"],
+    });
+
+    expect(result.queuedIds).toEqual(["lead-1"]);
+    expect(property.owner_flags).toMatchObject({
+      total_loan_balance: 70000,
+      available_equity: 180000,
+      equity_percent: 72,
+    });
+  });
+
+  it("does not fail queueing when property equity hydration is unavailable", async () => {
+    const rows = [
+      {
+        id: "lead-1",
+        assigned_to: null,
+        dial_queue_active: false,
+        property_id: "prop-1",
+        status: "lead",
+        properties: {
+          id: "prop-1",
+          estimated_value: 250000,
+          owner_flags: { total_loan_balance: 70000 },
+        },
+      },
+    ];
+
+    const sb = {
+      from(table: string) {
+        if (table === "properties") {
+          return {
+            update() {
+              return {
+                eq() {
+                  return Promise.resolve({ error: { message: "write failed" } });
+                },
+              };
+            },
+          };
+        }
+        if (table !== "leads") throw new Error(`Unexpected table ${table}`);
+        return {
+          select() {
+            return {
+              in() {
+                return Promise.resolve({ data: rows, error: null });
+              },
+            };
+          },
+          update(values: Record<string, unknown>) {
+            let matchingRows = [...rows];
+            return {
+              in(column: string, ids: unknown[]) {
+                matchingRows = matchingRows.filter((candidate) => ids.includes(candidate[column]));
+                return this;
+              },
+              is(column: string, value: unknown) {
+                matchingRows = matchingRows.filter((candidate) => candidate[column] === value);
+                return this;
+              },
+              eq(column: string, value: unknown) {
+                matchingRows = matchingRows.filter((candidate) => candidate[column] === value);
+                return this;
+              },
+              async select() {
+                for (const row of matchingRows) {
+                  Object.assign(row, values);
+                }
+                return {
+                  data: matchingRows.map((row) => ({ id: String(row.id) })),
+                  error: null,
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+
+    const result = await queueLeadIdsForUser({
+      sb: sb as never,
+      userId: "adam",
+      leadIds: ["lead-1"],
+    });
+
+    expect(result).toMatchObject({
+      queuedIds: ["lead-1"],
+      conflictedIds: [],
+      missingIds: [],
+    });
   });
 
   it("blocks re-queueing an intro file that was already worked today", async () => {

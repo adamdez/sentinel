@@ -1,5 +1,10 @@
 [
   {
+    "hash": "34de30df",
+    "date": "2026-04-10",
+    "message": "[codex] Add owner collision review hints"
+  },
+  {
     "hash": "5e5a319d",
     "date": "2026-04-10",
     "message": "[codex] Evict do-not-call leads from dial queue"
@@ -118,10 +123,5 @@
     "hash": "69f5c85c",
     "date": "2026-04-09",
     "message": "[codex] Polish power dial queue controls"
-  },
-  {
-    "hash": "b34a081f",
-    "date": "2026-04-09",
-    "message": "[codex] Unify dialer notes into lead timeline"
   }
 ]
