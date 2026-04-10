@@ -1,5 +1,10 @@
 [
   {
+    "hash": "dbbb9216",
+    "date": "2026-04-10",
+    "message": "[codex] Ship open Sentinel agent work"
+  },
+  {
     "hash": "dbdc9533",
     "date": "2026-04-10",
     "message": "[codex] Fix power dial daily exit and intro cadence labels"
@@ -118,10 +123,5 @@
     "hash": "cf395c00",
     "date": "2026-04-09",
     "message": "[codex] unify dialer queue state and hold positive outcomes"
-  },
-  {
-    "hash": "8991ea2c",
-    "date": "2026-04-09",
-    "message": "[codex] Mark Skip Genie leads across surfaces"
   }
 ]

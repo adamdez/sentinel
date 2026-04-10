@@ -3226,14 +3226,6 @@ function DialerPageInner() {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
 
-      const dispo = DISPOSITIONS.find((d) => d.hotkey === e.key);
-      // Disable hotkeys when PostCallPanel is active (callState===ended && dialerSessionId set)
-      if (dispo && (callState === "connected" || (callState === "ended" && !dialerSessionId))) {
-        e.preventDefault();
-        handleDisposition(dispo.key);
-        return;
-      }
-
       if (e.key === "Enter" && callState === "idle" && currentLead) {
         e.preventDefault();
         handleDial();
@@ -3248,7 +3240,7 @@ function DialerPageInner() {
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [callState, dialerSessionId, currentLead, handleDial, handleDisposition, handleHangup]);
+  }, [callState, currentLead, handleDial, handleHangup]);
 
   const dialerContext = useMemo(() => {
     if (!currentLead) return null;
@@ -5084,61 +5076,7 @@ function DialerPageInner() {
                       onComplete={handlePostCallDone}
                       onSkip={handlePostCallDone}
                     />
-                  ) : (
-                    <GlassCard hover={false} className="!p-3">
-                      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
-                        <BarChart3 className="h-3.5 w-3.5 text-primary" />
-                        Disposition
-                        <span className="text-sm opacity-40 ml-auto">Keyboard shortcuts active</span>
-                      </h2>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full mb-2.5 gap-2 border-overlay-12 text-muted-foreground hover:text-foreground hover:bg-overlay-4"
-                        onClick={() => setFileModalOpen(true)}
-                      >
-                        <Eye className="h-3 w-3" />
-                        Open Lead Detail
-                      </Button>
-
-                      <div className="grid grid-cols-1 gap-1.5">
-                        {DISPOSITIONS.map((d) => {
-                          const Icon = d.icon;
-                          return (
-                            <button
-                              key={d.key}
-                              onClick={() => handleDisposition(d.key)}
-                              disabled={dispositionPending}
-                              className={`flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all duration-150 border ${d.bgColor}`}
-                            >
-                              <span className="text-sm font-mono text-muted-foreground/55 w-3">{d.hotkey}</span>
-                              <Icon className={`h-4 w-4 ${d.color}`} />
-                              <span className="text-sm font-medium flex-1">{d.label}</span>
-                              <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <Button
-                        variant="outline"
-                        className="w-full mt-3 gap-2 text-xs"
-                        onClick={() => {
-                          const idx = executionQueue.findIndex((l) => l.id === currentLead?.id);
-                          setCurrentLead(executionQueue[(idx + 1) % executionQueue.length] ?? null);
-                          setPhoneIndex(0);
-                          setCallState("idle");
-                          setCallNotes("");
-                          timer.reset();
-                        }}
-                        disabled={executionQueue.length <= 1}
-                      >
-                        <SkipForward className="h-3.5 w-3.5" />
-                        Next Lead
-                      </Button>
-                    </GlassCard>
-                  )}
+                  ) : null}
 
                   <div className="mt-3 flex items-center justify-center gap-2 px-3 py-2 rounded-[10px] border border-overlay-6 bg-overlay-2">
                     <Clock className="h-3.5 w-3.5 text-muted-foreground" />
