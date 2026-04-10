@@ -1,5 +1,15 @@
 [
   {
+    "hash": "8678cfb9",
+    "date": "2026-04-10",
+    "message": "[codex] Fix Spokane parcel link matching"
+  },
+  {
+    "hash": "d9ef371d",
+    "date": "2026-04-10",
+    "message": "[codex] Fix deep dive opening and shared lead queue"
+  },
+  {
     "hash": "b1a85798",
     "date": "2026-04-10",
     "message": "[codex] Ship dialer parcel link and file-level rejection hardening"
@@ -113,15 +123,5 @@
     "hash": "fdd4e7a0",
     "date": "2026-04-09",
     "message": "[codex] Add dialer inbox attention dots"
-  },
-  {
-    "hash": "be8be913",
-    "date": "2026-04-09",
-    "message": "[codex] Harden light mode contrast on operator surfaces"
-  },
-  {
-    "hash": "0b58aa2b",
-    "date": "2026-04-09",
-    "message": "[codex] Surface active phone during live calls"
   }
 ]

@@ -154,6 +154,333 @@ function isHardRecordFinding(finding: AgentFinding): boolean {
   return ["court_record", "financial", "county_record"].includes(finding.category);
 }
 
+function normalizePhoneCandidates(value: unknown): string[] {
+  if (typeof value !== "string") return [];
+  return value
+    .split(/[;,/]|(?:\s{2,})/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeEmailCandidates(value: unknown): string[] {
+  if (typeof value !== "string") return [];
+  return value
+    .split(/[;,/]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function buildHumanName(parts: Array<unknown>): string | null {
+  const name = parts
+    .map((part) => (typeof part === "string" ? part.trim() : ""))
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return name || null;
+}
+
+function normalizeRole(value: string): DeepSkipPerson["role"] {
+  const normalized = value.trim().toLowerCase();
+  if (normalized.includes("attorney") || normalized.includes("lawyer")) return "attorney";
+  if (normalized.includes("executor") || normalized.includes("personal representative") || normalized.includes("administrator") || normalized.includes("petitioner")) {
+    return "executor";
+  }
+  if (normalized.includes("spouse") || normalized.includes("wife") || normalized.includes("husband")) return "spouse";
+  if (normalized.includes("owner")) return "owner";
+  if (normalized.includes("beneficial")) return "beneficial_owner";
+  if (normalized.includes("heir") || normalized.includes("beneficiary") || normalized.includes("survivor") || normalized.includes("next of kin")) {
+    return "heir";
+  }
+  return "family";
+}
+
+function isLikelyHumanName(value: string | null | undefined, ownerName?: string | null): boolean {
+  const cleaned = compact(value);
+  if (!cleaned) return false;
+  if (cleaned.length < 4 || cleaned.length > 80) return false;
+  const normalized = cleaned
+    .replace(/\s+/g, " ")
+    .replace(/[^A-Za-z ,.'-]/g, "")
+    .trim();
+  if (!normalized) return false;
+  const upper = normalized.toUpperCase();
+  if (ownerName && upper === compact(ownerName).toUpperCase()) return false;
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  if (tokens.length < 2 || tokens.length > 5) return false;
+  if (tokens.some((token) => token.length < 2)) return false;
+  return tokens.every((token) => /[A-Za-z]/.test(token));
+}
+
+function dedupePeople(people: DeepSkipPerson[]): DeepSkipPerson[] {
+  const best = new Map<string, DeepSkipPerson>();
+  for (const person of people) {
+    const phones = [...new Set(person.phones.filter(Boolean))].sort().join("|");
+    const emails = [...new Set(person.emails.filter(Boolean))].sort().join("|");
+    const key = `${person.name.toLowerCase()}|${person.role}|${phones}|${emails}`;
+    const existing = best.get(key);
+    if (!existing || existing.confidence < person.confidence) {
+      best.set(key, {
+        ...person,
+        phones: [...new Set(person.phones.filter(Boolean))],
+        emails: [...new Set(person.emails.filter(Boolean))],
+      });
+    }
+  }
+  return Array.from(best.values()).sort((left, right) => right.confidence - left.confidence);
+}
+
+function dedupeFindings(findings: AgentFinding[]): AgentFinding[] {
+  const best = new Map<string, AgentFinding>();
+  for (const finding of findings) {
+    const key = `${finding.category}|${finding.source}|${finding.finding.toLowerCase()}|${finding.url ?? ""}`;
+    const existing = best.get(key);
+    if (!existing || existing.confidence < finding.confidence) {
+      best.set(key, finding);
+    }
+  }
+  return Array.from(best.values()).sort((left, right) => right.confidence - left.confidence);
+}
+
+function buildContactNotes(parts: Array<string | null | undefined>): string {
+  return parts.map((part) => compact(part)).filter(Boolean).join(" ").trim();
+}
+
+function contactPersonFromRecord(args: {
+  name: string | null;
+  role: DeepSkipPerson["role"];
+  notes: string;
+  source: string;
+  confidence: number;
+  phones?: string[];
+  emails?: string[];
+}): DeepSkipPerson | null {
+  if (!isLikelyHumanName(args.name)) return null;
+  return {
+    name: compact(args.name),
+    role: args.role,
+    phones: args.phones ?? [],
+    emails: args.emails ?? [],
+    notes: truncateText(args.notes, 220),
+    source: args.source,
+    confidence: args.confidence,
+  };
+}
+
+function findingFromPerson(person: DeepSkipPerson, url?: string, date?: string): AgentFinding {
+  return {
+    source: person.source,
+    category: person.role === "attorney" ? "contact" : "heir",
+    finding: person.notes,
+    confidence: person.confidence,
+    url,
+    date,
+    structuredData: {
+      personName: person.name,
+      personRole: person.role,
+      phone: person.phones[0],
+      email: person.emails[0],
+    },
+  };
+}
+
+function relatedContactPerson(contact: Record<string, unknown>): DeepSkipPerson | null {
+  const name = typeof contact.name === "string" ? contact.name : null;
+  const relation = typeof contact.relation === "string" ? contact.relation : "family";
+  const phone = normalizePhoneCandidates(contact.phone);
+  const email = normalizeEmailCandidates(contact.email);
+  const note = typeof contact.note === "string" ? contact.note : "";
+  return contactPersonFromRecord({
+    name,
+    role: normalizeRole(relation),
+    notes: buildContactNotes([
+      `Manual related contact: ${name ?? "Unknown"}.`,
+      relation ? `Relation: ${relation}.` : null,
+      note || null,
+    ]),
+    source: "related_contacts",
+    confidence: 0.72,
+    phones: phone,
+    emails: email,
+  });
+}
+
+function importedProbatePerson(roleLabel: string, record: unknown): DeepSkipPerson | null {
+  if (!record || typeof record !== "object") return null;
+  const row = record as Record<string, unknown>;
+  const name = buildHumanName([row.first_name, row.middle_name, row.last_name, typeof row.name === "string" ? row.name : null]);
+  const role = normalizeRole(roleLabel);
+  const notes = buildContactNotes([
+    `Imported ${roleLabel} contact${name ? `: ${name}.` : "."}`,
+    typeof row.address === "string" ? `Address: ${row.address}.` : null,
+    typeof row.city === "string" || typeof row.state === "string" || typeof row.zip === "string"
+      ? `Location: ${[row.city, row.state, row.zip].filter((part) => typeof part === "string" && compact(part)).join(", ")}.`
+      : null,
+    typeof row.bar_number === "string" ? `Bar #: ${row.bar_number}.` : null,
+  ]);
+  return contactPersonFromRecord({
+    name,
+    role,
+    notes,
+    source: "imported_probate_contact",
+    confidence: role === "attorney" ? 0.9 : 0.84,
+    phones: normalizePhoneCandidates(row.phone),
+    emails: normalizeEmailCandidates(row.email),
+  });
+}
+
+function inferRoleFromLegalText(text: string): DeepSkipPerson["role"] {
+  const normalized = text.toLowerCase();
+  if (normalized.includes("attorney")) return "attorney";
+  if (normalized.includes("personal representative") || normalized.includes("executor") || normalized.includes("administrator") || normalized.includes("petitioner")) {
+    return "executor";
+  }
+  if (normalized.includes("spouse") || normalized.includes("widow") || normalized.includes("widower")) return "spouse";
+  if (normalized.includes("heir") || normalized.includes("beneficiary") || normalized.includes("survivor")) return "heir";
+  return "family";
+}
+
+function extractNamedRoleFromText(text: string): Array<{ name: string; role: DeepSkipPerson["role"] }> {
+  const matches: Array<{ name: string; role: DeepSkipPerson["role"] }> = [];
+  const patterns: Array<{ regex: RegExp; role: DeepSkipPerson["role"] | null }> = [
+    {
+      regex: /\b(?:personal representative|executor|administrator|petitioner|attorney(?: of record)?|surviving spouse|survivor|heir|beneficiary)[^A-Za-z]{0,12}([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})/gi,
+      role: null,
+    },
+    {
+      regex: /\b([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){1,3})[^A-Za-z]{0,12}(?:personal representative|executor|administrator|petitioner|attorney(?: of record)?|surviving spouse|survivor|heir|beneficiary)\b/gi,
+      role: null,
+    },
+  ];
+
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.regex.exec(text)) !== null) {
+      const surrounding = text.slice(Math.max(0, match.index - 40), Math.min(text.length, match.index + match[0].length + 40));
+      const name = compact(match[1]);
+      if (!isLikelyHumanName(name)) continue;
+      matches.push({
+        name,
+        role: pattern.role ?? inferRoleFromLegalText(surrounding),
+      });
+    }
+  }
+
+  return matches;
+}
+
+function isProbateLikeDocument(doc: NormalizedDocument): boolean {
+  const haystack = `${doc.documentType} ${doc.caseType ?? ""} ${doc.eventDescription ?? ""}`.toLowerCase();
+  return /\b(probate|estate|letters|administrator|personal representative|executor|decedent)\b/.test(haystack);
+}
+
+export function buildFallbackPeopleIntel(args: {
+  ownerFlags: Record<string, unknown>;
+  legalDocuments: NormalizedDocument[];
+  ownerName?: string | null;
+}): { people: DeepSkipPerson[]; findings: AgentFinding[] } {
+  const people: DeepSkipPerson[] = [];
+
+  const importedSources: Array<[string, unknown]> = [
+    ["survivor", args.ownerFlags.survivor_contact],
+    ["petitioner / pr", args.ownerFlags.petitioner_contact],
+    ["attorney", args.ownerFlags.attorney_contact],
+  ];
+
+  for (const [roleLabel, value] of importedSources) {
+    const person = importedProbatePerson(roleLabel, value);
+    if (person) people.push(person);
+  }
+
+  if (Array.isArray(args.ownerFlags.related_contacts)) {
+    for (const contact of args.ownerFlags.related_contacts) {
+      if (!contact || typeof contact !== "object") continue;
+      const person = relatedContactPerson(contact as Record<string, unknown>);
+      if (person) people.push(person);
+    }
+  }
+
+  for (const doc of args.legalDocuments) {
+    const probateLike = isProbateLikeDocument(doc);
+    if (doc.attorneyName) {
+      const attorney = contactPersonFromRecord({
+        name: doc.attorneyName,
+        role: "attorney",
+        notes: buildContactNotes([
+          `Attorney of record listed on ${doc.documentType.replace(/_/g, " ")}.`,
+          doc.caseNumber ? `Case ${doc.caseNumber}.` : null,
+          doc.eventDescription,
+        ]),
+        source: doc.source,
+        confidence: 0.9,
+      });
+      if (attorney) people.push(attorney);
+    }
+
+    if (doc.contactPerson) {
+      const contact = contactPersonFromRecord({
+        name: doc.contactPerson,
+        role: probateLike ? "executor" : "family",
+        notes: buildContactNotes([
+          `${probateLike ? "Probate decision-maker" : "Legal contact"} listed on ${doc.documentType.replace(/_/g, " ")}.`,
+          doc.caseNumber ? `Case ${doc.caseNumber}.` : null,
+          doc.eventDescription,
+        ]),
+        source: doc.source,
+        confidence: probateLike ? 0.87 : 0.74,
+      });
+      if (contact) people.push(contact);
+    }
+
+    const counterpartyName = probateLike
+      ? [doc.grantee, doc.grantor].find((value) => isLikelyHumanName(value, args.ownerName)) ?? null
+      : null;
+    if (counterpartyName) {
+      const role = inferRoleFromLegalText(`${doc.eventDescription ?? ""} ${doc.rawExcerpt ?? ""}`);
+      const contact = contactPersonFromRecord({
+        name: counterpartyName,
+        role,
+        notes: buildContactNotes([
+          `${counterpartyName} appears on ${doc.documentType.replace(/_/g, " ")}.`,
+          doc.caseNumber ? `Case ${doc.caseNumber}.` : null,
+          doc.eventDescription,
+        ]),
+        source: doc.source,
+        confidence: 0.76,
+      });
+      if (contact) people.push(contact);
+    }
+
+    const namedRoleMatches = extractNamedRoleFromText(`${doc.eventDescription ?? ""} ${doc.rawExcerpt ?? ""}`);
+    for (const match of namedRoleMatches) {
+      const person = contactPersonFromRecord({
+        name: match.name,
+        role: match.role,
+        notes: buildContactNotes([
+          `${match.name} was referenced in ${doc.documentType.replace(/_/g, " ")}.`,
+          doc.caseNumber ? `Case ${doc.caseNumber}.` : null,
+          doc.eventDescription,
+        ]),
+        source: doc.source,
+        confidence: 0.78,
+      });
+      if (person) people.push(person);
+    }
+  }
+
+  const dedupedPeople = dedupePeople(people);
+  const findings = dedupeFindings(
+    dedupedPeople.map((person) =>
+      findingFromPerson(
+        person,
+        args.legalDocuments.find((doc) => doc.source === person.source)?.sourceUrl,
+        args.legalDocuments.find((doc) => doc.source === person.source)?.recordingDate ?? undefined,
+      )),
+  );
+
+  return { people: dedupedPeople, findings };
+}
+
 export function summarizeResearchSignals(args: {
   legalDocumentsFound: number;
   agentFindings: AgentFinding[];
@@ -986,19 +1313,7 @@ export async function runLeadResearch(options: RunLeadResearchOptions): Promise<
   })();
   const distressSignalTypes = distressSignalRows.map((row) => row.event_type);
 
-  const legal = process.env.FIRECRAWL_API_KEY
-    ? await performLeadLegalSearch({ leadId: lead.id, propertyId: property.id, property })
-    : {
-        supported: isSupportedLegalCounty(property.county),
-        status: isSupportedLegalCounty(property.county) ? "partial" : "unsupported",
-        county: compact(property.county) || null,
-        documents: [],
-        documentsFound: 0,
-        documentsInserted: 0,
-        courtCasesFound: 0,
-        errors: ["FIRECRAWL_API_KEY not configured"],
-        nextUpcomingEvent: null,
-      } satisfies PersistedLegalSearchResult;
+  const legal = await performLeadLegalSearch({ leadId: lead.id, propertyId: property.id, property });
 
   let agentResults: AgentResult[] = [];
   let agentFindings: AgentFinding[] = [];
@@ -1023,6 +1338,21 @@ export async function runLeadResearch(options: RunLeadResearchOptions): Promise<
     deepSkip = merged.deepSkip;
     workingOwnerFlags = merged.updatedFlags;
     sourceGroups = ["deep_property", "people_intel"];
+  }
+
+  const fallbackPeopleIntel = buildFallbackPeopleIntel({
+    ownerFlags: workingOwnerFlags,
+    legalDocuments: legal.documents,
+    ownerName: property.owner_name,
+  });
+
+  if (fallbackPeopleIntel.people.length > 0) {
+    deepSkip = {
+      ...deepSkip,
+      people: dedupePeople([...deepSkip.people, ...fallbackPeopleIntel.people]),
+    };
+    agentFindings = dedupeFindings([...agentFindings, ...fallbackPeopleIntel.findings]);
+    sourceGroups = [...new Set([...sourceGroups, "people_intel"])] as UnifiedResearchMetadata["source_groups"];
   }
 
   if (legal.supported || legal.documentsFound > 0 || legal.errors.length > 0) {

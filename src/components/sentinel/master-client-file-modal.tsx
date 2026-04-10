@@ -26,7 +26,7 @@ import {
 
   RefreshCw, Target, ChevronDown, Trash2, Lock, Contact2, Plus,
 
-  Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff, ListPlus, Pin,
+  Users, Briefcase, CheckCircle, XCircle, Camera, CameraOff, ListPlus, Pin, Link2,
 
 } from "lucide-react";
 
@@ -178,6 +178,15 @@ import Link from "next/link";
 import { useDealBuyers } from "@/hooks/use-buyers";
 
 import { dealBuyerStatusLabel } from "@/lib/buyer-types";
+
+function statusLabel(status: string | null | undefined): string {
+  if (!status) return "Unknown";
+  return status
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 // ------------------------------------------------------------
 
