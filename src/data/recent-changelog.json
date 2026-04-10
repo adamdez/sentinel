@@ -1,5 +1,10 @@
 [
   {
+    "hash": "b1a85798",
+    "date": "2026-04-10",
+    "message": "[codex] Ship dialer parcel link and file-level rejection hardening"
+  },
+  {
     "hash": "082f2eb9",
     "date": "2026-04-10",
     "message": "[codex] Preload dialer equity on queue entry"
@@ -118,10 +123,5 @@
     "hash": "0b58aa2b",
     "date": "2026-04-09",
     "message": "[codex] Surface active phone during live calls"
-  },
-  {
-    "hash": "e8bf4785",
-    "date": "2026-04-09",
-    "message": "[codex] make seller memory notes-first"
   }
 ]

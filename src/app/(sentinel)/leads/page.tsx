@@ -204,6 +204,8 @@ export default function LeadsPage() {
 function LeadsPageInner() {
   const searchParams = useSearchParams();
   const inboundFilter = searchParams.get("filter") as InboundFilter | null;
+  const openLeadId = searchParams.get("open");
+  const requestedSegment = searchParams.get("segment");
 
   const {
     leads,
@@ -248,6 +250,21 @@ function LeadsPageInner() {
       setAttentionFocus(mapped);
     }
   }, [inboundFilter, setAttentionFocus]);
+
+  useEffect(() => {
+    if (requestedSegment === "all" || requestedSegment === "mine") {
+      setSegment(requestedSegment);
+    }
+  }, [requestedSegment, setSegment]);
+
+  useEffect(() => {
+    if (!openLeadId) return;
+    const matchingLead = leads.find((lead) => lead.id === openLeadId);
+    if (!matchingLead) return;
+    if (selectedId !== openLeadId) {
+      setSelectedId(openLeadId);
+    }
+  }, [leads, openLeadId, selectedId, setSelectedId]);
 
   const segmentTotal =
     segment === "all"
@@ -833,8 +850,17 @@ function LeadsPageInner() {
       {/* Detail modal */}
       <MasterClientFileModal
         clientFile={selectedLead ? clientFileFromLead(selectedLead) : null}
-        open={selectedId !== null}
-        onClose={() => setSelectedId(null)}
+        open={selectedLead !== null && selectedId !== null}
+        onClose={() => {
+          setSelectedId(null);
+          if (openLeadId) {
+            const next = new URLSearchParams(searchParams.toString());
+            next.delete("open");
+            next.delete("segment");
+            const query = next.toString();
+            window.history.replaceState(null, "", query ? `/leads?${query}` : "/leads");
+          }
+        }}
         onRefresh={refetch}
       />
 

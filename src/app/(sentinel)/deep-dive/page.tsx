@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/sentinel/glass-card";
@@ -25,6 +25,7 @@ import { toast } from "sonner";
 type DeepDiveItem = {
   id: string;
   status: string | null;
+  assigned_to: string | null;
   next_action: string | null;
   next_action_due_at: string | null;
   last_contact_at: string | null;
@@ -43,6 +44,11 @@ type DeepDiveItem = {
     owner_name: string | null;
     owner_phone: string | null;
   } | null;
+};
+
+type AssignmentOption = {
+  id: string;
+  name: string;
 };
 
 function formatTimeAgo(iso: string | null): string {
@@ -76,9 +82,12 @@ async function fetchLeadContext(leadId: string) {
 }
 
 export default function DeepDivePage() {
+  const router = useRouter();
   const [items, setItems] = useState<DeepDiveItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [assignmentOptions, setAssignmentOptions] = useState<AssignmentOption[]>([]);
+  const [assignmentTargets, setAssignmentTargets] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,6 +110,44 @@ export default function DeepDivePage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase.from("user_profiles") as any)
+          .select("id, full_name, role")
+          .in("role", ["admin", "agent"])
+          .order("full_name");
+
+        if (!active) return;
+        const options = Array.isArray(data)
+          ? data.map((row: { id: string; full_name?: string | null }) => ({
+              id: row.id,
+              name: row.full_name?.trim() || `${row.id.slice(0, 8)}...`,
+            }))
+          : [];
+        setAssignmentOptions(options);
+      } catch (error) {
+        console.error("[deep-dive] failed to load assignment options:", error);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setAssignmentTargets((current) => {
+      const next: Record<string, string> = {};
+      for (const item of items) {
+        next[item.id] = current[item.id] ?? item.assigned_to ?? "";
+      }
+      return next;
+    });
+  }, [items]);
 
   const counts = useMemo(() => {
     const now = new Date();
@@ -183,6 +230,56 @@ export default function DeepDivePage() {
       setBusyId(null);
     }
   }, [load]);
+
+  const handleAssign = useCallback(async (item: DeepDiveItem) => {
+    const targetId = assignmentTargets[item.id] ?? "";
+    if (!targetId) {
+      toast.error("Select an owner before assigning.");
+      return;
+    }
+    if (targetId === (item.assigned_to ?? "")) {
+      toast.message("Lead owner is already selected.");
+      return;
+    }
+
+    setBusyId(item.id);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+        .select("lock_version")
+        .eq("id", item.id)
+        .single();
+
+      if (fetchErr || !current) {
+        throw new Error("Could not load current lead state");
+      }
+
+      const headers = await authHeaders();
+      headers["x-lock-version"] = String(current.lock_version ?? 0);
+
+      const response = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          lead_id: item.id,
+          assigned_to: targetId,
+        }),
+      });
+
+      const data = await response.json().catch(() => ({} as { error?: string; detail?: string }));
+      if (!response.ok) {
+        throw new Error(data.detail ?? data.error ?? "Failed to assign lead");
+      }
+
+      const targetName = assignmentOptions.find((option) => option.id === targetId)?.name ?? "selected owner";
+      toast.success(`Lead reassigned to ${targetName}`);
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to assign lead");
+    } finally {
+      setBusyId(null);
+    }
+  }, [assignmentOptions, assignmentTargets, load]);
 
   return (
     <PageShell title="Deep Dive" description="Parked files that need research before they return to calling">
@@ -280,6 +377,9 @@ export default function DeepDivePage() {
                           <Phone className="h-3 w-3" />
                           {item.total_calls} call{item.total_calls === 1 ? "" : "s"}
                         </span>
+                        <span>
+                          Owner: {assignmentOptions.find((option) => option.id === item.assigned_to)?.name ?? "Unassigned"}
+                        </span>
                       </div>
 
                       {item.parked_reason && (
@@ -290,12 +390,38 @@ export default function DeepDivePage() {
                     </div>
 
                     <div className="flex shrink-0 flex-wrap gap-2 lg:max-w-[320px] lg:justify-end">
-                      <Link href={`/leads?open=${item.id}`}>
-                        <Button size="sm" variant="outline" className="gap-1.5">
-                          <ArrowRight className="h-3.5 w-3.5" />
-                          Open Client File
+                      <div className="flex min-w-[220px] items-center gap-2">
+                        <select
+                          value={assignmentTargets[item.id] ?? item.assigned_to ?? ""}
+                          onChange={(event) =>
+                            setAssignmentTargets((current) => ({
+                              ...current,
+                              [item.id]: event.target.value,
+                            }))
+                          }
+                          className="h-9 flex-1 rounded-md border border-border/30 bg-background/60 px-2 text-xs text-foreground focus:border-primary/30 focus:outline-none focus:ring-1 focus:ring-ring/20"
+                          disabled={busy}
+                        >
+                          <option value="">Unassigned</option>
+                          {assignmentOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.name}
+                            </option>
+                          ))}
+                        </select>
+                        <Button size="sm" variant="outline" onClick={() => void handleAssign(item)} disabled={busy}>
+                          Assign
                         </Button>
-                      </Link>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => router.push(`/leads?segment=all&open=${item.id}`)}
+                      >
+                        <ArrowRight className="h-3.5 w-3.5" />
+                        Open Client File
+                      </Button>
                       <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void handleRunResearch(item)} disabled={busy}>
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
                         Run Research
