@@ -42,6 +42,7 @@ const TERMINAL_QUEUE_DISPOSITIONS = new Set([
   "dead_lead",
   "disqualified",
   "not_interested",
+  "do_not_call",
 ]);
 
 const AUTO_CYCLE_QUEUE_EVICT_STATUSES = new Set([
