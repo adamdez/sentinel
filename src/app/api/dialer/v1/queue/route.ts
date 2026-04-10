@@ -158,6 +158,7 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date();
+  const sevenDaysAgoIso = new Date(now.getTime() - 7 * 86_400_000).toISOString();
   const staleThreshold = new Date(now.getTime() - staleDays * 86_400_000).toISOString();
   const sb = createDialerClient();
 
@@ -323,6 +324,7 @@ export async function GET(req: NextRequest) {
   const { data: missedEvents, error: missedErr } = await (sb.from("dialer_events") as any)
     .select("id, lead_id, task_id, metadata, created_at")
     .eq("event_type", "inbound.missed")
+    .gte("created_at", sevenDaysAgoIso)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -420,6 +422,7 @@ export async function GET(req: NextRequest) {
       .select("id, lead_id, phone_dialed, twilio_sid, created_at, disposition")
       .eq("direction", "inbound")
       .in("disposition", ["in_progress", "initiating", "ringing_prospect"])
+      .gte("created_at", sevenDaysAgoIso)
       .lt("created_at", fallbackCutoff)
       .order("created_at", { ascending: false })
       .limit(limit * 2);

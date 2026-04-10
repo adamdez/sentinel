@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
   }
 
   const sb = createDialerClient();
+  const sevenDaysAgoIso = new Date(Date.now() - 7 * 86_400_000).toISOString();
 
   // Get latest message per phone number using a raw-ish approach:
   // Fetch recent messages ordered by created_at DESC, then deduplicate client-side.
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
   const { data: messages, error } = await sb
     .from("sms_messages")
     .select("id, phone, direction, body, lead_id, read_at, created_at")
+    .gte("created_at", sevenDaysAgoIso)
     .order("created_at", { ascending: false })
     .limit(500);
 
@@ -41,6 +43,7 @@ export async function GET(req: NextRequest) {
     lastMessageAt: string;
     direction: string;
     unreadCount: number;
+    propertyAddress: string | null;
     resolutionState: "direct" | "suggested" | "unresolved";
     matchReason: string | null;
     matchSource: PhoneMatchSource;
@@ -61,6 +64,7 @@ export async function GET(req: NextRequest) {
         lastMessageAt: msg.created_at as string,
         direction: msg.direction as string,
         unreadCount: (msg.direction === "inbound" && !msg.read_at) ? 1 : 0,
+        propertyAddress: null,
         resolutionState: msg.lead_id ? "direct" : "unresolved",
         matchReason: null,
         matchSource: null,
@@ -85,6 +89,7 @@ export async function GET(req: NextRequest) {
   // Enrich with lead names
   const leadIds = [...new Set(threads.map((t) => t.leadId).filter(Boolean))] as string[];
   let leadNames: Record<string, string> = {};
+  let leadAddresses: Record<string, string> = {};
 
   if (leadIds.length > 0) {
     const { data: leads } = await sb
@@ -97,13 +102,27 @@ export async function GET(req: NextRequest) {
       if (propIds.length > 0) {
         const { data: props } = await sb
           .from("properties")
-          .select("id, owner_name")
+          .select("id, owner_name, address, city, state, zip")
           .in("id", propIds);
 
-        const propMap = new Map((props ?? []).map((p: { id: string; owner_name: string }) => [p.id, p.owner_name]));
+        const propMap = new Map((props ?? []).map((p: {
+          id: string;
+          owner_name: string | null;
+          address: string | null;
+          city: string | null;
+          state: string | null;
+          zip: string | null;
+        }) => [p.id, p]));
         for (const lead of leads) {
-          const name = propMap.get(lead.property_id as string);
-          if (name) leadNames[lead.id as string] = name as string;
+          const property = propMap.get(lead.property_id as string);
+          if (property?.owner_name) leadNames[lead.id as string] = property.owner_name;
+          const fullAddress = [
+            property?.address,
+            property?.city,
+            property?.state,
+            property?.zip,
+          ].filter(Boolean).join(", ");
+          if (fullAddress) leadAddresses[lead.id as string] = fullAddress;
         }
       }
     }
@@ -119,8 +138,12 @@ export async function GET(req: NextRequest) {
           thread.resolutionState = "direct";
           thread.matchReason = resolution.matchReason;
           thread.matchSource = resolution.matchSource;
+          thread.propertyAddress = resolution.propertyAddress ?? null;
           if (resolution.ownerName) {
             leadNames[resolution.leadId] = resolution.ownerName;
+          }
+          if (resolution.propertyAddress) {
+            leadAddresses[resolution.leadId] = resolution.propertyAddress;
           }
           await backfillSmsLeadForPhone(sb, thread.phone, resolution.leadId, resolution.assignedTo);
           return;
@@ -146,6 +169,11 @@ export async function GET(req: NextRequest) {
       (t.leadId ? leadNames[t.leadId] : null)
       ?? t.suggestedLeadName
       ?? phoneLevelNames[t.phone]
+      ?? null,
+    propertyAddress:
+      t.propertyAddress
+      ?? (t.leadId ? leadAddresses[t.leadId] : null)
+      ?? t.suggestedPropertyAddress
       ?? null,
   }));
 

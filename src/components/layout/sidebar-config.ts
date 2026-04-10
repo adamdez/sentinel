@@ -42,6 +42,7 @@ export interface NavSection {
 export const primaryItems: NavItem[] = [
   { label: "Today", href: "/dashboard", icon: CalendarCheck },
   { label: "Lead Queue", href: "/leads", icon: Users },
+  { label: "Deep Dive", href: "/deep-dive", icon: FileSearch },
   { label: "PPL Inbox", href: "/intake", icon: Inbox, badge: "intake-pending" },
   { label: "Dialer", href: "/dialer", icon: Phone },
   { label: "Active", href: "/sales-funnel/active", icon: KanbanSquare },
@@ -51,7 +52,6 @@ export const primaryItems: NavItem[] = [
   { label: "Dead", href: "/sales-funnel/dead", icon: Skull },
   { label: "Closed", href: "/sales-funnel/closed", icon: CircleCheckBig },
   { label: "Drive By", href: "/drive-by", icon: Car },
-  { label: "Deep Dive", href: "/deep-dive", icon: FileSearch },
 ];
 
 export const toolsSection: NavSection = {

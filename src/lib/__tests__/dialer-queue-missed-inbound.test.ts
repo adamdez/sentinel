@@ -169,6 +169,7 @@ function resolveQuery(table: string, state: QueryState) {
     const inEventType = state.in.find(([field]) => field === "event_type")?.[1] as string[] | undefined;
 
     if (eqEventType === "inbound.missed") {
+      expect(state.gte).toEqual(expect.arrayContaining([["created_at", expect.any(String)]]));
       return {
         data: [{
           id: "missed-event-1",

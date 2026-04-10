@@ -18,14 +18,20 @@ export interface CallHistoryEntry {
   direction: "outbound" | "inbound";
 }
 
-export function useCallHistory(userId: string, limit = 30) {
+export type UseCallHistoryOptions = {
+  days?: number;
+};
+
+export function useCallHistory(userId: string, options: UseCallHistoryOptions = {}) {
   const [history, setHistory] = useState<CallHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
+  const days = options.days ?? 7;
 
   const fetchHistory = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
+    const cutoffIso = new Date(Date.now() - days * 86_400_000).toISOString();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase.from("calls_log") as any)
@@ -48,8 +54,8 @@ export function useCallHistory(userId: string, limit = 30) {
         )
       `)
       .eq("user_id", userId)
+      .gte("started_at", cutoffIso)
       .order("started_at", { ascending: false })
-      .limit(limit);
 
     if (!mountedRef.current) return;
 
@@ -60,8 +66,8 @@ export function useCallHistory(userId: string, limit = 30) {
       const { data: fallback } = await (supabase.from("calls_log") as any)
         .select("id, phone_dialed, disposition, duration_sec, started_at, ended_at, notes, ai_summary, lead_id, direction")
         .eq("user_id", userId)
+        .gte("started_at", cutoffIso)
         .order("started_at", { ascending: false })
-        .limit(limit);
 
       if (!mountedRef.current) return;
 
@@ -98,7 +104,7 @@ export function useCallHistory(userId: string, limit = 30) {
 
     setHistory(mapped);
     setLoading(false);
-  }, [userId, limit]);
+  }, [days, userId]);
 
   useEffect(() => {
     mountedRef.current = true;

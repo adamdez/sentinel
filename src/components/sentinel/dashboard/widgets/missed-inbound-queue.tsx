@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { MissedInbound, UnclassifiedAnswered } from "@/app/api/dialer/v1/queue/route";
+import { matchesCommunicationSearch } from "@/lib/dialer/communication-search";
 
 function formatAge(minutesAgo: number): string {
   if (minutesAgo < 2) return "just now";
@@ -394,6 +395,7 @@ interface MissedInboundQueueProps {
   unclassified?: UnclassifiedAnswered[];
   loading: boolean;
   onRefresh: () => void;
+  query?: string;
 }
 
 export function MissedInboundQueue({
@@ -401,6 +403,7 @@ export function MissedInboundQueue({
   unclassified = [],
   loading,
   onRefresh,
+  query = "",
 }: MissedInboundQueueProps) {
   const [visible, setVisible] = useState<MissedInbound[]>(items);
 
@@ -408,7 +411,19 @@ export function MissedInboundQueue({
     setVisible(items);
   }, [items]);
 
-  const count = visible.length;
+  const filteredVisible = visible.filter((item) => matchesCommunicationSearch(query, [
+    item.from_number,
+    item.owner_name,
+    item.property_address,
+    item.jeff_summary,
+    item.jeff_callback_time,
+  ]));
+  const filteredUnclassified = unclassified.filter((item) => matchesCommunicationSearch(query, [
+    item.from_number,
+  ]));
+  const count = filteredVisible.length;
+  const hasSearch = query.trim().length > 0;
+  const hasAnyRecords = visible.length > 0 || unclassified.length > 0;
 
   return (
     <div className="space-y-2">
@@ -434,11 +449,15 @@ export function MissedInboundQueue({
         </button>
       </div>
 
-      {!loading && count === 0 && (
-        <p className="text-sm text-muted-foreground/40 py-1">No missed inbound recovery items.</p>
+      {!loading && !hasAnyRecords && (
+        <p className="text-sm text-muted-foreground/40 py-1">No missed calls in the last 7 days.</p>
       )}
 
-      {visible.map((item, idx) => (
+      {!loading && hasAnyRecords && count === 0 && filteredUnclassified.length === 0 && hasSearch && (
+        <p className="text-sm text-muted-foreground/40 py-1">No missed-call matches for this search.</p>
+      )}
+
+      {filteredVisible.map((item, idx) => (
         <MissedInboundRow
           key={item.event_id}
           item={item}
@@ -447,7 +466,7 @@ export function MissedInboundQueue({
         />
       ))}
 
-      {unclassified.length > 0 && (
+      {filteredUnclassified.length > 0 && (
         <div className="space-y-1 pt-1">
           <div className="flex items-center gap-1 pb-0.5">
             <HelpCircle className="h-3 w-3 text-foreground/60" />
@@ -455,10 +474,10 @@ export function MissedInboundQueue({
               Answered — not classified
             </span>
             <Badge className="bg-muted/15 text-foreground border-border/25 text-xs h-3.5 px-1 ml-1">
-              {unclassified.length}
+              {filteredUnclassified.length}
             </Badge>
           </div>
-          {unclassified.map((item, idx) => (
+          {filteredUnclassified.map((item, idx) => (
             <UnclassifiedAnsweredRow key={item.event_id} item={item} idx={idx} />
           ))}
         </div>
@@ -485,7 +504,7 @@ export function MissedInboundQueue({
   );
 }
 
-export function MissedInboundQueueAutoLoad() {
+export function MissedInboundQueueAutoLoad({ query = "" }: { query?: string }) {
   const [items, setItems] = useState<MissedInbound[]>([]);
   const [unclassified, setUnclassified] = useState<UnclassifiedAnswered[]>([]);
   const [loading, setLoading] = useState(false);
@@ -496,7 +515,7 @@ export function MissedInboundQueueAutoLoad() {
     setError(null);
     try {
       const headers = await authHeaders();
-      const res = await fetch("/api/dialer/v1/queue", { headers });
+      const res = await fetch("/api/dialer/v1/queue?limit=200", { headers });
       if (res.status === 401) {
         setError("unauthorized");
         setItems([]);
@@ -550,5 +569,5 @@ export function MissedInboundQueueAutoLoad() {
     );
   }
 
-  return <MissedInboundQueue items={items} unclassified={unclassified} loading={loading} onRefresh={() => void load()} />;
+  return <MissedInboundQueue items={items} unclassified={unclassified} loading={loading} onRefresh={() => void load()} query={query} />;
 }

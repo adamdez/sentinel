@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { cn } from "@/lib/utils";
 import { useModal } from "@/providers/modal-provider";
+import { matchesCommunicationSearch } from "@/lib/dialer/communication-search";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -18,6 +19,7 @@ interface SmsThread {
   phone: string;
   leadId: string | null;
   leadName: string | null;
+  propertyAddress: string | null;
   lastMessage: string;
   lastMessageAt: string;
   direction: string;
@@ -716,9 +718,10 @@ function ComposeNew({
 
 interface SmsMessagesPanelProps {
   onCallNumber: (phone: string) => void;
+  query?: string;
 }
 
-export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
+export function SmsMessagesPanel({ onCallNumber, query = "" }: SmsMessagesPanelProps) {
   const { openModal } = useModal();
   const [open, setOpen] = useState(false);
   const [threads, setThreads] = useState<SmsThread[]>([]);
@@ -727,6 +730,14 @@ export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
   const [activePhone, setActivePhone] = useState<string | null>(null);
   const [composing, setComposing] = useState(false);
   const prevUnreadRef = useRef(0);
+  const filteredThreads = threads.filter((thread) => matchesCommunicationSearch(query, [
+    thread.phone,
+    thread.leadName,
+    thread.propertyAddress,
+    thread.lastMessage,
+    thread.suggestedLeadName,
+    thread.suggestedPropertyAddress,
+  ]));
 
   const fetchThreads = useCallback(async () => {
     try {
@@ -849,11 +860,16 @@ export function SmsMessagesPanel({ onCallNumber }: SmsMessagesPanelProps) {
               ) : threads.length === 0 ? (
                 <div className="text-center py-6">
                   <MessageSquare className="h-5 w-5 mx-auto text-muted-foreground/20 mb-2" />
-                  <p className="text-xs text-muted-foreground/40">No messages yet</p>
+                  <p className="text-xs text-muted-foreground/40">No messages in the last 7 days</p>
+                </div>
+              ) : filteredThreads.length === 0 ? (
+                <div className="text-center py-6">
+                  <MessageSquare className="h-5 w-5 mx-auto text-muted-foreground/20 mb-2" />
+                  <p className="text-xs text-muted-foreground/40">No SMS matches this search</p>
                 </div>
               ) : (
                 <div className="space-y-0.5 overflow-y-auto" style={{ maxHeight: "60vh" }}>
-                  {threads.map((thread) => (
+                  {filteredThreads.map((thread) => (
                     <ThreadRow
                       key={thread.phone}
                       thread={thread}
