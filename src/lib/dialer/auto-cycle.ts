@@ -98,12 +98,12 @@ function getPacificOffsetMinutes(date: Date): number {
     hour: "2-digit",
   });
   const timeZoneName = formatter.formatToParts(date).find((part) => part.type === "timeZoneName")?.value ?? "GMT-8";
-  const match = timeZoneName.match(/^GMT(?:(?<sign>[+-])(?<hours>\d{1,2})(?::(?<minutes>\d{2}))?)?$/);
-  if (!match?.groups?.sign) return 0;
+  const match = timeZoneName.match(/^GMT(?:([-+])(\d{1,2})(?::(\d{2}))?)?$/);
+  if (!match?.[1]) return 0;
 
-  const hours = Number(match.groups.hours ?? "0");
-  const minutes = Number(match.groups.minutes ?? "0");
-  const direction = match.groups.sign === "-" ? -1 : 1;
+  const hours = Number(match[2] ?? "0");
+  const minutes = Number(match[3] ?? "0");
+  const direction = match[1] === "-" ? -1 : 1;
   return direction * (hours * 60 + minutes);
 }
 

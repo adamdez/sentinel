@@ -76,7 +76,7 @@ function normalizeRelatedContacts(value: unknown): RelatedContact[] {
       return [];
     }
 
-    const attachments = Array.isArray(entry.attachments)
+    const attachments: RelatedContactAttachment[] = Array.isArray(entry.attachments)
       ? entry.attachments.flatMap((attachment) => {
         if (!isRecord(attachment)) return [];
         if (
@@ -91,7 +91,7 @@ function normalizeRelatedContacts(value: unknown): RelatedContact[] {
           return [];
         }
 
-        return [{
+        const normalizedAttachment: RelatedContactAttachment = {
           id: attachment.id,
           name: attachment.name,
           mime_type: attachment.mime_type,
@@ -99,7 +99,9 @@ function normalizeRelatedContacts(value: unknown): RelatedContact[] {
           storage_path: attachment.storage_path,
           kind: attachment.kind,
           created_at: attachment.created_at,
-        }];
+        };
+
+        return [normalizedAttachment];
       })
       : [];
 
@@ -651,7 +653,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
 
     setRelatedDraft((prev) => {
       if (!prev) return prev;
-      const pendingAttachments = selectedFiles.map((file) => ({
+      const pendingAttachments: PendingAttachment[] = selectedFiles.map((file) => ({
         id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${file.name}`,
         file,
         kind: file.type.startsWith("image/") ? "image" : "file",
@@ -1628,12 +1630,12 @@ function RelatedContactsWorkspace({
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 text-sm">
-                {contact.phone && (
-                  <>
-                    <button type="button" onClick={() => onDial(contact.phone)} disabled={calling} className="h-7 px-2 rounded-md text-sm font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors disabled:opacity-30 flex items-center gap-1">
+                  {contact.phone && (
+                    <>
+                    <button type="button" onClick={() => onDial(contact.phone!)} disabled={calling} className="h-7 px-2 rounded-md text-sm font-semibold bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 transition-colors disabled:opacity-30 flex items-center gap-1">
                       <Phone className="h-3 w-3" />Dial
                     </button>
-                    <button type="button" onClick={() => onSms(contact.phone)} className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground border border-border/20 hover:bg-muted/20 transition-colors flex items-center gap-1">
+                    <button type="button" onClick={() => onSms(contact.phone!)} className="h-7 px-2 rounded-md text-sm font-semibold bg-muted/10 text-foreground border border-border/20 hover:bg-muted/20 transition-colors flex items-center gap-1">
                       <MessageSquare className="h-3 w-3" />Text
                     </button>
                     <span className="inline-flex items-center gap-1 text-muted-foreground/70"><Phone className="h-3 w-3" />{contact.phone}</span>
