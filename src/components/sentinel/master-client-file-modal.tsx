@@ -299,6 +299,7 @@ import {
   type CrawlStep,
 
 } from "./master-client-file/client-file-panels";
+import { mergeClientFileState } from "./master-client-file/client-file-state";
 
 import { ContactTab } from "./master-client-file/contact-tab";
 
@@ -4436,34 +4437,6 @@ interface MasterClientFileModalProps {
 
 
 
-function mergeClientFileState(
-
-  base: ClientFile | null,
-
-  patch: Partial<ClientFile> | null,
-
-  ownerFlagsOverride: Record<string, unknown> | null,
-
-): ClientFile | null {
-
-  if (!base) return null;
-
-  if (!patch && !ownerFlagsOverride) return base;
-
-  return {
-
-    ...base,
-
-    ...(patch ?? {}),
-
-    ownerFlags: ownerFlagsOverride ?? patch?.ownerFlags ?? base.ownerFlags,
-
-  };
-
-}
-
-
-
 function readResponseString(payload: Record<string, unknown>, key: string): string | null | undefined {
 
   if (!Object.prototype.hasOwnProperty.call(payload, key)) return undefined;
@@ -4726,12 +4699,15 @@ export function MasterClientFileModal({
 
   const deepCrawlCheckedRef = useRef<string | null>(null);
   const lastCloseoutSignalRef = useRef(openCloseoutComposerSignal ?? 0);
+  const applyClientFilePatch = useCallback((patch: Partial<ClientFile>) => {
+    setClientFilePatch((prev) => ({ ...(prev ?? {}), ...patch }));
+  }, []);
 
   const clientFile = useMemo(
 
-    () => mergeClientFileState(incomingClientFile, clientFilePatch, ownerFlagsOverride),
+    () => mergeClientFileState(incomingClientFile, clientFilePatch, ownerFlagsOverride, leadPhones),
 
-    [incomingClientFile, clientFilePatch, ownerFlagsOverride],
+    [incomingClientFile, clientFilePatch, leadPhones, ownerFlagsOverride],
 
   );
 
@@ -9525,7 +9501,7 @@ export function MasterClientFileModal({
 
                     {activeTab === "contact" && (
 
-                      <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceError={skipTraceError} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} leadPhones={leadPhones} phonesLoading={phonesLoading} onRefreshLeadPhones={refreshLeadPhones} />
+                      <ContactTab cf={clientFile} overlay={overlay} onSkipTrace={handleSkipTrace} skipTracing={skipTracing} skipTraceResult={skipTraceResult} skipTraceError={skipTraceError} onDial={handleDial} onSms={handleSendSms} calling={calling} onRefresh={onRefresh} onPatched={applyClientFilePatch} leadPhones={leadPhones} phonesLoading={phonesLoading} onRefreshLeadPhones={refreshLeadPhones} />
 
                     )}
 
@@ -9741,7 +9717,7 @@ export function MasterClientFileModal({
               onClose={() => setEditOpen(false)}
 
               onSaved={(patch) => {
-                setClientFilePatch((prev) => ({ ...(prev ?? {}), ...patch }));
+                applyClientFilePatch(patch);
                 onRefresh?.();
               }}
 

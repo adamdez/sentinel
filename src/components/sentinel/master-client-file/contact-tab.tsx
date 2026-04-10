@@ -30,13 +30,15 @@ import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
 import { SkipTraceStatusControl } from "@/components/sentinel/skip-trace-status-control";
 import type { PhoneDetail, EmailDetail, SkipTraceOverlay, SkipTraceError } from "./contact-types";
 import type { LeadPhone } from "@/lib/dialer/types";
+import { buildClientFilePatchFromPropertyRecord } from "./client-file-state";
 
-export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceResult, skipTraceError, onDial, onSms, calling, onRefresh, leadPhones, phonesLoading, onRefreshLeadPhones }: {
+export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceResult, skipTraceError, onDial, onSms, calling, onRefresh, onPatched, leadPhones, phonesLoading, onRefreshLeadPhones }: {
   cf: ClientFile; overlay: SkipTraceOverlay | null;
   onSkipTrace: () => void; skipTracing: boolean;
   skipTraceResult?: string | null; skipTraceError?: SkipTraceError | null;
   onDial: (phone: string) => void; onSms: (phone: string) => void;
   calling: boolean; onRefresh?: () => void;
+  onPatched?: (patch: Partial<ClientFile>) => void;
   leadPhones: LeadPhone[];
   phonesLoading: boolean;
   onRefreshLeadPhones: () => Promise<void>;
@@ -169,7 +171,7 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
   const importEmails = (cf.ownerFlags?.import_emails as string[] | undefined) ?? [];
 
   // Dynamic phone slots — show all returned phones, minimum 5 empty slots
-  const initialPhones = (() => {
+  const initialPhones = useMemo(() => {
     const phones: string[] = [];
     const seen = new Set<string>();
     const addUnique = (num: string) => {
@@ -182,11 +184,11 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
     const MIN_PHONE_SLOTS = 5;
     while (phones.length < MIN_PHONE_SLOTS) phones.push("");
     return phones;
-  })();
+  }, [cf.ownerPhone, importPhones, phoneDetails]);
   const [phoneSlots, setPhoneSlots] = useState<string[]>(initialPhones);
 
   // Dynamic email slots — show all returned emails, minimum 2 empty slots
-  const initialEmails = (() => {
+  const initialEmails = useMemo(() => {
     const emails: string[] = [];
     const seen = new Set<string>();
     const addUnique = (em: string) => {
@@ -199,31 +201,27 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
     const MIN_EMAIL_SLOTS = 2;
     while (emails.length < MIN_EMAIL_SLOTS) emails.push("");
     return emails;
-  })();
+  }, [cf.ownerEmail, emailDetails, importEmails]);
   const [emailSlots, setEmailSlots] = useState<string[]>(initialEmails);
 
-  // Re-sync when overlay updates (after enrichment)
   useEffect(() => {
-    if (overlay) {
-      const newPhones: string[] = [];
-      if (overlay.phoneDetails) {
-        for (const pd of overlay.phoneDetails) newPhones.push(pd.number);
-      } else if (overlay.phones) {
-        for (const ph of overlay.phones) newPhones.push(ph);
-      }
-      while (newPhones.length < 5) newPhones.push("");
-      setPhoneSlots(newPhones);
+    if (editing) return;
+    setPropertyAddr(cf.address ?? "");
+    setPropertyCity(cf.city ?? "");
+    setPropertyState(cf.state ?? "");
+    setPropertyZip(cf.zip ?? "");
+    setMailingAddr(defaultMailing);
+  }, [cf.address, cf.city, cf.state, cf.zip, defaultMailing, editing]);
 
-      const newEmails: string[] = [];
-      if (overlay.emailDetails) {
-        for (const ed of overlay.emailDetails) newEmails.push(ed.email);
-      } else if (overlay.emails) {
-        for (const em of overlay.emails) newEmails.push(em);
-      }
-      while (newEmails.length < 2) newEmails.push("");
-      setEmailSlots(newEmails);
-    }
-  }, [overlay]);
+  useEffect(() => {
+    if (editing) return;
+    setPhoneSlots(initialPhones);
+  }, [editing, initialPhones]);
+
+  useEffect(() => {
+    if (editing) return;
+    setEmailSlots(initialEmails);
+  }, [editing, initialEmails]);
 
   const updatePhone = (i: number, val: string) => {
     setPhoneSlots((prev) => { const next = [...prev]; next[i] = val; return next; });
@@ -298,6 +296,25 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
         throw new Error(data.detail ?? data.error ?? `HTTP ${res.status}`);
       }
 
+      const property = data.property && typeof data.property === "object" ? data.property as Record<string, unknown> : null;
+      onPatched?.(buildClientFilePatchFromPropertyRecord({
+        property,
+        fallback: {
+          address: propertyAddr.trim() || null,
+          city: propertyCity.trim() || null,
+          state: propertyState.trim() || null,
+          zip: propertyZip.trim() || null,
+          ownerPhone: filledPhones[0] || null,
+          ownerEmail: filledEmails[0] || null,
+          ownerFlags: {
+            ...(cf.ownerFlags ?? {}),
+            mailing_address: mailingAddr.trim() || null,
+            manual_phones: filledPhones,
+            manual_emails: filledEmails,
+            contact_updated_at: new Date().toISOString(),
+          },
+        },
+      }));
       toast.success("Contact info saved");
       setEditing(false);
       onRefresh?.();

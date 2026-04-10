@@ -75,6 +75,13 @@ import { deriveSkipGenieMarker } from "@/lib/skip-genie";
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
 import { SkipTraceStatusControl } from "@/components/sentinel/skip-trace-status-control";
+import { useIdleRailAttention } from "@/hooks/use-idle-rail-attention";
+import {
+  buildDialerQueueCollections,
+  findRefreshedDialerLead,
+  selectFallbackDialerLead,
+  selectInitialDialerLead,
+} from "@/lib/dialer/dialer-ui-state";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -91,22 +98,6 @@ type DialerStats = {
   teamOutbound: number;
   teamInbound: number;
 };
-
-type IdleRailAttentionState = {
-  hasUnreadSms: boolean;
-  hasMissedQueueItems: boolean;
-};
-
-type SmsThreadsAttentionResponse = {
-  totalUnread?: number;
-};
-
-type QueueAttentionResponse = {
-  missed_inbound?: unknown[];
-  unclassified_answered?: unknown[];
-};
-
-const IDLE_RAIL_ATTENTION_REFRESH_MS = 10_000;
 
 async function fetchDialerKpis(
   _userId: string,
@@ -1080,15 +1071,24 @@ function DialerPageInner() {
   const [pendingAutoDialLeadId, setPendingAutoDialLeadId] = useState<string | null>(null);
   const [powerDialPaused, setPowerDialPaused] = useState(false);
   const [powerDialStarting, setPowerDialStarting] = useState(false);
-  const readyAutoCycleQueue = useMemo(
-    () => autoCycleQueue.filter((lead) => lead.autoCycle.readyNow),
-    [autoCycleQueue],
+  const {
+    displayedQueue,
+    executionQueue,
+    preferredQueue,
+    displayedQueueLoading,
+    powerDialReadyQueueExhausted,
+  } = useMemo(
+    () =>
+      buildDialerQueueCollections({
+        autoCycleMode,
+        queue,
+        queueLoading,
+        autoCycleQueue,
+        autoCycleQueueLoading,
+        isReadyLead: (lead) => !isAutoCycleQueueLead(lead) || lead.autoCycle.readyNow,
+      }),
+    [autoCycleMode, autoCycleQueue, autoCycleQueueLoading, queue, queueLoading],
   );
-  const displayedQueue: DialerQueueLead[] = autoCycleMode ? autoCycleQueue : queue;
-  const executionQueue: DialerQueueLead[] = autoCycleMode ? readyAutoCycleQueue : queue;
-  const powerDialReadyQueueExhausted = autoCycleMode && executionQueue.length === 0;
-  const displayedQueueLoading = autoCycleMode ? autoCycleQueueLoading : queueLoading;
-  const preferredQueue = executionQueue.length > 0 ? executionQueue : displayedQueue;
   const currentAutoCycleLead = isAutoCycleQueueLead(currentLead) ? currentLead : null;
   const phoneSelection = useMemo(
     () =>
@@ -1157,6 +1157,12 @@ function DialerPageInner() {
   const { history: callHistory, loading: historyLoading } = useCallHistory(currentUser.id, 30);
   const [historyFilter, setHistoryFilter] = useState<"all" | "outbound" | "inbound">("all");
   const [idleRailTab, setIdleRailTab] = useState<"missed" | "history" | "sms">("history");
+  const {
+    state: idleRailAttentionState,
+    hasMissedAttention,
+    recordLocalMissedCall,
+    clearLocalMissedAttention,
+  } = useIdleRailAttention({ getHeaders: authHeaders });
   useCoachSurface("dialer", {});
   const [fileModalOpen, setFileModalOpen] = useState(false);
   const [openCloseoutSignal, setOpenCloseoutSignal] = useState(0);
@@ -1428,11 +1434,6 @@ function DialerPageInner() {
 
   // Missed calls
   const [missedCalls, setMissedCalls] = useState<Array<{ phone: string; time: string; id: string }>>([]);
-  const [idleRailAttention, setIdleRailAttention] = useState<IdleRailAttentionState>({
-    hasUnreadSms: false,
-    hasMissedQueueItems: false,
-  });
-  const idleRailAttentionRefreshRef = useRef(false);
 
   // Twilio diagnostics + real-time call status
   const [currentCallSid, setCurrentCallSid] = useState<string | null>(null);
@@ -1445,7 +1446,7 @@ function DialerPageInner() {
 
   useEffect(() => {
     if (!currentLead) {
-      const nextLead = autoCycleMode ? (executionQueue[0] ?? null) : (preferredQueue[0] ?? null);
+      const nextLead = selectInitialDialerLead(autoCycleMode, executionQueue, preferredQueue);
       if (!nextLead) return;
       setCurrentLead(nextLead);
       setPhoneIndex(0);
@@ -1455,13 +1456,18 @@ function DialerPageInner() {
   useEffect(() => {
     if (!currentLead) return;
     if (displayedQueue.some((lead) => lead.id === currentLead.id)) return;
-    if (fileModalOpen) return;
+    const nextLead = selectFallbackDialerLead({
+      autoCycleMode,
+      displayedQueue,
+      executionQueue,
+      preferredQueue,
+      fileModalOpen,
+    });
+    if (nextLead === null && fileModalOpen) return;
+    setCurrentLead(nextLead);
     if (autoCycleMode) {
-      setCurrentLead(executionQueue[0] ?? null);
       setPhoneIndex(0);
-      return;
     }
-    setCurrentLead(preferredQueue[0] ?? displayedQueue[0] ?? null);
   }, [autoCycleMode, displayedQueue, executionQueue, preferredQueue, currentLead, fileModalOpen]);
 
   // Keep activeCallRef in sync for polling callback closures
@@ -1495,9 +1501,7 @@ function DialerPageInner() {
   const currentLeadIdRef = useRef(currentLead?.id);
   currentLeadIdRef.current = currentLead?.id;
   useEffect(() => {
-    const id = currentLeadIdRef.current;
-    if (!id) return;
-    const refreshedLead = displayedQueue.find((lead) => lead.id === id);
+    const refreshedLead = findRefreshedDialerLead(displayedQueue, currentLeadIdRef.current);
     if (refreshedLead) {
       setCurrentLead(refreshedLead);
     }
@@ -1517,72 +1521,9 @@ function DialerPageInner() {
   }, [refetchAutoCycleQueue, refetchQueue]);
 
   useEffect(() => {
-    let isActive = true;
-
-    const refreshIdleRailAttention = async () => {
-      if (idleRailAttentionRefreshRef.current) return;
-      idleRailAttentionRefreshRef.current = true;
-
-      try {
-        const headers = await authHeaders();
-        const [smsResult, queueResult] = await Promise.allSettled([
-          fetch("/api/twilio/sms/threads", { headers, cache: "no-store" }),
-          fetch("/api/dialer/v1/queue?limit=1", { headers, cache: "no-store" }),
-        ]);
-
-        let hasUnreadSms = false;
-        let hasMissedQueueItems = false;
-
-        if (smsResult.status === "fulfilled") {
-          if (smsResult.value.ok) {
-            const smsData = await smsResult.value.json() as SmsThreadsAttentionResponse;
-            hasUnreadSms = (smsData.totalUnread ?? 0) > 0;
-          } else {
-            console.warn("[Dialer] Failed to refresh SMS attention state:", smsResult.value.status);
-          }
-        } else {
-          console.warn("[Dialer] Failed to refresh SMS attention state:", smsResult.reason);
-        }
-
-        if (queueResult.status === "fulfilled") {
-          if (queueResult.value.ok) {
-            const queueData = await queueResult.value.json() as QueueAttentionResponse;
-            hasMissedQueueItems =
-              (queueData.missed_inbound?.length ?? 0) > 0
-              || (queueData.unclassified_answered?.length ?? 0) > 0;
-          } else {
-            console.warn("[Dialer] Failed to refresh missed attention state:", queueResult.value.status);
-          }
-        } else {
-          console.warn("[Dialer] Failed to refresh missed attention state:", queueResult.reason);
-        }
-
-        if (!isActive) return;
-
-        setIdleRailAttention((previous) => (
-          previous.hasUnreadSms === hasUnreadSms
-          && previous.hasMissedQueueItems === hasMissedQueueItems
-            ? previous
-            : {
-                hasUnreadSms,
-                hasMissedQueueItems,
-              }
-        ));
-      } finally {
-        idleRailAttentionRefreshRef.current = false;
-      }
-    };
-
-    void refreshIdleRailAttention();
-    const interval = window.setInterval(() => {
-      void refreshIdleRailAttention();
-    }, IDLE_RAIL_ATTENTION_REFRESH_MS);
-
-    return () => {
-      isActive = false;
-      window.clearInterval(interval);
-    };
-  }, []);
+    if (idleRailTab !== "missed") return;
+    clearLocalMissedAttention();
+  }, [clearLocalMissedAttention, idleRailTab]);
 
   const selectLeadPhone = useCallback(async (index: number) => {
     const nextPhone = activeLeadPhones[index] ?? null;
@@ -2104,6 +2045,7 @@ function DialerPageInner() {
         incomingAudioRef.current?.pause();
         if (fromNumber) {
           setMissedCalls((prev) => [{ phone: fromNumber, time: new Date().toISOString(), id: crypto.randomUUID() }, ...prev.slice(0, 9)]);
+          recordLocalMissedCall();
         }
       });
       call.on("disconnect", () => {
@@ -2451,6 +2393,7 @@ function DialerPageInner() {
     incomingCall.reject();
     if (incomingFrom) {
       setMissedCalls((prev) => [{ phone: incomingFrom!, time: new Date().toISOString(), id: crypto.randomUUID() }, ...prev.slice(0, 9)]);
+      recordLocalMissedCall();
     }
     setIncomingCall(null);
     setIncomingFrom(null);
@@ -5017,10 +4960,10 @@ function DialerPageInner() {
                       {
                         key: "missed" as const,
                         label: "Missed",
-                        attention: idleRailAttention.hasMissedQueueItems || missedCalls.length > 0,
+                        attention: hasMissedAttention,
                       },
                       { key: "history" as const, label: "History", attention: false },
-                      { key: "sms" as const, label: "SMS", attention: idleRailAttention.hasUnreadSms },
+                      { key: "sms" as const, label: "SMS", attention: idleRailAttentionState.hasUnreadSms },
                     ] as const).map(({ key, label, attention }) => (
                       <button
                         key={key}

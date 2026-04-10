@@ -18,7 +18,8 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { useDealBuyers } from "@/hooks/use-buyers";
 import { dealBuyerStatusLabel } from "@/lib/buyer-types";
-import { buildAddress, type ClientFile } from "../master-client-file-helpers";
+import { type ClientFile } from "../master-client-file-helpers";
+import { buildClientFilePatchFromPropertyRecord } from "./client-file-state";
 
 // ── EditField ─────────────────────────────────────────────────────────────────
 
@@ -140,28 +141,26 @@ export function EditDetailsModal({
         setError(data.error ?? "Update failed");
         return;
       }
-      const property = data.property && typeof data.property === "object" ? data.property as Record<string, unknown> : null;
-      const nextAddress = typeof property?.address === "string" ? property.address : street;
-      const nextCity = typeof property?.city === "string" ? property.city : city;
-      const nextState = typeof property?.state === "string" ? property.state : state;
-      const nextZip = typeof property?.zip === "string" ? property.zip : zip;
       window.dispatchEvent(new CustomEvent("sentinel:refresh-dashboard"));
-      onSaved({
-        address: nextAddress,
-        city: nextCity,
-        state: nextState,
-        zip: nextZip,
-        fullAddress: buildAddress(nextAddress, nextCity, nextState, nextZip),
-        ownerName: typeof property?.owner_name === "string" ? property.owner_name : ownerName,
-        apn: typeof property?.apn === "string" ? property.apn : apn,
-        propertyType: typeof property?.property_type === "string" ? property.property_type : (propertyType || null),
-        notes: notes || null,
-        bedrooms: typeof property?.bedrooms === "number" ? property.bedrooms : (fields.bedrooms ? parseInt(fields.bedrooms, 10) : null),
-        bathrooms: typeof property?.bathrooms === "number" ? property.bathrooms : (fields.bathrooms ? parseFloat(fields.bathrooms) : null),
-        sqft: typeof property?.sqft === "number" ? property.sqft : (fields.sqft ? parseInt(fields.sqft, 10) : null),
-        yearBuilt: typeof property?.year_built === "number" ? property.year_built : (fields.year_built ? parseInt(fields.year_built, 10) : null),
-        lotSize: typeof property?.lot_size === "number" ? property.lot_size : (fields.lot_size ? parseInt(fields.lot_size, 10) : null),
-      });
+      const property = data.property && typeof data.property === "object" ? data.property as Record<string, unknown> : null;
+      onSaved(buildClientFilePatchFromPropertyRecord({
+        property,
+        fallback: {
+          address: street || null,
+          city: city || null,
+          state: state || null,
+          zip: zip || null,
+          ownerName: ownerName || null,
+          apn: apn || null,
+          propertyType: propertyType || null,
+          notes: notes || null,
+          bedrooms: fields.bedrooms ? parseInt(fields.bedrooms, 10) : null,
+          bathrooms: fields.bathrooms ? parseFloat(fields.bathrooms) : null,
+          sqft: fields.sqft ? parseInt(fields.sqft, 10) : null,
+          yearBuilt: fields.year_built ? parseInt(fields.year_built, 10) : null,
+          lotSize: fields.lot_size ? parseInt(fields.lot_size, 10) : null,
+        },
+      }));
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
