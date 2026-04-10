@@ -4666,7 +4666,7 @@ function DialerPageInner() {
                         const countyKey = typeof currentLead.properties?.county === "string"
                           ? currentLead.properties.county.trim().toLowerCase()
                           : "";
-                        const scoutParcelUrl = displayParcel && countyKey === "spokane"
+                        const scoutParcelUrl = displayParcel && countyKey.includes("spokane")
                           ? COUNTY_LINKS.spokane.assessor(displayParcel)
                           : null;
                         return (
