@@ -628,7 +628,7 @@ export function PostCallPanel({
     // Keep lead_phones in sync with call outcomes so both dialer modes and the
     // client file immediately agree on the winning or dead number.
     if (
-      ((dispo === "dead_phone" || dispo === "wrong_number" || dispo === "disconnected") || POSITIVE_CALLBACK_DISPOS.has(dispo))
+      ((dispo === "dead_phone" || dispo === "wrong_number" || dispo === "disconnected" || dispo === "do_not_call") || POSITIVE_CALLBACK_DISPOS.has(dispo))
       && leadId
       && phoneNumber
     ) {
@@ -643,7 +643,9 @@ export function PostCallPanel({
           if (match) {
             const phonePatch = POSITIVE_CALLBACK_DISPOS.has(dispo)
               ? { mark_primary: true }
-              : { status: "dead", dead_reason: dispo === "wrong_number" ? "wrong_number" : "disconnected" };
+              : dispo === "do_not_call"
+                ? { status: "dnc" }
+                : { status: "dead", dead_reason: dispo === "wrong_number" ? "wrong_number" : "disconnected" };
             await fetch(`/api/leads/${leadId}/phones/${match.id}`, {
               method: "PATCH",
               headers: hdrs,

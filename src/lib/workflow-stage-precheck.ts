@@ -33,6 +33,7 @@ export interface WorkflowStagePrecheckInput {
   nextCallScheduledAt?: string | null;
   nextFollowUpAt?: string | null;
   qualificationRoute?: QualificationRoute | null;
+  nextAction?: string | null;
   notes?: string | null;
   noteDraft?: string | null;
   hasActivityNoteContext?: boolean;
@@ -50,6 +51,15 @@ function hasMeaningfulText(value: string | null | undefined, minLen = 12): boole
 
 function hasAnyText(value: string | null | undefined): boolean {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function hasNurtureIntentSignal(
+  qualificationRoute: QualificationRoute | null | undefined,
+  nextAction: string | null | undefined,
+): boolean {
+  if (qualificationRoute === "nurture") return true;
+  if (typeof nextAction !== "string") return false;
+  return nextAction.trim().toLowerCase().includes("nurture");
 }
 
 function stageLabel(status: LeadStatus): string {
@@ -121,15 +131,14 @@ export function precheckWorkflowStageChange(input: WorkflowStagePrecheckInput): 
   if (input.targetStatus === "nurture") {
     const actions: string[] = [];
     if (!hasNextAction) {
-      actions.push("Set Next Action/Callback before moving to Nurture.");
+      actions.push("Move to Nurture requires a nurture follow-up date. Set the nurture callback first.");
     }
-    const hasNurtureContext =
-      input.qualificationRoute === "nurture"
-      || input.qualificationRoute === "follow_up"
-      || hasDispositionContext
-      || hasNoteContext;
+    if (!hasNurtureIntentSignal(input.qualificationRoute, input.nextAction)) {
+      actions.push("Choose a nurture next step before moving to Nurture. Generic callbacks do not qualify.");
+    }
+    const hasNurtureContext = hasDispositionContext || hasNoteContext;
     if (!hasNurtureContext) {
-      actions.push("Add context (qualification route, disposition outcome, or note) before moving to Nurture.");
+      actions.push("Move to Nurture requires context. Add a disposition outcome or note explaining the nurture reason.");
     }
     return buildResult(actions);
   }

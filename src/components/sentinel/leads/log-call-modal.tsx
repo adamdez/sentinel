@@ -12,7 +12,7 @@ const DISPOSITIONS = [
   { value: "callback", label: "Callback Requested" },
   { value: "not_interested", label: "Not Interested" },
   { value: "wrong_number", label: "Wrong Number" },
-  { value: "dead", label: "Dead / Disconnected" },
+  { value: "disconnected", label: "Disconnected" },
   { value: "nurture", label: "Nurture / Follow Up" },
 ] as const;
 

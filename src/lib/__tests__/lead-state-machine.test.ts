@@ -158,6 +158,7 @@ describe("evaluateStageEntryPrerequisites", () => {
     effectiveNextCallAt: null,
     effectiveNextFollowUpAt: null,
     nextQualificationRoute: null,
+    nextAction: null,
     noteAppendText: "",
     existingNotes: null,
     hasActivityNoteContext: false,
@@ -250,6 +251,7 @@ describe("evaluateStageEntryPrerequisites", () => {
       targetStatus: "nurture",
       effectiveNextFollowUpAt: "2026-04-01T12:00:00Z",
       nextQualificationRoute: null,
+      nextAction: "Call back next quarter",
       noteAppendText: "",
       dispositionCode: null,
     });
@@ -262,6 +264,32 @@ describe("evaluateStageEntryPrerequisites", () => {
       targetStatus: "nurture",
       effectiveNextFollowUpAt: "2026-04-01T12:00:00Z",
       nextQualificationRoute: "nurture",
+      nextAction: "Nurture check-in in 90 days",
+      noteAppendText: "Seller wants us to circle back once family timing is clearer.",
+    });
+    expect(err).toBeNull();
+  });
+
+  it("blocks nurture when the next step is a generic callback", () => {
+    const err = evaluateStageEntryPrerequisites({
+      ...base,
+      targetStatus: "nurture",
+      effectiveNextFollowUpAt: "2026-10-01T12:00:00Z",
+      nextQualificationRoute: null,
+      nextAction: "Call seller back in 6 months",
+      noteAppendText: "Family asked us to revisit the property later this year.",
+    });
+    expect(err).toContain("nurture next step");
+  });
+
+  it("allows nurture with nurture-specific next step and note context", () => {
+    const err = evaluateStageEntryPrerequisites({
+      ...base,
+      targetStatus: "nurture",
+      effectiveNextFollowUpAt: "2026-10-01T12:00:00Z",
+      nextQualificationRoute: null,
+      nextAction: "Nurture check-in in 6 months",
+      noteAppendText: "Family requested a six-month follow-up after probate work settles.",
     });
     expect(err).toBeNull();
   });

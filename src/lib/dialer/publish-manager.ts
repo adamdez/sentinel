@@ -331,7 +331,8 @@ export async function publishSession(
     }
 
     // Task-first follow-up: next_action becomes a canonical call-driving task.
-    if (input.next_action) {
+    // Disposition-driven callback/appointment writes own the canonical task path below.
+    if (input.next_action && !TASK_DISPOSITIONS.has(input.disposition)) {
       try {
         const { upsertLeadCallTask } = await import("@/lib/task-lead-sync");
         await upsertLeadCallTask({

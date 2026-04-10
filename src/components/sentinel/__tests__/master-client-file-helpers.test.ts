@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  CLOSEOUT_PRESET_GROUPS,
+  CLOSEOUT_PRESETS,
   clientFileFromLead,
   clientFileFromProspect,
   clientFileFromRaw,
   closeoutSuccessMessage,
+  closeoutNextActionText,
   deriveSkipTraceUiState,
   OUTCOME_PRESET_DEFAULTS,
+  resolveCloseoutPresetDateTimeLocal,
   routeForCloseoutAction,
 } from "@/components/sentinel/master-client-file-helpers";
 
@@ -346,10 +350,38 @@ describe("client file pin state adapters", () => {
   it("maps closeout actions to explicit dead and active routes", () => {
     expect(routeForCloseoutAction("mark_dead")).toBe("dead");
     expect(routeForCloseoutAction("move_active")).toBe("follow_up");
+    expect(routeForCloseoutAction("nurture_check_in")).toBe("nurture");
   });
 
   it("uses explicit success labels for terminal and active closeouts", () => {
     expect(closeoutSuccessMessage("mark_dead")).toBe("Marked Dead");
     expect(closeoutSuccessMessage("move_active")).toBe("Moved to Active");
+  });
+
+  it("defines grouped closeout presets for retry, field, stage, and terminal flows", () => {
+    expect(CLOSEOUT_PRESET_GROUPS.map((group) => group.id)).toEqual([
+      "retry_call",
+      "field_follow_up",
+      "stage_transitions",
+      "terminal",
+    ]);
+    expect(CLOSEOUT_PRESET_GROUPS.find((group) => group.id === "stage_transitions")?.presetIds).toEqual([
+      "move_active",
+      "nurture_30_days",
+      "nurture_90_days",
+      "nurture_6_months",
+    ]);
+  });
+
+  it("uses nurture-specific next action text for nurture presets", () => {
+    expect(closeoutNextActionText("nurture_check_in", "nurture_30_days")).toBe("Nurture check-in in 30 days");
+    expect(closeoutNextActionText("nurture_check_in", "nurture_90_days")).toBe("Nurture check-in in 90 days");
+    expect(closeoutNextActionText("nurture_check_in", "nurture_6_months")).toBe("Nurture check-in in 6 months");
+  });
+
+  it("resolves a six-month nurture preset using a calendar-month offset", () => {
+    const nurtureSixMonths = CLOSEOUT_PRESETS.find((preset) => preset.id === "nurture_6_months");
+    expect(nurtureSixMonths).toBeTruthy();
+    expect(resolveCloseoutPresetDateTimeLocal(nurtureSixMonths!)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
   });
 });

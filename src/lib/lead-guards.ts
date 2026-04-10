@@ -17,6 +17,7 @@ export type StageEntryPrereqInput = {
   effectiveNextCallAt: string | null;
   effectiveNextFollowUpAt: string | null;
   nextQualificationRoute: QualificationRoute | null;
+  nextAction: string | null;
   noteAppendText: string;
   existingNotes: string | null;
   hasActivityNoteContext: boolean;
@@ -32,6 +33,15 @@ const DEAD_DISPOSITION_SIGNALS = new Set([
   "not_interested",
   "not_qualified",
 ]);
+
+function hasNurtureIntentSignal(
+  qualificationRoute: QualificationRoute | null,
+  nextAction: string | null,
+): boolean {
+  if (qualificationRoute === "nurture") return true;
+  if (typeof nextAction !== "string") return false;
+  return nextAction.trim().toLowerCase().includes("nurture");
+}
 
 export function evaluateStageEntryPrerequisites(input: StageEntryPrereqInput): string | null {
   const hasExistingNotes = typeof input.existingNotes === "string" && input.existingNotes.trim().length > 0;
@@ -58,15 +68,13 @@ export function evaluateStageEntryPrerequisites(input: StageEntryPrereqInput): s
 
   if (input.targetStatus === "nurture") {
     if (!input.effectiveNextCallAt && !input.effectiveNextFollowUpAt) {
-      return "Move to Nurture requires a next follow-up date. Set Next Action/Callback first.";
+      return "Move to Nurture requires a nurture follow-up date. Set the nurture callback first.";
     }
-    const hasNurtureReason =
-      input.nextQualificationRoute === "nurture"
-      || input.nextQualificationRoute === "follow_up"
-      || hasDispositionSignal
-      || hasNoteContext;
-    if (!hasNurtureReason) {
-      return "Move to Nurture requires context. Set a qualification route, add disposition context, or add a note.";
+    if (!hasNurtureIntentSignal(input.nextQualificationRoute, input.nextAction)) {
+      return "Move to Nurture requires a nurture next step. Generic callbacks do not qualify.";
+    }
+    if (!hasDispositionSignal && !hasNoteContext) {
+      return "Move to Nurture requires context. Add a disposition outcome or note explaining the nurture reason.";
     }
   }
 

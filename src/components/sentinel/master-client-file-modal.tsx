@@ -225,6 +225,8 @@ import {
 
   presetDateTimeLocal,
 
+  resolveCloseoutPresetDateTimeLocal,
+
   routeForCloseoutAction,
 
   closeoutActionLabel,
@@ -251,6 +253,8 @@ import {
   parseSuggestedRoute,
 
   CALL_OUTCOME_OPTIONS,
+
+  CLOSEOUT_PRESET_GROUPS,
 
   CLOSEOUT_PRESETS,
 
@@ -5931,11 +5935,13 @@ export function MasterClientFileModal({
 
       dispositionCode: clientFile.dispositionCode,
 
-      nextCallScheduledAt: clientFile.nextCallScheduledAt,
+      nextCallScheduledAt: stageNextActionDueAt || clientFile.nextCallScheduledAt,
 
-      nextFollowUpAt: clientFile.followUpDate,
+      nextFollowUpAt: stageNextActionDueAt || clientFile.followUpDate,
 
       qualificationRoute: clientFile.qualificationRoute,
+
+      nextAction: stageNextAction.trim() || clientFile.nextAction,
 
       notes: clientFile.notes,
 
@@ -7264,16 +7270,7 @@ export function MasterClientFileModal({
     setCloseoutPreset(preset.id);
 
     setCloseoutAction(preset.action);
-
-    if (preset.daysFromNow != null) {
-
-      setCloseoutAt(presetDateTimeLocal(preset.daysFromNow));
-
-    } else {
-
-      setCloseoutAt("");
-
-    }
+    setCloseoutAt(resolveCloseoutPresetDateTimeLocal(preset));
 
   }, []);
 
@@ -7329,7 +7326,7 @@ export function MasterClientFileModal({
 
 
 
-    const hasNextActionWrite = closeoutNextActionText(closeoutAction) != null;
+    const hasNextActionWrite = closeoutNextActionText(closeoutAction, closeoutPreset) != null;
 
     if (!outcomeChanged && !shouldSendDueDates && noteText.length === 0 && !routeChanged && !hasNextActionWrite && !shouldForceDeadStatus && !shouldForceActiveStatus) {
 
@@ -7385,6 +7382,10 @@ export function MasterClientFileModal({
 
         payload.disposition_code = normalizedOutcome;
 
+        if (clientFile.ownerPhone) {
+          payload.phone_number = clientFile.ownerPhone;
+        }
+
       }
 
       if (noteText.length > 0) {
@@ -7422,7 +7423,7 @@ export function MasterClientFileModal({
 
       }
 
-      const nextActionText = closeoutNextActionText(closeoutAction);
+      const nextActionText = closeoutNextActionText(closeoutAction, closeoutPreset);
 
       if (nextActionText) {
 
@@ -7499,6 +7500,14 @@ export function MasterClientFileModal({
       setActivityRefreshToken((v) => v + 1);
 
       toast.success(closeoutSuccessMessage(closeoutAction, nextIso));
+
+      if (
+        normalizedOutcome
+        && ["wrong_number", "disconnected", "do_not_call"].includes(normalizedOutcome)
+        && data.phone_outcome_applied !== true
+      ) {
+        toast.warning("Call outcome saved, but Sentinel could not confirm canonical phone deactivation.");
+      }
 
       onRefresh?.();
 
@@ -8335,6 +8344,7 @@ export function MasterClientFileModal({
       nextCallScheduledAt: clientFile.nextCallScheduledAt,
       nextFollowUpAt: clientFile.followUpDate,
       qualificationRoute: clientFile.qualificationRoute,
+      nextAction: clientFile.nextAction,
       notes: clientFile.notes,
       noteDraft,
       hasActivityNoteContext,
@@ -8714,11 +8724,13 @@ export function MasterClientFileModal({
 
     dispositionCode: clientFile.dispositionCode,
 
-    nextCallScheduledAt: clientFile.nextCallScheduledAt,
+    nextCallScheduledAt: stageNextActionDueAt || clientFile.nextCallScheduledAt,
 
-    nextFollowUpAt: clientFile.followUpDate,
+    nextFollowUpAt: stageNextActionDueAt || clientFile.followUpDate,
 
     qualificationRoute: clientFile.qualificationRoute,
+
+    nextAction: stageNextAction.trim() || clientFile.nextAction,
 
     notes: clientFile.notes,
 
@@ -9090,38 +9102,35 @@ export function MasterClientFileModal({
 
                           <p className="text-xs uppercase tracking-wider text-muted-foreground">Next Step</p>
 
-                          <div className="flex flex-wrap gap-1.5">
-
-                            {CLOSEOUT_PRESETS.map((preset) => (
-
-                              <button
-
-                                key={preset.id}
-
-                                type="button"
-
-                                onClick={() => handleCloseoutPresetSelect(preset.id)}
-
-                                className={cn(
-
-                                  "h-6 px-2 rounded-[7px] border text-sm transition-colors",
-
-                                  closeoutPreset === preset.id
-
-                                    ? "border-overlay-40 text-foreground bg-overlay-12"
-
-                                    : "border-overlay-12 text-muted-foreground hover:text-foreground hover:border-white/[0.24]",
-
-                                )}
-
-                              >
-
-                                {preset.label}
-
-                              </button>
-
+                          <div className="space-y-2">
+                            {CLOSEOUT_PRESET_GROUPS.map((group) => (
+                              <div key={group.id} className="space-y-1">
+                                <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/75">
+                                  {group.label}
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {group.presetIds.map((presetId) => {
+                                    const preset = CLOSEOUT_PRESETS.find((item) => item.id === presetId);
+                                    if (!preset) return null;
+                                    return (
+                                      <button
+                                        key={preset.id}
+                                        type="button"
+                                        onClick={() => handleCloseoutPresetSelect(preset.id)}
+                                        className={cn(
+                                          "h-6 px-2 rounded-[7px] border text-sm transition-colors",
+                                          closeoutPreset === preset.id
+                                            ? "border-overlay-40 text-foreground bg-overlay-12"
+                                            : "border-overlay-12 text-muted-foreground hover:text-foreground hover:border-white/[0.24]",
+                                        )}
+                                      >
+                                        {preset.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
                             ))}
-
                           </div>
 
 
@@ -9326,10 +9335,15 @@ export function MasterClientFileModal({
                         onChange={(e) => setStageNextActionDueAt(e.target.value)}
                         className="bg-overlay-4 border border-overlay-10 rounded-md px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary/30"
                       />
+                      {!stagePrecheck.ok && (
+                        <span className="text-[11px] text-amber-300/90">
+                          {stagePrecheck.blockingReason}
+                        </span>
+                      )}
                     </div>
                     <button
                       onClick={handleMoveStage}
-                      disabled={stageUpdating || (transition.requires_next_action && !stageNextAction.trim())}
+                      disabled={stageUpdating || !stagePrecheck.ok || (transition.requires_next_action && !stageNextAction.trim())}
                       className="h-7 px-3 rounded-md text-xs font-bold bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25 transition-colors disabled:opacity-40"
                     >
                       {stageUpdating ? "Moving..." : `Move to ${workflowStageLabel(selectedStage)}`}

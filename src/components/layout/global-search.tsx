@@ -95,6 +95,63 @@ function labelFromScore(n: number): "platinum" | "gold" | "silver" | "bronze" {
   return "bronze";
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function tokenizeQuery(query: string): string[] {
+  return query
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function countWordMatches(text: string, tokens: string[]): number {
+  const lower = text.toLowerCase();
+
+  return tokens.reduce((count, token) => {
+    const pattern = new RegExp(`\\b${escapeRegExp(token)}`, "g");
+    return count + (lower.match(pattern)?.length ?? 0);
+  }, 0);
+}
+
+function countSubstringMatches(text: string, tokens: string[]): number {
+  const lower = text.toLowerCase();
+  return tokens.reduce((count, token) => count + (lower.includes(token) ? 1 : 0), 0);
+}
+
+function rankSearchRecord(record: SearchRecord, query: string): number {
+  const normalizedQuery = query.toLowerCase().trim();
+  if (!normalizedQuery) return 0;
+
+  const tokens = tokenizeQuery(query);
+  const primary = record.primary.toLowerCase();
+  const secondary = record.secondary.toLowerCase();
+
+  let rank = 0;
+
+  if (primary === normalizedQuery) rank += 1000;
+  if (primary.startsWith(normalizedQuery)) rank += 450;
+  if (secondary.startsWith(normalizedQuery)) rank += 120;
+
+  rank += countWordMatches(record.primary, tokens) * 180;
+  rank += countWordMatches(record.secondary, tokens) * 35;
+  rank += countSubstringMatches(record.primary, tokens) * 30;
+  rank += countSubstringMatches(record.secondary, tokens) * 8;
+
+  if (record.matchLabel) {
+    const reason = record.matchLabel.toLowerCase();
+    if (reason.includes("owner") || reason.includes("name")) rank += 70;
+    if (reason.includes("phone")) rank += 50;
+  }
+
+  if (record.kind === "lead") rank += 15;
+  if (record.score != null) rank += Math.min(record.score, 100) / 10;
+
+  return rank;
+}
+
 /** Heuristic: does the query look like a US street address? */
 function looksLikeAddress(q: string): boolean {
   // Must start with a number and contain at least one letter word after it
@@ -288,7 +345,15 @@ async function searchSupabase(q: string): Promise<SearchRecord[]> {
     });
   }
 
-  return records;
+  return records.sort((a, b) => {
+    const rankDiff = rankSearchRecord(b, q) - rankSearchRecord(a, q);
+    if (rankDiff !== 0) return rankDiff;
+
+    const scoreDiff = (b.score ?? 0) - (a.score ?? 0);
+    if (scoreDiff !== 0) return scoreDiff;
+
+    return a.primary.localeCompare(b.primary);
+  });
 }
 
 // ── Component ──────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createServerClient: vi.fn(),
   requireAuth: vi.fn(),
+  syncLeadPhoneOutcome: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -11,6 +12,10 @@ vi.mock("@/lib/supabase", () => ({
 
 vi.mock("@/lib/api-auth", () => ({
   requireAuth: mocks.requireAuth,
+}));
+
+vi.mock("@/lib/lead-phone-outcome", () => ({
+  syncLeadPhoneOutcome: (...args: unknown[]) => mocks.syncLeadPhoneOutcome(...args),
 }));
 
 type RecordedOperation = {
@@ -29,6 +34,8 @@ function createMockSupabase() {
     status: "active",
     is_primary: false,
     property_id: "property-1",
+    position: 1,
+    dead_reason: null,
   };
 
   function buildQuery(table: string) {
@@ -126,6 +133,16 @@ describe("PATCH /api/leads/[id]/phones/[phoneId]", () => {
     vi.resetModules();
     vi.resetAllMocks();
     mocks.requireAuth.mockResolvedValue({ id: "user-1" });
+    mocks.syncLeadPhoneOutcome.mockResolvedValue({
+      handled: true,
+      applied: true,
+      phoneId: "phone-1",
+      previousStatus: "active",
+      newStatus: "active",
+      newPrimaryPhone: "+15095551234",
+      allPhonesDead: false,
+      reason: null,
+    });
   });
 
   it("promotes an active phone to the primary callback number", async () => {
@@ -148,35 +165,53 @@ describe("PATCH /api/leads/[id]/phones/[phoneId]", () => {
     expect(payload.success).toBe(true);
     expect(payload.mark_primary).toBe(true);
     expect(payload.new_primary_phone).toBe("+15095551234");
+    expect(mocks.syncLeadPhoneOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({
+        leadId: "lead-1",
+        userId: "user-1",
+        disposition: "follow_up",
+        phoneId: "phone-1",
+      }),
+    );
 
-    expect(operations).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          table: "lead_phones",
-          action: "update",
-          payload: expect.objectContaining({ is_primary: false }),
-          conditions: expect.arrayContaining([
-            { type: "eq", field: "lead_id", value: "lead-1" },
-            { type: "neq", field: "id", value: "phone-1" },
-          ]),
-        }),
-        expect.objectContaining({
-          table: "lead_phones",
-          action: "update",
-          payload: expect.objectContaining({ is_primary: true }),
-          conditions: expect.arrayContaining([
-            { type: "eq", field: "id", value: "phone-1" },
-          ]),
-        }),
-        expect.objectContaining({
-          table: "properties",
-          action: "update",
-          payload: expect.objectContaining({ owner_phone: "+15095551234" }),
-          conditions: expect.arrayContaining([
-            { type: "eq", field: "id", value: "property-1" },
-          ]),
-        }),
-      ]),
+    expect(operations).toEqual([]);
+  });
+
+  it("marks a primary phone as wrong number and promotes the next active phone", async () => {
+    const { client } = createMockSupabase();
+    mocks.createServerClient.mockReturnValue(client);
+    mocks.syncLeadPhoneOutcome.mockResolvedValueOnce({
+      handled: true,
+      applied: true,
+      phoneId: "phone-1",
+      previousStatus: "active",
+      newStatus: "dead",
+      newPrimaryPhone: "+15095550000",
+      allPhonesDead: false,
+      reason: null,
+    });
+
+    const { PATCH } = await import("@/app/api/leads/[id]/phones/[phoneId]/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/leads/lead-1/phones/phone-1", {
+        method: "PATCH",
+        headers: { "content-type": "application/json", authorization: "Bearer token" },
+        body: JSON.stringify({ status: "dead", dead_reason: "wrong_number" }),
+      }) as never,
+      { params: Promise.resolve({ id: "lead-1", phoneId: "phone-1" }) },
+    );
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.new_primary_phone).toBe("+15095550000");
+    expect(mocks.syncLeadPhoneOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({
+        leadId: "lead-1",
+        userId: "user-1",
+        disposition: "wrong_number",
+        phoneId: "phone-1",
+      }),
     );
   });
 });

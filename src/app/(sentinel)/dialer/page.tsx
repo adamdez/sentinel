@@ -19,6 +19,14 @@ import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { calculateQuickScreen } from "@/lib/valuation";
@@ -442,6 +450,14 @@ interface DispoOption {
   bgColor: string;
 }
 
+type QuickPhoneAction = {
+  key: "wrong_number" | "disconnected" | "fax" | "dnc" | "reactivate";
+  label: string;
+  status: "dead" | "dnc" | "active";
+  deadReason?: "wrong_number" | "disconnected" | "fax";
+  tone: "warning" | "danger" | "normal";
+};
+
 const DISPOSITIONS: DispoOption[] = [
   { key: "voicemail",   label: "Voicemail",    hotkey: "1", icon: Voicemail,      color: "text-foreground",   bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "no_answer",   label: "No Answer",    hotkey: "2", icon: PhoneOff,       color: "text-foreground",   bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
@@ -453,6 +469,23 @@ const DISPOSITIONS: DispoOption[] = [
   { key: "skip_trace",  label: "Skip Trace",   hotkey: "8", icon: Search,         color: "text-primary-400",   bgColor: "bg-primary-500/10 hover:bg-primary-500/20 border-primary-500/20" },
   { key: "ghost",       label: "Property Research", hotkey: "9", icon: Ghost,        color: "text-foreground", bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
 ];
+
+const QUICK_PHONE_ACTIONS: QuickPhoneAction[] = [
+  { key: "wrong_number", label: "Wrong Number", status: "dead", deadReason: "wrong_number", tone: "warning" },
+  { key: "disconnected", label: "Disconnected", status: "dead", deadReason: "disconnected", tone: "warning" },
+  { key: "fax", label: "Fax / Spam", status: "dead", deadReason: "fax", tone: "warning" },
+  { key: "dnc", label: "Do Not Call", status: "dnc", tone: "danger" },
+  { key: "reactivate", label: "Reactivate", status: "active", tone: "normal" },
+];
+
+function getLeadPhoneStatusLabel(phone: LeadPhone): string | null {
+  if (phone.status === "dnc") return "DNC";
+  if (phone.status !== "dead") return null;
+  if (phone.dead_reason === "wrong_number") return "Wrong #";
+  if (phone.dead_reason === "disconnected") return "Disconnected";
+  if (phone.dead_reason === "fax" || phone.dead_reason === "spam") return "Fax / Spam";
+  return "Inactive";
+}
 
 type CallState = "idle" | "dialing" | "connected" | "ended";
 
@@ -1068,6 +1101,7 @@ function DialerPageInner() {
   // Phone cycling roster — fetched from lead_phones API when a lead is loaded
   const [leadPhones, setLeadPhones] = useState<LeadPhone[]>([]);
   const [phoneIndex, setPhoneIndex] = useState(0);
+  const [phoneActionPhoneId, setPhoneActionPhoneId] = useState<string | null>(null);
   const [pendingAutoDialLeadId, setPendingAutoDialLeadId] = useState<string | null>(null);
   const [powerDialPaused, setPowerDialPaused] = useState(false);
   const [powerDialStarting, setPowerDialStarting] = useState(false);
@@ -1184,6 +1218,14 @@ function DialerPageInner() {
   // Reset to false each time callState returns to idle so the next call starts fresh.
   // Live notes realtime subscription is below manualCallLogId declaration
 
+  const fetchLeadPhonesForLead = useCallback(async (leadId: string): Promise<LeadPhone[]> => {
+    const hdrs = await authHeaders();
+    const res = await fetch(`/api/leads/${leadId}/phones`, { headers: hdrs });
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => null);
+    return (data?.phones ?? []) as LeadPhone[];
+  }, []);
+
   // Fetch phone roster when lead changes
   useEffect(() => {
     if (!currentLead?.id) { setLeadPhones([]); setPhoneIndex(0); return; }
@@ -1194,16 +1236,10 @@ function DialerPageInner() {
     let active = true;
     (async () => {
       try {
-        const hdrs = await authHeaders();
-        const res = await fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs });
         if (!active) return;
-        if (res.ok) {
-          const data = await res.json();
-          const phones: LeadPhone[] = data.phones ?? [];
-          setLeadPhones(phones);
-        } else {
-          setLeadPhones([]);
-        }
+        const phones = await fetchLeadPhonesForLead(currentLead.id);
+        if (!active) return;
+        setLeadPhones(phones);
       } catch {
         if (active) {
           setLeadPhones([]);
@@ -1212,7 +1248,7 @@ function DialerPageInner() {
       }
     })();
     return () => { active = false; };
-  }, [currentLead?.id]);
+  }, [currentLead?.id, fetchLeadPhonesForLead]);
 
   // Seed structured note scaffold once when call first becomes connected (session-backed only).
   // Only fires when callNotes is empty — never overwrites operator input.
@@ -1788,16 +1824,98 @@ function DialerPageInner() {
   }, [queueSkipTracing, refetchQueue, currentLead?.id]);
 
   // ── Remove lead from auto-cycle inline ──────────────────────────────
-  const refreshCurrentLeadPhones = useCallback(() => {
-    if (!currentLead?.id) return;
-    authHeaders().then((hdrs) =>
-      fetch(`/api/leads/${currentLead.id}/phones`, { headers: hdrs })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data?.phones) setLeadPhones(data.phones);
-        })
-    ).catch(() => {});
-  }, [currentLead?.id]);
+  const refreshCurrentLeadPhones = useCallback(async (options?: { preservePhoneId?: string | null }) => {
+    if (!currentLead?.id) return [] as LeadPhone[];
+    const phones = await fetchLeadPhonesForLead(currentLead.id);
+    setLeadPhones(phones);
+    if (!autoCycleMode) {
+      const activePhones = phones.filter((phone) => phone.status === "active");
+      if (options?.preservePhoneId) {
+        const preservedIndex = activePhones.findIndex((phone) => phone.id === options.preservePhoneId);
+        setPhoneIndex(preservedIndex >= 0 ? preservedIndex : 0);
+      } else if (phoneIndex >= activePhones.length) {
+        setPhoneIndex(0);
+      }
+    }
+    return phones;
+  }, [autoCycleMode, currentLead?.id, fetchLeadPhonesForLead, phoneIndex]);
+
+  const handleQuickPhoneDisposition = useCallback(async (phone: LeadPhone, action: QuickPhoneAction) => {
+    if (!currentLead?.id || callState !== "idle") return;
+    setPhoneActionPhoneId(phone.id);
+    setPendingAutoDialLeadId(null);
+    try {
+      const res = await fetch(`/api/leads/${currentLead.id}/phones/${phone.id}`, {
+        method: "PATCH",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          status: action.status,
+          dead_reason: action.deadReason,
+        }),
+      });
+      const data = await res.json().catch(() => ({} as { error?: string; all_phones_dead?: boolean }));
+      if (!res.ok) {
+        toast.error(data.error ?? `Could not update ${formatUsPhone(phone.phone.replace(/\D/g, "").slice(-10))}`);
+        return;
+      }
+      const preservePhoneId = selectedLeadPhone?.id && selectedLeadPhone.id !== phone.id
+        ? selectedLeadPhone.id
+        : null;
+      await refreshCurrentLeadPhones({ preservePhoneId });
+      toast.success(
+        action.key === "reactivate"
+          ? `Reactivated ${formatUsPhone(phone.phone.replace(/\D/g, "").slice(-10))}`
+          : `Marked ${formatUsPhone(phone.phone.replace(/\D/g, "").slice(-10))} as ${action.label.toLowerCase()}`,
+      );
+      if (data.all_phones_dead) {
+        toast.info("No active phone remains on this file");
+      }
+    } catch {
+      toast.error(`Could not update ${formatUsPhone(phone.phone.replace(/\D/g, "").slice(-10))}`);
+    } finally {
+      setPhoneActionPhoneId(null);
+    }
+  }, [callState, currentLead?.id, refreshCurrentLeadPhones, selectedLeadPhone?.id]);
+
+  const renderPhoneActionMenu = useCallback((phone: LeadPhone, compact = false) => {
+    const actions = phone.status === "active"
+      ? QUICK_PHONE_ACTIONS.filter((action) => action.key !== "reactivate")
+      : QUICK_PHONE_ACTIONS.filter((action) => action.key === "reactivate" || (phone.status === "dead" && action.key === "dnc"));
+
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            disabled={callState !== "idle" || phoneActionPhoneId === phone.id}
+            className={cn(
+              "inline-flex items-center justify-center rounded-[8px] border border-border/20 bg-muted/8 text-muted-foreground/65 transition-colors hover:bg-muted/18 hover:text-foreground disabled:opacity-40",
+              compact ? "h-10 w-10" : "h-7 w-7",
+            )}
+            title="Phone actions"
+          >
+            {phoneActionPhoneId === phone.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MoreHorizontal className="h-3.5 w-3.5" />}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuLabel>{formatUsPhone(phone.phone.replace(/\D/g, "").slice(-10))}</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {actions.map((action) => (
+            <DropdownMenuItem
+              key={action.key}
+              onClick={() => void handleQuickPhoneDisposition(phone, action)}
+              className={cn(
+                action.tone === "danger" && "text-red-300 focus:text-red-200",
+                action.tone === "warning" && "text-amber-200 focus:text-amber-100",
+              )}
+            >
+              {action.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }, [callState, handleQuickPhoneDisposition, phoneActionPhoneId]);
 
   const openLeadClientFile = useCallback(async (leadId: string) => {
     const queuedLead = displayedQueue.find((lead) => lead.id === leadId);
@@ -4570,39 +4688,63 @@ function DialerPageInner() {
                     )}
 
                     {/* Phone roster from lead_phones */}
-                    {callState === "idle" && activeLeadPhones.length > 1 && (() => {
-                      const activePhones = activeLeadPhones;
+                    {callState === "idle" && leadPhones.length > 0 && (() => {
                       return (
                         <div className="space-y-1.5 pb-1">
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-muted-foreground/50">
-                              Phone {selectedPhoneIndex + 1} of {activePhones.length}
+                              {phonesActiveCount > 0
+                                ? `Phone ${selectedPhoneIndex + 1} of ${phonesActiveCount}`
+                                : "No active phone"}
                               {phonesAttempted > 0 && ` · ${phonesAttempted} tried`}
                             </span>
                           </div>
                           <div className="flex flex-wrap gap-1.5">
-                            {activePhones.map((lp, i) => (
-                              <button
-                                key={lp.id}
-                                type="button"
-                                onClick={() => {
-                                  void selectLeadPhone(i);
-                                }}
-                                className={cn(
-                                  "h-7 px-2.5 rounded-[8px] text-sm font-mono border transition-all flex items-center gap-1.5",
-                                  i === selectedPhoneIndex
-                                    ? "bg-primary/15 border-primary/30 text-primary font-bold"
-                                    : lp.last_called_at
-                                      ? "bg-muted/8 border-border/20 text-muted-foreground/60"
-                                      : "bg-primary/8 hover:bg-primary/18 border-primary/20 text-primary",
-                                )}
-                              >
-                                <Phone className="h-3 w-3" />
-                                {formatUsPhone(lp.phone.replace(/\D/g, "").slice(-10))}
-                                {lp.is_primary && <Heart className="h-3 w-3 fill-emerald-300/20 text-emerald-300" />}
-                                {lp.last_called_at && <span className="text-xs text-muted-foreground/40">✓</span>}
-                              </button>
-                            ))}
+                            {leadPhones.map((lp) => {
+                              const activeIndex = activeLeadPhones.findIndex((phone) => phone.id === lp.id);
+                              const isSelected = activeIndex >= 0 && activeIndex === selectedPhoneIndex;
+                              const statusLabel = getLeadPhoneStatusLabel(lp);
+                              return (
+                                <div key={lp.id} className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (activeIndex >= 0) {
+                                        void selectLeadPhone(activeIndex);
+                                      }
+                                    }}
+                                    disabled={activeIndex < 0}
+                                    className={cn(
+                                      "min-h-7 px-2.5 rounded-[8px] text-sm font-mono border transition-all inline-flex items-center gap-1.5",
+                                      isSelected
+                                        ? "bg-primary/15 border-primary/30 text-primary font-bold"
+                                        : activeIndex < 0
+                                          ? "bg-muted/8 border-border/20 text-muted-foreground/45"
+                                          : lp.last_called_at
+                                            ? "bg-muted/8 border-border/20 text-muted-foreground/60"
+                                            : "bg-primary/8 hover:bg-primary/18 border-primary/20 text-primary",
+                                    )}
+                                    title={activeIndex >= 0 ? "Select phone" : statusLabel ?? "Inactive phone"}
+                                  >
+                                    <Phone className="h-3 w-3" />
+                                    {formatUsPhone(lp.phone.replace(/\D/g, "").slice(-10))}
+                                    {lp.is_primary && <Heart className="h-3 w-3 fill-emerald-300/20 text-emerald-300" />}
+                                    {statusLabel && (
+                                      <span className={cn(
+                                        "rounded-[5px] border px-1 py-0 text-[10px] uppercase tracking-wider",
+                                        lp.status === "dnc"
+                                          ? "border-red-500/25 bg-red-500/10 text-red-300"
+                                          : "border-amber-500/25 bg-amber-500/10 text-amber-200",
+                                      )}>
+                                        {statusLabel}
+                                      </span>
+                                    )}
+                                    {lp.last_called_at && activeIndex >= 0 && <span className="text-xs text-muted-foreground/40">✓</span>}
+                                  </button>
+                                  {renderPhoneActionMenu(lp)}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       );
@@ -4613,7 +4755,7 @@ function DialerPageInner() {
                         <>
                           <Button
                             onClick={() => handleDial()}
-                            disabled={(!currentLead.compliant && !ghostMode) || !currentPowerDialReady}
+                            disabled={(!currentLead.compliant && !ghostMode) || !currentPowerDialReady || !selectedDialPhone}
                             className="flex-1 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm"
                           >
                             <Phone className="h-4 w-4" />
@@ -4621,9 +4763,11 @@ function DialerPageInner() {
                               if (autoCycleMode && currentAutoCycleLead?.autoCycle.cycleStatus === "paused") return "Held";
                               if (autoCycleMode && !currentPowerDialReady) return "Scheduled";
                               if (selectedLeadPhone) return `Call ${formatUsPhone(selectedLeadPhone.phone.replace(/\D/g, "").slice(-10))}`;
+                              if (leadPhones.length > 0) return "No Active Phone";
                               return currentLead.properties?.owner_phone ? "Call Now" : "No Phone";
                             })()}
                           </Button>
+                          {selectedLeadPhone ? renderPhoneActionMenu(selectedLeadPhone, true) : null}
                           <Button
                             onClick={() => {
                               const currentIdx = executionQueue.findIndex((l) => l.id === currentLead.id);

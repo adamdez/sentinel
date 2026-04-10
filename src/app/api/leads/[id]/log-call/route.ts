@@ -4,6 +4,7 @@ import { dispositionCategory } from "@/lib/comm-truth";
 import { suggestNextCadenceDate } from "@/lib/call-scheduler";
 import { exitIntroSop, progressIntroSopForCallAttempt, toIntroSopState } from "@/lib/intro-sop";
 import { completeOpenCallTasksForLead, projectLeadFromTasks, upsertLeadCallTask } from "@/lib/task-lead-sync";
+import { isPhoneDispositionRelevant, syncLeadPhoneOutcome } from "@/lib/lead-phone-outcome";
 
 const TERMINAL_CALL_DISPOSITIONS = new Set([
   "dead",
@@ -44,6 +45,8 @@ export async function POST(
     durationSec?: number;
     next_action?: string;
     next_action_due_at?: string;
+    phone_number?: string;
+    phone_id?: string;
   };
   try {
     body = await req.json();
@@ -95,6 +98,22 @@ export async function POST(
   if (insertErr) {
     console.error("[LogCall] calls_log insert failed:", insertErr);
     return NextResponse.json({ error: "Failed to log call" }, { status: 500 });
+  }
+
+  let phoneOutcomeResult: Awaited<ReturnType<typeof syncLeadPhoneOutcome>> | null = null;
+  if (isPhoneDispositionRelevant(body.disposition)) {
+    try {
+      phoneOutcomeResult = await syncLeadPhoneOutcome({
+        sb,
+        leadId,
+        userId: user.id,
+        disposition: body.disposition,
+        phoneId: body.phone_id ?? null,
+        phoneNumber: body.phone_number ?? prop?.owner_phone ?? null,
+      });
+    } catch (phoneOutcomeErr) {
+      console.error("[LogCall] lead phone outcome sync failed:", phoneOutcomeErr);
+    }
   }
 
   // Update lead counters via RPC (same path as dialer)
@@ -196,6 +215,10 @@ export async function POST(
   return NextResponse.json({
     success: true,
     callLogId: callLog?.id,
+    phone_outcome_applied: phoneOutcomeResult?.applied ?? false,
+    phone_outcome_phone_id: phoneOutcomeResult?.phoneId ?? null,
+    all_phones_dead: phoneOutcomeResult?.allPhonesDead ?? null,
+    new_primary_phone: phoneOutcomeResult?.newPrimaryPhone ?? null,
     intro_sop_active: introState.intro_sop_active,
     intro_day_count: introState.intro_day_count,
     intro_exit_category: introState.intro_exit_category,

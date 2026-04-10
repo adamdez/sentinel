@@ -20,9 +20,11 @@ import {
 } from "@/lib/qualification-workflow";
 import {
   completeOpenCallTasksForLead,
+  isCallDrivingTaskType,
   projectLeadFromTasks,
   upsertLeadCallTask,
 } from "@/lib/task-lead-sync";
+import { isPhoneDispositionRelevant, syncLeadPhoneOutcome } from "@/lib/lead-phone-outcome";
 import { refreshZillowEstimateForLeadAssignment } from "@/lib/zillow-estimate";
 import { inngest } from "@/inngest/client";
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
@@ -344,6 +346,7 @@ export async function PATCH(req: NextRequest) {
       equity_flexibility_score,
       next_action,
       next_action_due_at,
+      phone_number,
     } = body;
 
     const clientLockVersion = req.headers.get("x-lock-version");
@@ -730,17 +733,15 @@ export async function PATCH(req: NextRequest) {
     const isStageChange = targetStatus && targetStatus !== currentStatus;
     const isClearingNextAction = next_action !== undefined && !(typeof next_action === "string" && next_action.trim());
     const resolvedStatus = targetStatus ?? currentStatus;
+    const effectiveNextAction =
+      (typeof next_action === "string" && next_action.trim())
+        ? next_action.trim()
+        : plannedTask?.title
+          ?? (typeof currentLead.next_action === "string" && currentLead.next_action.trim()
+            ? currentLead.next_action.trim()
+            : null);
 
     if (requiresNextAction(resolvedStatus, currentStatus) && (isStageChange || isClearingNextAction)) {
-      const effectiveNextAction =
-        (typeof next_action === "string" && next_action.trim())
-          ? next_action.trim()
-          : next_action === undefined
-            ? (typeof currentLead.next_action === "string" && currentLead.next_action.trim()
-              ? currentLead.next_action.trim()
-              : null)
-            : null; // next_action explicitly set to null/empty
-
       if (!effectiveNextAction) {
         const verb = isStageChange
           ? `advancing to "${targetStatus}"`
@@ -785,6 +786,7 @@ export async function PATCH(req: NextRequest) {
         effectiveNextCallAt,
         effectiveNextFollowUpAt,
         nextQualificationRoute,
+        nextAction: effectiveNextAction,
         noteAppendText,
         existingNotes: typeof currentLead.notes === "string" ? currentLead.notes : null,
         hasActivityNoteContext,
@@ -952,7 +954,7 @@ export async function PATCH(req: NextRequest) {
 
     let createdTaskId: string | null = null;
 
-    if (plannedTask) {
+    if (plannedTask && !isCallDrivingTaskType(plannedTask.taskType)) {
       // Route-driven tasks are blocking so we do not leave a misleading lead state.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: createdTask, error: taskErr } = await (sb.from("tasks") as any)
@@ -1088,6 +1090,21 @@ export async function PATCH(req: NextRequest) {
       .maybeSingle();
     if (refreshedLead) {
       refreshedLeadState = { ...currentLead, ...refreshedLead };
+    }
+
+    let phoneOutcomeResult: Awaited<ReturnType<typeof syncLeadPhoneOutcome>> | null = null;
+    if (parsedDisposition.provided && isPhoneDispositionRelevant(parsedDisposition.value)) {
+      try {
+        phoneOutcomeResult = await syncLeadPhoneOutcome({
+          sb,
+          leadId: lead_id,
+          userId: user.id,
+          disposition: parsedDisposition.value,
+          phoneNumber: typeof phone_number === "string" ? phone_number : null,
+        });
+      } catch (phoneOutcomeErr) {
+        console.error("[API/prospects PATCH] Phone outcome sync failed (non-fatal):", phoneOutcomeErr);
+      }
     }
 
     const statusChanged = Boolean(targetStatus && currentStatus !== targetStatus);
@@ -1269,6 +1286,10 @@ export async function PATCH(req: NextRequest) {
       qualification_score_total: (refreshedLeadState.qualification_score_total as number | null | undefined) ?? null,
       next_action: typeof refreshedLeadState.next_action === "string" ? refreshedLeadState.next_action : null,
       next_action_due_at: (refreshedLeadState.next_action_due_at as string | null | undefined) ?? null,
+      phone_outcome_applied: phoneOutcomeResult?.applied ?? false,
+      phone_outcome_phone_id: phoneOutcomeResult?.phoneId ?? null,
+      all_phones_dead: phoneOutcomeResult?.allPhonesDead ?? null,
+      new_primary_phone: phoneOutcomeResult?.newPrimaryPhone ?? null,
       suggested_route: suggestedRoute,
     });
   } catch (err) {

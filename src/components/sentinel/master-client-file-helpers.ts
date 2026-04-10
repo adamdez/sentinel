@@ -415,12 +415,24 @@ export type CloseoutPresetId =
   | "call_tomorrow"
   | "call_3_days"
   | "call_next_week"
-  | "nurture_14_days"
+  | "nurture_30_days"
+  | "nurture_90_days"
+  | "nurture_6_months"
   | "escalate_review"
   | "drive_by_tomorrow"
   | "drive_by_3_days"
   | "move_active"
   | "mark_dead";
+export type CloseoutPresetGroupId = "retry_call" | "field_follow_up" | "stage_transitions" | "terminal";
+
+export type CloseoutPresetDefinition = {
+  id: CloseoutPresetId;
+  label: string;
+  action: CloseoutNextAction;
+  daysFromNow?: number;
+  monthsFromNow?: number;
+  nextActionText?: string | null;
+};
 
 export type SkipTraceUiState = "skipped" | "skip_empty" | "skip_failed" | "not_run";
 
@@ -485,21 +497,45 @@ export const CALL_OUTCOME_OPTIONS = [
   { id: "do_not_call", label: "Do Not Call" },
 ] as const;
 
-export const CLOSEOUT_PRESETS: Array<{
-  id: CloseoutPresetId;
-  label: string;
-  daysFromNow: number | null;
-  action: CloseoutNextAction;
-}> = [
+export const CLOSEOUT_PRESETS: CloseoutPresetDefinition[] = [
   { id: "call_tomorrow", label: "Call tomorrow", daysFromNow: 1, action: "follow_up_call" },
   { id: "call_3_days", label: "Call in 3 days", daysFromNow: 3, action: "follow_up_call" },
   { id: "call_next_week", label: "Call next week", daysFromNow: 7, action: "follow_up_call" },
-  { id: "drive_by_tomorrow", label: "Drive by tomorrow", daysFromNow: 1, action: "drive_by" },
-  { id: "drive_by_3_days", label: "Drive by in 3 days", daysFromNow: 3, action: "drive_by" },
-  { id: "move_active", label: "Move to Active", daysFromNow: null, action: "move_active" },
-  { id: "nurture_14_days", label: "Nurture 14 days", daysFromNow: 14, action: "nurture_check_in" },
-  { id: "mark_dead", label: "Mark Dead", daysFromNow: null, action: "mark_dead" },
-  { id: "escalate_review", label: "Escalate review", daysFromNow: null, action: "escalation_review" },
+  { id: "drive_by_tomorrow", label: "Drive by tomorrow", daysFromNow: 1, action: "drive_by", nextActionText: "Drive by tomorrow" },
+  { id: "drive_by_3_days", label: "Drive by in 3 days", daysFromNow: 3, action: "drive_by", nextActionText: "Drive by in 3 days" },
+  { id: "move_active", label: "Move to Active", action: "move_active", nextActionText: "Active seller follow-up" },
+  { id: "nurture_30_days", label: "Nurture 30 days", daysFromNow: 30, action: "nurture_check_in", nextActionText: "Nurture check-in in 30 days" },
+  { id: "nurture_90_days", label: "Nurture 90 days", daysFromNow: 90, action: "nurture_check_in", nextActionText: "Nurture check-in in 90 days" },
+  { id: "nurture_6_months", label: "Nurture 6 months", monthsFromNow: 6, action: "nurture_check_in", nextActionText: "Nurture check-in in 6 months" },
+  { id: "mark_dead", label: "Mark Dead", action: "mark_dead", nextActionText: "Marked dead - no further follow-up" },
+  { id: "escalate_review", label: "Escalate review", action: "escalation_review", nextActionText: "Escalation review requested" },
+];
+
+export const CLOSEOUT_PRESET_GROUPS: Array<{
+  id: CloseoutPresetGroupId;
+  label: string;
+  presetIds: CloseoutPresetId[];
+}> = [
+  {
+    id: "retry_call",
+    label: "Retry Call",
+    presetIds: ["call_tomorrow", "call_3_days", "call_next_week"],
+  },
+  {
+    id: "field_follow_up",
+    label: "Field Follow-Up",
+    presetIds: ["drive_by_tomorrow", "drive_by_3_days"],
+  },
+  {
+    id: "stage_transitions",
+    label: "Stage Transition",
+    presetIds: ["move_active", "nurture_30_days", "nurture_90_days", "nurture_6_months"],
+  },
+  {
+    id: "terminal",
+    label: "Terminal / Review",
+    presetIds: ["mark_dead", "escalate_review"],
+  },
 ];
 
 export const OUTCOME_PRESET_DEFAULTS: Partial<Record<string, CloseoutPresetId>> = {
@@ -732,6 +768,23 @@ export function presetDateTimeLocal(daysFromNow: number): string {
   return toLocalDateTimeInput(d.toISOString());
 }
 
+export function presetDateTimeMonthsLocal(monthsFromNow: number): string {
+  const d = new Date();
+  d.setSeconds(0, 0);
+  d.setMonth(d.getMonth() + monthsFromNow);
+  return toLocalDateTimeInput(d.toISOString());
+}
+
+export function resolveCloseoutPresetDateTimeLocal(preset: CloseoutPresetDefinition): string {
+  if (typeof preset.monthsFromNow === "number") {
+    return presetDateTimeMonthsLocal(preset.monthsFromNow);
+  }
+  if (typeof preset.daysFromNow === "number") {
+    return presetDateTimeLocal(preset.daysFromNow);
+  }
+  return "";
+}
+
 export function routeForCloseoutAction(action: CloseoutNextAction): QualificationRoute | null {
   if (action === "nurture_check_in") return "nurture";
   if (action === "move_active") return "follow_up";
@@ -744,16 +797,25 @@ export function closeoutActionLabel(action: CloseoutNextAction): string {
   if (action === "drive_by") return "Drive By";
   if (action === "move_active") return "Move to Active";
   if (action === "mark_dead") return "Mark Dead";
-  if (action === "nurture_check_in") return "Nurture Check-In";
+  if (action === "nurture_check_in") return "Move to Nurture";
   if (action === "escalation_review") return "Escalation Review";
   return "Follow-Up Call";
 }
 
 /** Structured next_action text for closeout actions that are not phone calls */
-export function closeoutNextActionText(action: CloseoutNextAction): string | null {
+export function closeoutNextActionText(
+  action: CloseoutNextAction,
+  presetId?: CloseoutPresetId | null,
+): string | null {
+  if (presetId) {
+    const preset = CLOSEOUT_PRESETS.find((item) => item.id === presetId);
+    if (preset?.nextActionText) return preset.nextActionText;
+  }
   if (action === "drive_by") return "Drive by";
   if (action === "move_active") return "Active seller follow-up";
   if (action === "mark_dead") return "Marked dead - no further follow-up";
+  if (action === "nurture_check_in") return "Nurture check-in";
+  if (action === "escalation_review") return "Escalation review requested";
   return null;
 }
 

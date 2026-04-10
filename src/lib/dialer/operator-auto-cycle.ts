@@ -42,7 +42,10 @@ export function resolveDialerPhoneSelection({
       activePhones,
       selectedIndex: 0,
       selectedPhone: null,
-      phone: fallbackPhone ?? null,
+      // Only fall back to the legacy owner_phone mirror when the lead has no
+      // canonical lead_phones rows yet. Once canonical rows exist, an all-dead
+      // or all-DNC roster should render as "no active phone" and stay non-callable.
+      phone: leadPhones.length === 0 ? (fallbackPhone ?? null) : null,
     };
   }
 

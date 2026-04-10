@@ -161,6 +161,23 @@ describe("resolveDialerPhoneSelection", () => {
     expect(manualSelection.phone).toBe("5092222222");
     expect(fallbackSelection.phone).toBe("5099999999");
   });
+
+  it("does not fall back to the legacy owner phone when canonical phones exist but none are active", () => {
+    const selection = resolveDialerPhoneSelection({
+      autoCycleMode: false,
+      leadPhones: [
+        buildPhone("lead-phone-1", "5091111111", { status: "dead", dead_reason: "wrong_number" }),
+        buildPhone("lead-phone-2", "5092222222", { status: "dnc", dead_reason: "disconnected" }),
+      ],
+      phoneIndex: 0,
+      nextPhoneId: null,
+      fallbackPhone: "5099999999",
+    });
+
+    expect(selection.activePhones).toHaveLength(0);
+    expect(selection.selectedPhone).toBeNull();
+    expect(selection.phone).toBeNull();
+  });
 });
 
 describe("planNextQueueTarget", () => {

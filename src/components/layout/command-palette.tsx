@@ -113,6 +113,57 @@ function matchesQuery(text: string, query: string): boolean {
   return text.toLowerCase().includes(lower);
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function tokenizeQuery(query: string): string[] {
+  return query
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function countWordMatches(text: string, tokens: string[]): number {
+  const lower = text.toLowerCase();
+
+  return tokens.reduce((count, token) => {
+    const pattern = new RegExp(`\\b${escapeRegExp(token)}`, "g");
+    return count + (lower.match(pattern)?.length ?? 0);
+  }, 0);
+}
+
+function countSubstringMatches(text: string, tokens: string[]): number {
+  const lower = text.toLowerCase();
+  return tokens.reduce((count, token) => count + (lower.includes(token) ? 1 : 0), 0);
+}
+
+function rankDataResult(result: DataResult, query: string): number {
+  const normalizedQuery = query.toLowerCase().trim();
+  if (!normalizedQuery) return 0;
+
+  const tokens = tokenizeQuery(query);
+  const primary = result.primary.toLowerCase();
+  const secondary = result.secondary.toLowerCase();
+
+  let rank = 0;
+
+  if (primary === normalizedQuery) rank += 1000;
+  if (primary.startsWith(normalizedQuery)) rank += 450;
+  if (secondary.startsWith(normalizedQuery)) rank += 120;
+
+  rank += countWordMatches(result.primary, tokens) * 180;
+  rank += countWordMatches(result.secondary, tokens) * 35;
+  rank += countSubstringMatches(result.primary, tokens) * 30;
+  rank += countSubstringMatches(result.secondary, tokens) * 8;
+
+  if (result.kind === "lead") rank += 15;
+  if (result.score != null) rank += Math.min(result.score, 100) / 10;
+
+  return rank;
+}
+
 const SCORE_COLORS: Record<string, string> = {
   platinum: "text-primary-300 bg-primary-400/15 border-primary-400/30",
   gold: "text-foreground bg-muted/15 border-border/30",
@@ -229,7 +280,17 @@ export function CommandPalette() {
         }
       }
 
-      setDataResults(results.slice(0, 12));
+      const sortedResults = results.sort((a, b) => {
+        const rankDiff = rankDataResult(b, query) - rankDataResult(a, query);
+        if (rankDiff !== 0) return rankDiff;
+
+        const scoreDiff = (b.score ?? 0) - (a.score ?? 0);
+        if (scoreDiff !== 0) return scoreDiff;
+
+        return a.primary.localeCompare(b.primary);
+      });
+
+      setDataResults(sortedResults.slice(0, 12));
     }, 250);
 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };

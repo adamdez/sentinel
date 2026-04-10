@@ -1,5 +1,15 @@
 [
   {
+    "hash": "dbdc9533",
+    "date": "2026-04-10",
+    "message": "[codex] Fix power dial daily exit and intro cadence labels"
+  },
+  {
+    "hash": "92526983",
+    "date": "2026-04-10",
+    "message": "[codex] Add deep dive prep lane for dialer"
+  },
+  {
     "hash": "b107e8b1",
     "date": "2026-04-10",
     "message": "[codex] Harden dialer and client file state flow"
@@ -113,15 +123,5 @@
     "hash": "8991ea2c",
     "date": "2026-04-09",
     "message": "[codex] Mark Skip Genie leads across surfaces"
-  },
-  {
-    "hash": "468101ac",
-    "date": "2026-04-09",
-    "message": "[codex] Finish Power Dial file-first flow"
-  },
-  {
-    "hash": "147fb9a0",
-    "date": "2026-04-09",
-    "message": "[codex] Finish task-first follow-up cleanup"
   }
 ]
