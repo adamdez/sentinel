@@ -89,13 +89,21 @@ describe("buildTinaCpaPacketExport", () => {
 
     const exportFile = buildTinaCpaPacketExport(draft);
 
-    expect(exportFile.contents).toContain("## Entity-return intake contract");
-    expect(exportFile.contents).toContain("## 1120-S review spine");
-    expect(exportFile.contents).toContain("## 1120-S prep spine");
+    expect(exportFile.fileName).toContain(".html");
+    expect(exportFile.mimeType).toContain("text/html");
+    expect(exportFile.contents).toContain("<!doctype html>");
+    expect(exportFile.contents).toContain("Reviewer fast pass");
+    expect(exportFile.contents).toContain("Review thresholds");
+    expect(exportFile.contents).toContain("Source-to-return index");
+    expect(exportFile.contents).toContain("Entity-specific review insert");
+    expect(exportFile.contents).toContain("Detailed packet appendix");
+    expect(exportFile.contents).toContain("Entity-return intake contract");
+    expect(exportFile.contents).toContain("1120-S review spine");
+    expect(exportFile.contents).toContain("1120-S prep spine");
     expect(exportFile.contents).toContain("1120-S / S-Corp");
   });
 
-  it("creates a markdown packet summary from the current Tina draft", () => {
+  it("creates a skeptical-cpa html packet from the current Tina draft", () => {
     const draft = {
       ...createDefaultTinaWorkspaceDraft(),
       profile: {
@@ -311,34 +319,43 @@ describe("buildTinaCpaPacketExport", () => {
 
     expect(exportFile.fileName).toContain("tina-sole-prop");
     expect(exportFile.fileName).toContain("2025");
-    expect(exportFile.contents).toContain("# Tina CPA Review Packet");
+    expect(exportFile.fileName).toContain(".html");
+    expect(exportFile.mimeType).toContain("text/html");
+    expect(exportFile.contents).toContain("<!doctype html>");
+    expect(exportFile.contents).toContain("Tina CPA Review Packet");
+    expect(exportFile.contents).toContain("Reviewer fast pass");
+    expect(exportFile.contents).toContain("Review thresholds");
+    expect(exportFile.contents).toContain("Source-to-return index");
+    expect(exportFile.contents).toContain("Exceptions and open loops");
+    expect(exportFile.contents).toContain("Support archive index");
+    expect(exportFile.contents).toContain("Detailed packet appendix");
     expect(exportFile.contents).toContain("Line 1 Gross receipts or sales");
     expect(exportFile.contents).toContain("2025-return.pdf");
-    expect(exportFile.contents).toContain("## Client intake review");
+    expect(exportFile.contents).toContain("Client intake review");
     expect(exportFile.contents).toContain("Profile lane:");
-    expect(exportFile.contents).toContain("## Tax position register");
+    expect(exportFile.contents).toContain("Tax position register");
     expect(exportFile.contents).toContain("confidence: high");
-    expect(exportFile.contents).toContain("## Current-lane scenario profile");
+    expect(exportFile.contents).toContain("Current-lane scenario profile");
     expect(exportFile.contents).toContain("carryover continuity");
-    expect(exportFile.contents).toContain("## Return trace");
+    expect(exportFile.contents).toContain("Return trace");
     expect(exportFile.contents).toContain("Reviewer-final lines:");
-    expect(exportFile.contents).toContain("## Numeric proof");
+    expect(exportFile.contents).toContain("Numeric proof");
     expect(exportFile.contents).toContain("support:");
-    expect(exportFile.contents).toContain("## Live acceptance benchmark");
+    expect(exportFile.contents).toContain("Live acceptance benchmark");
     expect(exportFile.contents).toContain("last 30 days");
     expect(exportFile.contents).toContain("Benchmark movement:");
     expect(exportFile.contents).toContain("Current file cohorts:");
-    expect(exportFile.contents).toContain("## Benchmark rescore");
+    expect(exportFile.contents).toContain("Benchmark rescore");
     expect(exportFile.contents).toContain("Cohort-specific proposals:");
-    expect(exportFile.contents).toContain("## Internal benchmark dashboard");
-    expect(exportFile.contents).toContain("## Filing approval");
-    expect(exportFile.contents).toContain("## MeF readiness");
+    expect(exportFile.contents).toContain("Internal benchmark dashboard");
+    expect(exportFile.contents).toContain("Filing approval");
+    expect(exportFile.contents).toContain("MeF readiness");
     expect(exportFile.contents).toContain("Return type: 1040");
     expect(exportFile.contents).toContain("Attachment manifest:");
-    expect(exportFile.contents).toContain("## 1040/Schedule C export contract");
+    expect(exportFile.contents).toContain("1040/Schedule C export contract");
     expect(exportFile.contents).toContain("Contract version: tina.schedule_c_export.v1");
     expect(exportFile.contents).toContain("Scenario tags:");
-    expect(exportFile.contents).toContain("## Review delivery");
-    expect(exportFile.contents).toContain("## Planning and tradeoffs");
+    expect(exportFile.contents).toContain("Review delivery");
+    expect(exportFile.contents).toContain("Planning and tradeoffs");
   });
 });
