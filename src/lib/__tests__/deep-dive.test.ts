@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDeepDiveActionableItems, buildResearchGapSourceKey, evaluateDeepDiveReadiness } from "@/lib/deep-dive";
+import { buildDeepDiveActionableItems, buildResearchGapSourceKey, evaluateDeepDiveQueueState, evaluateDeepDiveReadiness } from "@/lib/deep-dive";
 
 describe("evaluateDeepDiveReadiness", () => {
   it("marks a fully researched file ready", () => {
@@ -99,5 +99,29 @@ describe("evaluateDeepDiveReadiness", () => {
         sourceKey: "lead-1:decision_maker",
       },
     ]);
+  });
+
+  it("marks a file ready for rerun once all blocker tasks were completed after the last staged run", () => {
+    const result = evaluateDeepDiveQueueState({
+      leadId: "lead-1",
+      research_quality: "fallback",
+      research_gap_count: 1,
+      research_gaps: ["Verify probate case number"],
+      research_staged_at: "2026-04-10T12:00:00.000Z",
+      likely_decision_maker: "Janet Bates",
+      openResearchTasks: [],
+      completedResearchTasks: [
+        {
+          source_type: "deep_search_gap",
+          source_key: "lead-1:verify_probate_case_number",
+          completed_at: "2026-04-10T12:30:00.000Z",
+        },
+      ],
+    });
+
+    expect(result.readyForRerun).toBe(true);
+    expect(result.queueStatus).toBe("ready_for_rerun");
+    expect(result.actionableCompletedCount).toBe(1);
+    expect(result.actionableUnresolvedCount).toBe(0);
   });
 });

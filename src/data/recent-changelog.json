@@ -1,5 +1,10 @@
 [
   {
+    "hash": "50c32898",
+    "date": "2026-04-10",
+    "message": "[codex] Harden deep search and deep dive workflows"
+  },
+  {
     "hash": "14e01e14",
     "date": "2026-04-10",
     "message": "[codex] Ship owner intel fallback cleanup"
@@ -118,10 +123,5 @@
     "hash": "e6b7975d",
     "date": "2026-04-09",
     "message": "[codex] Unify skip-trace controls across dialer surfaces"
-  },
-  {
-    "hash": "5713607c",
-    "date": "2026-04-09",
-    "message": "[codex] Unify dialer skip-trace badge truth"
   }
 ]

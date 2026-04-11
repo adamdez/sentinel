@@ -3,7 +3,7 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
-import { DEEP_DIVE_NEXT_ACTION, isDeepDiveNextAction } from "@/lib/deep-dive";
+import { DEEP_DIVE_NEXT_ACTION, evaluateDeepDiveQueueState, isDeepDiveNextAction } from "@/lib/deep-dive";
 import type { UnifiedResearchMetadata, UnifiedResearchQuality } from "@/lib/research-run-types";
 
 type DeepDiveLeadRow = {
@@ -52,7 +52,19 @@ type PendingResearchTaskRow = {
   title: string | null;
   assigned_to: string | null;
   due_at: string | null;
+  status: string | null;
+  completed_at: string | null;
   task_type: string | null;
+  source_type: string | null;
+  source_key: string | null;
+};
+
+type ResearchTaskSummary = {
+  id: string;
+  title: string | null;
+  assigned_to: string | null;
+  due_at: string | null;
+  completed_at?: string | null;
   source_type: string | null;
   source_key: string | null;
 };
@@ -126,6 +138,7 @@ export async function GET(req: NextRequest) {
   let researchSummaryByLead = new Map<string, ResearchSummary>();
   let prepStatusByLead = new Map<string, string | null>();
   let pendingResearchTasksByLead = new Map<string, PendingResearchTaskRow[]>();
+  let completedResearchTasksByLead = new Map<string, PendingResearchTaskRow[]>();
 
   if (leadIds.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -173,10 +186,10 @@ export async function GET(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: tasks } = await (sb.from("tasks") as any)
-      .select("id, lead_id, title, assigned_to, due_at, task_type, source_type, source_key")
+      .select("id, lead_id, title, assigned_to, due_at, status, completed_at, task_type, source_type, source_key")
       .in("lead_id", leadIds)
-      .eq("status", "pending")
       .order("due_at", { ascending: true, nullsFirst: false })
+      .order("completed_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: true, nullsFirst: false });
 
     for (const task of (tasks ?? []) as PendingResearchTaskRow[]) {
@@ -187,10 +200,13 @@ export async function GET(req: NextRequest) {
         || normalizedSource === "deep_search_gap"
         || normalizedSource === "deep_dive_blocker";
       if (!isResearchTask) continue;
-      if (!pendingResearchTasksByLead.has(task.lead_id)) {
-        pendingResearchTasksByLead.set(task.lead_id, []);
+      const targetMap = task.status === "completed" || task.completed_at
+        ? completedResearchTasksByLead
+        : pendingResearchTasksByLead;
+      if (!targetMap.has(task.lead_id)) {
+        targetMap.set(task.lead_id, []);
       }
-      pendingResearchTasksByLead.get(task.lead_id)?.push(task);
+      targetMap.get(task.lead_id)?.push(task);
     }
   }
 
@@ -198,6 +214,17 @@ export async function GET(req: NextRequest) {
     const parkedEvent = latestEventByLead.get(lead.id);
     const researchSummary = researchSummaryByLead.get(lead.id) ?? null;
     const pendingResearchTasks = pendingResearchTasksByLead.get(lead.id) ?? [];
+    const completedResearchTasks = completedResearchTasksByLead.get(lead.id) ?? [];
+    const queueState = evaluateDeepDiveQueueState({
+      leadId: lead.id,
+      research_quality: researchSummary?.quality ?? null,
+      research_gap_count: researchSummary?.gap_count ?? 0,
+      research_gaps: researchSummary?.gaps ?? [],
+      research_staged_at: researchSummary?.staged_at ?? null,
+      likely_decision_maker: researchSummary?.likely_decision_maker ?? null,
+      openResearchTasks: pendingResearchTasks,
+      completedResearchTasks,
+    });
     return {
       id: lead.id,
       status: lead.status,
@@ -219,6 +246,13 @@ export async function GET(req: NextRequest) {
       likely_decision_maker: researchSummary?.likely_decision_maker ?? null,
       decision_maker_confidence: researchSummary?.decision_maker_confidence ?? null,
       next_of_kin_count: researchSummary?.next_of_kin_count ?? 0,
+      queue_status: queueState.queueStatus,
+      ready_for_rerun: queueState.readyForRerun,
+      actionable_research_count: queueState.actionableItems.length,
+      actionable_open_count: queueState.actionableOpenCount,
+      actionable_completed_count: queueState.actionableCompletedCount,
+      actionable_unresolved_count: queueState.actionableUnresolvedCount,
+      last_research_task_completed_at: queueState.lastResearchTaskCompletedAt,
       open_research_task_count: pendingResearchTasks.length,
       open_research_tasks: pendingResearchTasks.slice(0, 5).map((task) => ({
         id: task.id,
@@ -227,7 +261,17 @@ export async function GET(req: NextRequest) {
         due_at: task.due_at,
         source_type: task.source_type,
         source_key: task.source_key,
-      })),
+      })) satisfies ResearchTaskSummary[],
+      completed_research_task_count: completedResearchTasks.length,
+      completed_research_tasks: completedResearchTasks.slice(0, 3).map((task) => ({
+        id: task.id,
+        title: task.title,
+        assigned_to: task.assigned_to,
+        due_at: task.due_at,
+        completed_at: task.completed_at,
+        source_type: task.source_type,
+        source_key: task.source_key,
+      })) satisfies ResearchTaskSummary[],
       properties: lead.properties,
     };
   });

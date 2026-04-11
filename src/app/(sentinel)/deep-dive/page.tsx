@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { PageShell } from "@/components/sentinel/page-shell";
-import { buildDeepDiveActionableItems, evaluateDeepDiveReadiness } from "@/lib/deep-dive";
+import { buildDeepDiveActionableItems, evaluateDeepDiveQueueState, evaluateDeepDiveReadiness } from "@/lib/deep-dive";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { formatDueDateLabel } from "@/lib/due-date-label";
@@ -24,6 +24,7 @@ import {
 import { toast } from "sonner";
 
 type ResearchQuality = "full" | "fallback" | "degraded" | "needs_review";
+type QueueStatus = "needs_research" | "needs_review" | "ready_for_rerun" | "ready_to_call";
 
 type DeepDiveItem = {
   id: string;
@@ -46,12 +47,29 @@ type DeepDiveItem = {
   likely_decision_maker: string | null;
   decision_maker_confidence: number | null;
   next_of_kin_count: number;
+  queue_status: QueueStatus;
+  ready_for_rerun: boolean;
+  actionable_research_count: number;
+  actionable_open_count: number;
+  actionable_completed_count: number;
+  actionable_unresolved_count: number;
+  last_research_task_completed_at: string | null;
   open_research_task_count: number;
   open_research_tasks: Array<{
     id: string;
     title: string | null;
     assigned_to: string | null;
     due_at: string | null;
+    source_type: string | null;
+    source_key: string | null;
+  }>;
+  completed_research_task_count: number;
+  completed_research_tasks: Array<{
+    id: string;
+    title: string | null;
+    assigned_to: string | null;
+    due_at: string | null;
+    completed_at: string | null;
     source_type: string | null;
     source_key: string | null;
   }>;
@@ -146,6 +164,7 @@ export default function DeepDivePage() {
   const [items, setItems] = useState<DeepDiveItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | QueueStatus>("all");
   const [assignmentOptions, setAssignmentOptions] = useState<AssignmentOption[]>([]);
   const [assignmentTargets, setAssignmentTargets] = useState<Record<string, string>>({});
 
@@ -215,23 +234,27 @@ export default function DeepDivePage() {
     let today = 0;
     let tomorrow = 0;
     let ready = 0;
+    let readyForRerun = 0;
+    let needsReview = 0;
+    let needsResearch = 0;
     for (const item of items) {
-      const readiness = evaluateDeepDiveReadiness({
-        research_quality: item.research_quality,
-        research_gap_count: item.research_gap_count,
-        likely_decision_maker: item.likely_decision_maker,
-      });
-      if (readiness.ready) {
-        ready += 1;
-      }
+      if (item.queue_status === "ready_to_call") ready += 1;
+      else if (item.queue_status === "ready_for_rerun") readyForRerun += 1;
+      else if (item.queue_status === "needs_review") needsReview += 1;
+      else needsResearch += 1;
       if (!item.next_action_due_at) continue;
       const due = formatDueDateLabel(item.next_action_due_at, now);
       if (due.overdue) overdue += 1;
       else if (due.text === "Due today") today += 1;
       else if (due.text === "Due tomorrow") tomorrow += 1;
     }
-    return { total: items.length, overdue, today, tomorrow, ready };
+    return { total: items.length, overdue, today, tomorrow, ready, readyForRerun, needsReview, needsResearch };
   }, [items]);
+
+  const visibleItems = useMemo(() => {
+    if (filter === "all") return items;
+    return items.filter((item) => item.queue_status === filter);
+  }, [filter, items]);
 
   const handleRunResearch = useCallback(async (item: DeepDiveItem) => {
     setBusyId(item.id);
@@ -245,7 +268,7 @@ export default function DeepDivePage() {
       if (!response.ok || data.ok === false) {
         throw new Error(data.error ?? "Failed to start research");
       }
-      toast.success("Research queued");
+      toast.success(item.ready_for_rerun ? "Deep Search rerun queued" : "Research queued");
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to start research");
@@ -406,6 +429,31 @@ export default function DeepDivePage() {
     }
   }, [assignmentTargets, load]);
 
+  const handleUpdateResearchTaskStatus = useCallback(async (
+    item: DeepDiveItem,
+    taskId: string,
+    status: "completed" | "pending",
+  ) => {
+    setBusyId(item.id);
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: await authHeaders(),
+        body: JSON.stringify({ status }),
+      });
+      const payload = await response.json().catch(() => ({} as { error?: string }));
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to update research task");
+      }
+      toast.success(status === "completed" ? "Research task completed" : "Research task reopened");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update research task");
+    } finally {
+      setBusyId(null);
+    }
+  }, [load]);
+
   return (
     <PageShell title="Deep Dive" description="Parked files that need research before they return to calling">
       <div className="mx-auto max-w-5xl space-y-4 px-4 py-6">
@@ -439,28 +487,60 @@ export default function DeepDivePage() {
           ))}
         </div>
 
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: "all", label: "All", value: counts.total },
+            { key: "needs_research", label: "Needs Research", value: counts.needsResearch },
+            { key: "needs_review", label: "Needs Review", value: counts.needsReview },
+            { key: "ready_for_rerun", label: "Ready for Rerun", value: counts.readyForRerun },
+            { key: "ready_to_call", label: "Ready to Call", value: counts.ready },
+          ].map((option) => (
+            <Button
+              key={option.key}
+              size="sm"
+              variant={filter === option.key ? "default" : "outline"}
+              className="gap-1.5"
+              onClick={() => setFilter(option.key as "all" | QueueStatus)}
+            >
+              {option.label}
+              <Badge variant="outline" className="border-current/20 bg-transparent text-[10px]">
+                {option.value}
+              </Badge>
+            </Button>
+          ))}
+        </div>
+
         {loading ? (
           <GlassCard hover={false} className="!p-8 text-center">
             <Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground/50" />
           </GlassCard>
-        ) : items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <GlassCard hover={false} className="!p-8 text-center">
-            <p className="text-sm font-medium text-foreground/75">No files parked for deep-dive prep.</p>
+            <p className="text-sm font-medium text-foreground/75">
+              {items.length === 0 ? "No files parked for deep-dive prep." : "No files match this Deep Dive filter."}
+            </p>
             <p className="mt-1 text-sm text-muted-foreground/55">
-              Use the `Deep Dive` action in the dialer or client file when you want to park a file for later research.
+              {items.length === 0
+                ? "Use the `Deep Dive` action in the dialer or client file when you want to park a file for later research."
+                : "Try another filter or refresh the queue after research work completes."}
             </p>
           </GlassCard>
         ) : (
           <div className="space-y-3">
-            {items.map((item) => {
+            {visibleItems.map((item) => {
               const due = formatDueDateLabel(item.next_action_due_at);
               const busy = busyId === item.id;
-              const researchQuality = researchQualityTone(item.research_quality);
-              const readiness = evaluateDeepDiveReadiness({
+              const queueState = evaluateDeepDiveQueueState({
+                leadId: item.id,
                 research_quality: item.research_quality,
                 research_gap_count: item.research_gap_count,
+                research_gaps: item.research_gaps,
+                research_staged_at: item.research_staged_at,
                 likely_decision_maker: item.likely_decision_maker,
+                openResearchTasks: item.open_research_tasks,
               });
+              const researchQuality = researchQualityTone(item.research_quality);
+              const readiness = queueState.readiness;
               const actionableItems = buildDeepDiveActionableItems({
                 leadId: item.id,
                 research_quality: item.research_quality,
@@ -507,6 +587,16 @@ export default function DeepDivePage() {
                         <Badge variant="outline" className={cn("text-[10px] uppercase tracking-wider", researchQuality.className)}>
                           {researchQuality.label}
                         </Badge>
+                        {item.queue_status === "ready_for_rerun" && (
+                          <Badge variant="outline" className="border-sky-500/30 bg-sky-500/10 text-[10px] uppercase tracking-wider text-sky-100">
+                            Ready for Rerun
+                          </Badge>
+                        )}
+                        {item.queue_status === "ready_to_call" && (
+                          <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-[10px] uppercase tracking-wider text-emerald-100">
+                            Ready to Call
+                          </Badge>
+                        )}
                       </div>
 
                       <div className="space-y-0.5 text-sm text-muted-foreground/75">
@@ -546,6 +636,13 @@ export default function DeepDivePage() {
                             <span>{item.research_gap_count} research gap{item.research_gap_count === 1 ? "" : "s"}</span>
                             {item.research_staged_at && <span>Staged {formatTimeAgo(item.research_staged_at)}</span>}
                           </div>
+                          {item.actionable_research_count > 0 && (
+                            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground/65">
+                              <span>{item.actionable_completed_count}/{item.actionable_research_count} blocker task{item.actionable_research_count === 1 ? "" : "s"} resolved</span>
+                              {item.actionable_open_count > 0 && <span>{item.actionable_open_count} blocker task{item.actionable_open_count === 1 ? "" : "s"} still open</span>}
+                              {item.last_research_task_completed_at && <span>Last blocker completed {formatTimeAgo(item.last_research_task_completed_at)}</span>}
+                            </div>
+                          )}
                           {item.research_quality_reason && (
                             <p className="text-xs text-muted-foreground/70">{item.research_quality_reason}</p>
                           )}
@@ -607,35 +704,94 @@ export default function DeepDivePage() {
                               </div>
                             </div>
                           )}
-                          {item.open_research_task_count > 0 && (
-                            <div className="space-y-1 pt-1">
-                              <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">
-                                Open Research Tasks
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {item.open_research_tasks.slice(0, 3).map((task) => {
-                                  const assigneeName = task.assigned_to
-                                    ? assignmentOptions.find((option) => option.id === task.assigned_to)?.name ?? "Assigned"
-                                    : "Unassigned";
-                                  return (
-                                    <Badge
-                                      key={`${item.id}-${task.id}`}
-                                      variant="outline"
-                                      className="max-w-full whitespace-normal border-sky-500/20 bg-sky-500/10 text-left text-[10px] uppercase tracking-wider text-sky-100"
-                                    >
-                                      {task.title ?? "Research task"} · {assigneeName}
-                                    </Badge>
-                                  );
-                                })}
-                                {item.open_research_task_count > 3 && (
-                                  <Badge
-                                    variant="outline"
-                                    className="border-border/30 bg-muted/10 text-[10px] uppercase tracking-wider text-muted-foreground"
-                                  >
-                                    +{item.open_research_task_count - 3} more
-                                  </Badge>
-                                )}
-                              </div>
+                          {(item.open_research_task_count > 0 || item.completed_research_task_count > 0) && (
+                            <div className="space-y-2 pt-1">
+                              {item.open_research_task_count > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">
+                                    Open Research Tasks
+                                  </p>
+                                  <div className="space-y-2">
+                                    {item.open_research_tasks.slice(0, 3).map((task) => {
+                                      const assigneeName = task.assigned_to
+                                        ? assignmentOptions.find((option) => option.id === task.assigned_to)?.name ?? "Assigned"
+                                        : "Unassigned";
+                                      return (
+                                        <div
+                                          key={`${item.id}-${task.id}`}
+                                          className="flex flex-col gap-2 rounded-md border border-sky-500/20 bg-sky-500/10 px-2.5 py-2 sm:flex-row sm:items-center sm:justify-between"
+                                        >
+                                          <div className="space-y-1">
+                                            <p className="text-xs text-sky-50">{task.title ?? "Research task"}</p>
+                                            <p className="text-[11px] text-sky-100/70">
+                                              {assigneeName}
+                                              {task.due_at ? ` · Due ${formatDueDateLabel(task.due_at).text}` : ""}
+                                            </p>
+                                          </div>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="gap-1.5 self-start border-sky-400/30 bg-sky-500/10 text-sky-50 hover:bg-sky-500/20 sm:self-auto"
+                                            onClick={() => void handleUpdateResearchTaskStatus(item, task.id, "completed")}
+                                            disabled={busy}
+                                          >
+                                            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                                            Mark Complete
+                                          </Button>
+                                        </div>
+                                      );
+                                    })}
+                                    {item.open_research_task_count > 3 && (
+                                      <p className="text-xs text-muted-foreground/60">
+                                        +{item.open_research_task_count - 3} more open research task{item.open_research_task_count - 3 === 1 ? "" : "s"}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              {item.completed_research_task_count > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">
+                                    Recently Completed
+                                  </p>
+                                  <div className="space-y-2">
+                                    {item.completed_research_tasks.slice(0, 2).map((task) => {
+                                      const assigneeName = task.assigned_to
+                                        ? assignmentOptions.find((option) => option.id === task.assigned_to)?.name ?? "Assigned"
+                                        : "Unassigned";
+                                      return (
+                                        <div
+                                          key={`${item.id}-completed-${task.id}`}
+                                          className="flex flex-col gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-2 sm:flex-row sm:items-center sm:justify-between"
+                                        >
+                                          <div className="space-y-1">
+                                            <p className="text-xs text-emerald-50">{task.title ?? "Research task"}</p>
+                                            <p className="text-[11px] text-emerald-100/70">
+                                              {assigneeName}
+                                              {task.completed_at ? ` · Completed ${formatTimeAgo(task.completed_at)}` : ""}
+                                            </p>
+                                          </div>
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="gap-1.5 self-start border-emerald-400/30 bg-emerald-500/10 text-emerald-50 hover:bg-emerald-500/20 sm:self-auto"
+                                            onClick={() => void handleUpdateResearchTaskStatus(item, task.id, "pending")}
+                                            disabled={busy}
+                                          >
+                                            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                                            Reopen
+                                          </Button>
+                                        </div>
+                                      );
+                                    })}
+                                    {item.completed_research_task_count > 2 && (
+                                      <p className="text-xs text-muted-foreground/60">
+                                        +{item.completed_research_task_count - 2} more completed research task{item.completed_research_task_count - 2 === 1 ? "" : "s"}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -681,9 +837,15 @@ export default function DeepDivePage() {
                         <ArrowRight className="h-3.5 w-3.5" />
                         Open Client File
                       </Button>
-                      <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void handleRunResearch(item)} disabled={busy}>
+                      <Button
+                        size="sm"
+                        variant={item.ready_for_rerun ? "default" : "outline"}
+                        className="gap-1.5"
+                        onClick={() => void handleRunResearch(item)}
+                        disabled={busy}
+                      >
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-                        Run Research
+                        {item.ready_for_rerun ? "Rerun Deep Search" : "Run Research"}
                       </Button>
                       <Button size="sm" variant="outline" className="gap-1.5" onClick={() => void handleAssemblePrep(item)} disabled={busy}>
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookOpen className="h-3.5 w-3.5" />}

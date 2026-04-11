@@ -233,5 +233,99 @@ describe("GET /api/dialer/v1/deep-dive", () => {
         source_key: "lead-1:verify_petitioner_mailing_address",
       }),
     ]);
+    expect(payload.items[0].completed_research_task_count).toBe(0);
+    expect(payload.items[0].completed_research_tasks).toEqual([]);
+  });
+
+  it("marks a file ready for rerun when blocker tasks were completed after the last staged search", async () => {
+    const routeClient = createRouteClient({
+      leads: [
+        {
+          id: "lead-1",
+          status: "lead",
+          assigned_to: "user-1",
+          next_action: "Deep Dive",
+          next_action_due_at: "2026-04-11T16:30:00.000Z",
+          last_contact_at: null,
+          total_calls: 2,
+          notes: null,
+          created_at: "2026-04-10T10:00:00.000Z",
+          properties: {
+            address: "6511 N Jefferson St",
+            city: "Spokane",
+            state: "WA",
+            zip: "99208",
+            county: "Spokane",
+            owner_name: "Guy Bates",
+            owner_phone: "(509) 555-1111",
+          },
+        },
+      ],
+      events: [],
+      dossiers: [
+        {
+          lead_id: "lead-1",
+          status: "staged",
+          created_at: "2026-04-10T13:00:00.000Z",
+          likely_decision_maker: "Janet Bates",
+          raw_ai_output: {
+            research_run: {
+              run_quality: "fallback",
+              quality_reason: "Official records found; public breadcrumbs still thin.",
+              research_gaps: ["Verify petitioner mailing address"],
+              staged_at: "2026-04-10T13:00:00.000Z",
+              people_intel: {
+                next_of_kin: [{ name: "Janet Bates", confidence: 0.86 }],
+              },
+            },
+          },
+        },
+      ],
+      prepFrames: [],
+      tasks: [
+        {
+          id: "task-1",
+          lead_id: "lead-1",
+          title: "Research - Verify petitioner mailing address",
+          assigned_to: "user-1",
+          due_at: "2026-04-11T09:00:00.000Z",
+          task_type: "research",
+          source_type: "deep_search_gap",
+          source_key: "lead-1:verify_petitioner_mailing_address",
+          status: "completed",
+          completed_at: "2026-04-10T13:20:00.000Z",
+          created_at: "2026-04-10T13:05:00.000Z",
+        },
+      ],
+    });
+    mocks.createDialerClient.mockReturnValue(routeClient.client);
+
+    const { GET } = await import("@/app/api/dialer/v1/deep-dive/route");
+    const response = await GET(new Request("http://localhost/api/dialer/v1/deep-dive", {
+      headers: {
+        authorization: "Bearer token",
+      },
+    }) as never);
+
+    const payload = await response.json();
+    expect(response.status).toBe(200);
+    expect(payload.items[0]).toMatchObject({
+      queue_status: "ready_for_rerun",
+      ready_for_rerun: true,
+      actionable_research_count: 1,
+      actionable_open_count: 0,
+      actionable_completed_count: 1,
+      actionable_unresolved_count: 0,
+      last_research_task_completed_at: "2026-04-10T13:20:00.000Z",
+      completed_research_task_count: 1,
+    });
+    expect(payload.items[0].completed_research_tasks).toEqual([
+      expect.objectContaining({
+        id: "task-1",
+        completed_at: "2026-04-10T13:20:00.000Z",
+        source_type: "deep_search_gap",
+        source_key: "lead-1:verify_petitioner_mailing_address",
+      }),
+    ]);
   });
 });

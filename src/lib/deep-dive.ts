@@ -21,6 +21,38 @@ export interface DeepDiveActionableItem {
   sourceKey: string;
 }
 
+export type DeepDiveQueueStatus =
+  | "needs_research"
+  | "needs_review"
+  | "ready_for_rerun"
+  | "ready_to_call";
+
+export interface DeepDiveQueueStateInput extends DeepDiveReadinessInput {
+  leadId: string;
+  research_gaps?: string[] | null;
+  research_staged_at?: string | null;
+  openResearchTasks?: Array<{
+    source_type: string | null;
+    source_key: string | null;
+  }> | null;
+  completedResearchTasks?: Array<{
+    source_type: string | null;
+    source_key: string | null;
+    completed_at?: string | null;
+  }> | null;
+}
+
+export interface DeepDiveQueueState {
+  readiness: DeepDiveReadinessResult;
+  actionableItems: DeepDiveActionableItem[];
+  actionableOpenCount: number;
+  actionableCompletedCount: number;
+  actionableUnresolvedCount: number;
+  readyForRerun: boolean;
+  queueStatus: DeepDiveQueueStatus;
+  lastResearchTaskCompletedAt: string | null;
+}
+
 export function isDeepDiveNextAction(nextAction: string | null | undefined): boolean {
   return typeof nextAction === "string" && nextAction.trim().toLowerCase().startsWith("deep dive");
 }
@@ -115,6 +147,77 @@ export function buildDeepDiveActionableItems(input: DeepDiveReadinessInput & {
   }
 
   return items;
+}
+
+function buildTaskIdentity(sourceType: string | null | undefined, sourceKey: string | null | undefined): string | null {
+  if (!sourceType || !sourceKey) return null;
+  return `${sourceType}:${sourceKey}`;
+}
+
+export function evaluateDeepDiveQueueState(input: DeepDiveQueueStateInput): DeepDiveQueueState {
+  const readiness = evaluateDeepDiveReadiness(input);
+  const actionableItems = buildDeepDiveActionableItems(input);
+  const actionableKeys = new Set(actionableItems.map((item) => `${item.sourceType}:${item.sourceKey}`));
+  const stagedAtMs = input.research_staged_at ? new Date(input.research_staged_at).getTime() : Number.NEGATIVE_INFINITY;
+
+  const openKeys = new Set(
+    (input.openResearchTasks ?? [])
+      .map((task) => buildTaskIdentity(task.source_type, task.source_key))
+      .filter((value): value is string => Boolean(value)),
+  );
+
+  const completedActionableKeys = new Set<string>();
+  let lastResearchTaskCompletedAt: string | null = null;
+  let lastResearchTaskCompletedMs = Number.NEGATIVE_INFINITY;
+
+  for (const task of input.completedResearchTasks ?? []) {
+    const identity = buildTaskIdentity(task.source_type, task.source_key);
+    const completedMs = task.completed_at ? new Date(task.completed_at).getTime() : Number.NaN;
+    if (task.completed_at && Number.isFinite(completedMs) && completedMs > lastResearchTaskCompletedMs) {
+      lastResearchTaskCompletedMs = completedMs;
+      lastResearchTaskCompletedAt = task.completed_at;
+    }
+    if (!identity || !actionableKeys.has(identity)) continue;
+    if (Number.isFinite(completedMs) && completedMs >= stagedAtMs) {
+      completedActionableKeys.add(identity);
+    }
+  }
+
+  let actionableOpenCount = 0;
+  let actionableCompletedCount = 0;
+  let actionableUnresolvedCount = 0;
+
+  for (const item of actionableItems) {
+    const identity = `${item.sourceType}:${item.sourceKey}`;
+    if (openKeys.has(identity)) actionableOpenCount += 1;
+    else if (completedActionableKeys.has(identity)) actionableCompletedCount += 1;
+    else actionableUnresolvedCount += 1;
+  }
+
+  const openResearchTaskCount = input.openResearchTasks?.length ?? 0;
+  const readyForRerun = !readiness.ready
+    && actionableItems.length > 0
+    && actionableCompletedCount > 0
+    && actionableOpenCount === 0
+    && actionableUnresolvedCount === 0
+    && openResearchTaskCount === 0;
+
+  let queueStatus: DeepDiveQueueStatus;
+  if (readiness.ready) queueStatus = "ready_to_call";
+  else if (readyForRerun) queueStatus = "ready_for_rerun";
+  else if (input.research_quality === "needs_review") queueStatus = "needs_review";
+  else queueStatus = "needs_research";
+
+  return {
+    readiness,
+    actionableItems,
+    actionableOpenCount,
+    actionableCompletedCount,
+    actionableUnresolvedCount,
+    readyForRerun,
+    queueStatus,
+    lastResearchTaskCompletedAt,
+  };
 }
 
 export function getDefaultDeepDiveDueAt(now = new Date()): string {
