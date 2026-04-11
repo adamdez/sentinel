@@ -150,6 +150,21 @@ function formatAttachmentSize(sizeBytes: number): string {
   return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function relatedContactSourceLabel(source: string): string {
+  switch (source) {
+    case "deep_search":
+      return "Deep Search";
+    case "manual":
+      return "Manual";
+    default:
+      return source.replace(/_/g, " ");
+  }
+}
+
+function isManualRelatedContact(source: string): boolean {
+  return source === "manual";
+}
+
 async function getAuthHeaders(contentType?: string): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
   const headers: Record<string, string> = {};
@@ -752,6 +767,8 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
         if (signed_url) uploadedSignedUrls[attachment.id] = signed_url;
       }
 
+      const existingContact = relatedContacts.find((contact) => contact.id === relatedDraft.id) ?? null;
+      const persistedSource = existingContact?.source ?? relatedDraft.source;
       const nextContact: RelatedContact = {
         id: relatedDraft.id,
         name: relatedDraft.name.trim(),
@@ -759,7 +776,8 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
         phone: relatedDraft.phone.trim() || null,
         email: relatedDraft.email.trim() || null,
         note: relatedDraft.note.trim(),
-        source: relatedDraft.source || "manual",
+        // Once an operator edits a machine-found contact, keep it under manual control.
+        source: persistedSource === "deep_search" ? "manual" : (persistedSource || "manual"),
         attachments: [...keptAttachments, ...uploadedAttachments],
         created_at: relatedDraft.created_at || now,
         updated_at: now,
@@ -1501,6 +1519,8 @@ function RelatedContactsWorkspace({
   calling: boolean;
   ownerFlags: Record<string, any> | null | undefined;
 }) {
+  const manualContactCount = relatedContacts.filter((contact) => isManualRelatedContact(contact.source)).length;
+  const researchContactCount = relatedContacts.length - manualContactCount;
   const importedContactCount = [
     ownerFlags?.survivor_contact,
     ownerFlags?.petitioner_contact,
@@ -1530,7 +1550,13 @@ function RelatedContactsWorkspace({
           </button>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground/60">
-          <span>{relatedContacts.length} manual</span>
+          <span>{manualContactCount} manual</span>
+          {researchContactCount > 0 && (
+            <>
+              <span>•</span>
+              <span>{researchContactCount} research-found</span>
+            </>
+          )}
           <span>•</span>
           <span>{importedContactCount} imported</span>
           {attachmentUrlsLoading && (
@@ -1616,7 +1642,7 @@ function RelatedContactsWorkspace({
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-semibold text-foreground">{contact.name}</span>
                     <Badge variant="outline" className="text-xs py-0 px-1 border-border/30 text-foreground">{contact.relation || "Related contact"}</Badge>
-                    <Badge variant="outline" className="text-xs py-0 px-1 border-primary/30 text-primary">Manual</Badge>
+                    <Badge variant="outline" className="text-xs py-0 px-1 border-primary/30 text-primary">{relatedContactSourceLabel(contact.source)}</Badge>
                   </div>
                   {contact.note && <p className="mt-2 text-sm text-foreground/90 whitespace-pre-wrap">{contact.note}</p>}
                 </div>
@@ -1726,6 +1752,10 @@ function ImportedLegalSection({ ownerFlags }: { ownerFlags: Record<string, any> 
   if (legal.case_number) rows.push({ label: "Case Number", value: legal.case_number });
   if (legal.file_date) rows.push({ label: "File Date", value: legal.file_date });
   if (legal.date_of_death) rows.push({ label: "Date of Death", value: legal.date_of_death });
+  if (legal.court_name) rows.push({ label: "Court", value: legal.court_name });
+  if (legal.case_type) rows.push({ label: "Case Type", value: legal.case_type });
+  if (legal.next_hearing_date) rows.push({ label: "Next Hearing", value: legal.next_hearing_date });
+  if (legal.status) rows.push({ label: "Status", value: legal.status });
   if (rows.length === 0) return null;
 
   return (
@@ -1741,6 +1771,17 @@ function ImportedLegalSection({ ownerFlags }: { ownerFlags: Record<string, any> 
           </div>
         ))}
       </div>
+      {typeof legal.source_url === "string" && legal.source_url.trim().length > 0 && (
+        <a
+          href={legal.source_url}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+        >
+          <ExternalLink className="h-3 w-3" />
+          Open Source Record
+        </a>
+      )}
     </div>
   );
 }

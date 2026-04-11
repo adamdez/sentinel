@@ -19,10 +19,12 @@ import { useMemo } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buildResearchGapSourceKey } from "@/lib/deep-dive";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
 import type {
   NextOfKinCandidate,
   PeopleIntelHighlight,
+  UnifiedResearchQuality,
   UnifiedResearchStatusResponse,
 } from "@/lib/research-run-types";
 
@@ -97,6 +99,17 @@ interface LegalEvidenceRow {
   statusLabel: string | null;
 }
 
+interface ContactPathRow {
+  key: string;
+  name: string;
+  role: string;
+  value: string;
+  type: "phone" | "email";
+  summary: string;
+  confidence: number;
+  links: Array<{ label: string; url: string }>;
+}
+
 function formatWhen(value: string | null | undefined): string {
   if (!value) return "never";
   const parsed = new Date(value);
@@ -118,6 +131,13 @@ function formatDate(value: string | null | undefined): string {
 function formatCurrency(amount: number | null | undefined): string {
   if (amount == null) return "-";
   return `$${amount.toLocaleString()}`;
+}
+
+function defaultResearchTaskDueAt(): string {
+  const due = new Date();
+  due.setDate(due.getDate() + 1);
+  due.setHours(9, 0, 0, 0);
+  return due.toISOString();
 }
 
 function parseTopFacts(raw: unknown): Array<{ text: string; source?: string; confidence?: string }> {
@@ -228,6 +248,39 @@ function trustTone(sourceType: string | null | undefined): {
     badge: "Evidence",
     className: "border-border/30 bg-muted/10 text-muted-foreground",
   };
+}
+
+function qualityTone(quality: UnifiedResearchQuality | null | undefined): {
+  label: string;
+  className: string;
+} {
+  switch (quality) {
+    case "full":
+      return {
+        label: "Full",
+        className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
+      };
+    case "fallback":
+      return {
+        label: "Fallback",
+        className: "border-sky-500/20 bg-sky-500/10 text-sky-100",
+      };
+    case "needs_review":
+      return {
+        label: "Needs Review",
+        className: "border-amber-500/20 bg-amber-500/10 text-amber-100",
+      };
+    case "degraded":
+      return {
+        label: "Degraded",
+        className: "border-rose-500/20 bg-rose-500/10 text-rose-100",
+      };
+    default:
+      return {
+        label: "Pending",
+        className: "border-border/30 bg-muted/10 text-muted-foreground",
+      };
+  }
 }
 
 function docTypeLabel(type: string): string {
@@ -523,6 +576,47 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
       toast.error(error instanceof Error ? error.message : "Promote failed");
     },
   });
+  const createGapTaskMutation = useMutation({
+    mutationFn: async (gap: string) => {
+      const response = await fetch("/api/tasks", {
+        method: "POST",
+        headers: await sentinelAuthHeaders(),
+        body: JSON.stringify({
+          title: `Research gap - ${gap.slice(0, 72)}`,
+          description: [
+            "Created from Deep Search research gap.",
+            gap,
+            display?.likely_decision_maker ? `Current staged decision-maker: ${display.likely_decision_maker}` : null,
+            display?.situation_summary ? `Situation summary: ${display.situation_summary}` : null,
+          ].filter(Boolean).join("\n\n"),
+          lead_id: leadId,
+          due_at: defaultResearchTaskDueAt(),
+          priority: 2,
+          task_type: "research",
+          source_type: "deep_search_gap",
+          source_key: buildResearchGapSourceKey(leadId, gap),
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? "Failed to create task");
+      }
+      return response.json();
+    },
+    onSuccess: (payload) => {
+      if (payload?.reopened) {
+        toast.success("Research task reopened");
+      } else if (payload?.reused_existing) {
+        toast.success("Research task already open");
+      } else {
+        toast.success("Research task created");
+      }
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Failed to create task");
+    },
+  });
 
   const display = dossierQuery.data ?? null;
   const artifacts = useMemo(() => artifactsQuery.data ?? [], [artifactsQuery.data]);
@@ -535,6 +629,10 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
   const loading = dossierQuery.isLoading || researchQuery.isLoading || legalQuery.isLoading || artifactsQuery.isLoading;
   const isProposed = display?.status === "proposed";
   const legalErrors = runMeta?.legal.errors ?? [];
+  const researchGaps = runMeta?.research_gaps ?? [];
+  const quality = qualityTone(runMeta?.run_quality);
+  const primaryDecisionMaker = peopleIntel.nextOfKin[0] ?? null;
+  const nextOfKinCandidates = primaryDecisionMaker ? peopleIntel.nextOfKin.slice(1) : peopleIntel.nextOfKin;
   const nextEvent = runMeta?.legal.next_upcoming_event ?? null;
   const legalEvidenceRows = useMemo(() => {
     const rows: LegalEvidenceRow[] = [];
@@ -668,6 +766,61 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
       return true;
     });
   }, [artifacts, documents, sourceLinks]);
+  const contactPathRows = useMemo(() => {
+    const rows: ContactPathRow[] = [];
+
+    for (const candidate of peopleIntel.nextOfKin) {
+      const candidateLinks = resolveCandidateLinks(
+        candidate,
+        peopleIntel.rawFindings,
+        artifacts,
+        sourceLinks,
+        documents,
+      );
+
+      for (const phone of candidate.phones) {
+        rows.push({
+          key: `${candidate.name}-${candidate.role}-phone-${phone}`,
+          name: candidate.name,
+          role: candidate.role,
+          value: phone,
+          type: "phone",
+          summary: candidate.summary,
+          confidence: candidate.confidence,
+          links: candidateLinks,
+        });
+      }
+
+      for (const email of candidate.emails) {
+        rows.push({
+          key: `${candidate.name}-${candidate.role}-email-${email}`,
+          name: candidate.name,
+          role: candidate.role,
+          value: email,
+          type: "email",
+          summary: candidate.summary,
+          confidence: candidate.confidence,
+          links: candidateLinks,
+        });
+      }
+    }
+
+    const seen = new Set<string>();
+    return rows.filter((row) => {
+      const dedupeKey = `${row.type}:${row.value.toLowerCase()}`;
+      if (seen.has(dedupeKey)) return false;
+      seen.add(dedupeKey);
+      return true;
+    });
+  }, [artifacts, documents, peopleIntel.nextOfKin, peopleIntel.rawFindings, sourceLinks]);
+  const publicBreadcrumbHighlights = useMemo(() => (
+    peopleIntel.highlights.filter((highlight) => (
+      highlight.category === "social_media"
+      || highlight.category === "employment"
+      || highlight.category === "obituary"
+      || highlight.category === "news"
+    ))
+  ), [peopleIntel.highlights]);
 
   if (loading && !display && documents.length === 0 && artifacts.length === 0) {
     return (
@@ -702,10 +855,20 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
                       : "Reviewed"}
                 </Badge>
               )}
+              {runMeta && (
+                <Badge className={quality.className}>
+                  {quality.label}
+                </Badge>
+              )}
             </div>
             <p className="text-sm text-foreground/85">
               {stagedSummary}
             </p>
+            {runMeta?.quality_reason && (
+              <p className="text-xs text-muted-foreground/70">
+                {runMeta.quality_reason}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
               {(runMeta?.source_groups ?? ["deep_property", "legal", "people_intel"]).map((group) => (
                 <Badge key={group} className="border-border/30 bg-muted/10 text-muted-foreground">
@@ -738,6 +901,40 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
           </div>
         )}
       </div>
+
+      {researchGaps.length > 0 && (
+        <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 px-4 py-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-200" />
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/60">
+                Research Gaps
+              </p>
+              <div className="space-y-2">
+                {researchGaps.slice(0, 6).map((gap) => (
+                  <div key={gap} className="flex flex-wrap items-center gap-2">
+                    <Badge
+                      className="max-w-full whitespace-normal border-amber-500/20 bg-amber-500/10 text-left text-amber-50/90"
+                    >
+                      {gap}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 border-border/30 bg-muted/10 px-2.5 text-xs"
+                      disabled={createGapTaskMutation.isPending}
+                      onClick={() => createGapTaskMutation.mutate(gap)}
+                    >
+                      {createGapTaskMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                      Create Task
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {legalErrors.length > 0 && (
         <div className="rounded-[12px] border border-amber-500/25 bg-amber-500/8 px-4 py-3">
@@ -806,7 +1003,7 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
           <section className="space-y-3">
             <div className="flex items-center gap-2">
               <Brain className="h-4 w-4 text-muted-foreground/60" />
-              <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/60">Brief</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/60">Operator Brief</h3>
             </div>
 
             <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-4">
@@ -878,7 +1075,7 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground/60" />
               <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/60">
-                Decision Maker / Next Of Kin
+                Decision Maker
               </h3>
             </div>
 
@@ -888,13 +1085,83 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
                   Best Current Decision Maker
                 </p>
                 <p className="mt-1 text-sm text-foreground/90">
-                  {display?.likely_decision_maker ?? "No decision-maker has been staged yet."}
+                  {display?.likely_decision_maker ?? primaryDecisionMaker?.name ?? "No decision-maker has been staged yet."}
                 </p>
               </div>
 
-              {peopleIntel.nextOfKin.length > 0 ? (
+              {primaryDecisionMaker && (
+                <div className="rounded-[10px] border border-emerald-500/20 bg-emerald-500/[0.06] px-3 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground">{primaryDecisionMaker.name}</p>
+                    <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-100">
+                      Primary candidate
+                    </Badge>
+                    <Badge className="border-border/30 bg-muted/10 text-muted-foreground">
+                      {primaryDecisionMaker.role}
+                    </Badge>
+                    <Badge className="border-border/30 bg-muted/10 text-muted-foreground">
+                      {Math.round(primaryDecisionMaker.confidence * 100)}%
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-foreground/85">{primaryDecisionMaker.summary}</p>
+                  {(primaryDecisionMaker.phones.length > 0 || primaryDecisionMaker.emails.length > 0) && (
+                    <p className="mt-2 text-xs text-muted-foreground/70">
+                      {[...primaryDecisionMaker.phones, ...primaryDecisionMaker.emails].join(" | ")}
+                    </p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {resolveCandidateLinks(
+                      primaryDecisionMaker,
+                      peopleIntel.rawFindings,
+                      artifacts,
+                      sourceLinks,
+                      documents,
+                    ).map((link) => (
+                      <a
+                        key={`primary-${link.url}`}
+                        href={link.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-full border border-border/30 bg-muted/10 px-2.5 py-1 text-xs text-primary/80 hover:text-primary"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        {link.label}
+                      </a>
+                    ))}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 border-border/30 bg-muted/10 px-2.5 text-xs"
+                      disabled={createGapTaskMutation.isPending}
+                      onClick={() => createGapTaskMutation.mutate(`Verify authority and outreach path for ${primaryDecisionMaker.name}.`)}
+                    >
+                      {createGapTaskMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                      Create Verify Task
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {!primaryDecisionMaker && (
+                <p className="text-sm text-muted-foreground/70">
+                  No decision-maker candidate has been staged yet.
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground/60" />
+              <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/60">
+                Next Of Kin
+              </h3>
+            </div>
+
+            <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-4">
+              {nextOfKinCandidates.length > 0 ? (
                 <div className="grid gap-3 md:grid-cols-2">
-                  {peopleIntel.nextOfKin.map((candidate) => {
+                  {nextOfKinCandidates.map((candidate) => {
                     const candidateLinks = resolveCandidateLinks(
                       candidate,
                       peopleIntel.rawFindings,
@@ -932,6 +1199,16 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
                               {link.label}
                             </a>
                           ))}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 border-border/30 bg-muted/10 px-2.5 text-xs"
+                            disabled={createGapTaskMutation.isPending}
+                            onClick={() => createGapTaskMutation.mutate(`Verify next-of-kin path for ${candidate.name}.`)}
+                          >
+                            {createGapTaskMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                            Create Task
+                          </Button>
                         </div>
                       </div>
                     );
@@ -939,7 +1216,7 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground/70">
-                  No next-of-kin or estate contacts have been staged yet.
+                  No additional next-of-kin or estate contacts have been staged yet.
                 </p>
               )}
             </div>
@@ -1060,48 +1337,122 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground/60" />
               <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/60">
-                People Intel
+                Contact Breadcrumbs
               </h3>
             </div>
 
-            <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-3">
-              {peopleIntel.highlights.length > 0 ? (
-                peopleIntel.highlights.map((highlight, index) => (
-                  <div key={`${highlight.source}-${index}`} className="rounded-[10px] border border-overlay-6 bg-overlay-1 px-3 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-100">
-                        Review Required
-                      </Badge>
-                      <span className="text-xs text-muted-foreground/60">
-                        {highlight.category.replace(/_/g, " ")}
-                      </span>
-                      <span className="text-xs text-muted-foreground/60">
-                        {Math.round(highlight.confidence * 100)}%
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm text-foreground/90">{highlight.summary}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground/65">
-                      <span>{highlight.source}</span>
-                      {highlight.date && <span>{formatDate(highlight.date)}</span>}
-                      {highlight.url && (
-                        <a
-                          href={highlight.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-primary/80 hover:text-primary"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                          Open Source
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground/70">
-                  No obituary, social, or news findings are staged yet.
+            <div className="rounded-[12px] border border-overlay-6 bg-overlay-2 p-4 space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-[10px] border border-overlay-6 bg-overlay-1 px-3 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Direct Contact Paths</p>
+                  <p className="mt-1 text-lg font-semibold text-foreground">{contactPathRows.length}</p>
+                  <p className="mt-1 text-xs text-muted-foreground/60">
+                    Phone and email routes attached to staged decision-makers and kin.
+                  </p>
+                </div>
+                <div className="rounded-[10px] border border-overlay-6 bg-overlay-1 px-3 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground/55">Public Breadcrumbs</p>
+                  <p className="mt-1 text-lg font-semibold text-foreground">{publicBreadcrumbHighlights.length}</p>
+                  <p className="mt-1 text-xs text-muted-foreground/60">
+                    Obituary, social, employment, and news signals that still need human judgment.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/60">
+                  Direct Contact Paths
                 </p>
-              )}
+                {contactPathRows.length > 0 ? (
+                  <div className="space-y-3">
+                    {contactPathRows.map((row) => (
+                      <div key={row.key} className="rounded-[10px] border border-overlay-6 bg-overlay-1 px-3 py-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-medium text-foreground">{row.name}</p>
+                              <Badge className="border-border/30 bg-muted/10 text-muted-foreground">
+                                {row.role}
+                              </Badge>
+                              <Badge className="border-sky-500/20 bg-sky-500/10 text-sky-100">
+                                {row.type === "phone" ? "Phone" : "Email"}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground/60">
+                                {Math.round(row.confidence * 100)}%
+                              </span>
+                            </div>
+                            <p className="text-sm text-foreground/90">{row.value}</p>
+                            <p className="text-xs text-muted-foreground/65">{row.summary}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {row.links.map((link) => (
+                              <a
+                                key={`${row.key}-${link.url}`}
+                                href={link.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 rounded-full border border-border/30 bg-muted/10 px-3 py-1.5 text-xs text-primary/80 hover:text-primary"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                {link.label}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground/70">
+                    No direct phone or email paths have been staged yet.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/60">
+                  Public Breadcrumbs
+                </p>
+                {publicBreadcrumbHighlights.length > 0 ? (
+                  <div className="space-y-3">
+                    {publicBreadcrumbHighlights.map((highlight, index) => (
+                      <div key={`${highlight.source}-${index}`} className="rounded-[10px] border border-overlay-6 bg-overlay-1 px-3 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-100">
+                            Review Required
+                          </Badge>
+                          <span className="text-xs text-muted-foreground/60">
+                            {highlight.category.replace(/_/g, " ")}
+                          </span>
+                          <span className="text-xs text-muted-foreground/60">
+                            {Math.round(highlight.confidence * 100)}%
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-foreground/90">{highlight.summary}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground/65">
+                          <span>{highlight.source}</span>
+                          {highlight.date && <span>{formatDate(highlight.date)}</span>}
+                          {highlight.url && (
+                            <a
+                              href={highlight.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-primary/80 hover:text-primary"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Open Source
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground/70">
+                    No obituary, social, employment, or news breadcrumbs are staged yet.
+                  </p>
+                )}
+              </div>
             </div>
           </section>
 

@@ -3,7 +3,8 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
-import { DEEP_DIVE_READY_NEXT_ACTION } from "@/lib/deep-dive";
+import { DEEP_DIVE_READY_NEXT_ACTION, evaluateDeepDiveReadiness } from "@/lib/deep-dive";
+import type { UnifiedResearchMetadata } from "@/lib/research-run-types";
 
 type RouteContext = { params: Promise<{ lead_id: string }> };
 
@@ -39,6 +40,38 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   }
   if (lead.assigned_to !== user.id) {
     return NextResponse.json({ error: "Lead must be assigned to you" }, { status: 403 });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: dossier, error: dossierErr } = await (sb.from("dossiers") as any)
+    .select("likely_decision_maker, raw_ai_output, created_at")
+    .eq("lead_id", lead_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (dossierErr) {
+    return NextResponse.json({ error: "Failed to load research status" }, { status: 500 });
+  }
+
+  const raw = (dossier?.raw_ai_output as Record<string, unknown> | null) ?? null;
+  const metadata = raw && typeof raw.research_run === "object"
+    ? raw.research_run as UnifiedResearchMetadata
+    : null;
+  const readiness = evaluateDeepDiveReadiness({
+    research_quality: metadata?.run_quality ?? null,
+    research_gap_count: metadata?.research_gaps?.length ?? 0,
+    likely_decision_maker:
+      (typeof dossier?.likely_decision_maker === "string" ? dossier.likely_decision_maker : null)
+      ?? metadata?.people_intel?.next_of_kin?.[0]?.name
+      ?? null,
+  });
+
+  if (!readiness.ready) {
+    return NextResponse.json({
+      error: "Deep Dive prep is not ready to return to calling.",
+      blockers: readiness.blockers,
+    }, { status: 409 });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

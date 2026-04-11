@@ -14,6 +14,7 @@ import { runLegalSearch, type LegalSearchInput, type NormalizedDocument } from "
 import type {
   NextOfKinCandidate,
   PeopleIntelHighlight,
+  UnifiedResearchQuality,
   UnifiedResearchMetadata,
   UnifiedResearchStatusResponse,
 } from "@/lib/research-run-types";
@@ -97,6 +98,33 @@ interface RunLeadResearchOptions {
 
 interface RunLeadResearchResult extends UnifiedResearchStatusResponse {
   metadata: UnifiedResearchMetadata;
+}
+
+interface RelatedContactRecord {
+  id: string;
+  name: string;
+  relation: string;
+  phone: string | null;
+  email: string | null;
+  note: string;
+  source: string;
+  attachments: Array<Record<string, unknown>>;
+  created_at: string;
+  updated_at: string;
+}
+
+interface LegalMetadataRecord {
+  document_type?: string | null;
+  case_number?: string | null;
+  file_date?: string | null;
+  date_of_death?: string | null;
+  court_name?: string | null;
+  case_type?: string | null;
+  next_hearing_date?: string | null;
+  status?: string | null;
+  source_url?: string | null;
+  source?: string | null;
+  updated_at?: string | null;
 }
 
 function compact(value: string | null | undefined): string {
@@ -244,6 +272,254 @@ function dedupeFindings(findings: AgentFinding[]): AgentFinding[] {
 
 function buildContactNotes(parts: Array<string | null | undefined>): string {
   return parts.map((part) => compact(part)).filter(Boolean).join(" ").trim();
+}
+
+function compactRecord<T extends Record<string, unknown>>(value: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, fieldValue]) => fieldValue != null && fieldValue !== ""),
+  ) as Partial<T>;
+}
+
+function normalizeContactName(value: string | null | undefined): string | null {
+  const cleaned = compact(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || null;
+}
+
+function normalizeContactPhone(value: string | null | undefined): string | null {
+  const digits = compact(value).replace(/\D/g, "");
+  if (digits.length < 7) return null;
+  return digits.slice(-10);
+}
+
+function normalizeContactEmail(value: string | null | undefined): string | null {
+  const email = compact(value).toLowerCase();
+  return email.includes("@") ? email : null;
+}
+
+function slugifyContactValue(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
+function normalizeRelatedContacts(value: unknown): RelatedContactRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const row = entry as Record<string, unknown>;
+    if (typeof row.id !== "string" || typeof row.name !== "string" || typeof row.relation !== "string") {
+      return [];
+    }
+
+    return [{
+      id: row.id,
+      name: row.name,
+      relation: row.relation,
+      phone: typeof row.phone === "string" && compact(row.phone) ? row.phone : null,
+      email: typeof row.email === "string" && compact(row.email) ? row.email : null,
+      note: typeof row.note === "string" ? row.note : "",
+      source: typeof row.source === "string" ? row.source : "manual",
+      attachments: Array.isArray(row.attachments) ? row.attachments.filter((item) => item && typeof item === "object") as Array<Record<string, unknown>> : [],
+      created_at: typeof row.created_at === "string" ? row.created_at : new Date().toISOString(),
+      updated_at: typeof row.updated_at === "string" ? row.updated_at : new Date().toISOString(),
+    }];
+  });
+}
+
+function collectIdentityTokens(args: {
+  name?: string | null;
+  phone?: string | null;
+  email?: string | null;
+}) {
+  const tokens = new Set<string>();
+  const normalizedName = normalizeContactName(args.name);
+  const normalizedPhone = normalizeContactPhone(args.phone);
+  const normalizedEmail = normalizeContactEmail(args.email);
+  if (normalizedName) tokens.add(`name:${normalizedName}`);
+  if (normalizedPhone) tokens.add(`phone:${normalizedPhone}`);
+  if (normalizedEmail) tokens.add(`email:${normalizedEmail}`);
+  return tokens;
+}
+
+function importedOwnerFlagContacts(ownerFlags: Record<string, unknown>): Array<{
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+}> {
+  const importedRows = [
+    ownerFlags.deceased_person,
+    ownerFlags.survivor_contact,
+    ownerFlags.petitioner_contact,
+    ownerFlags.attorney_contact,
+  ];
+
+  return importedRows.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const row = entry as Record<string, unknown>;
+    const name = buildHumanName([
+      row.first_name,
+      row.middle_name,
+      row.last_name,
+      typeof row.name === "string" ? row.name : null,
+    ]);
+    return [{
+      name,
+      phone: typeof row.phone === "string" ? row.phone : null,
+      email: typeof row.email === "string" ? row.email : null,
+    }];
+  });
+}
+
+function buildResearchContactId(person: DeepSkipPerson): string {
+  return `deep-search-${slugifyContactValue(person.role)}-${slugifyContactValue(person.name)}`;
+}
+
+function buildResearchContactNote(person: DeepSkipPerson, findings: AgentFinding[]): string {
+  const matchedLinks = findings
+    .filter((finding) => {
+      const structuredName = typeof finding.structuredData?.personName === "string"
+        ? normalizeContactName(finding.structuredData.personName)
+        : null;
+      return structuredName != null && structuredName === normalizeContactName(person.name) && typeof finding.url === "string" && compact(finding.url);
+    })
+    .slice(0, 2)
+    .map((finding) => finding.url as string);
+
+  const confidencePercent = `${Math.round(person.confidence * 100)}%`;
+  const lines = [
+    `Auto-added from Deep Search.`,
+    `Role: ${person.role.replace(/_/g, " ")}.`,
+    person.notes || null,
+    `Source: ${person.source}.`,
+    `Confidence: ${confidencePercent}.`,
+    matchedLinks.length > 0 ? `Links: ${matchedLinks.join(" | ")}` : null,
+  ];
+
+  return lines.filter(Boolean).join("\n").trim();
+}
+
+export function mergeDeepSearchRelatedContacts(args: {
+  ownerFlags: Record<string, unknown>;
+  people: DeepSkipPerson[];
+  findings: AgentFinding[];
+  ownerName?: string | null;
+  now?: string;
+}): RelatedContactRecord[] {
+  const existingContacts = normalizeRelatedContacts(args.ownerFlags.related_contacts);
+  const importedIdentityTokens = new Set<string>();
+
+  for (const imported of importedOwnerFlagContacts(args.ownerFlags)) {
+    for (const token of collectIdentityTokens(imported)) importedIdentityTokens.add(token);
+  }
+
+  const existingById = new Map(existingContacts.map((contact) => [contact.id, contact] as const));
+  const protectedIdentityTokens = new Set<string>(importedIdentityTokens);
+  for (const contact of existingContacts) {
+    if (contact.source === "deep_search") continue;
+    for (const token of collectIdentityTokens(contact)) protectedIdentityTokens.add(token);
+  }
+
+  const now = args.now ?? new Date().toISOString();
+  const merged = [...existingContacts];
+
+  for (const person of args.people) {
+    if (!["executor", "attorney", "heir", "spouse", "family"].includes(person.role)) continue;
+    if (person.confidence < 0.58) continue;
+    if (!isLikelyHumanName(person.name, args.ownerName)) continue;
+
+    const id = buildResearchContactId(person);
+    const candidatePhone = person.phones.find((phone) => normalizeContactPhone(phone)) ?? null;
+    const candidateEmail = person.emails.find((email) => normalizeContactEmail(email)) ?? null;
+    const identityTokens = collectIdentityTokens({
+      name: person.name,
+      phone: candidatePhone,
+      email: candidateEmail,
+    });
+
+    const existing = existingById.get(id);
+    if (!existing) {
+      const overlapsProtectedIdentity = Array.from(identityTokens).some((token) => protectedIdentityTokens.has(token));
+      if (overlapsProtectedIdentity) continue;
+    }
+
+    const nextContact: RelatedContactRecord = {
+      id,
+      name: person.name,
+      relation: person.role.replace(/_/g, " "),
+      phone: candidatePhone,
+      email: candidateEmail,
+      note: buildResearchContactNote(person, args.findings),
+      source: "deep_search",
+      attachments: existing?.attachments ?? [],
+      created_at: existing?.created_at ?? now,
+      updated_at: now,
+    };
+
+    if (existing) {
+      const index = merged.findIndex((contact) => contact.id === id);
+      if (index >= 0) merged[index] = nextContact;
+    } else {
+      merged.push(nextContact);
+      existingById.set(id, nextContact);
+      for (const token of identityTokens) protectedIdentityTokens.add(token);
+    }
+  }
+
+  return merged;
+}
+
+export function mergeResearchLegalMetadata(args: {
+  existing: unknown;
+  legalDocuments: NormalizedDocument[];
+  stagedAt?: string;
+}): LegalMetadataRecord | null {
+  const existing = args.existing && typeof args.existing === "object"
+    ? { ...(args.existing as Record<string, unknown>) }
+    : {};
+
+  const probateDocs = args.legalDocuments.filter((doc) => isProbateLikeDocument(doc));
+  const candidateDocs = probateDocs.length > 0
+    ? probateDocs
+    : args.legalDocuments.filter((doc) => doc.caseNumber || doc.courtName || doc.documentType);
+
+  if (candidateDocs.length === 0 && Object.keys(existing).length === 0) return null;
+
+  const primaryDoc = candidateDocs.find((doc) => doc.caseNumber)
+    ?? candidateDocs.find((doc) => doc.contactPerson || doc.attorneyName)
+    ?? candidateDocs[0]
+    ?? null;
+
+  const earliestDoc = [...candidateDocs]
+    .filter((doc) => doc.recordingDate)
+    .sort((left, right) => String(left.recordingDate).localeCompare(String(right.recordingDate)))[0]
+    ?? primaryDoc;
+
+  const nextHearingDoc = [...candidateDocs]
+    .filter((doc) => doc.nextHearingDate)
+    .sort((left, right) => String(left.nextHearingDate).localeCompare(String(right.nextHearingDate)))[0]
+    ?? null;
+
+  const merged = {
+    ...compactRecord(existing as LegalMetadataRecord),
+    ...(compact(existing.document_type) ? {} : { document_type: primaryDoc?.documentType ? primaryDoc.documentType.replace(/_/g, " ") : null }),
+    ...(compact(existing.case_number as string | null | undefined) ? {} : { case_number: primaryDoc?.caseNumber ?? null }),
+    ...(compact(existing.file_date as string | null | undefined) ? {} : { file_date: earliestDoc?.recordingDate ?? null }),
+    ...(compact(existing.court_name as string | null | undefined) ? {} : { court_name: primaryDoc?.courtName ?? null }),
+    ...(compact(existing.case_type as string | null | undefined) ? {} : { case_type: primaryDoc?.caseType ?? null }),
+    ...(compact(existing.next_hearing_date as string | null | undefined) ? {} : { next_hearing_date: nextHearingDoc?.nextHearingDate ?? null }),
+    ...(compact(existing.status as string | null | undefined) ? {} : { status: primaryDoc?.status ?? null }),
+    ...(compact(existing.source_url as string | null | undefined) ? {} : { source_url: primaryDoc?.sourceUrl ?? null }),
+    ...(compact(existing.source as string | null | undefined) ? {} : { source: primaryDoc?.source ?? null }),
+    updated_at: args.stagedAt ?? new Date().toISOString(),
+  } satisfies LegalMetadataRecord;
+
+  return Object.keys(compactRecord(merged)).length > 0 ? merged : null;
 }
 
 function contactPersonFromRecord(args: {
@@ -491,6 +767,80 @@ export function summarizeResearchSignals(args: {
   return {
     confirmedLegalRecords: args.legalDocumentsFound,
     corroboratingHardRecordFindings: args.agentFindings.filter(isHardRecordFinding).length,
+  };
+}
+
+export function classifyResearchQuality(args: {
+  legal: PersistedLegalSearchResult;
+  agentFindings: AgentFinding[];
+  nextOfKin: NextOfKinCandidate[];
+  usedOpenClaw: boolean;
+  aiProvider: "openai" | "fallback";
+}): {
+  quality: UnifiedResearchQuality;
+  reason: string;
+  gaps: string[];
+} {
+  const gaps: string[] = [];
+  const hasLegalDocs = args.legal.documentsFound > 0;
+  const hasPeopleIntel = args.agentFindings.length > 0;
+  const hasDecisionMaker = args.nextOfKin.length > 0;
+  const legalSupported = args.legal.supported;
+  const legalPartial = args.legal.status === "partial";
+  const legalUnsupported = args.legal.status === "unsupported";
+
+  if (!legalSupported) {
+    gaps.push(`Legal county adapter is not supported for ${args.legal.county ?? "this county"}.`);
+  } else if (!hasLegalDocs) {
+    gaps.push("No official probate / court / recorder document was confirmed in this run.");
+  }
+
+  if (!hasDecisionMaker) {
+    gaps.push("No confirmed executor, petitioner, attorney, or next-of-kin decision-maker surfaced.");
+  }
+
+  if (!hasPeopleIntel) {
+    gaps.push("No public people-intel breadcrumbs were captured beyond existing file data.");
+  }
+
+  if (args.aiProvider === "fallback") {
+    gaps.push("Brief synthesis used the fallback summarizer instead of the primary AI model.");
+  }
+
+  if (!args.usedOpenClaw) {
+    gaps.push("Advanced people-intel agents were unavailable, so Deep Search used built-in fallback investigation only.");
+  }
+
+  if (hasLegalDocs && hasDecisionMaker && hasPeopleIntel && args.usedOpenClaw && args.aiProvider === "openai" && !legalPartial) {
+    return {
+      quality: "full",
+      reason: "Official records, people intel, and a likely decision-maker were all captured.",
+      gaps,
+    };
+  }
+
+  if ((hasLegalDocs || hasDecisionMaker) && (legalPartial || !args.usedOpenClaw || args.aiProvider === "fallback")) {
+    return {
+      quality: "fallback",
+      reason: "Deep Search found useful evidence, but at least one stronger research lane fell back to a thinner path.",
+      gaps,
+    };
+  }
+
+  if (legalUnsupported || (!hasLegalDocs && !hasPeopleIntel && !hasDecisionMaker)) {
+    return {
+      quality: "degraded",
+      reason: legalUnsupported
+        ? "This county is not fully supported yet, so Deep Search could not run the full official-record workflow."
+        : "Deep Search completed, but it did not surface enough verified evidence to trust as a ready brief.",
+      gaps,
+    };
+  }
+
+  return {
+    quality: "needs_review",
+    reason: "Deep Search surfaced partial evidence, but a human should review the gaps before treating this as call-ready prep.",
+    gaps,
   };
 }
 
@@ -1111,6 +1461,7 @@ function buildDeepCrawlCache(args: {
   model: string;
   metadata: UnifiedResearchMetadata;
 }): Record<string, unknown> {
+  const primaryDecisionMaker = args.nextOfKin[0] ?? null;
   return {
     crawledAt: new Date().toISOString(),
     signals: args.legal.documents.slice(0, 6).map((doc) => ({
@@ -1164,6 +1515,16 @@ function buildDeepCrawlCache(args: {
         finding: finding.finding,
       })),
       estimatedMAO: null,
+    },
+    researchStatus: {
+      quality: args.metadata.run_quality,
+      qualityReason: args.metadata.quality_reason,
+      gaps: args.metadata.research_gaps,
+      stagedAt: args.metadata.staged_at,
+      decisionMaker: args.brief.likely_decision_maker ?? primaryDecisionMaker?.name ?? args.property.owner_name ?? null,
+      decisionMakerConfidence: primaryDecisionMaker?.confidence ?? null,
+      nextOfKinCount: args.metadata.people_intel.next_of_kin.length,
+      legalRecordCount: args.metadata.legal.documents_found,
     },
     sources: args.metadata.source_groups,
     grokSuccess: false,
@@ -1370,6 +1731,13 @@ export async function runLeadResearch(options: RunLeadResearchOptions): Promise<
     nextOfKin,
     model: aiModel,
   });
+  const quality = classifyResearchQuality({
+    legal,
+    agentFindings,
+    nextOfKin,
+    usedOpenClaw: isOpenClawConfigured(),
+    aiProvider: synthesis.provider,
+  });
 
   let artifactCount = 0;
   artifactCount += await persistLegalArtifacts({
@@ -1392,6 +1760,9 @@ export async function runLeadResearch(options: RunLeadResearchOptions): Promise<
     source_groups: sourceGroups,
     ai_provider: synthesis.provider,
     ai_model: synthesis.model,
+    run_quality: quality.quality,
+    quality_reason: quality.reason,
+    research_gaps: quality.gaps,
     legal: {
       supported: legal.supported,
       status: legal.status,
@@ -1426,8 +1797,22 @@ export async function runLeadResearch(options: RunLeadResearchOptions): Promise<
 
   await linkRunArtifactsToDossier(run.id, dossier.id);
 
+  const mergedLegalMetadata = mergeResearchLegalMetadata({
+    existing: workingOwnerFlags.legal_metadata,
+    legalDocuments: legal.documents,
+    stagedAt: metadata.staged_at,
+  });
+
   workingOwnerFlags = {
     ...workingOwnerFlags,
+    ...(mergedLegalMetadata ? { legal_metadata: mergedLegalMetadata } : {}),
+    related_contacts: mergeDeepSearchRelatedContacts({
+      ownerFlags: workingOwnerFlags,
+      people: deepSkip.people,
+      findings: agentFindings,
+      ownerName: property.owner_name,
+      now: metadata.staged_at,
+    }),
     deep_crawl: buildDeepCrawlCache({
       property,
       legal,

@@ -374,7 +374,91 @@ export { clientFileFromProspect, clientFileFromLead, clientFileFromRaw };
 
 // ------------------------------------------------------------
 
+function recordObject(value: unknown): Record<string, unknown> | null {
+
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  return value as Record<string, unknown>;
+
+}
+
+function researchQualityBadge(quality: string | null | undefined): { label: string; className: string } {
+
+  switch (quality) {
+
+    case "full":
+
+      return { label: "Research Full", className: "border-emerald-500/25 bg-emerald-500/10 text-emerald-100" };
+
+    case "fallback":
+
+      return { label: "Research Fallback", className: "border-sky-500/25 bg-sky-500/10 text-sky-100" };
+
+    case "needs_review":
+
+      return { label: "Needs Review", className: "border-amber-500/25 bg-amber-500/10 text-amber-100" };
+
+    case "degraded":
+
+      return { label: "Degraded", className: "border-rose-500/25 bg-rose-500/10 text-rose-100" };
+
+    default:
+
+      return { label: "Research Pending", className: "border-overlay-20 bg-overlay-8 text-foreground" };
+
+  }
+
+}
+
 function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
+
+  const deepCrawl = recordObject(cf.ownerFlags?.deep_crawl);
+
+  const researchStatus = recordObject(deepCrawl?.researchStatus ?? deepCrawl?.research_status);
+
+  const researchQuality = typeof researchStatus?.quality === "string" ? researchStatus.quality : null;
+
+  const researchQualityReason = typeof researchStatus?.qualityReason === "string"
+    ? researchStatus.qualityReason
+    : typeof researchStatus?.quality_reason === "string"
+      ? researchStatus.quality_reason
+      : null;
+
+  const researchStagedAt = typeof researchStatus?.stagedAt === "string"
+    ? researchStatus.stagedAt
+    : typeof researchStatus?.staged_at === "string"
+      ? researchStatus.staged_at
+      : typeof cf.ownerFlags?.research_run_last_at === "string"
+        ? cf.ownerFlags.research_run_last_at
+        : null;
+
+  const researchDecisionMaker = typeof researchStatus?.decisionMaker === "string"
+    ? researchStatus.decisionMaker
+    : typeof researchStatus?.decision_maker === "string"
+      ? researchStatus.decision_maker
+      : null;
+
+  const researchDecisionMakerConfidence =
+    typeof researchStatus?.decisionMakerConfidence === "number"
+      ? researchStatus.decisionMakerConfidence
+      : typeof researchStatus?.decision_maker_confidence === "number"
+        ? researchStatus.decision_maker_confidence
+        : null;
+
+  const researchGapCount = Array.isArray(researchStatus?.gaps)
+    ? researchStatus.gaps.length
+    : Array.isArray(researchStatus?.research_gaps)
+      ? researchStatus.research_gaps.length
+      : 0;
+
+  const researchKinCount =
+    typeof researchStatus?.nextOfKinCount === "number"
+      ? researchStatus.nextOfKinCount
+      : typeof researchStatus?.next_of_kin_count === "number"
+        ? researchStatus.next_of_kin_count
+        : 0;
+
+  const researchBadge = researchQualityBadge(researchQuality);
 
   const hasAnyIntel =
 
@@ -388,7 +472,9 @@ function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
 
     cf.contactabilityScore != null ||
 
-    cf.confidenceScore != null;
+    cf.confidenceScore != null ||
+
+    researchStatus != null;
 
 
 
@@ -449,6 +535,76 @@ function IntelligenceSummaryBlock({ cf }: { cf: ClientFile }) {
         <Badge className="border-overlay-20 bg-overlay-8 text-foreground text-xs ml-auto">CRM Projection</Badge>
 
       </div>
+
+
+
+      {researchStatus && (
+
+        <div className="rounded-[10px] border border-overlay-15 bg-overlay-5 px-3 py-3 space-y-2">
+
+          <div className="flex flex-wrap items-center gap-2">
+
+            <h4 className="text-sm uppercase tracking-wider text-muted-foreground font-semibold">
+
+              Deep Search Status
+
+            </h4>
+
+            <Badge className={researchBadge.className}>{researchBadge.label}</Badge>
+
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground/75">
+
+            {researchDecisionMaker && (
+
+              <span>
+
+                Decision-maker: <span className="text-foreground/90 font-medium">{researchDecisionMaker}</span>
+
+                {researchDecisionMakerConfidence != null && (
+
+                  <span className="ml-1 text-muted-foreground/65">
+
+                    ({Math.round(researchDecisionMakerConfidence * 100)}%)
+
+                  </span>
+
+                )}
+
+              </span>
+
+            )}
+
+            <span>{researchGapCount} gap{researchGapCount === 1 ? "" : "s"}</span>
+
+            {researchKinCount > 0 && (
+
+              <span>{researchKinCount} kin / authority contact{researchKinCount === 1 ? "" : "s"}</span>
+
+            )}
+
+            {researchStagedAt && (
+
+              <span>Updated {formatRelativeFromNow(researchStagedAt)}</span>
+
+            )}
+
+          </div>
+
+          {researchQualityReason && (
+
+            <p className="text-xs text-muted-foreground/70 leading-relaxed">
+
+              {researchQualityReason}
+
+            </p>
+
+          )}
+
+        </div>
+
+      )}
 
 
 

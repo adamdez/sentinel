@@ -1,5 +1,10 @@
 [
   {
+    "hash": "14e01e14",
+    "date": "2026-04-10",
+    "message": "[codex] Ship owner intel fallback cleanup"
+  },
+  {
     "hash": "8678cfb9",
     "date": "2026-04-10",
     "message": "[codex] Fix Spokane parcel link matching"
@@ -118,10 +123,5 @@
     "hash": "5713607c",
     "date": "2026-04-09",
     "message": "[codex] Unify dialer skip-trace badge truth"
-  },
-  {
-    "hash": "fdd4e7a0",
-    "date": "2026-04-09",
-    "message": "[codex] Add dialer inbox attention dots"
   }
 ]

@@ -392,6 +392,10 @@ function buildAgentPrompt(input: BrowserResearchInput): string {
   parts.push("7. Distress signals: tax delinquency, pre-foreclosure, divorce filings, bankruptcy, estate sales");
   parts.push("");
   parts.push("Search thoroughly across multiple sources. Include source URLs for everything found.");
+  parts.push("Work this like an experienced private investigator, not a shallow web search.");
+  parts.push("If probate, death, or inheritance signals appear, chase the real decision-maker: personal representative, executor, petitioner, attorney, surviving spouse, heirs, and next of kin.");
+  parts.push("Mine obituaries for survivor names and locations. Mine public social and business profiles for relocation, family, and identity clues that help verify who controls the sale decision.");
+  parts.push("Do not stop after one weak result. Pivot between official courts, county portals, obituary sources, business filings, social profiles, and public people references.");
 
   if (input.researchGoals?.length) {
     parts.push("");

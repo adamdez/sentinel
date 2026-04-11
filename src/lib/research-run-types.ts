@@ -1,4 +1,5 @@
 export type UnifiedResearchSourceGroup = "deep_property" | "legal" | "people_intel";
+export type UnifiedResearchQuality = "full" | "fallback" | "degraded" | "needs_review";
 
 export interface NextOfKinCandidate {
   name: string;
@@ -24,6 +25,9 @@ export interface UnifiedResearchMetadata {
   source_groups: UnifiedResearchSourceGroup[];
   ai_provider: "openai" | "fallback";
   ai_model: string;
+  run_quality: UnifiedResearchQuality;
+  quality_reason: string;
+  research_gaps: string[];
   legal: {
     supported: boolean;
     status: "completed" | "partial" | "unsupported";

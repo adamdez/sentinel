@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/sentinel/glass-card";
 import { PageShell } from "@/components/sentinel/page-shell";
+import { buildDeepDiveActionableItems, evaluateDeepDiveReadiness } from "@/lib/deep-dive";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { formatDueDateLabel } from "@/lib/due-date-label";
@@ -22,6 +23,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+type ResearchQuality = "full" | "fallback" | "degraded" | "needs_review";
+
 type DeepDiveItem = {
   id: string;
   status: string | null;
@@ -35,6 +38,23 @@ type DeepDiveItem = {
   parked_reason: string | null;
   latest_dossier_status: string | null;
   latest_prep_status: string | null;
+  research_quality: ResearchQuality | null;
+  research_quality_reason: string | null;
+  research_gap_count: number;
+  research_gaps: string[];
+  research_staged_at: string | null;
+  likely_decision_maker: string | null;
+  decision_maker_confidence: number | null;
+  next_of_kin_count: number;
+  open_research_task_count: number;
+  open_research_tasks: Array<{
+    id: string;
+    title: string | null;
+    assigned_to: string | null;
+    due_at: string | null;
+    source_type: string | null;
+    source_key: string | null;
+  }>;
   properties: {
     address: string | null;
     city: string | null;
@@ -61,6 +81,46 @@ function formatTimeAgo(iso: string | null): string {
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
+}
+
+function defaultResearchTaskDueAt(): string {
+  const due = new Date();
+  due.setDate(due.getDate() + 1);
+  due.setHours(9, 0, 0, 0);
+  return due.toISOString();
+}
+
+function researchQualityTone(quality: ResearchQuality | null): {
+  label: string;
+  className: string;
+} {
+  switch (quality) {
+    case "full":
+      return {
+        label: "Research Full",
+        className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+      };
+    case "fallback":
+      return {
+        label: "Research Fallback",
+        className: "border-sky-500/30 bg-sky-500/10 text-sky-200",
+      };
+    case "needs_review":
+      return {
+        label: "Research Needs Review",
+        className: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+      };
+    case "degraded":
+      return {
+        label: "Research Degraded",
+        className: "border-rose-500/30 bg-rose-500/10 text-rose-200",
+      };
+    default:
+      return {
+        label: "Research Not Run",
+        className: "border-border/30 bg-muted/10 text-foreground/75",
+      };
+  }
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -154,14 +214,23 @@ export default function DeepDivePage() {
     let overdue = 0;
     let today = 0;
     let tomorrow = 0;
+    let ready = 0;
     for (const item of items) {
+      const readiness = evaluateDeepDiveReadiness({
+        research_quality: item.research_quality,
+        research_gap_count: item.research_gap_count,
+        likely_decision_maker: item.likely_decision_maker,
+      });
+      if (readiness.ready) {
+        ready += 1;
+      }
       if (!item.next_action_due_at) continue;
       const due = formatDueDateLabel(item.next_action_due_at, now);
       if (due.overdue) overdue += 1;
       else if (due.text === "Due today") today += 1;
       else if (due.text === "Due tomorrow") tomorrow += 1;
     }
-    return { total: items.length, overdue, today, tomorrow };
+    return { total: items.length, overdue, today, tomorrow, ready };
   }, [items]);
 
   const handleRunResearch = useCallback(async (item: DeepDiveItem) => {
@@ -212,15 +281,25 @@ export default function DeepDivePage() {
   }, [load]);
 
   const handleMarkReady = useCallback(async (item: DeepDiveItem) => {
+    const readiness = evaluateDeepDiveReadiness({
+      research_quality: item.research_quality,
+      research_gap_count: item.research_gap_count,
+      likely_decision_maker: item.likely_decision_maker,
+    });
+    if (!readiness.ready) {
+      toast.error(readiness.blockers[0] ?? "This file is not ready to return to calling yet.");
+      return;
+    }
+
     setBusyId(item.id);
     try {
       const response = await fetch(`/api/dialer/v1/deep-dive/${item.id}/ready`, {
         method: "POST",
         headers: await authHeaders(),
       });
-      const data = await response.json().catch(() => ({} as { error?: string }));
+      const data = await response.json().catch(() => ({} as { error?: string; blockers?: string[] }));
       if (!response.ok) {
-        throw new Error(data.error ?? "Failed to mark file ready");
+        throw new Error(data.blockers?.[0] ?? data.error ?? "Failed to mark file ready");
       }
       toast.success("Lead is ready to dial again");
       await load();
@@ -281,6 +360,52 @@ export default function DeepDivePage() {
     }
   }, [assignmentOptions, assignmentTargets, load]);
 
+  const handleCreateResearchTask = useCallback(async (
+    item: DeepDiveItem,
+    action: ReturnType<typeof buildDeepDiveActionableItems>[number],
+  ) => {
+    setBusyId(item.id);
+    try {
+      const response = await fetch("/api/tasks", {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({
+          title: `Research - ${action.label.slice(0, 72)}`,
+          description: [
+            "Created from the Deep Dive queue.",
+            action.label,
+            item.likely_decision_maker ? `Current staged decision-maker: ${item.likely_decision_maker}` : null,
+            item.parked_reason ? `Why parked: ${item.parked_reason}` : null,
+            item.properties?.address ? `Property: ${item.properties.address}` : null,
+          ].filter(Boolean).join("\n\n"),
+          lead_id: item.id,
+          assigned_to: assignmentTargets[item.id] ?? item.assigned_to ?? undefined,
+          due_at: defaultResearchTaskDueAt(),
+          priority: 2,
+          task_type: "research",
+          source_type: action.sourceType,
+          source_key: action.sourceKey,
+        }),
+      });
+      const payload = await response.json().catch(() => ({} as { error?: string; reused_existing?: boolean; reopened?: boolean }));
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to create task");
+      }
+      if (payload.reopened) {
+        toast.success("Research task reopened");
+      } else if (payload.reused_existing) {
+        toast.success("Research task already open");
+      } else {
+        toast.success("Research task created");
+      }
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create task");
+    } finally {
+      setBusyId(null);
+    }
+  }, [assignmentTargets, load]);
+
   return (
     <PageShell title="Deep Dive" description="Parked files that need research before they return to calling">
       <div className="mx-auto max-w-5xl space-y-4 px-4 py-6">
@@ -305,7 +430,7 @@ export default function DeepDivePage() {
             { label: "Total parked", value: counts.total },
             { label: "Overdue", value: counts.overdue },
             { label: "Due today", value: counts.today },
-            { label: "Due tomorrow", value: counts.tomorrow },
+            { label: "Ready to call", value: counts.ready },
           ].map((stat) => (
             <GlassCard key={stat.label} hover={false} className="!p-3">
               <p className="text-[11px] uppercase tracking-wider text-muted-foreground/55">{stat.label}</p>
@@ -330,6 +455,24 @@ export default function DeepDivePage() {
             {items.map((item) => {
               const due = formatDueDateLabel(item.next_action_due_at);
               const busy = busyId === item.id;
+              const researchQuality = researchQualityTone(item.research_quality);
+              const readiness = evaluateDeepDiveReadiness({
+                research_quality: item.research_quality,
+                research_gap_count: item.research_gap_count,
+                likely_decision_maker: item.likely_decision_maker,
+              });
+              const actionableItems = buildDeepDiveActionableItems({
+                leadId: item.id,
+                research_quality: item.research_quality,
+                research_gap_count: item.research_gap_count,
+                research_gaps: item.research_gaps,
+                likely_decision_maker: item.likely_decision_maker,
+              });
+              const openActionTaskMap = new Map(
+                item.open_research_tasks
+                  .filter((task) => task.source_type && task.source_key)
+                  .map((task) => [`${task.source_type}:${task.source_key}`, task] as const),
+              );
               return (
                 <GlassCard key={item.id} hover={false} className="!p-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -361,6 +504,9 @@ export default function DeepDivePage() {
                             Prep: {item.latest_prep_status}
                           </Badge>
                         )}
+                        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-wider", researchQuality.className)}>
+                          {researchQuality.label}
+                        </Badge>
                       </div>
 
                       <div className="space-y-0.5 text-sm text-muted-foreground/75">
@@ -381,6 +527,119 @@ export default function DeepDivePage() {
                           Owner: {assignmentOptions.find((option) => option.id === item.assigned_to)?.name ?? "Unassigned"}
                         </span>
                       </div>
+
+                      {(item.likely_decision_maker || item.research_gap_count > 0 || item.next_of_kin_count > 0 || item.research_quality_reason) && (
+                        <div className="rounded-[10px] border border-border/20 bg-background/30 px-3 py-2.5 space-y-1.5">
+                          {item.likely_decision_maker && (
+                            <p className="text-sm text-foreground/90">
+                              Decision-maker:{" "}
+                              <span className="font-medium text-foreground">{item.likely_decision_maker}</span>
+                              {item.decision_maker_confidence != null && (
+                                <span className="ml-2 text-xs text-muted-foreground/65">
+                                  {Math.round(item.decision_maker_confidence * 100)}% confidence
+                                </span>
+                              )}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground/65">
+                            {item.next_of_kin_count > 0 && <span>{item.next_of_kin_count} kin / authority contact{item.next_of_kin_count === 1 ? "" : "s"}</span>}
+                            <span>{item.research_gap_count} research gap{item.research_gap_count === 1 ? "" : "s"}</span>
+                            {item.research_staged_at && <span>Staged {formatTimeAgo(item.research_staged_at)}</span>}
+                          </div>
+                          {item.research_quality_reason && (
+                            <p className="text-xs text-muted-foreground/70">{item.research_quality_reason}</p>
+                          )}
+                          {!readiness.ready && (
+                            <div className="flex flex-wrap gap-2 pt-1">
+                              {readiness.blockers.map((blocker) => (
+                                <Badge
+                                  key={`${item.id}-${blocker}`}
+                                  variant="outline"
+                                  className="max-w-full whitespace-normal border-amber-500/20 bg-amber-500/10 text-left text-[10px] uppercase tracking-wider text-amber-100"
+                                >
+                                  {blocker}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {actionableItems.length > 0 && (
+                            <div className="space-y-2 pt-1">
+                              <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">
+                                Actionable Research
+                              </p>
+                              <div className="space-y-2">
+                                {actionableItems.slice(0, 3).map((action) => {
+                                  const existingTask = openActionTaskMap.get(`${action.sourceType}:${action.sourceKey}`);
+                                  const existingAssignee = existingTask?.assigned_to
+                                    ? assignmentOptions.find((option) => option.id === existingTask.assigned_to)?.name ?? "Assigned"
+                                    : "Unassigned";
+                                  return (
+                                    <div
+                                      key={`${item.id}-${action.key}`}
+                                      className="flex flex-col gap-2 rounded-md border border-border/20 bg-background/20 px-2.5 py-2 sm:flex-row sm:items-center sm:justify-between"
+                                    >
+                                      <div className="space-y-1">
+                                        <p className="text-xs text-foreground/85">{action.label}</p>
+                                        {existingTask && (
+                                          <p className="text-[11px] text-muted-foreground/60">
+                                            Open task: {existingTask.title ?? "Research task"} · {existingAssignee}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="gap-1.5 self-start sm:self-auto"
+                                        onClick={() => void handleCreateResearchTask(item, action)}
+                                        disabled={busy || Boolean(existingTask)}
+                                      >
+                                        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                                        {existingTask ? "Task Open" : "Create Task"}
+                                      </Button>
+                                    </div>
+                                  );
+                                })}
+                                {actionableItems.length > 3 && (
+                                  <p className="text-xs text-muted-foreground/60">
+                                    +{actionableItems.length - 3} more research item{actionableItems.length - 3 === 1 ? "" : "s"} in the full Deep Search view
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          {item.open_research_task_count > 0 && (
+                            <div className="space-y-1 pt-1">
+                              <p className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground/55">
+                                Open Research Tasks
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {item.open_research_tasks.slice(0, 3).map((task) => {
+                                  const assigneeName = task.assigned_to
+                                    ? assignmentOptions.find((option) => option.id === task.assigned_to)?.name ?? "Assigned"
+                                    : "Unassigned";
+                                  return (
+                                    <Badge
+                                      key={`${item.id}-${task.id}`}
+                                      variant="outline"
+                                      className="max-w-full whitespace-normal border-sky-500/20 bg-sky-500/10 text-left text-[10px] uppercase tracking-wider text-sky-100"
+                                    >
+                                      {task.title ?? "Research task"} · {assigneeName}
+                                    </Badge>
+                                  );
+                                })}
+                                {item.open_research_task_count > 3 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-border/30 bg-muted/10 text-[10px] uppercase tracking-wider text-muted-foreground"
+                                  >
+                                    +{item.open_research_task_count - 3} more
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {item.parked_reason && (
                         <div className="rounded-[10px] border border-primary/15 bg-primary/[0.05] px-3 py-2 text-sm text-foreground/85">
@@ -430,7 +689,7 @@ export default function DeepDivePage() {
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BookOpen className="h-3.5 w-3.5" />}
                         Build Prep
                       </Button>
-                      <Button size="sm" className="gap-1.5" onClick={() => void handleMarkReady(item)} disabled={busy}>
+                      <Button size="sm" className="gap-1.5" onClick={() => void handleMarkReady(item)} disabled={busy || !readiness.ready}>
                         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                         Ready Again
                       </Button>
