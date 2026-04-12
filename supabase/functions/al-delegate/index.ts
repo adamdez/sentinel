@@ -16,6 +16,10 @@ OPERATING PRINCIPLES:
 - Never let a hot lead go more than 24 hours without contact
 - Surface tax-delinquent residential properties with 2+ years unpaid
 - Execute first, explain later
+- Default to operating mode, not consultant mode
+- Diagnose the bottleneck, choose the next move, assign the owner, and move the lane
+- Return concrete proof, blockers, and next actions instead of a generic memo
+- If evidence is missing, say exactly what is unverified and what must be checked next
 
 ESCALATION: Flag to Al when spending >$500, legal questions arise, or confidence <70%.
 
@@ -30,6 +34,13 @@ MISSION: Hit $400K year-one revenue with Simon at 15-16 jobs per week.
 TEAM: Simon (mechanic, evenings + Saturdays), Dez (systems/marketing).
 
 FIVE LANES ONLY: oil change, brakes, battery, diagnostics, pre-purchase inspection.
+
+OPERATING PRINCIPLES:
+- Protect wrench time first
+- Default to operating mode, not consultant mode
+- Diagnose the bottleneck, choose the next move, assign the owner, and move the lane
+- Return concrete proof, blockers, and next actions instead of a generic memo
+- If evidence is missing, say exactly what is unverified and what must be checked next
 
 STYLE: Ground everything in Simon's schedule. Lead with bookings vs target. Protect the five-lane boundary.`,
   },
@@ -69,6 +80,31 @@ STYLE: Lead with bookings and revenue impact. Ground everything in Simon's sched
   },
 };
 
+const SHARED_DELEGATION_DOC_PATHS = [
+  "02-Doctrine/AL-Boreland-True-North.md",
+  "02-Doctrine/What-AL-Is.md",
+  "02-Doctrine/CEO-Operating-Doctrine.md",
+  "02-Doctrine/Outcome-Review-Standard.md",
+  "01-Decisions/AL-Has-One-Brain-And-One-Root-Home.md",
+];
+
+const CEO_SPECIFIC_DOC_PATHS: Record<string, string[]> = {
+  "dominion-homes": [
+    "03-Businesses/Dominion/CEO-Scorecard-And-Operating-Mode.md",
+    "03-Businesses/Dominion/Notes/Dominion-Operating-Thesis.md",
+    "03-Businesses/Dominion/Canonical-Source-Docs/dominion-30-day-ai-operating-plan.md",
+  ],
+  wrenchready: [
+    "03-Businesses/WrenchReady/CEO-Scorecard-And-Operating-Mode.md",
+    "03-Businesses/WrenchReady/Notes/WrenchReady-Operating-Thesis.md",
+    "03-Businesses/WrenchReady/Week-By-Week-Launch-Tracker.md",
+    "03-Businesses/WrenchReady/Canonical-Source-Docs/launch-plan-evening-saturday-18-weeks.md",
+    "03-Businesses/WrenchReady/Canonical-Source-Docs/operating-doctrine-earn-next-visit-wrench-time.md",
+  ],
+};
+
+const MAX_VAULT_CONTEXT_CHARS = 24000;
+
 function readEnvSecret(key: string): string {
   const value = Deno.env.get(key)?.trim() || "";
   if (
@@ -78,6 +114,73 @@ function readEnvSecret(key: string): string {
     return value.slice(1, -1).trim();
   }
   return value;
+}
+
+function formatContextForPrompt(context: unknown): string {
+  if (typeof context !== "string") return "";
+  const trimmed = context.trim();
+  if (!trimmed) return "";
+
+  try {
+    return JSON.stringify(JSON.parse(trimmed), null, 2);
+  } catch {
+    return trimmed;
+  }
+}
+
+function compactVaultContext(
+  docs: Array<{ path?: string | null; content?: string | null }>,
+): string {
+  if (!docs.length) return "";
+
+  let usedChars = 0;
+  const blocks: string[] = [];
+
+  for (const doc of docs) {
+    const path = doc.path?.trim();
+    const content = doc.content?.trim();
+    if (!path || !content) continue;
+
+    const remaining = MAX_VAULT_CONTEXT_CHARS - usedChars;
+    if (remaining <= 0) break;
+
+    const clipped =
+      content.length > remaining ? `${content.slice(0, Math.max(0, remaining - 16))}\n...[truncated]` : content;
+
+    blocks.push(`--- ${path} ---\n${clipped}`);
+    usedChars += clipped.length;
+  }
+
+  if (!blocks.length) return "";
+  return `VAULT CONTEXT:\n${blocks.join("\n\n")}`;
+}
+
+async function loadDelegationVaultContext(
+  supabase: ReturnType<typeof createClient>,
+  ceoId: string,
+): Promise<string> {
+  const docPaths = [
+    ...SHARED_DELEGATION_DOC_PATHS,
+    ...(CEO_SPECIFIC_DOC_PATHS[ceoId] || []),
+  ];
+
+  if (!docPaths.length) return "";
+
+  const { data, error } = await supabase
+    .from("vault_documents")
+    .select("path, content")
+    .in("path", docPaths);
+
+  if (error || !data?.length) return "";
+
+  const order = new Map(docPaths.map((path, index) => [path, index]));
+  const ordered = [...data].sort((a, b) => {
+    const aOrder = order.get(a.path ?? "") ?? Number.MAX_SAFE_INTEGER;
+    const bOrder = order.get(b.path ?? "") ?? Number.MAX_SAFE_INTEGER;
+    return aOrder - bOrder;
+  });
+
+  return compactVaultContext(ordered);
 }
 
 function extractOpenAIResponseText(response: {
@@ -144,11 +247,36 @@ Deno.serve(async (req: Request) => {
 
   try {
     const openAiKey = readEnvSecret("OPENAI_API_KEY");
-    const userMessage = body.context
-      ? `TASK FROM THE CHAIRMAN:\n${body.task}\n\nADDITIONAL CONTEXT:\n${body.context}`
-      : `TASK FROM THE CHAIRMAN:\n${body.task}`;
+    const formattedContext = formatContextForPrompt(body.context);
+    const vaultContext = await loadDelegationVaultContext(supabase, body.ceo_id);
+    const userMessage = [
+      `TASK FROM THE CHAIRMAN:\n${body.task}`,
+      formattedContext ? `ADDITIONAL CONTEXT:\n${formattedContext}` : "",
+      vaultContext,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
-    const systemPrompt = `${ceo.constitution}\n\nYou are responding to a delegation from Al Boreland, Chairman of the Board. Answer the task directly and concisely. Structure your response with clear sections if needed. End with recommended next steps and flag any items that need the Chairman's or Dez's decision.`;
+    const systemPrompt = `${ceo.constitution}
+
+You are responding to a delegation from Al Boreland, Chairman of the Board.
+
+EXECUTION MODE:
+- Default to execution-biased operating judgment, not consultant chatter.
+- Move the business forward inside your authority instead of writing a vague strategy memo.
+- Name the real bottleneck, the decision, the owner, the proof, and the next move.
+- If something is blocked or unverified, say exactly why and what must happen next.
+- Protect customer trust, human quality standards, and real-world operating constraints.
+- You do not have live browser, file-edit, or purchase authority inside this lane. If execution depends on another lane, name the exact lane or owner needed instead of bluffing.
+
+RESPONSE SHAPE:
+- Current reality
+- Decision
+- Actions now (owner + timing)
+- Risks / escalation
+- Proof or missing evidence
+
+Keep it concise, concrete, and operator-grade.`;
 
     if (!openAiKey) {
       throw new Error("OPENAI_API_KEY not configured");
