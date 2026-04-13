@@ -8778,6 +8778,18 @@ export function MasterClientFileModal({
     }
   }, [applyLeadPatchFromResponse, clientFile, onRefresh]);
 
+  const handleMoveTargetChange = useCallback(async (value: "" | WorkflowStageId | "drive_by" | "deep_dive") => {
+    setMoveTarget(value);
+
+    if (value !== "drive_by") return;
+
+    setCloseoutOpen(false);
+    setNextActionEditorOpen(false);
+    setNoteEditorOpen(false);
+    await handleMoveToDriveBy();
+    setMoveTarget("");
+  }, [handleMoveToDriveBy]);
+
   const handleApplyMove = useCallback(async () => {
     if (!clientFile || !moveTarget) return;
 
@@ -9224,7 +9236,9 @@ export function MasterClientFileModal({
                     <div className="flex items-center gap-1">
                       <select
                       value={moveTarget}
-                      onChange={(e) => setMoveTarget(e.target.value as "" | WorkflowStageId | "drive_by" | "deep_dive")}
+                      onChange={(e) => {
+                        void handleMoveTargetChange(e.target.value as "" | WorkflowStageId | "drive_by" | "deep_dive");
+                      }}
                       className="h-7 rounded-md border border-overlay-15 bg-overlay-4 px-2 text-xs text-foreground focus:outline-none focus:border-primary/30"
                       aria-label="Move file"
                     >
