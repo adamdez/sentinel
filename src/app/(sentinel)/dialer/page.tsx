@@ -1176,6 +1176,7 @@ function DialerPageInner() {
   const [phoneIndex, setPhoneIndex] = useState(0);
   const [phoneActionPhoneId, setPhoneActionPhoneId] = useState<string | null>(null);
   const [pendingAutoDialLeadId, setPendingAutoDialLeadId] = useState<string | null>(null);
+  const [pendingPowerDialStart, setPendingPowerDialStart] = useState(false);
   const [powerDialPaused, setPowerDialPaused] = useState(false);
   const [powerDialStarting, setPowerDialStarting] = useState(false);
   const {
@@ -1726,31 +1727,47 @@ function DialerPageInner() {
     }
   }, [activeLeadPhones, autoCycleMode, callState, currentLead, refetchAutoCycleQueue, selectedPhoneIndex]);
 
+  const syncQueuedLeadsIntoPowerDial = useCallback(async () => {
+    const existingAutoCycleLeadIds = new Set(
+      autoCycleQueue
+        .filter((lead) => lead.autoCycle != null)
+        .map((lead) => lead.id),
+    );
+    const stagedLeadIds = queue
+      .map((lead) => lead.id)
+      .filter((leadId) => !existingAutoCycleLeadIds.has(leadId));
+
+    if (stagedLeadIds.length === 0) return 0;
+
+    const headers = await authHeaders();
+    let seededCount = 0;
+    for (const leadId of stagedLeadIds) {
+      const res = await fetch("/api/dialer/v1/auto-cycle", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ leadId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({} as { error?: string }));
+        console.warn(`[PowerDial] Failed to seed ${leadId}:`, data.error ?? res.statusText);
+        continue;
+      }
+      seededCount += 1;
+    }
+
+    return seededCount;
+  }, [autoCycleQueue, queue]);
+
   const enterPowerDialMode = useCallback(async () => {
     if (powerDialStarting) return;
     setDialerMode("autoCycle");
     setPowerDialPaused(false);
     setPendingAutoDialLeadId(null);
+    setPendingPowerDialStart(false);
     setPowerDialStarting(true);
 
     try {
-      const existingAutoCycleLeadIds = new Set(autoCycleQueue.map((lead) => lead.id));
-      const stagedLeadIds = queue
-        .map((lead) => lead.id)
-        .filter((leadId) => !existingAutoCycleLeadIds.has(leadId));
-      const headers = await authHeaders();
-      for (const leadId of stagedLeadIds) {
-        const res = await fetch("/api/dialer/v1/auto-cycle", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ leadId }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({} as { error?: string }));
-          console.warn(`[PowerDial] Failed to seed ${leadId}:`, data.error ?? res.statusText);
-        }
-      }
-
+      await syncQueuedLeadsIntoPowerDial();
       selectQueueLead(null);
       await refreshQueues();
     } catch (error) {
@@ -1759,9 +1776,9 @@ function DialerPageInner() {
     } finally {
       setPowerDialStarting(false);
     }
-  }, [autoCycleQueue, powerDialStarting, queue, refreshQueues, selectQueueLead]);
+  }, [powerDialStarting, refreshQueues, selectQueueLead, syncQueuedLeadsIntoPowerDial]);
 
-  const startPowerDialSequencing = useCallback(() => {
+  const startPowerDialSequencing = useCallback(async () => {
     if (!autoCycleMode) {
       void enterPowerDialMode();
       return;
@@ -1774,6 +1791,14 @@ function DialerPageInner() {
 
     const nextReadyLead = executionQueue[0] ?? null;
     if (!nextReadyLead) {
+      const seededCount = await syncQueuedLeadsIntoPowerDial();
+      if (seededCount > 0) {
+        setPendingPowerDialStart(true);
+        selectQueueLead(null);
+        await refreshQueues();
+        toast.info("Power Dial staging queued files...");
+        return;
+      }
       toast.info("No Power Dial files are ready right now");
       return;
     }
@@ -1782,6 +1807,7 @@ function DialerPageInner() {
       setPowerDialPaused(false);
     }
 
+    setPendingPowerDialStart(false);
     selectQueueLead(nextReadyLead);
     setPendingAutoDialLeadId(nextReadyLead.id);
     toast.info("Power Dial starting...");
@@ -1793,16 +1819,18 @@ function DialerPageInner() {
     executionQueue,
     powerDialPaused,
     powerDialStarting,
+    refreshQueues,
     selectQueueLead,
+    syncQueuedLeadsIntoPowerDial,
   ]);
 
   const powerDialControlLabel = useMemo(() => {
     if (powerDialStarting) return "Loading";
     if (powerDialPaused) return "Resume";
     if (callState !== "idle") return "Pause";
-    if (pendingAutoDialLeadId) return "Starting";
+    if (pendingPowerDialStart || pendingAutoDialLeadId) return "Starting";
     return "Start";
-  }, [callState, pendingAutoDialLeadId, powerDialPaused, powerDialStarting]);
+  }, [callState, pendingAutoDialLeadId, pendingPowerDialStart, powerDialPaused, powerDialStarting]);
 
   const handleModalRefresh = useCallback(() => {
     void refreshQueues();
@@ -3392,9 +3420,31 @@ function DialerPageInner() {
   ]);
 
   useEffect(() => {
+    if (!autoCycleMode) return;
+    if (!pendingPowerDialStart) return;
+    if (powerDialPaused) return;
+    if (callState !== "idle" || dispositionPending) return;
+    if (!currentLead || !currentPowerDialReady) return;
+    if (!selectedDialPhone) return;
+
+    setPendingPowerDialStart(false);
+    setPendingAutoDialLeadId(currentLead.id);
+  }, [
+    autoCycleMode,
+    pendingPowerDialStart,
+    powerDialPaused,
+    callState,
+    dispositionPending,
+    currentLead,
+    currentPowerDialReady,
+    selectedDialPhone,
+  ]);
+
+  useEffect(() => {
     if (!autoCycleMode) {
       setPowerDialPaused(false);
       setPendingAutoDialLeadId(null);
+      setPendingPowerDialStart(false);
     }
   }, [autoCycleMode]);
 
@@ -4325,17 +4375,18 @@ function DialerPageInner() {
                         startPowerDialSequencing();
                         return;
                       }
-                      if (callState === "idle" && !pendingAutoDialLeadId) {
+                      if (callState === "idle" && !pendingAutoDialLeadId && !pendingPowerDialStart) {
                         startPowerDialSequencing();
                       } else {
                         setPowerDialPaused(true);
                         setPendingAutoDialLeadId(null);
+                        setPendingPowerDialStart(false);
                         toast.info("Power Dial paused");
                       }
                     }}
                     className={cn(
                       "inline-flex items-center gap-1.5 rounded-[8px] border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors",
-                      powerDialPaused || (callState === "idle" && !pendingAutoDialLeadId)
+                      powerDialPaused || (callState === "idle" && !pendingAutoDialLeadId && !pendingPowerDialStart)
                         ? "border-emerald-400/25 bg-emerald-400/8 text-emerald-300 hover:bg-emerald-400/15"
                         : "border-amber-400/25 bg-amber-400/8 text-amber-300 hover:bg-amber-400/15",
                     )}
@@ -4343,7 +4394,7 @@ function DialerPageInner() {
                   >
                     {powerDialStarting ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : powerDialPaused || callState === "idle" ? (
+                    ) : powerDialPaused || (callState === "idle" && !pendingPowerDialStart && !pendingAutoDialLeadId) ? (
                       <Play className="h-3 w-3" />
                     ) : (
                       <Pause className="h-3 w-3" />
