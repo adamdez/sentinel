@@ -1,5 +1,9 @@
 export type DialerQueueLeadLike = {
   id: string;
+  autoCycle?: {
+    nextPhoneId?: string | null;
+    readyNow?: boolean;
+  } | null;
 };
 
 export type DialerSelectionCallState = "idle" | "dialing" | "connected" | "ended";
@@ -91,4 +95,27 @@ export function resolveVisibleDialerLead<TLead extends DialerQueueLeadLike>(
     return activeCallLead ?? selectedQueueLead;
   }
   return selectedQueueLead;
+}
+
+export function reconcileRefreshedSelectedDialerLead<TLead extends DialerQueueLeadLike>(
+  currentLead: TLead | null,
+  refreshedLead: TLead,
+  pendingAdvance: { leadId: string; nextPhoneId: string } | null,
+): TLead {
+  if (!currentLead || !pendingAdvance) return refreshedLead;
+  if (currentLead.id !== pendingAdvance.leadId || refreshedLead.id !== pendingAdvance.leadId) {
+    return refreshedLead;
+  }
+  if (refreshedLead.autoCycle?.nextPhoneId === pendingAdvance.nextPhoneId) {
+    return refreshedLead;
+  }
+
+  return {
+    ...refreshedLead,
+    autoCycle: {
+      ...(refreshedLead.autoCycle ?? currentLead.autoCycle ?? {}),
+      nextPhoneId: pendingAdvance.nextPhoneId,
+      readyNow: true,
+    },
+  };
 }

@@ -61,6 +61,7 @@ import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
 import { MissedInboundQueueAutoLoad } from "@/components/sentinel/dashboard/widgets/missed-inbound-queue";
 import type { LeadPhone } from "@/lib/dialer/types";
 import {
+  collectPowerDialLeadIdsToSeed,
   planNextQueueTarget,
   resolveDialerPhoneSelection,
 } from "@/lib/dialer/operator-auto-cycle";
@@ -89,6 +90,7 @@ import { useIdleRailAttention } from "@/hooks/use-idle-rail-attention";
 import {
   buildDialerQueueCollections,
   findRefreshedDialerLead,
+  reconcileRefreshedSelectedDialerLead,
   resolveVisibleDialerLead,
   selectFallbackDialerLead,
   selectInitialDialerLead,
@@ -1557,12 +1559,16 @@ function DialerPageInner() {
   const [diagResults, setDiagResults] = useState<{ name: string; status: string; message: string; detail?: string }[] | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
   const [deepDiveLeadId, setDeepDiveLeadId] = useState<string | null>(null);
+  const pendingSameLeadPhoneAdvanceRef = useRef<{ leadId: string; nextPhoneId: string } | null>(null);
 
   const blockLeadSelectionWhileActiveCall = useCallback(() => {
     toast.info("Finish current call before switching files");
   }, []);
 
   const selectQueueLead = useCallback((lead: DialerQueueLead | null, options?: { resetPhone?: boolean }) => {
+    if (!lead || pendingSameLeadPhoneAdvanceRef.current?.leadId !== lead.id) {
+      pendingSameLeadPhoneAdvanceRef.current = null;
+    }
     setSelectedQueueLead(lead);
     if (options?.resetPhone !== false) {
       setPhoneIndex(0);
@@ -1638,11 +1644,26 @@ function DialerPageInner() {
 
   const selectedQueueLeadIdRef = useRef(selectedQueueLead?.id);
   selectedQueueLeadIdRef.current = selectedQueueLead?.id;
+  const selectedQueueLeadRef = useRef(selectedQueueLead);
+  selectedQueueLeadRef.current = selectedQueueLead;
   useEffect(() => {
     if (isLeadSelectionLocked) return;
     const refreshedLead = findRefreshedDialerLead(displayedQueue, selectedQueueLeadIdRef.current);
     if (refreshedLead) {
-      setSelectedQueueLead(refreshedLead);
+      const reconciledLead = reconcileRefreshedSelectedDialerLead(
+        selectedQueueLeadRef.current,
+        refreshedLead,
+        pendingSameLeadPhoneAdvanceRef.current,
+      );
+      setSelectedQueueLead(reconciledLead);
+      if (
+        pendingSameLeadPhoneAdvanceRef.current
+        && refreshedLead.id === pendingSameLeadPhoneAdvanceRef.current.leadId
+        && isAutoCycleQueueLead(refreshedLead)
+        && refreshedLead.autoCycle?.nextPhoneId === pendingSameLeadPhoneAdvanceRef.current.nextPhoneId
+      ) {
+        pendingSameLeadPhoneAdvanceRef.current = null;
+      }
     }
   }, [displayedQueue, isLeadSelectionLocked]);
 
@@ -1728,14 +1749,7 @@ function DialerPageInner() {
   }, [activeLeadPhones, autoCycleMode, callState, currentLead, refetchAutoCycleQueue, selectedPhoneIndex]);
 
   const syncQueuedLeadsIntoPowerDial = useCallback(async () => {
-    const existingAutoCycleLeadIds = new Set(
-      autoCycleQueue
-        .filter((lead) => lead.autoCycle != null)
-        .map((lead) => lead.id),
-    );
-    const stagedLeadIds = queue
-      .map((lead) => lead.id)
-      .filter((leadId) => !existingAutoCycleLeadIds.has(leadId));
+    const stagedLeadIds = collectPowerDialLeadIdsToSeed(queue, autoCycleQueue);
 
     if (stagedLeadIds.length === 0) return 0;
 
@@ -2016,17 +2030,30 @@ function DialerPageInner() {
     if (!currentLead?.id) return [] as LeadPhone[];
     const phones = await fetchLeadPhonesForLead(currentLead.id);
     setLeadPhones(phones);
-    if (!autoCycleMode) {
-      const activePhones = phones.filter((phone) => phone.status === "active");
-      if (options?.preservePhoneId) {
-        const preservedIndex = activePhones.findIndex((phone) => phone.id === options.preservePhoneId);
-        setPhoneIndex(preservedIndex >= 0 ? preservedIndex : 0);
-      } else if (phoneIndex >= activePhones.length) {
-        setPhoneIndex(0);
-      }
+    const activePhones = phones.filter((phone) => phone.status === "active");
+    if (options?.preservePhoneId) {
+      const preservedIndex = activePhones.findIndex((phone) => phone.id === options.preservePhoneId);
+      setPhoneIndex(preservedIndex >= 0 ? preservedIndex : 0);
+    } else if (!autoCycleMode && phoneIndex >= activePhones.length) {
+      setPhoneIndex(0);
     }
     return phones;
   }, [autoCycleMode, currentLead?.id, fetchLeadPhonesForLead, phoneIndex]);
+
+  const persistPowerDialNextPhone = useCallback(async (leadId: string, nextPhoneId: string) => {
+    const res = await fetch("/api/dialer/v1/auto-cycle", {
+      method: "PATCH",
+      headers: await authHeaders(),
+      body: JSON.stringify({
+        leadId,
+        nextPhoneId,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      throw new Error(data.error ?? "Could not save the next Power Dial number");
+    }
+  }, []);
 
   const handleQuickPhoneDisposition = useCallback(async (phone: LeadPhone, action: QuickPhoneAction) => {
     if (!currentLead?.id || callState !== "idle") return;
@@ -2233,7 +2260,7 @@ function DialerPageInner() {
     }
   }, [autoCycleMode, currentLead?.id, leadSkipTracingId, refetchQueue]);
 
-  const advanceQueueAfterDisposition = useCallback((disposition: string, autoDial: boolean) => {
+  const advanceQueueAfterDisposition = useCallback(async (disposition: string, autoDial: boolean) => {
     const activePhoneCount = leadPhones.filter((phone) => phone.status === "active").length;
     const isLeadTerminalDisposition = isAutoCycleLeadExitDisposition(disposition as Parameters<typeof isAutoCycleLeadExitDisposition>[0]);
     const plan = planNextQueueTarget({
@@ -2250,20 +2277,28 @@ function DialerPageInner() {
 
     if (plan.action === "stay") {
       setPhoneIndex(plan.nextPhoneIndex);
-      if (autoCycleMode && isAutoCycleQueueLead(currentLead) && currentLead.autoCycle) {
-        const nextPhone = activeLeadPhones[plan.nextPhoneIndex] ?? null;
-        if (nextPhone) {
-          setSelectedQueueLead({
-            ...currentLead,
-            autoCycle: {
-              ...currentLead.autoCycle,
-              nextPhoneId: nextPhone.id,
-              readyNow: true,
-            },
-          });
+      const nextPhone = activeLeadPhones[plan.nextPhoneIndex] ?? null;
+      if (autoCycleMode && isAutoCycleQueueLead(currentLead) && currentLead.autoCycle && nextPhone) {
+        pendingSameLeadPhoneAdvanceRef.current = {
+          leadId: currentLead.id,
+          nextPhoneId: nextPhone.id,
+        };
+        setSelectedQueueLead({
+          ...currentLead,
+          autoCycle: {
+            ...currentLead.autoCycle,
+            nextPhoneId: nextPhone.id,
+            readyNow: true,
+          },
+        });
+        try {
+          await persistPowerDialNextPhone(currentLead.id, nextPhone.id);
+        } catch (error) {
+          console.error("[PowerDial] Failed to persist next phone pointer:", error);
+          toast.error(error instanceof Error ? error.message : "Could not save the next Power Dial number");
         }
       }
-      refreshCurrentLeadPhones();
+      await refreshCurrentLeadPhones({ preservePhoneId: nextPhone?.id ?? null });
       if (autoDial && powerDialPaused) {
         setPendingAutoDialLeadId(null);
         toast.info(`Power Dial paused - phone ${plan.nextPhoneIndex + 1} loaded`);
@@ -2279,6 +2314,7 @@ function DialerPageInner() {
     }
 
     if (plan.action === "next") {
+      pendingSameLeadPhoneAdvanceRef.current = null;
       const nextLead = executionQueue.find((lead) => lead.id === plan.leadId) ?? null;
       selectQueueLead(nextLead);
       if (autoDial && powerDialPaused && nextLead) {
@@ -2307,13 +2343,14 @@ function DialerPageInner() {
     }
 
     setPendingAutoDialLeadId(null);
+    pendingSameLeadPhoneAdvanceRef.current = null;
     if (autoCycleMode) {
       selectQueueLead(null);
       toast.info("Power Dial complete — you've called every ready lead. Add more leads to continue.");
       return;
     }
     toast.info(autoDial ? "Power Dial complete — queue finished" : "Queue complete — all leads attempted");
-  }, [activeLeadPhones, autoCycleMode, currentLead, executionQueue, leadPhones, phoneIndex, powerDialPaused, refreshCurrentLeadPhones, selectQueueLead]);
+  }, [activeLeadPhones, autoCycleMode, currentLead, executionQueue, leadPhones, persistPowerDialNextPhone, phoneIndex, powerDialPaused, refreshCurrentLeadPhones, selectQueueLead]);
 
   // ── Incoming call handler — attached to provider-managed Device ──
   useEffect(() => {
@@ -3352,7 +3389,7 @@ function DialerPageInner() {
     noteSeqRef.current = 0;
     timer.reset();
     setDispositionPending(false);
-    advanceQueueAfterDisposition(dispoKey, autoCycleMode);
+    void advanceQueueAfterDisposition(dispoKey, autoCycleMode);
   }, [advanceQueueAfterDisposition, autoCycleMode, currentCallLogId, callState, callNotes, currentLead, currentUser.id, handleHangup, timer]);
 
   // ── PostCallPanel completion handler ────────────────────────────────
@@ -3388,7 +3425,7 @@ function DialerPageInner() {
       return;
     }
 
-    advanceQueueAfterDisposition(disposition, autoCycleMode);
+    await advanceQueueAfterDisposition(disposition, autoCycleMode);
   }, [advanceQueueAfterDisposition, autoCycleMode, refreshQueues, selectQueueLead, timer]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────

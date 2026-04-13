@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LeadPhone } from "@/lib/dialer/types";
 import {
+  collectPowerDialLeadIdsToSeed,
   planNextQueueTarget,
   resolveDialerPhoneSelection,
 } from "@/lib/dialer/operator-auto-cycle";
@@ -258,5 +259,33 @@ describe("planNextQueueTarget", () => {
     })).toEqual({
       action: "done",
     });
+  });
+});
+
+describe("collectPowerDialLeadIdsToSeed", () => {
+  it("only seeds staged leads that do not already have auto-cycle state", () => {
+    expect(collectPowerDialLeadIdsToSeed(
+      [
+        { id: "lead-1" },
+        { id: "lead-2" },
+        { id: "lead-3" },
+      ],
+      [
+        { id: "lead-2", autoCycle: { nextPhoneId: "phone-2" } },
+        { id: "lead-4", autoCycle: { nextPhoneId: "phone-4" } },
+      ],
+    )).toEqual(["lead-1", "lead-3"]);
+  });
+
+  it("still seeds displayed leads that are present but not enrolled", () => {
+    expect(collectPowerDialLeadIdsToSeed(
+      [
+        { id: "lead-1" },
+        { id: "lead-2" },
+      ],
+      [
+        { id: "lead-1", autoCycle: null },
+      ],
+    )).toEqual(["lead-1", "lead-2"]);
   });
 });

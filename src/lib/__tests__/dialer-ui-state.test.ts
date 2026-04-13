@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDialerQueueCollections,
   findRefreshedDialerLead,
+  reconcileRefreshedSelectedDialerLead,
   resolveVisibleDialerLead,
   selectFallbackDialerLead,
   selectInitialDialerLead,
@@ -147,5 +148,55 @@ describe("dialer lead selection helpers", () => {
     expect(resolveVisibleDialerLead("connected", activeLead, selectedLead)?.id).toBe("lead-active");
     expect(resolveVisibleDialerLead("ended", activeLead, selectedLead)?.id).toBe("lead-active");
     expect(resolveVisibleDialerLead("idle", activeLead, selectedLead)?.id).toBe("lead-selected");
+  });
+
+  it("preserves a pending same-lead phone advance until the refreshed queue catches up", () => {
+    const currentLead = {
+      id: "lead-1",
+      autoCycle: {
+        nextPhoneId: "phone-2",
+        readyNow: true,
+      },
+    };
+
+    expect(reconcileRefreshedSelectedDialerLead(
+      currentLead,
+      {
+        id: "lead-1",
+        autoCycle: {
+          nextPhoneId: "phone-1",
+          readyNow: true,
+        },
+      },
+      { leadId: "lead-1", nextPhoneId: "phone-2" },
+    )).toEqual({
+      id: "lead-1",
+      autoCycle: {
+        nextPhoneId: "phone-2",
+        readyNow: true,
+      },
+    });
+  });
+
+  it("accepts the refreshed queue snapshot once it reflects the persisted next phone", () => {
+    const refreshedLead = {
+      id: "lead-1",
+      autoCycle: {
+        nextPhoneId: "phone-2",
+        readyNow: true,
+      },
+    };
+
+    expect(reconcileRefreshedSelectedDialerLead(
+      {
+        id: "lead-1",
+        autoCycle: {
+          nextPhoneId: "phone-2",
+          readyNow: true,
+        },
+      },
+      refreshedLead,
+      { leadId: "lead-1", nextPhoneId: "phone-2" },
+    )).toBe(refreshedLead);
   });
 });

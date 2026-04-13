@@ -28,6 +28,11 @@ export type QueueAdvancePlan =
   | { action: "next"; leadId: string }
   | { action: "done" };
 
+export type PowerDialSeedLeadLike = {
+  id: string;
+  autoCycle?: unknown | null;
+};
+
 export function resolveDialerPhoneSelection({
   autoCycleMode,
   leadPhones,
@@ -112,4 +117,19 @@ export function planNextQueueTarget({
   }
 
   return { action: "done" };
+}
+
+export function collectPowerDialLeadIdsToSeed<TQueueLead extends { id: string }>(
+  queue: TQueueLead[],
+  autoCycleQueue: PowerDialSeedLeadLike[],
+): string[] {
+  const enrolledLeadIds = new Set(
+    autoCycleQueue
+      .filter((lead) => lead.autoCycle != null)
+      .map((lead) => lead.id),
+  );
+
+  return queue
+    .map((lead) => lead.id)
+    .filter((leadId) => !enrolledLeadIds.has(leadId));
 }
