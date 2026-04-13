@@ -1,5 +1,40 @@
 [
   {
+    "hash": "d534c559",
+    "date": "2026-04-13",
+    "message": "[codex] Harden auto-cycle lead locking and enrollment"
+  },
+  {
+    "hash": "83e98509",
+    "date": "2026-04-13",
+    "message": "[codex] Restrict shared lead queue to unclaimed leads"
+  },
+  {
+    "hash": "64cc8e2f",
+    "date": "2026-04-13",
+    "message": "[codex] Simplify closeout follow-up requirements"
+  },
+  {
+    "hash": "32f32a9c",
+    "date": "2026-04-13",
+    "message": "[codex] Add property basics parcel and Zillow links"
+  },
+  {
+    "hash": "262c0de2",
+    "date": "2026-04-13",
+    "message": "[codex] Fix nurture move gate for free-text next actions"
+  },
+  {
+    "hash": "39710d7e",
+    "date": "2026-04-13",
+    "message": "[codex] Add DocuSign make offer workflow"
+  },
+  {
+    "hash": "4f5e0c22",
+    "date": "2026-04-13",
+    "message": "[codex] Fix power dial same-day requeue race"
+  },
+  {
     "hash": "8c46ea9a",
     "date": "2026-04-13",
     "message": "[codex] Fix dialer parcel links and lot display"
@@ -88,40 +123,5 @@
     "hash": "fc8cbbba",
     "date": "2026-04-10",
     "message": "[codex] Add deep dive move target to client file"
-  },
-  {
-    "hash": "ec7dca8e",
-    "date": "2026-04-10",
-    "message": "[codex] Ship dialer communication search and closeout fallback"
-  },
-  {
-    "hash": "f2d881b0",
-    "date": "2026-04-10",
-    "message": "[codex] Add related contact evidence lane"
-  },
-  {
-    "hash": "39fed6cf",
-    "date": "2026-04-10",
-    "message": "[codex] Ship remaining dialer note work"
-  },
-  {
-    "hash": "4e5b39f9",
-    "date": "2026-04-10",
-    "message": "[codex] Finalize dialer open work"
-  },
-  {
-    "hash": "dbbb9216",
-    "date": "2026-04-10",
-    "message": "[codex] Ship open Sentinel agent work"
-  },
-  {
-    "hash": "dbdc9533",
-    "date": "2026-04-10",
-    "message": "[codex] Fix power dial daily exit and intro cadence labels"
-  },
-  {
-    "hash": "92526983",
-    "date": "2026-04-10",
-    "message": "[codex] Add deep dive prep lane for dialer"
   }
 ]

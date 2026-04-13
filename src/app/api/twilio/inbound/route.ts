@@ -21,16 +21,15 @@ const INBOUND_TRANSCRIPTION_STREAM_NAME = "sentinel-inbound-live-notes";
  * Flow:
  *   1. Ring Logan's browser (Twilio Client) for 20 seconds.
  *   2. If no answer, ring Adam's browser for 20 seconds.
- *   3. If no answer, forward to Jeff (Vapi AI receptionist).
- *   4. Jeff either warm-transfers back to browser with notes, or takes a message.
+ *   3. If no answer, send the caller to voicemail.
  *
- * NO cell phones. All calls handled in-browser or by AI.
+ * NO cell phones. All calls handled in-browser or by voicemail fallback.
  *
  * Environment variables used:
  *   LOGAN_BROWSER_IDENTITY  — Logan's Twilio Client identity (email)
  *   ADAM_BROWSER_IDENTITY   — Adam's Twilio Client identity (email)
  *   TWILIO_PHONE_NUMBER     — The Dominion Twilio number (caller ID)
- *   VAPI_PHONE_NUMBER       — Jeff's Vapi number (AI fallback)
+ *   VAPI_PHONE_NUMBER       — Legacy Jeff/Vapi number (still used only for transfer detection)
  *   NEXT_PUBLIC_SITE_URL    — Base URL for callback action URLs
  */
 
@@ -49,17 +48,22 @@ function buildVoicemailFallbackTwiml(input: {
   callLogId: string | null;
   leadName?: string | null;
   transferReason?: string | null;
+  openingMessage?: string | null;
+  prefixLines?: string[];
 }): string {
   const recordingAction = input.callLogId
     ? `${input.siteUrl}/api/twilio/voice/recording?callLogId=${encodeURIComponent(input.callLogId)}`
     : `${input.siteUrl}/api/twilio/voice/recording`;
   const leadLabel = input.leadName?.trim() ? ` for ${input.leadName.trim()}` : "";
   const transferLabel = input.transferReason?.trim() ? ` regarding ${input.transferReason.trim()}` : "";
+  const openingMessage = input.openingMessage?.trim()
+    || "We missed your call. Please leave your name, number, and a short message after the tone, and we will call you back as soon as possible.";
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<Response>",
-    '  <Say voice="Polly.Joanna">We missed your call. Please leave your name, number, and a short message after the tone, and we will call you back as soon as possible.</Say>',
+    ...(input.prefixLines ?? []),
+    `  <Say voice="Polly.Joanna">${openingMessage}</Say>`,
     `  <Record maxLength="120" playBeep="true" trim="trim-silence" action="${recordingAction}" method="POST" />`,
     `  <Say voice="Polly.Joanna">We did not receive a voicemail${leadLabel}${transferLabel}. Goodbye.</Say>`,
     "</Response>",
@@ -179,7 +183,6 @@ export async function POST(req: NextRequest) {
     const fromNumber = formData.get("From")?.toString() ?? "";
     const callSid = formData.get("CallSid")?.toString() ?? "";
 
-    const vapiNumber = (process.env.VAPI_PHONE_NUMBER ?? "").trim();
     const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
 
     console.log(`[inbound] chain_step=${step} dialStatus=${dialStatus} from=${fromNumber} sid=${callSid}${isTransfer ? " (vapi-transfer)" : ""}`);
@@ -290,23 +293,6 @@ export async function POST(req: NextRequest) {
         "  </Dial>",
         "</Response>",
       ].join("\n");
-    } else if (currentStep === routePlan.secondaryStep && vapiNumber && !isTransfer) {
-      // Adam's browser didn't answer → forward to Jeff (Vapi AI)
-      // ONLY for regular inbound. Vapi transfers skip this step to prevent looping.
-      // Preserve the original caller when handing off to Jeff so Vapi can
-      // identify the real customer and we avoid sending our own Twilio number
-      // back into the Jeff leg.
-      const callerIdForJeff = originalFrom || fromNumber || twilioNumber;
-      console.log(`[inbound] ${step} browser missed → forwarding to Jeff (Vapi)`);
-      nextTwiml = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        "<Response>",
-        ...stopInboundStreamLines,
-        `  <Dial callerId="${callerIdForJeff}" timeout="30" action="${siteUrl}/api/twilio/inbound?type=call_status&amp;callLogId=${encodeURIComponent(safeChainCallLogId)}${routeParams}&amp;vapiRoute=operator_missed" method="POST">`,
-        `    <Number>${vapiNumber}</Number>`,
-        "  </Dial>",
-        "</Response>",
-      ].join("\n");
     } else {
       // No more fallbacks — play message, log missed call
       // For Vapi transfers: both Logan and Adam missed → book callback
@@ -341,6 +327,7 @@ export async function POST(req: NextRequest) {
         siteUrl,
         callLogId: safeChainCallLogId || null,
         transferReason: isTransfer ? "your earlier conversation with our team" : null,
+        prefixLines: stopInboundStreamLines,
       });
     }
 
@@ -440,12 +427,12 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Initial inbound webhook: return TwiML with call chain ──────────────────
-  // Chain: Logan browser (20s) → Adam browser (20s) → Jeff/Vapi AI (always answers)
+  // Chain: Logan browser (20s) → Adam browser (20s) → voicemail fallback
   // No cell phones. All calls ring in the Sentinel dialer browser UI.
   //
-  // TRANSFER CASCADE: When Jeff (Vapi) transfers a call back here, From will
+  // TRANSFER CASCADE: When a legacy Jeff/Vapi transfer comes back here, From will
   // be the Vapi phone number. We detect this and use a modified chain that
-  // skips the Vapi fallback step (would loop). Instead: Logan → Adam → missed.
+  // skips the fallback step (would loop). Instead: Logan → Adam → missed.
   const twilioNumber = process.env.TWILIO_PHONE_NUMBER ?? "";
 
   // Parse inbound caller info
@@ -563,8 +550,8 @@ export async function POST(req: NextRequest) {
       ]
     : [];
 
-  // After-hours: skip browser ring cascade, send directly to Jeff (Vapi AI)
-  // During hours: Ring Logan's browser (20s) → chain continues to Adam → Jeff
+  // After-hours: skip browser ring cascade and send directly to voicemail.
+  // During hours: Ring Logan's browser (20s) → chain continues to Adam → voicemail.
   const hours = isBusinessHours();
   const chainParams = [
     `&amp;sessionId=${sessionId}`,
@@ -575,18 +562,32 @@ export async function POST(req: NextRequest) {
 
   let twiml: string;
 
-  if (!hours.isOpen && vapiNumber) {
-    // After hours — go straight to Jeff with extra time for message-taking
-    console.log(`[inbound] After-hours (next open: ${hours.nextOpenTime}) — forwarding directly to Jeff`);
-    const callerIdForJeff = fromNumber || twilioNumber;
-    twiml = [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      "<Response>",
-      `  <Dial callerId="${callerIdForJeff}" timeout="60" action="${siteUrl}/api/twilio/inbound?type=call_status${chainParams}&amp;vapiRoute=after_hours" method="POST">`,
-      `    <Number>${vapiNumber}</Number>`,
-      "  </Dial>",
-      "</Response>",
-    ].join("\n");
+  if (!hours.isOpen) {
+    console.log(`[inbound] After-hours (next open: ${hours.nextOpenTime}) — directing caller to voicemail`);
+    after(async () => {
+      try {
+        await handleMissedInbound({
+          fromNumber,
+          callSid,
+          siteUrl,
+          fallbackUserId: routePlan.primaryUserId,
+          routeMeta: {
+            dialedToNumber: toNumber || null,
+            routePrimary: routePlan.primaryStep,
+            routeSecondary: routePlan.secondaryStep,
+            routeReason: "after_hours_voicemail",
+            callEndReason: "after_hours",
+          },
+        });
+      } catch (err) {
+        console.error("[inbound] after() after-hours voicemail handler failed:", err);
+      }
+    });
+    twiml = buildVoicemailFallbackTwiml({
+      siteUrl,
+      callLogId,
+      openingMessage: `Our team is away right now. Please leave your name, number, and a short message after the tone, and we will call you back ${hours.nextOpenTime}.`,
+    });
   } else {
     // During hours — ring Logan's browser first
     // callerId = fromNumber so Logan's browser shows the actual caller's phone number

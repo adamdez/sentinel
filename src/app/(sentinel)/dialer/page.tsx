@@ -5356,17 +5356,17 @@ function DialerPageInner() {
                     <Input
                       value={idleRailQuery}
                       onChange={(event) => setIdleRailQuery(event.target.value)}
-                      placeholder="Search recent, SMS, or missed by phone, house #, ZIP, owner..."
+                      placeholder="Search voicemail, recent, or SMS by phone, house #, ZIP, owner..."
                       className="h-8 pl-8 pr-3 text-xs bg-overlay-2 border-overlay-8"
                     />
                   </div>
 
-                  {/* ── Tab selector: Missed / Recent / SMS ── */}
+                  {/* ── Tab selector: Voicemail / Recent / SMS ── */}
                   <div className="flex items-center gap-0.5 mb-2 rounded-[8px] border border-overlay-6 bg-overlay-2 p-0.5">
                     {([
                       {
                         key: "missed" as const,
-                        label: "Missed",
+                        label: "Voicemail",
                         attention: hasMissedAttention,
                       },
                       { key: "recent" as const, label: "Recent", attention: false },
@@ -5396,7 +5396,7 @@ function DialerPageInner() {
                     ))}
                   </div>
 
-                  {/* Missed tab */}
+                  {/* Voicemail tab */}
                   {idleRailTab === "missed" && <MissedInboundQueueAutoLoad query={idleRailQuery} />}
 
                   {/* Recent tab */}

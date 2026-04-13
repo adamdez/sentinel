@@ -64,6 +64,15 @@ function buildVoicemailPlaybackUrl(url: string | null): string | null {
   return url.endsWith(".mp3") || url.endsWith(".wav") ? url : `${url}.mp3`;
 }
 
+function finalStatePriority(item: MissedInbound): number {
+  if (item.final_state === "voicemail_recorded") return 0;
+  if (item.final_state === "callback_booked") return 1;
+  if (item.final_state === "jeff_message") return 2;
+  if (item.final_state === "answered_unclassified") return 3;
+  if (item.final_state === "hung_up") return 4;
+  return 5;
+}
+
 function finalStateLabel(item: MissedInbound): string {
   if (item.jeff_notes_missing) {
     return "Jeff answered - notes missing";
@@ -319,16 +328,6 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
           </Link>
         )}
 
-        {playbackUrl && (
-          <a href={playbackUrl} target="_blank" rel="noreferrer">
-            <Button size="sm" variant="outline" className="h-7 text-xs px-2.5 border-amber-400/30 text-amber-200 hover:bg-amber-400/10">
-              <Play className="h-3 w-3 mr-1" />
-              Play Voicemail
-              {typeof item.voicemail_duration === "number" && item.voicemail_duration > 0 ? ` • ${item.voicemail_duration}s` : ""}
-            </Button>
-          </a>
-        )}
-
         {hasEventActions && mode === "idle" && (
           <>
             <Button
@@ -353,6 +352,21 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
           </>
         )}
       </div>
+
+      {playbackUrl && (
+        <div className="rounded-[8px] border border-amber-400/20 bg-amber-400/[0.04] px-2.5 py-2">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-amber-200/80">
+            <Play className="h-3 w-3" />
+            <span>
+              Voicemail playback
+              {typeof item.voicemail_duration === "number" && item.voicemail_duration > 0 ? ` • ${item.voicemail_duration}s` : ""}
+            </span>
+          </div>
+          <audio controls preload="none" className="h-8 w-full" src={playbackUrl}>
+            Your browser does not support voicemail playback.
+          </audio>
+        </div>
+      )}
 
       {mode === "dismiss" && (
         <div className="space-y-1.5">
@@ -439,13 +453,19 @@ export function MissedInboundQueue({
     setVisible(items);
   }, [items]);
 
-  const filteredVisible = visible.filter((item) => matchesCommunicationSearch(query, [
-    item.from_number,
-    item.owner_name,
-    item.property_address,
-    item.jeff_summary,
-    item.jeff_callback_time,
-  ]));
+  const filteredVisible = [...visible]
+    .filter((item) => matchesCommunicationSearch(query, [
+      item.from_number,
+      item.owner_name,
+      item.property_address,
+      item.jeff_summary,
+      item.jeff_callback_time,
+    ]))
+    .sort((left, right) => {
+      const stateDelta = finalStatePriority(left) - finalStatePriority(right);
+      if (stateDelta !== 0) return stateDelta;
+      return new Date(right.missed_at).getTime() - new Date(left.missed_at).getTime();
+    });
   const filteredUnclassified = unclassified.filter((item) => matchesCommunicationSearch(query, [
     item.from_number,
   ]));
@@ -459,7 +479,7 @@ export function MissedInboundQueue({
         <div className="flex items-center gap-1.5">
           <PhoneIncoming className="h-3.5 w-3.5 text-foreground" />
           <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
-            Missed Inbound
+            Voicemail Box
           </span>
           {count > 0 && (
             <Badge className="bg-muted/20 text-foreground border-border/30 text-xs h-4 px-1.5">
@@ -478,11 +498,11 @@ export function MissedInboundQueue({
       </div>
 
       {!loading && !hasAnyRecords && (
-        <p className="text-sm text-muted-foreground/40 py-1">No missed calls in the last 7 days.</p>
+        <p className="text-sm text-muted-foreground/40 py-1">No voicemail or missed inbound in the last 7 days.</p>
       )}
 
       {!loading && hasAnyRecords && count === 0 && filteredUnclassified.length === 0 && hasSearch && (
-        <p className="text-sm text-muted-foreground/40 py-1">No missed-call matches for this search.</p>
+        <p className="text-sm text-muted-foreground/40 py-1">No voicemail-box matches for this search.</p>
       )}
 
       {filteredVisible.map((item, idx) => (
@@ -515,7 +535,7 @@ export function MissedInboundQueue({
         <div className="flex items-center gap-2 pt-0.5">
           <div className="flex items-center gap-1">
             <div className="h-1.5 w-1.5 rounded-full bg-amber-300" />
-            <span className="text-xs text-muted-foreground/40">&lt;30m</span>
+              <span className="text-xs text-muted-foreground/40">&lt;30m</span>
           </div>
           <div className="flex items-center gap-1">
             <div className="h-1.5 w-1.5 rounded-full bg-amber-200/70" />
@@ -525,7 +545,7 @@ export function MissedInboundQueue({
             <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/20" />
             <span className="text-xs text-muted-foreground/40">older</span>
           </div>
-          <span className="text-xs text-muted-foreground/30 ml-auto">Speed-to-lead SLA</span>
+              <span className="text-xs text-muted-foreground/30 ml-auto">Voicemail and missed-call queue</span>
         </div>
       )}
     </div>
@@ -578,7 +598,7 @@ export function MissedInboundQueueAutoLoad({ query = "" }: { query?: string }) {
           <div className="flex items-center gap-1.5">
             <PhoneIncoming className="h-3.5 w-3.5 text-foreground" />
             <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground/60">
-              Missed Inbound
+              Voicemail Box
             </span>
           </div>
         </div>
