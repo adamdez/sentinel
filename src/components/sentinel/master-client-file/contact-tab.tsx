@@ -39,6 +39,7 @@ import type {
 } from "./contact-types";
 import type { LeadPhone } from "@/lib/dialer/types";
 import { buildClientFilePatchFromPropertyRecord } from "./client-file-state";
+import { moveLeadToDriveBy } from "./drive-by-move";
 
 type ContactView = "primary" | "related";
 
@@ -521,28 +522,16 @@ export function ContactTab({ cf, overlay, onSkipTrace, skipTracing, skipTraceRes
   const handleMarkDriveBy = useCallback(async () => {
     setDriveBySaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast.error("Session expired. Please sign in again.");
+      const result = await moveLeadToDriveBy(cf.id);
+      if (!result.ok) {
+        toast.error(result.error);
         return;
       }
-      const res = await fetch(`/api/leads/${cf.id}/intro-exit`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ category: "drive_by" }),
-      });
-      const data = await res.json().catch(() => ({} as { error?: string }));
-      if (!res.ok) {
-        toast.error(data.error ?? "Could not mark Drive By");
-        return;
-      }
-      toast.success("Marked Drive By and removed from intro queue");
+
+      toast.success("Moved to Drive By");
       onRefresh?.();
     } catch {
-      toast.error("Could not mark Drive By");
+      toast.error("Could not move to Drive By");
     } finally {
       setDriveBySaving(false);
     }

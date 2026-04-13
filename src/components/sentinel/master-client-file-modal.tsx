@@ -152,6 +152,7 @@ import { createTask as createTaskApi, type TaskItem } from "@/hooks/use-tasks";
 
 import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
 import { MakeOfferPanel } from "@/components/sentinel/master-client-file/make-offer-panel";
+import { moveLeadToDriveBy } from "@/components/sentinel/master-client-file/drive-by-move";
 
 import { formatDueDateLabel } from "@/lib/due-date-label";
 
@@ -8753,6 +8754,30 @@ export function MasterClientFileModal({
     }
   }, [applyLeadPatchFromResponse, clientFile, onRefresh]);
 
+  const handleMoveToDriveBy = useCallback(async () => {
+    if (!clientFile?.id) return false;
+
+    setStageUpdating(true);
+    try {
+      const result = await moveLeadToDriveBy(clientFile.id);
+      if (!result.ok) {
+        toast.error(result.error);
+        return false;
+      }
+
+      applyLeadPatchFromResponse(result.data);
+      toast.success("Moved to Drive By");
+      onRefresh?.();
+      return true;
+    } catch (err) {
+      console.error("[MCF] Drive By move error:", err);
+      toast.error("Could not move to Drive By");
+      return false;
+    } finally {
+      setStageUpdating(false);
+    }
+  }, [applyLeadPatchFromResponse, clientFile, onRefresh]);
+
   const handleApplyMove = useCallback(async () => {
     if (!clientFile || !moveTarget) return;
 
@@ -8763,15 +8788,10 @@ export function MasterClientFileModal({
     }
 
     if (moveTarget === "drive_by") {
-      setCloseoutOpen(true);
-      setCloseoutNote("");
-      setCloseoutAction("drive_by");
-      setCloseoutAt(
-        toLocalDateTimeInput(clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate) || "",
-      );
-      setCloseoutDateTouched(false);
+      setCloseoutOpen(false);
       setNextActionEditorOpen(false);
       setNoteEditorOpen(false);
+      await handleMoveToDriveBy();
       setMoveTarget("");
       return;
     }
@@ -8819,6 +8839,7 @@ export function MasterClientFileModal({
   }, [
     allowedTransitions,
     clientFile,
+    handleMoveToDriveBy,
     handleParkForDeepDive,
     handleToggleActive,
     moveTarget,
