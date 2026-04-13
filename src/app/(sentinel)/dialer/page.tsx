@@ -1761,6 +1761,49 @@ function DialerPageInner() {
     }
   }, [autoCycleQueue, powerDialStarting, queue, refreshQueues, selectQueueLead]);
 
+  const startPowerDialSequencing = useCallback(() => {
+    if (!autoCycleMode) {
+      void enterPowerDialMode();
+      return;
+    }
+    if (powerDialStarting) return;
+    if (callState !== "idle" || dispositionPending) {
+      toast.info("Finish the current call before starting Power Dial");
+      return;
+    }
+
+    const nextReadyLead = executionQueue[0] ?? null;
+    if (!nextReadyLead) {
+      toast.info("No Power Dial files are ready right now");
+      return;
+    }
+
+    if (powerDialPaused) {
+      setPowerDialPaused(false);
+    }
+
+    selectQueueLead(nextReadyLead);
+    setPendingAutoDialLeadId(nextReadyLead.id);
+    toast.info("Power Dial starting...");
+  }, [
+    autoCycleMode,
+    callState,
+    dispositionPending,
+    enterPowerDialMode,
+    executionQueue,
+    powerDialPaused,
+    powerDialStarting,
+    selectQueueLead,
+  ]);
+
+  const powerDialControlLabel = useMemo(() => {
+    if (powerDialStarting) return "Loading";
+    if (powerDialPaused) return "Resume";
+    if (callState !== "idle") return "Pause";
+    if (pendingAutoDialLeadId) return "Starting";
+    return "Start";
+  }, [callState, pendingAutoDialLeadId, powerDialPaused, powerDialStarting]);
+
   const handleModalRefresh = useCallback(() => {
     void refreshQueues();
   }, [refreshQueues]);
@@ -4279,11 +4322,11 @@ function DialerPageInner() {
                     onClick={() => {
                       if (powerDialStarting) return;
                       if (powerDialPaused) {
-                        setPowerDialPaused(false);
-                        if (callState === "idle" && currentLead?.id && selectedDialPhone && currentPowerDialReady) {
-                          setPendingAutoDialLeadId(currentLead.id);
-                        }
-                        toast.info("Power Dial resumed");
+                        startPowerDialSequencing();
+                        return;
+                      }
+                      if (callState === "idle" && !pendingAutoDialLeadId) {
+                        startPowerDialSequencing();
                       } else {
                         setPowerDialPaused(true);
                         setPendingAutoDialLeadId(null);
@@ -4292,14 +4335,20 @@ function DialerPageInner() {
                     }}
                     className={cn(
                       "inline-flex items-center gap-1.5 rounded-[8px] border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors",
-                      powerDialPaused
+                      powerDialPaused || (callState === "idle" && !pendingAutoDialLeadId)
                         ? "border-emerald-400/25 bg-emerald-400/8 text-emerald-300 hover:bg-emerald-400/15"
                         : "border-amber-400/25 bg-amber-400/8 text-amber-300 hover:bg-amber-400/15",
                     )}
                     disabled={powerDialStarting}
                   >
-                    {powerDialStarting ? <Loader2 className="h-3 w-3 animate-spin" /> : powerDialPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                    {powerDialStarting ? "Loading" : powerDialPaused ? "Resume" : "Pause"}
+                    {powerDialStarting ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : powerDialPaused || callState === "idle" ? (
+                      <Play className="h-3 w-3" />
+                    ) : (
+                      <Pause className="h-3 w-3" />
+                    )}
+                    {powerDialControlLabel}
                   </button>
                 )}
                 {!autoCycleMode && dialerMode === "queue" && (
