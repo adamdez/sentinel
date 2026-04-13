@@ -3256,7 +3256,10 @@ function DialerPageInner() {
   // ── PostCallPanel completion handler ────────────────────────────────
   // Shared by onComplete and onSkip — PostCallPanel handles its own API calls.
   // Cycles to the next un-attempted phone before advancing to the next lead.
-  const handlePostCallDone = useCallback((disposition = "completed") => {
+  const handlePostCallDone = useCallback(async (
+    disposition = "completed",
+    meta?: { autoCycleStatus?: string | null },
+  ) => {
     setCallState("idle");
     setCurrentCallLogId(null);
     setCurrentCallSid(null);
@@ -3270,8 +3273,21 @@ function DialerPageInner() {
     pendingSavedNoteContentRef.current = null;
     noteSeqRef.current = 0;
     timer.reset();
+
+    if (
+      autoCycleMode
+      && meta?.autoCycleStatus
+      && meta.autoCycleStatus !== "ready"
+    ) {
+      setPendingAutoDialLeadId(null);
+      await refreshQueues();
+      setCurrentLead(null);
+      setPhoneIndex(0);
+      return;
+    }
+
     advanceQueueAfterDisposition(disposition, autoCycleMode);
-  }, [advanceQueueAfterDisposition, autoCycleMode, timer]);
+  }, [advanceQueueAfterDisposition, autoCycleMode, refreshQueues, timer]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────
   useEffect(() => {

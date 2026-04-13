@@ -1,5 +1,20 @@
 [
   {
+    "hash": "8c46ea9a",
+    "date": "2026-04-13",
+    "message": "[codex] Fix dialer parcel links and lot display"
+  },
+  {
+    "hash": "ba71b35f",
+    "date": "2026-04-13",
+    "message": "[codex] Ship active discipline v1"
+  },
+  {
+    "hash": "edf6f6ce",
+    "date": "2026-04-13",
+    "message": "[codex] Fix inbound answer stale call tracking"
+  },
+  {
     "hash": "92f1a6c2",
     "date": "2026-04-13",
     "message": "[codex] Harden Jeff inbound message persistence"
@@ -108,20 +123,5 @@
     "hash": "92526983",
     "date": "2026-04-10",
     "message": "[codex] Add deep dive prep lane for dialer"
-  },
-  {
-    "hash": "b107e8b1",
-    "date": "2026-04-10",
-    "message": "[codex] Harden dialer and client file state flow"
-  },
-  {
-    "hash": "6cf6ea78",
-    "date": "2026-04-09",
-    "message": "[codex] Fix deep search legal dates and links"
-  },
-  {
-    "hash": "14e25c75",
-    "date": "2026-04-09",
-    "message": "[codex] Unify client-file phone truth and add phone entry"
   }
 ]

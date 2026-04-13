@@ -252,8 +252,14 @@ export interface PostCallPanelProps {
   autoCycleEnabled?: boolean;
   /** Optional hook to persist any unsaved operator draft note before publish finishes. */
   beforePublish?: () => Promise<unknown> | unknown;
-  onComplete: (disposition?: PublishDisposition) => void;
-  onSkip: (disposition?: PublishDisposition) => void;
+  onComplete: (
+    disposition?: PublishDisposition,
+    meta?: { autoCycleStatus?: string | null },
+  ) => void | Promise<void>;
+  onSkip: (
+    disposition?: PublishDisposition,
+    meta?: { autoCycleStatus?: string | null },
+  ) => void | Promise<void>;
 }
 
 export function PostCallPanel({
@@ -299,6 +305,7 @@ export function PostCallPanel({
   const [promoteFactsInfo, setPromoteFactsInfo] = useState<{ promoted: number; contradictions: number } | null>(
     null,
   );
+  const [autoCycleStatus, setAutoCycleStatus] = useState<string | null>(null);
 
   // ── AI extraction state ───────────────────────────────────────
   const [extracting, setExtracting] = useState(false);
@@ -478,6 +485,7 @@ export function PostCallPanel({
     setError(null);
     setPublishQaFindings([]);
     setPublishSnapshot(null);
+    setAutoCycleStatus(null);
 
     if (beforePublish) {
       try {
@@ -658,8 +666,10 @@ export function PostCallPanel({
       }
     }
 
+    let resolvedAutoCycleStatus: string | null = null;
     if (autoCycleEnabled && leadId) {
-      fetch("/api/dialer/v1/auto-cycle/outcome", {
+      try {
+        const autoCycleRes = await fetch("/api/dialer/v1/auto-cycle/outcome", {
         method: "POST",
         headers: hdrs,
         body: JSON.stringify({
@@ -667,9 +677,15 @@ export function PostCallPanel({
           disposition: dispo,
           phoneNumber,
         }),
-      }).catch((err) => {
+        });
+        if (autoCycleRes.ok) {
+          const autoCycleData = await autoCycleRes.json().catch(() => ({})) as { cycle_status?: string | null };
+          resolvedAutoCycleStatus = autoCycleData.cycle_status ?? null;
+          setAutoCycleStatus(resolvedAutoCycleStatus);
+        }
+      } catch (err) {
         console.warn("[PostCallPanel] Auto Cycle outcome update failed (non-fatal).", err);
-      });
+      }
     }
 
     // Fire legacy call path AFTER publish succeeds — only for increment_lead_call_counters RPC.
@@ -718,9 +734,9 @@ export function PostCallPanel({
       || (autoCycleEnabled && isAutoCycleLeadExitDisposition(dispo));
 
     if (!leadId) {
-      setTimeout(() => onComplete(dispo), 850);
+      setTimeout(() => { void onComplete(dispo, { autoCycleStatus: null }); }, 850);
     } else if (shouldAutoAdvance) {
-      setTimeout(() => onComplete(dispo), AUTO_ADVANCE_DELAY_MS);
+      setTimeout(() => { void onComplete(dispo, { autoCycleStatus: resolvedAutoCycleStatus }); }, AUTO_ADVANCE_DELAY_MS);
     }
   };
 
@@ -788,7 +804,7 @@ export function PostCallPanel({
         }),
       ).catch(() => {});
     }
-    onSkip("completed");
+    void onSkip("completed", { autoCycleStatus });
   };
 
   const handleDispoTap = (dispo: PublishDisposition) => {
@@ -936,7 +952,7 @@ export function PostCallPanel({
           )}
           {savedDispo && AUTO_ADVANCE_DISPOS.has(savedDispo) && leadId ? (
             <button
-              onClick={() => onComplete(savedDispo)}
+              onClick={() => { void onComplete(savedDispo, { autoCycleStatus }); }}
               className="text-xs text-muted-foreground/40 hover:text-foreground/60 transition-colors text-center"
             >
               Skip wait — next lead now
@@ -984,7 +1000,7 @@ export function PostCallPanel({
               )}
               {leadId ? (
                 <>
-                  <Button size="sm" className="w-full gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm" onClick={() => onComplete(savedDispo ?? undefined)}>
+                  <Button size="sm" className="w-full gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm" onClick={() => { void onComplete(savedDispo ?? undefined, { autoCycleStatus }); }}>
                     Next Lead
                     <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
