@@ -3419,6 +3419,9 @@ function DialerPageInner() {
       && meta?.autoCycleStatus
       && meta.autoCycleStatus !== "ready"
     ) {
+      if (!powerDialPaused) {
+        setPendingPowerDialStart(true);
+      }
       setPendingAutoDialLeadId(null);
       await refreshQueues();
       selectQueueLead(null);
@@ -3426,7 +3429,7 @@ function DialerPageInner() {
     }
 
     await advanceQueueAfterDisposition(disposition, autoCycleMode);
-  }, [advanceQueueAfterDisposition, autoCycleMode, refreshQueues, selectQueueLead, timer]);
+  }, [advanceQueueAfterDisposition, autoCycleMode, powerDialPaused, refreshQueues, selectQueueLead, timer]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────
   useEffect(() => {

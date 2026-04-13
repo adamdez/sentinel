@@ -58,6 +58,33 @@ export function toIntroSopState(raw: Record<string, unknown> | null | undefined)
   };
 }
 
+async function applyLeadFollowUpFallbackProjection(input: {
+  sb: SupabaseClientLike;
+  leadId: string;
+  title: string;
+  dueAt: string | null;
+  taskType: "follow_up" | "drive_by";
+  nowIso: string;
+}): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (input.sb.from("leads") as any)
+    .update({
+      next_action: input.title,
+      next_action_due_at: input.dueAt,
+      next_call_scheduled_at: null,
+      next_follow_up_at: input.dueAt,
+      updated_at: input.nowIso,
+    })
+    .eq("id", input.leadId);
+
+  if (error) {
+    console.error(
+      `[intro-sop] Failed to apply ${input.taskType} fallback projection for lead ${input.leadId}:`,
+      error.message ?? error,
+    );
+  }
+}
+
 export async function progressIntroSopForCallAttempt(input: {
   sb: SupabaseClientLike;
   leadId: string;
@@ -172,21 +199,33 @@ export async function exitIntroSop(input: {
       completionNote: "Completed after intro SOP exit to dead.",
     });
   } else if (category === "drive_by" || category === "nurture" || category === "disposition") {
-    await upsertLeadCallTask({
+    const title =
+      category === "drive_by"
+        ? "Drive by"
+        : category === "nurture"
+          ? "Nurture follow-up"
+          : "Disposition review";
+    const taskType = category === "drive_by" ? "drive_by" : "follow_up";
+    const taskId = await upsertLeadCallTask({
       sb: input.sb,
       leadId: input.leadId,
       assignedTo,
-      title:
-        category === "drive_by"
-          ? "Drive by"
-          : category === "nurture"
-            ? "Nurture follow-up"
-            : "Disposition review",
+      title,
       dueAt: nowIso,
-      taskType: category === "drive_by" ? "drive_by" : "follow_up",
+      taskType,
       sourceType: "lead_follow_up",
       sourceKey: `lead:${input.leadId}:primary_call`,
     });
+    if (!taskId) {
+      await applyLeadFollowUpFallbackProjection({
+        sb: input.sb,
+        leadId: input.leadId,
+        title,
+        dueAt: nowIso,
+        taskType,
+        nowIso,
+      });
+    }
   } else {
     await projectLeadFromTasks(input.sb, input.leadId);
   }

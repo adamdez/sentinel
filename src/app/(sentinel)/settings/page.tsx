@@ -195,6 +195,7 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               { label: "Import", href: "/admin/import", desc: "Bulk data import and normalization" },
+              { label: "Voice Control", href: "/admin/voice-control", desc: "Live office hours and voicemail control" },
               { label: "Analytics", href: "/analytics", desc: "Source and market attribution" },
               { label: "Trust Language", href: "/settings/trust-language", desc: "Approved seller-facing language" },
               { label: "Predictive Calibration", href: "/analytics/predictive-calibration", desc: "Scoring model tuning" },

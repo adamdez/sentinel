@@ -15,9 +15,10 @@ export const maxDuration = 120;
 import { NextRequest, NextResponse } from "next/server";
 import { getDialerUser, createDialerClient } from "@/lib/dialer/db";
 import { isDnc } from "@/lib/dnc-check";
-import { initiateOutboundCall, isBusinessHours } from "@/providers/voice/vapi-adapter";
+import { initiateOutboundCall } from "@/providers/voice/vapi-adapter";
 import { normalizePhoneForCompare } from "@/lib/dialer/auto-cycle";
 import { getJeffLaunchGate, getJeffQueueEntry, getUserProfile, isJeffCallableQueueEntry, isJeffController, JEFF_OUTBOUND_POLICY_VERSION, updateJeffQueueEntry } from "@/lib/jeff-control";
+import { getBusinessHoursStatus, getVoiceControlConfig } from "@/lib/voice-control";
 
 const MAX_BATCH_SIZE = 10;
 
@@ -53,7 +54,8 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Business hours gate ───────────────────────────────────────────────
-  const hours = isBusinessHours();
+  const voiceControl = await getVoiceControlConfig();
+  const hours = getBusinessHoursStatus(voiceControl.businessHours);
   const gate = await getJeffLaunchGate("supervised_queue", {
     isBusinessHoursOpen: hours.isOpen,
     nextOpenTime: hours.nextOpenTime,

@@ -7,7 +7,7 @@ import {
   handleEndCall,
 } from "@/providers/voice/vapi-functions";
 import type { TransferResult } from "@/providers/voice/vapi-functions";
-import { buildAssistantConfig, buildOutboundAssistantConfig, isBusinessHours } from "@/providers/voice/vapi-adapter";
+import { buildAssistantConfig, buildOutboundAssistantConfig } from "@/providers/voice/vapi-adapter";
 import { JEFF_OUTBOUND_POLICY_VERSION } from "@/lib/jeff-control";
 import { notifyMissedCall } from "@/lib/notify";
 import { sendTransferFailedSMS } from "@/providers/voice/vapi-sms";
@@ -17,6 +17,7 @@ import { createAgentRun, completeAgentRun } from "@/lib/control-plane";
 import { inngest } from "@/inngest/client";
 import { processAutoCycleOutcome, mapVapiDispositionToAutoCycle } from "@/lib/dialer/auto-cycle-outcome";
 import { syncJeffInteractionFromCompletedCall } from "@/lib/jeff-interactions";
+import { getBusinessHoursStatus, getVoiceControlConfig } from "@/lib/voice-control";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -161,7 +162,8 @@ async function handleAssistantRequest(
   // After-hours: inject message-taking override into inbound prompt
   if (!isOutbound) {
     try {
-      const hours = isBusinessHours();
+      const voiceControl = await getVoiceControlConfig();
+      const hours = getBusinessHoursStatus(voiceControl.businessHours);
       if (!hours.isOpen) {
         const afterHoursOverride = `
 

@@ -105,6 +105,7 @@ const NAV_COMMANDS: NavCommand[] = [
   { kind: "nav", label: "Source Policies", href: "/settings/source-policies", icon: Settings, group: "Settings" },
   { kind: "nav", label: "Agent Controls", href: "/settings/agent-controls", icon: Settings, group: "Settings" },
   { kind: "nav", label: "Import", href: "/admin/import", icon: Upload, group: "Settings" },
+  { kind: "nav", label: "Voice Control", href: "/admin/voice-control", icon: Settings, group: "Settings" },
 ];
 
 

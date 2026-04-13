@@ -1,5 +1,25 @@
 [
   {
+    "hash": "1727333e",
+    "date": "2026-04-13",
+    "message": "[codex] Repair power dial phone sequencing"
+  },
+  {
+    "hash": "2b07dce1",
+    "date": "2026-04-13",
+    "message": "[codex] Fix power dial enrollment start"
+  },
+  {
+    "hash": "ed3afed6",
+    "date": "2026-04-13",
+    "message": "[codex] Restore power dial start control"
+  },
+  {
+    "hash": "bc703995",
+    "date": "2026-04-13",
+    "message": "[codex] Route inbound calls to voicemail inbox"
+  },
+  {
     "hash": "d534c559",
     "date": "2026-04-13",
     "message": "[codex] Harden auto-cycle lead locking and enrollment"
@@ -103,25 +123,5 @@
     "hash": "34de30df",
     "date": "2026-04-10",
     "message": "[codex] Add owner collision review hints"
-  },
-  {
-    "hash": "5e5a319d",
-    "date": "2026-04-10",
-    "message": "[codex] Evict do-not-call leads from dial queue"
-  },
-  {
-    "hash": "02706911",
-    "date": "2026-04-10",
-    "message": "[codex] Fix push-blocking typecheck errors"
-  },
-  {
-    "hash": "0591e7d1",
-    "date": "2026-04-10",
-    "message": "[codex] Fix queue sorting behavior"
-  },
-  {
-    "hash": "fc8cbbba",
-    "date": "2026-04-10",
-    "message": "[codex] Add deep dive move target to client file"
   }
 ]

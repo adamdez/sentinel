@@ -15,9 +15,10 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { getDialerUser, createDialerClient } from "@/lib/dialer/db";
 import { isDnc } from "@/lib/dnc-check";
-import { initiateOutboundCall, isBusinessHours } from "@/providers/voice/vapi-adapter";
+import { initiateOutboundCall } from "@/providers/voice/vapi-adapter";
 import { normalizePhoneForCompare } from "@/lib/dialer/auto-cycle";
 import { getJeffLaunchGate, getJeffQueueEntry, getUserProfile, isJeffController, isJeffManualQueueEntry, JEFF_OUTBOUND_POLICY_VERSION, updateJeffQueueEntry } from "@/lib/jeff-control";
+import { getBusinessHoursStatus, getVoiceControlConfig } from "@/lib/voice-control";
 
 function buildSiteUrl(req: NextRequest): string {
   const env = process.env.NEXT_PUBLIC_SITE_URL
@@ -51,7 +52,8 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Business hours gate ───────────────────────────────────────────────
-  const hours = isBusinessHours();
+  const voiceControl = await getVoiceControlConfig();
+  const hours = getBusinessHoursStatus(voiceControl.businessHours);
   const gate = await getJeffLaunchGate("manual_priority", {
     leadId,
     isBusinessHoursOpen: hours.isOpen,

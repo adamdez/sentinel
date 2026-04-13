@@ -4,8 +4,9 @@ const mocks = vi.hoisted(() => ({
   after: vi.fn(),
   createServerClient: vi.fn(),
   didInboundDialLegAnswer: vi.fn(),
+  getBusinessHoursStatus: vi.fn(),
+  getVoiceControlConfig: vi.fn(),
   upsertJeffInteraction: vi.fn(),
-  isBusinessHours: vi.fn(),
   parseInboundOperatorStep: vi.fn(),
   resolveInboundRoutePlan: vi.fn(),
 }));
@@ -30,9 +31,14 @@ vi.mock("@/lib/jeff-interactions", () => ({
   upsertJeffInteraction: mocks.upsertJeffInteraction,
 }));
 
-vi.mock("@/providers/voice/vapi-adapter", () => ({
-  isBusinessHours: mocks.isBusinessHours,
-}));
+vi.mock("@/lib/voice-control", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/voice-control")>("@/lib/voice-control");
+  return {
+    ...actual,
+    getVoiceControlConfig: mocks.getVoiceControlConfig,
+    getBusinessHoursStatus: mocks.getBusinessHoursStatus,
+  };
+});
 
 vi.mock("@/lib/twilio-inbound-routing", () => ({
   parseInboundOperatorStep: mocks.parseInboundOperatorStep,
@@ -70,7 +76,23 @@ describe("POST /api/twilio/inbound voicemail routing", () => {
       })),
     });
     mocks.didInboundDialLegAnswer.mockReturnValue(false);
-    mocks.isBusinessHours.mockReturnValue({
+    mocks.getVoiceControlConfig.mockResolvedValue({
+      businessHours: {
+        monday: { enabled: true, start: "07:00", end: "20:30" },
+        tuesday: { enabled: true, start: "07:00", end: "20:30" },
+        wednesday: { enabled: true, start: "07:00", end: "20:30" },
+        thursday: { enabled: true, start: "07:00", end: "20:30" },
+        friday: { enabled: true, start: "07:00", end: "20:30" },
+        saturday: { enabled: true, start: "07:00", end: "20:30" },
+        sunday: { enabled: true, start: "13:00", end: "17:00" },
+      },
+      voicemailGreeting: "We missed your call. Leave a message after the tone.",
+      noVoicemailMessage: "We did not receive a voicemail. Goodbye.",
+      ttsVoice: "Polly.Joanna",
+      useUploadedGreeting: false,
+      uploadedGreeting: null,
+    });
+    mocks.getBusinessHoursStatus.mockReturnValue({
       isOpen: true,
       nextOpenTime: "tomorrow at 9 AM",
     });
@@ -89,7 +111,7 @@ describe("POST /api/twilio/inbound voicemail routing", () => {
   });
 
   it("sends after-hours callers directly to voicemail instead of Jeff", async () => {
-    mocks.isBusinessHours.mockReturnValue({
+    mocks.getBusinessHoursStatus.mockReturnValue({
       isOpen: false,
       nextOpenTime: "tomorrow at 9 AM",
     });

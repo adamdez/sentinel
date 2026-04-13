@@ -2,11 +2,17 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { didInboundDialLegAnswer } from "@/lib/twilio-inbound-classification";
 import { upsertJeffInteraction } from "@/lib/jeff-interactions";
-import { isBusinessHours } from "@/providers/voice/vapi-adapter";
 import {
   parseInboundOperatorStep,
   resolveInboundRoutePlan,
 } from "@/lib/twilio-inbound-routing";
+import {
+  getBusinessHoursStatus,
+  getVoiceControlConfig,
+  VOICE_CONTROL_AUDIO_ROUTE,
+  VOICE_CONTROL_FALLBACK_TTS_VOICE,
+  type VoiceControlConfig,
+} from "@/lib/voice-control";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -50,22 +56,33 @@ function buildVoicemailFallbackTwiml(input: {
   transferReason?: string | null;
   openingMessage?: string | null;
   prefixLines?: string[];
+  voiceControl?: VoiceControlConfig;
 }): string {
   const recordingAction = input.callLogId
     ? `${input.siteUrl}/api/twilio/voice/recording?callLogId=${encodeURIComponent(input.callLogId)}`
     : `${input.siteUrl}/api/twilio/voice/recording`;
   const leadLabel = input.leadName?.trim() ? ` for ${input.leadName.trim()}` : "";
   const transferLabel = input.transferReason?.trim() ? ` regarding ${input.transferReason.trim()}` : "";
+  const voiceControl = input.voiceControl;
   const openingMessage = input.openingMessage?.trim()
+    || voiceControl?.voicemailGreeting
     || "We missed your call. Please leave your name, number, and a short message after the tone, and we will call you back as soon as possible.";
+  const noVoicemailMessage = voiceControl?.noVoicemailMessage?.trim()
+    || "We did not receive a voicemail. Goodbye.";
+  const ttsVoice = voiceControl?.ttsVoice?.trim() || VOICE_CONTROL_FALLBACK_TTS_VOICE;
+  const uploadedGreetingUrl = voiceControl?.useUploadedGreeting && voiceControl.uploadedGreeting
+    ? `${input.siteUrl}${VOICE_CONTROL_AUDIO_ROUTE}`
+    : null;
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     "<Response>",
     ...(input.prefixLines ?? []),
-    `  <Say voice="Polly.Joanna">${openingMessage}</Say>`,
+    ...(uploadedGreetingUrl
+      ? [`  <Play>${uploadedGreetingUrl}</Play>`]
+      : [`  <Say voice="${ttsVoice}">${openingMessage}</Say>`]),
     `  <Record maxLength="120" playBeep="true" trim="trim-silence" action="${recordingAction}" method="POST" />`,
-    `  <Say voice="Polly.Joanna">We did not receive a voicemail${leadLabel}${transferLabel}. Goodbye.</Say>`,
+    `  <Say voice="${ttsVoice}">${noVoicemailMessage}${leadLabel}${transferLabel}</Say>`,
     "</Response>",
   ].join("\n");
 }
@@ -164,6 +181,7 @@ export async function POST(req: NextRequest) {
   const url = new URL(req.url);
   const type = url.searchParams.get("type");
   const siteUrl = buildSiteUrl(req);
+  const voiceControl = await getVoiceControlConfig();
 
   // ── type=chain_step: Browser → Browser → Jeff call chain ─────────────────
   if (type === "chain_step") {
@@ -246,6 +264,7 @@ export async function POST(req: NextRequest) {
           siteUrl,
           callLogId: chainCallLogId,
           transferReason: isTransfer ? "your earlier conversation with our team" : null,
+          voiceControl,
         }),
         { headers: { "Content-Type": "text/xml" } },
       );
@@ -328,6 +347,7 @@ export async function POST(req: NextRequest) {
         callLogId: safeChainCallLogId || null,
         transferReason: isTransfer ? "your earlier conversation with our team" : null,
         prefixLines: stopInboundStreamLines,
+        voiceControl,
       });
     }
 
@@ -418,7 +438,7 @@ export async function POST(req: NextRequest) {
 
     if (isMissed) {
       return new NextResponse(
-        buildVoicemailFallbackTwiml({ siteUrl, callLogId }),
+        buildVoicemailFallbackTwiml({ siteUrl, callLogId, voiceControl }),
         { status: 200, headers: { "Content-Type": "text/xml" } },
       );
     }
@@ -488,7 +508,7 @@ export async function POST(req: NextRequest) {
     // After hours: Jeff shouldn't be transferring, but if the AI hallucinates
     // a transfer anyway, skip the ring cascade — nobody is at their desk.
     // Go straight to missed-transfer handler (books callback + SMS alerts).
-    const transferHours = isBusinessHours();
+    const transferHours = getBusinessHoursStatus(voiceControl.businessHours);
     if (!transferHours.isOpen) {
       console.log(`[inbound] After-hours Vapi transfer — skipping ring cascade, booking callback`);
       after(async () => {
@@ -552,7 +572,7 @@ export async function POST(req: NextRequest) {
 
   // After-hours: skip browser ring cascade and send directly to voicemail.
   // During hours: Ring Logan's browser (20s) → chain continues to Adam → voicemail.
-  const hours = isBusinessHours();
+  const hours = getBusinessHoursStatus(voiceControl.businessHours);
   const chainParams = [
     `&amp;sessionId=${sessionId}`,
     `&amp;callLogId=${callLogId}`,
@@ -587,6 +607,7 @@ export async function POST(req: NextRequest) {
       siteUrl,
       callLogId,
       openingMessage: `Our team is away right now. Please leave your name, number, and a short message after the tone, and we will call you back ${hours.nextOpenTime}.`,
+      voiceControl,
     });
   } else {
     // During hours — ring Logan's browser first
