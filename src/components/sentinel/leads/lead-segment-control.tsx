@@ -31,7 +31,7 @@ export function LeadSegmentControl({
 }: LeadSegmentControlProps) {
   const tabs: Tab[] = [
     { id: "mine", label: "My Leads", icon: UserCheck, count: counts.mine },
-    { id: "all", label: "Shared Queue", icon: Users, count: counts.all },
+    { id: "all", label: "Unclaimed Leads", icon: Users, count: counts.all },
   ];
 
   for (const member of teamMembers) {

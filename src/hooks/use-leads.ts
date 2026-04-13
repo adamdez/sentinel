@@ -15,6 +15,7 @@ import { supabase } from "@/lib/supabase";
 import { extractProspectingSnapshot, sourceChannelLabel } from "@/lib/prospecting";
 import { deriveLeadActionSummary } from "@/lib/action-derivation";
 import type { LeadQueueResponse } from "@/lib/lead-queue-contract";
+import { isLeadUnclaimed } from "@/lib/lead-ownership";
 import { sortLeadRows } from "./use-leads-sort";
 
 export type SortField = "score" | "priority" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "source" | "status" | "equity";
@@ -858,7 +859,7 @@ export function useLeads() {
   const segmentedLeads = useMemo(() => {
     // Drive By leads belong in their own bucket, not Lead Queue.
     const base = leadsWithAssigneeNames.filter((l) => !isDriveByLead(l) && (l.status === "prospect" || l.status === "lead"));
-    if (segment === "all") return base;
+    if (segment === "all") return base.filter((l) => isLeadUnclaimed(l.assignedTo));
     if (segment === "mine") return base.filter((l) => l.assignedTo === currentUser.id);
     return base.filter((l) => l.assignedTo === segment);
   }, [leadsWithAssigneeNames, segment, currentUser.id]);
@@ -954,7 +955,7 @@ export function useLeads() {
       ? leadsWithAssigneeNames
       : leadsWithAssigneeNames.filter((l) => l.status !== "closed")
     ).filter((l) => !isDriveByLead(l));
-    const all = base.length;
+    const all = base.filter((l) => isLeadUnclaimed(l.assignedTo)).length;
     const mine = base.filter((l) => l.assignedTo === currentUser.id).length;
     const byMember: Record<string, number> = {};
     for (const m of teamMembers) {
