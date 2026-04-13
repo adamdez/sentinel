@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   buildDialerQueueCollections,
   findRefreshedDialerLead,
+  resolveVisibleDialerLead,
   selectFallbackDialerLead,
   selectInitialDialerLead,
+  shouldLockDialerLeadSelection,
 } from "@/lib/dialer/dialer-ui-state";
 
 type TestLead = {
@@ -52,6 +54,21 @@ describe("buildDialerQueueCollections", () => {
     expect(result.executionQueue).toEqual([]);
     expect(result.preferredQueue.map((lead) => lead.id)).toEqual(["lead-a"]);
     expect(result.powerDialReadyQueueExhausted).toBe(true);
+  });
+
+  it("does not mark power dial as exhausted when the staged queue is empty", () => {
+    const result = buildDialerQueueCollections({
+      autoCycleMode: true,
+      queue: queueLeads,
+      queueLoading: false,
+      autoCycleQueue: [],
+      autoCycleQueueLoading: false,
+      isReadyLead: (lead) => lead.ready === true,
+    });
+
+    expect(result.executionQueue).toEqual([]);
+    expect(result.displayedQueue).toEqual([]);
+    expect(result.powerDialReadyQueueExhausted).toBe(false);
   });
 });
 
@@ -113,5 +130,22 @@ describe("dialer lead selection helpers", () => {
       { id: "lead-2", ready: false },
     ], "lead-2")).toEqual({ id: "lead-2", ready: false });
     expect(findRefreshedDialerLead(queueLeads, "missing")).toBeNull();
+  });
+
+  it("locks visible lead selection while the dialer is actively handling a call", () => {
+    expect(shouldLockDialerLeadSelection("idle")).toBe(false);
+    expect(shouldLockDialerLeadSelection("dialing")).toBe(true);
+    expect(shouldLockDialerLeadSelection("connected")).toBe(true);
+    expect(shouldLockDialerLeadSelection("ended")).toBe(true);
+  });
+
+  it("keeps the active call lead visible until the dialer returns to idle", () => {
+    const selectedLead = { id: "lead-selected" };
+    const activeLead = { id: "lead-active" };
+
+    expect(resolveVisibleDialerLead("dialing", activeLead, selectedLead)?.id).toBe("lead-active");
+    expect(resolveVisibleDialerLead("connected", activeLead, selectedLead)?.id).toBe("lead-active");
+    expect(resolveVisibleDialerLead("ended", activeLead, selectedLead)?.id).toBe("lead-active");
+    expect(resolveVisibleDialerLead("idle", activeLead, selectedLead)?.id).toBe("lead-selected");
   });
 });

@@ -6,7 +6,6 @@ import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import {
   deriveLeadCycleState,
   mapAutoCyclePhoneState,
-  shouldDisplayAutoCycleLead,
   type AutoCycleLeadRowLike,
   type AutoCyclePhoneRowLike,
 } from "@/lib/dialer/auto-cycle";
@@ -23,53 +22,62 @@ export async function GET(req: NextRequest) {
   const now = new Date();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: cycleLeadRows, error: cycleLeadErr } = await (sb.from("dialer_auto_cycle_leads") as any)
-    .select("*")
-    .eq("user_id", user.id)
-    .in("cycle_status", ["ready", "waiting", "paused"])
-    .order("updated_at", { ascending: false })
+  const { data: queuedLeadRows, error: queuedLeadErr } = await (sb.from("leads") as any)
+    .select("*, properties(*)")
+    .eq("assigned_to", user.id)
+    .eq("dial_queue_active", true)
+    .in("status", ["prospect", "lead", "active"])
+    .order("dial_queue_added_at", { ascending: false })
     .limit(limit * 4);
 
-  if (cycleLeadErr) {
-    console.error("[auto-cycle] lead query failed:", cycleLeadErr.message);
-    return NextResponse.json({ error: "Failed to load Auto Cycle queue" }, { status: 500 });
+  if (queuedLeadErr) {
+    console.error("[auto-cycle] queued lead query failed:", queuedLeadErr.message);
+    return NextResponse.json({ error: "Failed to load Power Dial queue" }, { status: 500 });
   }
 
-  const cycleLeads = (cycleLeadRows ?? []) as AutoCycleLeadRowLike[];
-  if (cycleLeads.length === 0) {
+  const queuedLeads = ((queuedLeadRows ?? []) as Array<Record<string, unknown>>);
+  if (queuedLeads.length === 0) {
     return NextResponse.json({ generated_at: now.toISOString(), items: [] });
   }
 
-  const cycleLeadIds = cycleLeads.map((row) => row.id);
-  const leadIds = cycleLeads.map((row) => row.lead_id);
+  const queuedLeadIds = queuedLeads.map((row) => String(row.id));
+  const autoCycleEligibleLeadIds = queuedLeads
+    .filter((row) => row.status === "lead" || row.status === "prospect")
+    .map((row) => String(row.id));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: phoneRows, error: phoneErr } = await (sb.from("dialer_auto_cycle_phones") as any)
-    .select("*")
-    .in("cycle_lead_id", cycleLeadIds)
-    .order("phone_position", { ascending: true })
-    .order("created_at", { ascending: true });
+  const { data: cycleLeadRows, error: cycleLeadErr } = autoCycleEligibleLeadIds.length > 0
+    ? await (sb.from("dialer_auto_cycle_leads") as any)
+        .select("*")
+        .eq("user_id", user.id)
+        .in("lead_id", autoCycleEligibleLeadIds)
+        .in("cycle_status", ["ready", "waiting", "paused"])
+    : { data: [], error: null };
+
+  if (cycleLeadErr) {
+    console.error("[auto-cycle] lead query failed:", cycleLeadErr.message);
+    return NextResponse.json({ error: "Failed to load Power Dial cycle state" }, { status: 500 });
+  }
+
+  const cycleLeads = (cycleLeadRows ?? []) as AutoCycleLeadRowLike[];
+  const cycleLeadIds = cycleLeads.map((row) => row.id);
+  const cycleLeadByLeadId = new Map<string, AutoCycleLeadRowLike>(
+    cycleLeads.map((row) => [row.lead_id, row]),
+  );
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: phoneRows, error: phoneErr } = cycleLeadIds.length > 0
+    ? await (sb.from("dialer_auto_cycle_phones") as any)
+        .select("*")
+        .in("cycle_lead_id", cycleLeadIds)
+        .order("phone_position", { ascending: true })
+        .order("created_at", { ascending: true })
+    : { data: [], error: null };
 
   if (phoneErr) {
     console.error("[auto-cycle] phone query failed:", phoneErr.message);
     return NextResponse.json({ error: "Failed to load Auto Cycle phones" }, { status: 500 });
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: leadRows, error: leadErr } = await (sb.from("leads") as any)
-    .select("*, properties(*)")
-    .in("id", leadIds)
-    .eq("assigned_to", user.id)
-    .in("status", ["prospect", "lead"]);
-
-  if (leadErr) {
-    console.error("[auto-cycle] lead detail query failed:", leadErr.message);
-    return NextResponse.json({ error: "Failed to load Auto Cycle leads" }, { status: 500 });
-  }
-
-  const leadMap = new Map<string, Record<string, unknown>>(
-    ((leadRows ?? []) as Array<Record<string, unknown>>).map((row) => [String(row.id), row]),
-  );
 
   const phonesByCycleLead = new Map<string, AutoCyclePhoneRowLike[]>();
   for (const row of (phoneRows ?? []) as AutoCyclePhoneRowLike[]) {
@@ -78,44 +86,47 @@ export async function GET(req: NextRequest) {
     phonesByCycleLead.set(row.cycle_lead_id, bucket);
   }
 
-  const items = cycleLeads
-    .map((cycleLead) => {
-      const lead = leadMap.get(cycleLead.lead_id);
-      if (!lead) return null;
+  const queueOrderByLeadId = new Map<string, number>(
+    queuedLeadIds.map((leadId, index) => [leadId, index]),
+  );
 
-      const rawPhones = phonesByCycleLead.get(cycleLead.id) ?? [];
-      const autoCycle = deriveLeadCycleState(cycleLead, rawPhones, now);
+  const items = queuedLeads
+    .map((lead) => {
+      const leadId = String(lead.id);
+      const cycleLead = cycleLeadByLeadId.get(leadId) ?? null;
+      const rawPhones = cycleLead ? (phonesByCycleLead.get(cycleLead.id) ?? []) : [];
+      const autoCycle = cycleLead ? deriveLeadCycleState(cycleLead, rawPhones, now) : null;
       const phones = rawPhones.map((row) => mapAutoCyclePhoneState(row, now));
+      const powerDialState = autoCycle?.readyNow ? "ready" : autoCycle ? "scheduled" : "not_enrolled";
 
       return {
         lead,
         auto_cycle: autoCycle,
         phones,
+        power_dial_state: powerDialState,
+        queue_order: queueOrderByLeadId.get(leadId) ?? Number.MAX_SAFE_INTEGER,
       };
     })
-    .filter((item): item is NonNullable<typeof item> => item !== null)
-    .filter((item) => shouldDisplayAutoCycleLead(
-      item.lead as { dial_queue_active?: boolean | null },
-      item.auto_cycle,
-    ))
     .sort((a, b) => {
-      const bucketA = a.auto_cycle.readyNow ? 0 : 1;
-      const bucketB = b.auto_cycle.readyNow ? 0 : 1;
+      const bucketA = a.power_dial_state === "ready" ? 0 : a.power_dial_state === "scheduled" ? 1 : 2;
+      const bucketB = b.power_dial_state === "ready" ? 0 : b.power_dial_state === "scheduled" ? 1 : 2;
       if (bucketA !== bucketB) return bucketA - bucketB;
 
-      const dueA = a.auto_cycle.nextDueAt ? new Date(a.auto_cycle.nextDueAt).getTime() : Number.POSITIVE_INFINITY;
-      const dueB = b.auto_cycle.nextDueAt ? new Date(b.auto_cycle.nextDueAt).getTime() : Number.POSITIVE_INFINITY;
+      const dueA = a.auto_cycle?.nextDueAt ? new Date(a.auto_cycle.nextDueAt).getTime() : Number.POSITIVE_INFINITY;
+      const dueB = b.auto_cycle?.nextDueAt ? new Date(b.auto_cycle.nextDueAt).getTime() : Number.POSITIVE_INFINITY;
       if (dueA !== dueB) return dueA - dueB;
 
-      const priorityA = Number(a.lead.priority ?? 0);
-      const priorityB = Number(b.lead.priority ?? 0);
+      if (a.queue_order !== b.queue_order) return a.queue_order - b.queue_order;
+
+      const priorityA = Number((a.lead as { priority?: number }).priority ?? 0);
+      const priorityB = Number((b.lead as { priority?: number }).priority ?? 0);
       return priorityB - priorityA;
     })
     .slice(0, limit);
 
   return NextResponse.json({
     generated_at: now.toISOString(),
-    items,
+    items: items.map(({ queue_order: _queueOrder, ...item }) => item),
   });
 }
 

@@ -2,6 +2,8 @@ export type DialerQueueLeadLike = {
   id: string;
 };
 
+export type DialerSelectionCallState = "idle" | "dialing" | "connected" | "ended";
+
 type BuildDialerQueueCollectionsArgs<TLead extends DialerQueueLeadLike> = {
   autoCycleMode: boolean;
   queue: TLead[];
@@ -44,7 +46,7 @@ export function buildDialerQueueCollections<TLead extends DialerQueueLeadLike>({
     executionQueue,
     preferredQueue,
     displayedQueueLoading: autoCycleMode ? autoCycleQueueLoading : queueLoading,
-    powerDialReadyQueueExhausted: autoCycleMode && executionQueue.length === 0,
+    powerDialReadyQueueExhausted: autoCycleMode && displayedQueue.length > 0 && executionQueue.length === 0,
   };
 }
 
@@ -74,4 +76,19 @@ export function findRefreshedDialerLead<TLead extends DialerQueueLeadLike>(
 ): TLead | null {
   if (!currentLeadId) return null;
   return displayedQueue.find((lead) => lead.id === currentLeadId) ?? null;
+}
+
+export function shouldLockDialerLeadSelection(callState: DialerSelectionCallState): boolean {
+  return callState === "dialing" || callState === "connected" || callState === "ended";
+}
+
+export function resolveVisibleDialerLead<TLead extends DialerQueueLeadLike>(
+  callState: DialerSelectionCallState,
+  activeCallLead: TLead | null,
+  selectedQueueLead: TLead | null,
+): TLead | null {
+  if (shouldLockDialerLeadSelection(callState)) {
+    return activeCallLead ?? selectedQueueLead;
+  }
+  return selectedQueueLead;
 }

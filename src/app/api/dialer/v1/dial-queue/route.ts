@@ -13,6 +13,7 @@ export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import { queueLeadIdsForUser, removeLeadFromDialQueue } from "@/lib/dial-queue";
+import { ensureAutoCycleEnrollmentForQueuedLeads } from "@/lib/dialer/auto-cycle-enrollment";
 
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -32,6 +33,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await queueLeadIdsForUser({ sb, userId: user.id, leadIds });
+    try {
+      await ensureAutoCycleEnrollmentForQueuedLeads({
+        sb,
+        userId: user.id,
+        leadIds: result.queuedIds,
+      });
+    } catch (enrollmentError) {
+      console.error("[dial-queue] auto-cycle enrollment after queue add failed:", enrollmentError);
+    }
 
     // Keep queueing success from being masked by an audit-log failure.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

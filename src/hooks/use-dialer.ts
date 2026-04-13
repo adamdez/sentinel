@@ -79,8 +79,9 @@ export interface QueueLead {
 }
 
 export interface AutoCycleQueueLead extends QueueLead {
-  autoCycle: AutoCycleLeadState;
+  autoCycle: AutoCycleLeadState | null;
   autoCyclePhones: AutoCyclePhoneState[];
+  powerDialState: "ready" | "scheduled" | "not_enrolled";
 }
 
 const TERMINAL_QUEUE_DISPOSITIONS = new Set([
@@ -348,22 +349,24 @@ export function useAutoCycleQueue(limit = 12) {
       const data = await res.json() as {
         items?: Array<{
           lead: QueueLead;
-          auto_cycle: AutoCycleLeadState;
-          phones: AutoCyclePhoneState[];
+          auto_cycle: AutoCycleLeadState | null;
+          phones?: AutoCyclePhoneState[];
+          power_dial_state?: "ready" | "scheduled" | "not_enrolled";
         }>;
       };
 
-      const rows = (data.items ?? []).map(({ lead, auto_cycle, phones }) => ({
+      const rows = (data.items ?? []).map(({ lead, auto_cycle, phones, power_dial_state }) => ({
         ...lead,
         predictiveScore: null,
         blendedPriority: lead.priority,
         autoCycle: auto_cycle,
-        autoCyclePhones: phones,
+        autoCyclePhones: phones ?? [],
+        powerDialState: power_dial_state ?? (auto_cycle?.readyNow ? "ready" : auto_cycle ? "scheduled" : "not_enrolled"),
       })).filter((lead) => !isDeepDiveNextAction(lead.next_action));
 
       const scrubbed = await Promise.all(
         rows.map(async (lead) => {
-          const nextPhone = lead.autoCyclePhones.find((phone) => phone.phoneId === lead.autoCycle.nextPhoneId)
+          const nextPhone = lead.autoCyclePhones.find((phone) => phone.phoneId === lead.autoCycle?.nextPhoneId)
             ?? lead.autoCyclePhones.find((phone) => phone.phoneStatus === "active")
             ?? null;
           const phone = nextPhone?.phone ?? lead.properties?.owner_phone;
