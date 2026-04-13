@@ -468,6 +468,7 @@ export type PublishDisposition =
   | "voicemail"       // left or attempted voicemail
   | "no_answer"       // no pickup, no voicemail left
   | "dead_phone"      // phone is disconnected/wrong number — mark phone dead, try another
+  | "drive_by"        // move file out of call flow and into drive-by workflow
   | "wrong_number"    // reached wrong party — mark phone dead, try another number on file
   | "disconnected"    // disconnected line — mark phone dead, try another number on file
   | "do_not_call"     // seller asked not to be contacted again
@@ -479,7 +480,7 @@ export type PublishDisposition =
   | "dead_lead";      // disqualify → dead (archived, gone)
 
 export const PUBLISH_DISPOSITIONS: readonly PublishDisposition[] = [
-  "completed", "voicemail", "no_answer", "dead_phone", "wrong_number",
+  "completed", "voicemail", "no_answer", "dead_phone", "drive_by", "wrong_number",
   "disconnected", "do_not_call", "not_interested", "follow_up",
   "appointment", "offer_made", "disqualified", "dead_lead",
 ] as const;

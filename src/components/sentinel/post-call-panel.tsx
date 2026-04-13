@@ -24,7 +24,7 @@ import {
   CheckCircle2, Loader2, SkipForward,
   Phone, PhoneOff, Voicemail, CalendarCheck,
   X, ArrowRight, ChevronLeft, ChevronRight, Flag,
-  AlertTriangle, Sparkles, PhoneMissed,
+  AlertTriangle, Sparkles, PhoneMissed, MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -120,6 +120,7 @@ const DISPO_OPTIONS: DispoMeta[] = [
   { key: "completed",      label: "Talked / Interested", icon: Phone,    color: "text-primary",        bg: "bg-primary/8 hover:bg-primary/15 border-primary/15" },
   { key: "follow_up",      label: "Callback",       icon: ArrowRight,    color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "appointment",    label: "Appointment",    icon: CalendarCheck, color: "text-foreground",     bg: "bg-muted/10 hover:bg-muted/20 border-border/20" },
+  { key: "drive_by",       label: "Drive By",       icon: MapPin,        color: "text-primary",        bg: "bg-primary/8 hover:bg-primary/15 border-primary/15" },
   { key: "not_interested", label: "Not Interested", icon: X,             color: "text-red-300",        bg: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
   { key: "wrong_number",   label: "Wrong Number (This Number)",   icon: PhoneMissed,   color: "text-amber-200",      bg: "bg-amber-500/8 hover:bg-amber-500/15 border-amber-500/15" },
   { key: "disconnected",   label: "Disconnected (This Number)",   icon: PhoneMissed,   color: "text-amber-200",      bg: "bg-amber-500/8 hover:bg-amber-500/15 border-amber-500/15" },
@@ -135,7 +136,7 @@ const QUAL_CONFIRM_DISPOS = new Set<PublishDisposition>([
 ]);
 
 const AUTO_ADVANCE_DISPOS = new Set<PublishDisposition>([
-  "no_answer", "voicemail", "dead_phone", "not_interested", "wrong_number", "disconnected", "do_not_call", "dead_lead",
+  "no_answer", "voicemail", "dead_phone", "drive_by", "not_interested", "wrong_number", "disconnected", "do_not_call", "dead_lead",
 ]);
 const POSITIVE_CALLBACK_DISPOS = new Set<PublishDisposition>([
   "completed",
@@ -160,6 +161,8 @@ function successLabelForDisposition(
       return "Callback Scheduled";
     case "appointment":
       return "Appointment Saved";
+    case "drive_by":
+      return "Moved to Drive By";
     case "not_interested":
       return "Marked Dead";
     case "wrong_number":
@@ -479,6 +482,7 @@ export function PostCallPanel({
     nextCallScheduledAt?: string,
     quals?: { motivation_level?: number; seller_timeline?: string },
     reviewSignal?: { flagged: boolean; motivationCorrected: boolean; timelineCorrected: boolean },
+    nextActionOverride?: { nextAction?: string | null; nextActionDueAt?: string | null },
   ) => {
     setSelected(dispo);
     setPublishing(true);
@@ -496,6 +500,12 @@ export function PostCallPanel({
     }
 
     const hdrs = await authHeaders();
+    const resolvedNextAction = nextActionOverride && Object.prototype.hasOwnProperty.call(nextActionOverride, "nextAction")
+      ? (nextActionOverride.nextAction ?? "").trim()
+      : nextAction.trim();
+    const resolvedNextActionDueAt = nextActionOverride && Object.prototype.hasOwnProperty.call(nextActionOverride, "nextActionDueAt")
+      ? (nextActionOverride.nextActionDueAt ?? "").trim()
+      : nextActionDueAt.trim();
     const summaryRunIdForPublish = await ensureSummaryRunId(dispo);
     const fallbackStructure = deriveStructureFromSummary(summary.trim());
     const mergedStructure: PostCallStructureInput = {
@@ -549,8 +559,8 @@ export function PostCallPanel({
         // Forwarded to publish-manager which writes to lead_objection_tags (non-fatal).
         ...(objectionTags.length > 0 ? { objection_tags: objectionTags } : {}),
         ...(distressSignals.length > 0 ? { distress_signals: distressSignals } : {}),
-        ...(nextAction.trim() ? { next_action: nextAction.trim() } : {}),
-        ...(nextActionDueAt ? { next_action_due_at: new Date(nextActionDueAt).toISOString() } : {}),
+        ...(resolvedNextAction ? { next_action: resolvedNextAction } : {}),
+        ...(resolvedNextActionDueAt ? { next_action_due_at: new Date(resolvedNextActionDueAt).toISOString() } : {}),
         ...(shouldSendStructure ? { post_call_structure: publishStructure } : {}),
         ...(Object.keys(qualOverrides).length > 0 ? { qual_confirmed: {
           decision_maker_confirmed: qualOverrides.decision_maker,
@@ -713,11 +723,11 @@ export function PostCallPanel({
     const dueLine =
       nextCallScheduledAt
         ? formatDueDateLabel(nextCallScheduledAt).text
-        : nextActionDueAt.trim()
-          ? formatDueDateLabel(new Date(nextActionDueAt).toISOString()).text
+        : resolvedNextActionDueAt
+          ? formatDueDateLabel(new Date(resolvedNextActionDueAt).toISOString()).text
           : null;
     const nextStep =
-      nextAction.trim() ||
+      resolvedNextAction ||
       (NEXT_STEP_DISPOS.has(dispo) && nextCallScheduledAt
         ? `Callback ${new Date(nextCallScheduledAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
         : null);
@@ -832,6 +842,13 @@ export function PostCallPanel({
       setCallbackAt(dispo === "appointment" ? "" : toLocalDateTimeInput(daysFromNow9am(3)));
       setQualStep(false);
       setQualFromDate(false);
+    } else if (dispo === "drive_by") {
+      setNextAction("Drive by");
+      setNextActionDueAt("");
+      void handlePublish(dispo, undefined, undefined, undefined, {
+        nextAction: "Drive by",
+        nextActionDueAt: null,
+      });
     } else if (QUAL_CONFIRM_DISPOS.has(dispo)) {
       setPendingDispo(dispo);
       setQualStep(true);

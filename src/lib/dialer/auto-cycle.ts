@@ -47,6 +47,7 @@ const LEAD_EXIT_DISPOSITIONS = new Set<PublishDisposition>([
 
 const MANUAL_HOLD_DISPOSITIONS = new Set<PublishDisposition>([
   "completed",
+  "drive_by",
   "follow_up",
   "appointment",
   "offer_made",

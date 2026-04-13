@@ -526,6 +526,7 @@ export async function PATCH(req: NextRequest) {
 
     if (leadForSchedule) {
       const step: number = leadForSchedule.call_sequence_step ?? 1;
+      const isDriveByDisposition = body.disposition === "drive_by";
       const dispoCategory = dispositionCategory(body.disposition);
       const isLive = dispoCategory === "live";
       const isVM = dispoCategory === "voicemail";
@@ -536,7 +537,8 @@ export async function PATCH(req: NextRequest) {
       // Falls back to power sequence for special dispositions (interested, dead, etc.)
       const sched = scheduleNextCall(step, endedAt, body.disposition);
       const cadenceNext = suggestNextCadenceDate(endedAt, newTotalCalls);
-      const sequenceCompleteWithoutLiveAnswer = sched.isComplete && !isLive;
+      const sequenceCompleteWithoutLiveAnswer = !isDriveByDisposition && sched.isComplete && !isLive;
+      const shouldClearSequence = isDriveByDisposition || sequenceCompleteWithoutLiveAnswer;
 
       // Prefer cadence-based scheduling for standard follow-ups;
       // use power sequence override for hot dispositions (interested/appointment)
@@ -547,7 +549,9 @@ export async function PATCH(req: NextRequest) {
           ? cadenceNext.toISOString()
           : sched.nextCallAt;
       // Operator-set date from PostCallPanel takes precedence over cadence calculation
-      const nextCallAt = body.nextCallScheduledAt ?? calculatedNextCallAt;
+      const nextCallAt = isDriveByDisposition
+        ? null
+        : body.nextCallScheduledAt ?? calculatedNextCallAt;
 
       // ── Atomic counter increment via RPC ──
       // Replaces read-modify-write pattern to prevent race conditions
@@ -560,9 +564,9 @@ export async function PATCH(req: NextRequest) {
           p_is_live: isLive,
           p_is_voicemail: isVM,
           p_last_contact_at: endedAt,
-          p_call_sequence_step: sequenceCompleteWithoutLiveAnswer ? 1 : sched.sequenceStep,
-          p_next_call_scheduled_at: sequenceCompleteWithoutLiveAnswer ? null : nextCallAt,
-          p_clear_sequence: sequenceCompleteWithoutLiveAnswer,
+          p_call_sequence_step: shouldClearSequence ? 1 : sched.sequenceStep,
+          p_next_call_scheduled_at: shouldClearSequence ? null : nextCallAt,
+          p_clear_sequence: shouldClearSequence,
         },
       );
 
