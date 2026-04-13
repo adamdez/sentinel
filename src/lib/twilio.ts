@@ -90,6 +90,9 @@ export function friendlyTwilioError(twilioMessage: string): string {
   if (lower.includes("queue") || lower.includes("rate")) {
     return "Twilio rate limit reached — try again in a moment";
   }
+  if (lower.includes("30034") || lower.includes("unregistered number")) {
+    return "Outbound SMS blocked by Twilio A2P registration — send through a registered Messaging Service and registered sender number";
+  }
   if (lower.includes("not owned") || lower.includes("21212") || lower.includes("is not a mobile number on your account")) {
     return "The From phone number is not owned by your Twilio account — check TWILIO_PHONE_NUMBER in env vars";
   }
