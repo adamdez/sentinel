@@ -2366,6 +2366,16 @@ function DialerPageInner() {
     if (!incomingCall) return;
     incomingAudioRef.current?.pause();
 
+    // Clear any stale tracking from the previous leg before the live-call
+    // poller spins up for this newly answered inbound call.
+    activeSessionRef.current = null;
+    setCurrentCallLogId(null);
+    setCurrentCallSid(null);
+    setLiveCallStatus(null);
+    setDialerSessionId(null);
+    setManualSessionId(null);
+    setTransferStatus(null);
+
     // Accept the call first
     incomingCall.accept();
     const acceptedCall = incomingCall;
