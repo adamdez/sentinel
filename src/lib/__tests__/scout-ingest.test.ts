@@ -92,6 +92,9 @@ function baseContract(overrides: Partial<ScoutIngestionContract> = {}): ScoutIng
       zip: "99201",
     },
     owner_name: "Alice Owner",
+    scout_data: {
+      last_sale_date: "2019-06-15",
+    },
     ...overrides,
   };
 }
@@ -143,6 +146,52 @@ describe("applyScoutIngestionPolicy", () => {
     expect(result.ok).toBe(true);
     expect(result.ingest_status).toBe("skipped");
     expect(result.failure_reason).toBe("below_tax_threshold_5_payments");
+    expect(sb.tables.properties).toHaveLength(0);
+    expect(sb.tables.leads).toHaveLength(0);
+  });
+
+  it("skips Spokane Scout create payloads missing a last sale date", async () => {
+    const sb = createMockSb();
+    const result = await applyScoutIngestionPolicy(sb as never, baseContract({
+      source_record_id: "record-missing-sale-date",
+      scout_data: {},
+      tax_signals: {
+        tax_years_owing: [
+          { year: new Date().getFullYear() - 2, owing: 1200 },
+          { year: new Date().getFullYear() - 1, owing: 1200 },
+        ],
+        current_annual_taxes: 2000,
+        total_tax_owed: 5600,
+      },
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.ingest_status).toBe("skipped");
+    expect(result.failure_reason).toBe("missing_last_sale_date_for_pre2021_gate");
+    expect(sb.tables.properties).toHaveLength(0);
+    expect(sb.tables.leads).toHaveLength(0);
+  });
+
+  it("skips Spokane Scout create payloads when ownership started in 2021 or later", async () => {
+    const sb = createMockSb();
+    const result = await applyScoutIngestionPolicy(sb as never, baseContract({
+      source_record_id: "record-recent-owner",
+      scout_data: {
+        last_sale_date: "2021-01-01",
+      },
+      tax_signals: {
+        tax_years_owing: [
+          { year: new Date().getFullYear() - 2, owing: 1200 },
+          { year: new Date().getFullYear() - 1, owing: 1200 },
+        ],
+        current_annual_taxes: 2000,
+        total_tax_owed: 5600,
+      },
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.ingest_status).toBe("skipped");
+    expect(result.failure_reason).toBe("recent_owner_after_2020_cutoff");
     expect(sb.tables.properties).toHaveLength(0);
     expect(sb.tables.leads).toHaveLength(0);
   });
@@ -207,5 +256,37 @@ describe("applyScoutIngestionPolicy", () => {
     expect((flags.scout_data as Record<string, unknown>).oldField).toBe("present");
     expect((flags.scout_data as Record<string, unknown>).newField).toBe("added");
     expect((flags.county_data as Record<string, unknown>).assessed).toBe(100000);
+  });
+
+  it("does not apply the pre-2021 ownership gate during enrich mode", async () => {
+    const sb = createMockSb();
+    sb.tables.properties.push({
+      id: "prop-1",
+      apn: "12345.0001",
+      county: "spokane county",
+      address: "123 Main St",
+      city: "Spokane",
+      state: "WA",
+      zip: "99201",
+      owner_name: "Alice Owner",
+      owner_flags: {},
+    });
+    sb.tables.leads.push({
+      id: "lead-1",
+      property_id: "prop-1",
+      status: "prospect",
+    });
+
+    const result = await applyScoutIngestionPolicy(sb as never, baseContract({
+      ingest_mode: "enrich",
+      source_record_id: "record-enrich-recent-owner",
+      scout_data: {
+        last_sale_date: "2024-02-10",
+      },
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.ingest_status).toBe("enriched");
+    expect(result.failure_reason).toBeNull();
   });
 });

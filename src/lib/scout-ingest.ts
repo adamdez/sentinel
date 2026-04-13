@@ -137,6 +137,20 @@ function estimateScoutMissedPayments(taxSignals: Record<string, unknown> | null 
   return explicitPaymentsBehind > 0 ? explicitPaymentsBehind : null;
 }
 
+const PRE_2021_SCOUT_OWNERSHIP_CUTOFF = Date.parse("2021-01-01T00:00:00.000Z");
+
+function parseScoutOwnershipDate(scoutData: Record<string, unknown> | null | undefined): number | null {
+  if (!scoutData) return null;
+  const raw =
+    scoutData.last_sale_date ??
+    scoutData.lastSaleDate ??
+    scoutData.sale_date ??
+    scoutData.saleDate;
+  if (typeof raw !== "string" || raw.trim().length === 0) return null;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function mergePhotos(
   existing: unknown,
   incoming: ScoutIngestionContract["photos"] | undefined,
@@ -351,6 +365,14 @@ export async function applyScoutIngestionPolicy(
   if (contract.ingest_mode === "create" && isSpokaneScoutSource(contract.source_system)) {
     if (scoutMissedPayments != null && scoutMissedPayments < 5) {
       return skip("below_tax_threshold_5_payments");
+    }
+
+    const ownershipDateMs = parseScoutOwnershipDate(contract.scout_data);
+    if (ownershipDateMs == null) {
+      return skip("missing_last_sale_date_for_pre2021_gate");
+    }
+    if (ownershipDateMs >= PRE_2021_SCOUT_OWNERSHIP_CUTOFF) {
+      return skip("recent_owner_after_2020_cutoff");
     }
   }
 
