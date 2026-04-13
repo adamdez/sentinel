@@ -1,5 +1,20 @@
 [
   {
+    "hash": "1fda5a89",
+    "date": "2026-04-13",
+    "message": "[codex] Repair outbound SMS messaging service routing"
+  },
+  {
+    "hash": "8f7835df",
+    "date": "2026-04-10",
+    "message": "[codex] Upgrade Tina CPA packet export"
+  },
+  {
+    "hash": "f42cce04",
+    "date": "2026-04-10",
+    "message": "[codex] Complete deep dive research queue workflow"
+  },
+  {
     "hash": "50c32898",
     "date": "2026-04-10",
     "message": "[codex] Harden deep search and deep dive workflows"
@@ -108,20 +123,5 @@
     "hash": "c5b0ad18",
     "date": "2026-04-09",
     "message": "[codex] Fix deep search review coherence"
-  },
-  {
-    "hash": "6748a678",
-    "date": "2026-04-09",
-    "message": "[codex] Fix deep search property hydration"
-  },
-  {
-    "hash": "bc270e68",
-    "date": "2026-04-09",
-    "message": "[codex] Add SMS to client file activity timeline"
-  },
-  {
-    "hash": "e6b7975d",
-    "date": "2026-04-09",
-    "message": "[codex] Unify skip-trace controls across dialer surfaces"
   }
 ]

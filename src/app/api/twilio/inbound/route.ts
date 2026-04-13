@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createServerClient } from "@/lib/supabase";
 import { didInboundDialLegAnswer } from "@/lib/twilio-inbound-classification";
+import { upsertJeffInteraction } from "@/lib/jeff-interactions";
 import { isBusinessHours } from "@/providers/voice/vapi-adapter";
 import {
   parseInboundOperatorStep,
@@ -791,6 +792,59 @@ async function hasRecentSellerFacingRecoverySMS(
 // 2. Create a high-priority callback task on the matched lead (or unlinked if no match).
 // 3. Write an inbound.missed dialer_event with full context.
 
+async function persistJeffAnsweredPlaceholder(input: {
+  leadId: string | null;
+  callLogId: string | null;
+  taskId: string | null;
+  taskAssignee: string | null;
+  fromNumber: string;
+  leadName: string;
+  ownerName: string | null;
+  propertyAddress: string | null;
+  routeMeta?: MissedInboundRouteMeta;
+  callSid: string;
+}) {
+  const routeReason = input.routeMeta?.routeReason ?? null;
+  const callEndReason = input.routeMeta?.callEndReason ?? null;
+  const jeffAnswered =
+    routeReason === "answered_by_jeff_after_browser_miss" ||
+    callEndReason === "answered_by_jeff";
+
+  if (!jeffAnswered) return;
+
+  const placeholderVoiceSessionId = input.callLogId ?? input.taskId;
+  if (!placeholderVoiceSessionId) return;
+
+  try {
+    await upsertJeffInteraction({
+      voiceSessionId: placeholderVoiceSessionId,
+      leadId: input.leadId,
+      callsLogId: input.callLogId,
+      direction: "inbound",
+      callerPhone: input.fromNumber || null,
+      callerName: input.ownerName ?? input.leadName ?? null,
+      propertyAddress: input.propertyAddress,
+      interactionType: "follow_up_needed",
+      status: "needs_review",
+      summary: "Jeff answered this inbound call, but the conversation notes did not persist. Review the Jeff inbound pipeline for this call.",
+      callbackRequested: false,
+      callbackDueAt: null,
+      callbackTimingText: null,
+      transferOutcome: "jeff_answered_notes_missing",
+      assignedTo: input.taskAssignee,
+      metadata: {
+        placeholder: true,
+        persistence_missing: true,
+        route_reason: routeReason,
+        call_end_reason: callEndReason,
+        call_sid: input.callSid,
+      },
+    });
+  } catch (error) {
+    console.error("[inbound] Jeff placeholder persistence failed:", error);
+  }
+}
+
 async function handleMissedInbound({
   fromNumber,
   callSid,
@@ -855,6 +909,18 @@ async function handleMissedInbound({
     fromNumber,
     leadId,
     fallbackUserId: taskAssignee,
+  });
+  await persistJeffAnsweredPlaceholder({
+    leadId,
+    callLogId,
+    taskId,
+    taskAssignee,
+    fromNumber,
+    leadName,
+    ownerName,
+    propertyAddress,
+    routeMeta,
+    callSid,
   });
 
   // ── 3. Write inbound.missed dialer_event ──────────────────────────────────

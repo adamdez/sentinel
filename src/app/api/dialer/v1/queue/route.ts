@@ -102,6 +102,7 @@ export interface MissedInbound {
   voicemail_url: string | null;
   voicemail_duration: number | null;
   jeff_summary: string | null;
+  jeff_notes_missing: boolean;
   jeff_callback_requested: boolean;
   jeff_callback_time: string | null;
   seller_sms_sent: boolean;
@@ -405,6 +406,7 @@ export async function GET(req: NextRequest) {
           voicemail_url: null,
           voicemail_duration: null,
           jeff_summary: null,
+          jeff_notes_missing: false,
           jeff_callback_requested: false,
           jeff_callback_time: null,
           seller_sms_sent: false,
@@ -466,6 +468,7 @@ export async function GET(req: NextRequest) {
           voicemail_url: null,
           voicemail_duration: null,
           jeff_summary: null,
+          jeff_notes_missing: false,
           jeff_callback_requested: false,
           jeff_callback_time: null,
           seller_sms_sent: false,
@@ -532,56 +535,88 @@ export async function GET(req: NextRequest) {
 
     const callLogMap = new Map<string, {
       id: string;
-      voicemail_url: string | null;
-      voicemail_duration: number | null;
+      recording_url: string | null;
+      duration_sec: number | null;
+      disposition: string | null;
+      metadata: Record<string, unknown> | null;
     }>();
     if (callLogIds.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: callLogRows } = await (sb.from("calls_log") as any)
-        .select("id, voicemail_url, voicemail_duration")
+        .select("id, recording_url, duration_sec, disposition, metadata")
         .in("id", callLogIds);
       for (const row of (callLogRows ?? []) as Array<{
         id: string;
-        voicemail_url: string | null;
-        voicemail_duration: number | null;
+        recording_url: string | null;
+        duration_sec: number | null;
+        disposition: string | null;
+        metadata: Record<string, unknown> | null;
       }>) {
         callLogMap.set(row.id, row);
       }
     }
 
-    const jeffByPhone = new Map<string, Array<{
+    const jeffByCallLog = new Map<string, {
       voice_session_id: string;
+      calls_log_id: string | null;
       summary: string | null;
       callback_requested: boolean;
       callback_due_at: string | null;
       callback_timing_text: string | null;
       created_at: string;
+      metadata?: Record<string, unknown> | null;
+    }>();
+    const jeffByPhone = new Map<string, Array<{
+      voice_session_id: string;
+      calls_log_id: string | null;
+      summary: string | null;
+      callback_requested: boolean;
+      callback_due_at: string | null;
+      callback_timing_text: string | null;
+      created_at: string;
+      metadata?: Record<string, unknown> | null;
     }>>();
     if (phoneNumbers.length > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: jeffRows } = await (sb.from("jeff_interactions") as any)
-        .select("voice_session_id, caller_phone, summary, callback_requested, callback_due_at, callback_timing_text, created_at")
+        .select("voice_session_id, calls_log_id, caller_phone, summary, callback_requested, callback_due_at, callback_timing_text, created_at, metadata")
         .in("caller_phone", phoneNumbers)
         .gte("created_at", new Date(now.getTime() - 3 * 86_400_000).toISOString())
         .order("created_at", { ascending: false });
       for (const row of (jeffRows ?? []) as Array<{
         voice_session_id: string;
+        calls_log_id: string | null;
         caller_phone: string | null;
         summary: string | null;
         callback_requested: boolean | null;
         callback_due_at: string | null;
         callback_timing_text: string | null;
         created_at: string;
+        metadata?: Record<string, unknown> | null;
       }>) {
+        if (row.calls_log_id && !jeffByCallLog.has(row.calls_log_id)) {
+          jeffByCallLog.set(row.calls_log_id, {
+            voice_session_id: row.voice_session_id,
+            calls_log_id: row.calls_log_id,
+            summary: row.summary ?? null,
+            callback_requested: Boolean(row.callback_requested),
+            callback_due_at: row.callback_due_at ?? null,
+            callback_timing_text: row.callback_timing_text ?? null,
+            created_at: row.created_at,
+            metadata: row.metadata ?? null,
+          });
+        }
         if (!row.caller_phone) continue;
         const existing = jeffByPhone.get(row.caller_phone) ?? [];
         existing.push({
           voice_session_id: row.voice_session_id,
+          calls_log_id: row.calls_log_id ?? null,
           summary: row.summary ?? null,
           callback_requested: Boolean(row.callback_requested),
           callback_due_at: row.callback_due_at ?? null,
           callback_timing_text: row.callback_timing_text ?? null,
           created_at: row.created_at,
+          metadata: row.metadata ?? null,
         });
         jeffByPhone.set(row.caller_phone, existing);
       }
@@ -663,17 +698,28 @@ export async function GET(req: NextRequest) {
             : null;
       const openTargetId = effectiveLeadId ?? intakeLeadId ?? (openTargetType === "phone_lookup" ? item.from_number : null);
       const callLog = item.call_log_id ? (callLogMap.get(item.call_log_id) ?? null) : null;
-      const jeffRecord = pickRelevant(jeffByPhone.get(item.from_number), item.missed_at);
+      const jeffRecord = (item.call_log_id ? (jeffByCallLog.get(item.call_log_id) ?? null) : null)
+        ?? pickRelevant(jeffByPhone.get(item.from_number), item.missed_at);
       const voiceRecord = pickRelevant(voiceByPhone.get(item.from_number), item.missed_at);
+      const jeffNotesMissing = Boolean((jeffRecord?.metadata as Record<string, unknown> | null)?.persistence_missing)
+        || (!jeffRecord && !voiceRecord && item.route_reason === "answered_by_jeff_after_browser_miss");
       const sellerSmsSent = (smsByPhone.get(item.from_number) ?? []).some(
         (row) => new Date(row.created_at).getTime() >= new Date(item.missed_at).getTime(),
       );
-      const jeffSummary = jeffRecord?.summary ?? voiceRecord?.summary ?? null;
+      const jeffSummary = jeffRecord?.summary
+        ?? voiceRecord?.summary
+        ?? (jeffNotesMissing
+          ? "Jeff answered this inbound call, but the conversation notes did not persist. Review the Jeff inbound pipeline for this call."
+          : null);
       const jeffCallbackRequested = Boolean(jeffRecord?.callback_requested ?? voiceRecord?.callback_requested ?? false);
       const jeffCallbackTime = jeffRecord?.callback_timing_text ?? jeffRecord?.callback_due_at ?? null;
+      const voicemailUrl = callLog?.recording_url ?? null;
+      const voicemailDuration = typeof (callLog?.metadata as Record<string, unknown> | null)?.voicemail_duration === "number"
+        ? ((callLog?.metadata as Record<string, unknown>).voicemail_duration as number)
+        : (callLog?.duration_sec ?? null);
 
       let finalState: MissedInbound["final_state"] = item.final_state;
-      if (callLog?.voicemail_url) {
+      if (voicemailUrl && (callLog?.disposition === "voicemail" || callLog?.disposition === "missed")) {
         finalState = "voicemail_recorded";
       } else if (jeffCallbackRequested) {
         finalState = "callback_booked";
@@ -697,9 +743,10 @@ export async function GET(req: NextRequest) {
             : null,
         call_log_id: callLog?.id ?? item.call_log_id,
         voice_session_id: jeffRecord?.voice_session_id ?? voiceRecord?.id ?? null,
-        voicemail_url: callLog?.voicemail_url ?? null,
-        voicemail_duration: callLog?.voicemail_duration ?? null,
+        voicemail_url: voicemailUrl,
+        voicemail_duration: voicemailDuration,
         jeff_summary: jeffSummary,
+        jeff_notes_missing: jeffNotesMissing,
         jeff_callback_requested: jeffCallbackRequested,
         jeff_callback_time: jeffCallbackTime,
         seller_sms_sent: sellerSmsSent,

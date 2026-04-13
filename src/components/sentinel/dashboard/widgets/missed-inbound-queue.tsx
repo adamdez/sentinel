@@ -25,12 +25,24 @@ import { Input } from "@/components/ui/input";
 import type { MissedInbound, UnclassifiedAnswered } from "@/app/api/dialer/v1/queue/route";
 import { matchesCommunicationSearch } from "@/lib/dialer/communication-search";
 
-function formatAge(minutesAgo: number): string {
+const inboundDateFormatter = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Los_Angeles",
+  weekday: "short",
+  month: "numeric",
+  day: "numeric",
+});
+
+function formatAge(timestampIso: string, minutesAgo: number): string {
   if (minutesAgo < 2) return "just now";
   if (minutesAgo < 60) return `${minutesAgo}m ago`;
   const hours = Math.floor(minutesAgo / 60);
   if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
+
+  const parts = inboundDateFormatter.formatToParts(new Date(timestampIso));
+  const weekday = parts.find((part) => part.type === "weekday")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  return [weekday, month && day ? `${month}/${day}` : ""].filter(Boolean).join(" ");
 }
 
 function ageSeverity(minutesAgo: number): "critical" | "warning" | "normal" {
@@ -52,7 +64,12 @@ function buildVoicemailPlaybackUrl(url: string | null): string | null {
   return url.endsWith(".mp3") || url.endsWith(".wav") ? url : `${url}.mp3`;
 }
 
-function finalStateLabel(state: MissedInbound["final_state"]): string {
+function finalStateLabel(item: MissedInbound): string {
+  if (item.jeff_notes_missing) {
+    return "Jeff answered - notes missing";
+  }
+
+  const state = item.final_state;
   switch (state) {
     case "voicemail_recorded":
       return "Voicemail recorded";
@@ -80,7 +97,12 @@ function routeLabel(item: MissedInbound): string | null {
   return second ? `${first} • ${second}` : first;
 }
 
-function stateBadgeClass(state: MissedInbound["final_state"]): string {
+function stateBadgeClass(item: MissedInbound): string {
+  if (item.jeff_notes_missing) {
+    return "border-orange-400/30 text-orange-200 bg-orange-400/10";
+  }
+
+  const state = item.final_state;
   switch (state) {
     case "voicemail_recorded":
       return "border-amber-400/30 text-amber-200 bg-amber-400/10";
@@ -115,7 +137,7 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
   const [err, setErr] = useState<string | null>(null);
 
   const severity = ageSeverity(item.minutes_ago);
-  const ageLabel = formatAge(item.minutes_ago);
+  const ageLabel = formatAge(item.missed_at, item.minutes_ago);
   const hasEventActions = item.source !== "calls_log_fallback";
   const playbackUrl = buildVoicemailPlaybackUrl(item.voicemail_url);
   const routeText = routeLabel(item);
@@ -211,8 +233,8 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
             <span className="text-sm font-semibold text-foreground">
               {item.owner_name || formatPhone(item.from_number)}
             </span>
-            <Badge variant="outline" className={`text-[10px] h-5 px-1.5 ${stateBadgeClass(item.final_state)}`}>
-              {finalStateLabel(item.final_state)}
+            <Badge variant="outline" className={`text-[10px] h-5 px-1.5 ${stateBadgeClass(item)}`}>
+              {finalStateLabel(item)}
             </Badge>
             {item.lead_source && (
               <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-border/40 text-muted-foreground/80">
@@ -258,14 +280,20 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
       </div>
 
       {(item.jeff_summary || item.jeff_callback_time) && (
-        <div className="rounded-[8px] border border-sky-400/20 bg-sky-400/[0.05] p-2">
+        <div
+          className={
+            item.jeff_notes_missing
+              ? "rounded-[8px] border border-orange-400/20 bg-orange-400/[0.05] p-2"
+              : "rounded-[8px] border border-sky-400/20 bg-sky-400/[0.05] p-2"
+          }
+        >
           {item.jeff_summary && (
-            <p className="text-xs text-sky-100/90 leading-relaxed">
+            <p className={`text-xs leading-relaxed ${item.jeff_notes_missing ? "text-orange-100/90" : "text-sky-100/90"}`}>
               {item.jeff_summary}
             </p>
           )}
           {item.jeff_callback_time && (
-            <p className="text-[11px] text-sky-200/80 mt-1">
+            <p className={`mt-1 text-[11px] ${item.jeff_notes_missing ? "text-orange-200/80" : "text-sky-200/80"}`}>
               Callback: {item.jeff_callback_time}
             </p>
           )}
@@ -370,7 +398,7 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
 }
 
 function UnclassifiedAnsweredRow({ item, idx }: { item: UnclassifiedAnswered; idx: number }) {
-  const ageLabel = formatAge(item.minutes_ago);
+  const ageLabel = formatAge(item.answered_at, item.minutes_ago);
   return (
     <motion.div
       initial={{ opacity: 0, x: -4 }}

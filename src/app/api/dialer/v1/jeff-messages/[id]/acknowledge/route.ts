@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase";
+import { getJeffInteractionById, updateJeffInteraction } from "@/lib/jeff-interactions";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -41,19 +42,11 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: "action must be dismissed | called_back | converted_to_lead" }, { status: 400 });
   }
 
-  // Fetch current session
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: session, error: fetchErr } = await (sb.from("voice_sessions") as any)
-    .select("id, extracted_facts")
-    .eq("id", id)
-    .single();
-
-  if (fetchErr || !session) {
-    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  const interaction = await getJeffInteractionById(id);
+  if (!interaction) {
+    return NextResponse.json({ error: "Jeff interaction not found" }, { status: 404 });
   }
 
-  // Append acknowledgment to extracted_facts
-  const currentFacts = Array.isArray(session.extracted_facts) ? session.extracted_facts : [];
   const ackRecord = {
     type: "acknowledged",
     action,
@@ -62,13 +55,36 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
     lead_id: body.lead_id ?? null,
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: updateErr } = await (sb.from("voice_sessions") as any)
-    .update({ extracted_facts: [...currentFacts, ackRecord] })
-    .eq("id", id);
+  await updateJeffInteraction(id, {
+    status: action === "dismissed" ? "reviewed" : "resolved",
+    reviewedAt: ackRecord.acknowledged_at,
+    resolvedAt: action === "dismissed" ? null : ackRecord.acknowledged_at,
+  });
 
-  if (updateErr) {
-    return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  const voiceSessionId = interaction.voice_session_id;
+  const isConcreteVoiceSession = !voiceSessionId.startsWith("call-") && !voiceSessionId.startsWith("task-");
+  if (isConcreteVoiceSession) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: session, error: fetchErr } = await (sb.from("voice_sessions") as any)
+      .select("id, extracted_facts")
+      .eq("id", voiceSessionId)
+      .maybeSingle();
+
+    if (fetchErr) {
+      return NextResponse.json({ error: fetchErr.message }, { status: 500 });
+    }
+
+    if (session) {
+      const currentFacts = Array.isArray(session.extracted_facts) ? session.extracted_facts : [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: updateErr } = await (sb.from("voice_sessions") as any)
+        .update({ extracted_facts: [...currentFacts, ackRecord] })
+        .eq("id", voiceSessionId);
+
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      }
+    }
   }
 
   return NextResponse.json({ success: true, action });
