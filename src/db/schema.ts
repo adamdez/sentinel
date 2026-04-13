@@ -364,6 +364,26 @@ export const offers = pgTable("offers", {
 // Predictive Scoring Domain: append-only, versioned, deterministic.
 // Stores forward-looking distress probability from the v2.0 model.
 
+export const offerExecutions = pgTable("offer_executions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  offerId: uuid("offer_id").notNull().references(() => offers.id, { onDelete: "cascade" }),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  templateKey: varchar("template_key", { length: 100 }),
+  envelopeId: varchar("envelope_id", { length: 255 }),
+  senderViewUrl: text("sender_view_url"),
+  providerStatus: varchar("provider_status", { length: 50 }).notNull().default("created"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  voidedAt: timestamp("voided_at", { withTimezone: true }),
+  lastProviderPayload: jsonb("last_provider_payload").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_offer_executions_offer").on(table.offerId),
+  index("idx_offer_executions_envelope").on(table.envelopeId),
+  index("idx_offer_executions_status").on(table.providerStatus),
+]);
+
 export const scoringPredictions = pgTable("scoring_predictions", {
   id: uuid("id").defaultRandom().primaryKey(),
   propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),

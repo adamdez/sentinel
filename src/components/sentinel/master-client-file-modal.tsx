@@ -151,6 +151,7 @@ import { QuickTaskSetter, type QuickTaskResult } from "@/components/sentinel/qui
 import { createTask as createTaskApi, type TaskItem } from "@/hooks/use-tasks";
 
 import { IntakeGuideSection } from "@/components/sentinel/intake-guide-section";
+import { MakeOfferPanel } from "@/components/sentinel/master-client-file/make-offer-panel";
 
 import { formatDueDateLabel } from "@/lib/due-date-label";
 
@@ -1115,7 +1116,7 @@ function derivePaymentsBehindDisplay(
 
 
 
-function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, onSkipTrace, skipTracing, skipTraceResult, persistedPhoneCount = 0, relatedOwnerLeads = [], relatedOwnerLoading = false, onOpenRelatedLead }: {
+function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, onSkipTrace, skipTracing, skipTraceResult, persistedPhoneCount = 0, relatedOwnerLeads = [], relatedOwnerLoading = false, onOpenRelatedLead, onRefresh }: {
 
   cf: ClientFile; computedArv: number; activityRefreshToken: number;
 
@@ -1125,6 +1126,7 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
   relatedOwnerLeads?: RelatedOwnerLeadSummary[];
   relatedOwnerLoading?: boolean;
   onOpenRelatedLead?: (leadId: string) => void;
+  onRefresh?: () => void;
 
 }) {
 
@@ -1917,6 +1919,8 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
 
       {/* --�----�-- NOTES & CALL HISTORY --�----�-- */}
+
+      <MakeOfferPanel cf={cf} onRefresh={onRefresh} />
 
       <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-3.5">
 
@@ -9834,6 +9838,7 @@ export function MasterClientFileModal({
                           relatedOwnerLeads={relatedOwnerLeads}
                           relatedOwnerLoading={relatedOwnerLoading}
                           onOpenRelatedLead={(leadId) => openModal("client-file", { leadId })}
+                          onRefresh={onRefresh}
                         />
                       </div>
                     )}
