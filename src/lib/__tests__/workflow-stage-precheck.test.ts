@@ -19,42 +19,37 @@ describe("precheckWorkflowStageChange", () => {
     hasActivityNoteContext: false,
   };
 
-  it("allows nurture with a free-text next step, future date, and context", () => {
+  it("allows nurture with a future date only", () => {
     const result = precheckWorkflowStageChange({
       ...base,
       targetStatus: "nurture",
       nextFollowUpAt: "2026-10-10",
-      nextAction: "Call back in 6 months",
-      noteDraft: "Family asked us to revisit this later in the year.",
+      nextAction: null,
+      noteDraft: "",
     });
 
     expect(result.ok).toBe(true);
     expect(result.requiredActions).toEqual([]);
   });
 
-  it("blocks nurture without context even when nurture intent is present", () => {
+  it("blocks nurture without a future date", () => {
     const result = precheckWorkflowStageChange({
       ...base,
       targetStatus: "nurture",
-      nextFollowUpAt: "2026-10-10",
+      nextFollowUpAt: null,
       qualificationRoute: "nurture",
-      nextAction: "Nurture check-in in 6 months",
-      noteDraft: "",
-      dispositionCode: null,
+      nextAction: null,
     });
 
     expect(result.ok).toBe(false);
-    expect(result.blockingReason).toContain("requires context");
+    expect(result.blockingReason).toContain("due date");
   });
 
-  it("allows nurture with future date, route, and context", () => {
+  it("allows active without requiring note context", () => {
     const result = precheckWorkflowStageChange({
       ...base,
-      targetStatus: "nurture",
-      nextFollowUpAt: "2026-10-10",
-      qualificationRoute: "nurture",
-      nextAction: "Nurture check-in in 6 months",
-      noteDraft: "Family requested a six-month check-in after probate paperwork settles.",
+      targetStatus: "active",
+      noteDraft: "",
     });
 
     expect(result.ok).toBe(true);

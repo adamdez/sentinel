@@ -43,18 +43,12 @@ function hasNurtureIntentSignal(
 }
 
 export function evaluateStageEntryPrerequisites(input: StageEntryPrereqInput): string | null {
-  const hasExistingNotes = typeof input.existingNotes === "string" && input.existingNotes.trim().length > 0;
-  const hasMeaningfulExistingNotes = typeof input.existingNotes === "string" && input.existingNotes.trim().length >= 12;
-  const hasNoteContext = input.noteAppendText.length > 0 || hasMeaningfulExistingNotes;
-  const hasActiveNoteContext = input.noteAppendText.length > 0 || hasExistingNotes || input.hasActivityNoteContext;
-  const dispositionCode = (input.dispositionCode ?? "").toLowerCase();
-  const hasDispositionSignal = dispositionCode.length > 0;
-
-  if (input.targetStatus === "active") {
-    if (!hasActiveNoteContext) {
-      return "Move to Active requires a short seller progress note when no prior note exists.";
-    }
-  }
+  void input.nextQualificationRoute;
+  void input.nextAction;
+  void input.noteAppendText;
+  void input.existingNotes;
+  void input.hasActivityNoteContext;
+  void input.dispositionCode;
 
   if (input.targetStatus === "negotiation") {
     if (!input.effectiveAssignedTo) {
@@ -67,23 +61,7 @@ export function evaluateStageEntryPrerequisites(input: StageEntryPrereqInput): s
 
   if (input.targetStatus === "nurture") {
     if (!input.effectiveNextCallAt && !input.effectiveNextFollowUpAt) {
-      return "Move to Nurture requires a nurture follow-up date. Set the nurture callback first.";
-    }
-    if (!hasNurtureIntentSignal(input.nextQualificationRoute, input.nextAction)) {
-      return "Move to Nurture requires a nurture next step. Generic callbacks do not qualify.";
-    }
-    if (!hasDispositionSignal && !hasNoteContext) {
-      return "Move to Nurture requires context. Add a disposition outcome or note explaining the nurture reason.";
-    }
-  }
-
-  if (input.targetStatus === "dead") {
-    const hasDeadReason =
-      input.nextQualificationRoute === "dead"
-      || DEAD_DISPOSITION_SIGNALS.has(dispositionCode)
-      || hasNoteContext;
-    if (!hasDeadReason) {
-      return "Move to Dead requires a reason signal (qualification route dead, negative disposition, or note context).";
+      return "Move to Nurture requires a due date.";
     }
   }
 
@@ -92,7 +70,7 @@ export function evaluateStageEntryPrerequisites(input: StageEntryPrereqInput): s
       return "Move to Disposition requires active negotiation context. Move through Negotiation first.";
     }
     if (!input.effectiveNextCallAt && !input.effectiveNextFollowUpAt) {
-      return "Move to Disposition requires a next decision follow-up date. Set Next Action/Callback first.";
+      return "Move to Disposition requires a due date.";
     }
   }
 

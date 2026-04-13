@@ -122,18 +122,10 @@ describe("validateStageTransition", () => {
     });
   });
 
-  it("still requires next_action for a normal prospect to lead advance", () => {
+  it("allows prospect to lead without next_action", () => {
     expect(validateStageTransition("prospect", "lead", null)).toEqual({
-      valid: false,
-      code: "missing_next_action",
-      message: 'A next_action is required when advancing to "lead". Describe what happens next for this lead.',
-    });
-  });
-
-  it("allows prospect to lead when next_action is provided", () => {
-    expect(validateStageTransition("prospect", "lead", "Call back tomorrow morning")).toEqual({
       valid: true,
-      requiresNextAction: true,
+      requiresNextAction: false,
     });
   });
 
@@ -165,15 +157,14 @@ describe("evaluateStageEntryPrerequisites", () => {
     dispositionCode: null,
   };
 
-  it("blocks active without a short note", () => {
+  it("allows active without a short note", () => {
     const err = evaluateStageEntryPrerequisites({
       ...base,
       targetStatus: "active",
       noteAppendText: "",
       existingNotes: null,
     });
-    expect(err).toBeTruthy();
-    expect(err).toContain("Active");
+    expect(err).toBeNull();
   });
 
   it("allows active with a short progress note", () => {
@@ -245,19 +236,6 @@ describe("evaluateStageEntryPrerequisites", () => {
     expect(err).toBeTruthy();
   });
 
-  it("blocks nurture without reason", () => {
-    const err = evaluateStageEntryPrerequisites({
-      ...base,
-      targetStatus: "nurture",
-      effectiveNextFollowUpAt: "2026-04-01T12:00:00Z",
-      nextQualificationRoute: null,
-      nextAction: "Call back next quarter",
-      noteAppendText: "",
-      dispositionCode: null,
-    });
-    expect(err).toBeTruthy();
-  });
-
   it("allows nurture with follow-up date and nurture route", () => {
     const err = evaluateStageEntryPrerequisites({
       ...base,
@@ -282,7 +260,7 @@ describe("evaluateStageEntryPrerequisites", () => {
     expect(err).toBeNull();
   });
 
-  it("blocks dead without reason", () => {
+  it("allows dead without requiring a reason note", () => {
     const err = evaluateStageEntryPrerequisites({
       ...base,
       targetStatus: "dead",
@@ -291,7 +269,7 @@ describe("evaluateStageEntryPrerequisites", () => {
       dispositionCode: null,
       existingNotes: null,
     });
-    expect(err).toBeTruthy();
+    expect(err).toBeNull();
   });
 
   it("allows dead with dead route", () => {

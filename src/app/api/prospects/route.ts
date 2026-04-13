@@ -688,6 +688,12 @@ export async function PATCH(req: NextRequest) {
     const effectiveNextFollowUpAt = parsedNextFollowUp.provided
       ? parsedNextFollowUp.iso
       : (plannedTask?.nextFollowUpAt ?? (parsedNextCall.provided ? parsedNextCall.iso : (currentLead.next_follow_up_at ?? null)));
+    const effectiveNextAction =
+      (typeof next_action === "string" && next_action.trim())
+        ? next_action.trim()
+        : (typeof currentLead.next_action === "string" && currentLead.next_action.trim()
+          ? currentLead.next_action.trim()
+          : null);
 
     const hasContactEvidence =
       Boolean(currentLead.last_contact_at)
@@ -726,35 +732,8 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    // ── next_action hard enforcement ──
-    // Only enforce on actual stage transitions, NOT on assignment-only or
-    // metadata-only updates. An operator must be able to assign/claim a lead
-    // regardless of whether next_action is set.
-    const isStageChange = targetStatus && targetStatus !== currentStatus;
-    const isClearingNextAction = next_action !== undefined && !(typeof next_action === "string" && next_action.trim());
     const resolvedStatus = targetStatus ?? currentStatus;
-    const effectiveNextAction =
-      (typeof next_action === "string" && next_action.trim())
-        ? next_action.trim()
-        : plannedTask?.title
-          ?? (typeof currentLead.next_action === "string" && currentLead.next_action.trim()
-            ? currentLead.next_action.trim()
-            : null);
-
-    if (requiresNextAction(resolvedStatus, currentStatus) && (isStageChange || isClearingNextAction)) {
-      if (!effectiveNextAction) {
-        const verb = isStageChange
-          ? `advancing to "${targetStatus}"`
-          : `clearing next_action in "${currentStatus}"`;
-        return NextResponse.json(
-          {
-            error: "Missing next_action",
-            detail: `A next_action is required when ${verb}. Describe what happens next for this lead.`,
-          },
-          { status: 400 },
-        );
-      }
-    }
+    void resolvedStatus;
 
     if (targetStatus && targetStatus !== currentStatus) {
       let hasActivityNoteContext = false;
@@ -1034,9 +1013,12 @@ export async function PATCH(req: NextRequest) {
     const projectedFollowUpTitle =
       trimmedNextAction
       ?? (plannedTask && plannedTask.taskType === "follow_up" ? plannedTask.title : null);
+    const normalizedFollowUpTitle =
+      projectedFollowUpTitle
+      ?? ((parsedNextActionDue.iso || parsedNextCall.iso || plannedTask?.nextFollowUpAt || parsedNextFollowUp.iso) ? "Follow up" : null);
     const projectedFollowUpTaskType =
       inferLeadFollowUpTaskType({
-        nextAction: projectedFollowUpTitle,
+        nextAction: normalizedFollowUpTitle,
         nextCallScheduledAt: parsedNextCall.iso,
         nextFollowUpAt: plannedTask?.nextFollowUpAt ?? parsedNextFollowUp.iso,
       });
@@ -1057,12 +1039,12 @@ export async function PATCH(req: NextRequest) {
         leadId: lead_id,
         completionNote: "Automatically completed after terminal lead outcome.",
       });
-    } else if (projectedFollowUpTaskType && projectedFollowUpTitle && effectiveAssignedTo) {
+    } else if (projectedFollowUpTaskType && normalizedFollowUpTitle && effectiveAssignedTo) {
       const canonicalTaskId = await upsertLeadCallTask({
         sb,
         leadId: lead_id,
         assignedTo: effectiveAssignedTo,
-        title: projectedFollowUpTitle,
+        title: normalizedFollowUpTitle,
         dueAt: projectedFollowUpDueAt,
         taskType: projectedFollowUpTaskType,
         notes: noteAppendText || undefined,

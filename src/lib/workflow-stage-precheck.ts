@@ -100,21 +100,10 @@ export function precheckWorkflowStageChange(input: WorkflowStagePrecheckInput): 
     || hasMeaningfulText(input.dispositionCode, 1);
 
   const hasNextAction = Boolean(input.nextCallScheduledAt || input.nextFollowUpAt);
-  const hasNoteContext = hasMeaningfulText(input.noteDraft) || hasMeaningfulText(input.notes);
-  const hasActiveNoteContext =
-    hasAnyText(input.noteDraft)
-    || hasAnyText(input.notes)
-    || input.hasActivityNoteContext === true;
-  const hasDispositionContext = hasMeaningfulText(input.dispositionCode, 1);
-  const dispositionCode = (input.dispositionCode ?? "").toLowerCase();
-
-  if (input.targetStatus === "active") {
-    if (!hasActiveNoteContext) {
-      return buildResult([
-        "Add a short seller progress note before moving to Active when no prior note exists.",
-      ]);
-    }
-  }
+  void input.noteDraft;
+  void input.notes;
+  void input.hasActivityNoteContext;
+  void input.dispositionCode;
 
   if (input.targetStatus === "negotiation") {
     const actions: string[] = [];
@@ -130,28 +119,9 @@ export function precheckWorkflowStageChange(input: WorkflowStagePrecheckInput): 
   if (input.targetStatus === "nurture") {
     const actions: string[] = [];
     if (!hasNextAction) {
-      actions.push("Move to Nurture requires a nurture follow-up date. Set the nurture callback first.");
-    }
-    if (!hasNurtureIntentSignal(input.qualificationRoute, input.nextAction)) {
-      actions.push("Choose a nurture next step before moving to Nurture. Generic callbacks do not qualify.");
-    }
-    const hasNurtureContext = hasDispositionContext || hasNoteContext;
-    if (!hasNurtureContext) {
-      actions.push("Move to Nurture requires context. Add a disposition outcome or note explaining the nurture reason.");
+      actions.push("Move to Nurture requires a due date.");
     }
     return buildResult(actions);
-  }
-
-  if (input.targetStatus === "dead") {
-    const hasDeadReason =
-      input.qualificationRoute === "dead"
-      || DEAD_DISPOSITION_SIGNALS.has(dispositionCode)
-      || hasNoteContext;
-    if (!hasDeadReason) {
-      return buildResult([
-        "Add a dead-lead reason (route = Dead, negative disposition, or note) before moving to Dead.",
-      ]);
-    }
   }
 
   if (input.targetStatus === "disposition") {
@@ -160,7 +130,7 @@ export function precheckWorkflowStageChange(input: WorkflowStagePrecheckInput): 
       actions.push("Move through Negotiation before entering Disposition.");
     }
     if (!hasNextAction) {
-      actions.push("Set Next Action/Callback before moving to Disposition.");
+      actions.push("Set a due date before moving to Disposition.");
     }
     return buildResult(actions);
   }

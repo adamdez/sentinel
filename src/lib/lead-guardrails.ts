@@ -1,12 +1,11 @@
 /**
  * Lead Status Transition Guardrails & Optimistic Locking
  *
- * PR-1: Stage machine + next-action hard enforcement.
+ * PR-1: Stage machine + optimistic locking.
  *
  * Rules:
  *   1. All transitions must follow ALLOWED_TRANSITIONS — no skipping stages.
- *   2. Forward-moving transitions require next_action to be set (see REQUIRES_NEXT_ACTION).
- *   3. All writes use optimistic locking (lock_version compare-and-swap).
+ *   2. All writes use optimistic locking (lock_version compare-and-swap).
  *
  * "Forward-moving" = advancing toward disposition/closed.
  * "Backward-moving" = recycle to nurture, dead, or re-contact.
@@ -25,15 +24,6 @@ const ALLOWED_TRANSITIONS: Record<LeadStatus, ReadonlyArray<LeadStatus>> = {
   dead: ["lead", "nurture"],
   closed: [],
 };
-
-/**
- * Transitions that REQUIRE next_action to be set.
- * Any forward-moving transition is in this set.
- * Backward moves (→ nurture, → dead) do not require it, but still accept it.
- */
-const REQUIRES_NEXT_ACTION: ReadonlySet<LeadStatus> = new Set([
-  "prospect", "lead", "active", "negotiation", "disposition",
-]);
 
 /**
  * Returns true if transitioning from `current` to `next` is permitted.
@@ -59,13 +49,12 @@ export function getAllowedTransitions(status: LeadStatus): ReadonlyArray<LeadSta
 }
 
 /**
- * Returns true if a next_action string must be provided when transitioning to `next`.
- * Dead -> lead is a resurrection path and should not block the operator behind
- * an additional next-action requirement.
+ * Next-action text is no longer required for stage transitions.
  */
 export function requiresNextAction(next: LeadStatus, current?: LeadStatus): boolean {
-  if (current === "dead" && next === "lead") return false;
-  return REQUIRES_NEXT_ACTION.has(next);
+  void next;
+  void current;
+  return false;
 }
 
 export interface StageValidationResult {
@@ -80,8 +69,7 @@ export interface StageValidationError {
 }
 
 /**
- * Full stage transition validation: checks allowed transitions AND enforces
- * next_action presence where required.
+ * Full stage transition validation: checks allowed transitions only.
  *
  * Returns a typed result — no exceptions.
  */
@@ -98,16 +86,8 @@ export function validateStageTransition(
     };
   }
 
-  const needsAction = requiresNextAction(next, current);
-  if (needsAction && !nextAction?.trim()) {
-    return {
-      valid: false,
-      code: "missing_next_action",
-      message: `A next_action is required when advancing to "${next}". Describe what happens next for this lead.`,
-    };
-  }
-
-  return { valid: true, requiresNextAction: needsAction };
+  void nextAction;
+  return { valid: true, requiresNextAction: false };
 }
 
 /**

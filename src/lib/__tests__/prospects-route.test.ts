@@ -174,7 +174,7 @@ describe("PATCH /api/prospects", () => {
     );
   });
 
-  it("allows moving to active when prior calls_log notes exist", async () => {
+  it("allows moving to active without requiring note context", async () => {
     const serverClient = buildServerClient({ activityNotes: ["seller asked for a callback"] });
     mocks.createServerClient.mockReturnValue(serverClient);
 
@@ -189,7 +189,6 @@ describe("PATCH /api/prospects", () => {
       body: JSON.stringify({
         lead_id: "lead-1",
         status: "active",
-        next_action: "Initial seller outreach",
         next_action_due_at: null,
       }),
     }) as never);
@@ -198,11 +197,10 @@ describe("PATCH /api/prospects", () => {
 
     expect(response.status).toBe(200);
     expect(payload.status).toBe("active");
-    expect(serverClient.callsLogLimit).toHaveBeenCalledOnce();
     expect(serverClient.leadUpdateSelect).toHaveBeenCalledOnce();
   });
 
-  it("blocks moving to active when neither lead notes nor activity notes exist", async () => {
+  it("allows moving to active even when there are no prior notes", async () => {
     const serverClient = buildServerClient();
     mocks.createServerClient.mockReturnValue(serverClient);
 
@@ -217,21 +215,17 @@ describe("PATCH /api/prospects", () => {
       body: JSON.stringify({
         lead_id: "lead-1",
         status: "active",
-        next_action: "Initial seller outreach",
         next_action_due_at: null,
       }),
     }) as never);
 
     const payload = await response.json();
 
-    expect(response.status).toBe(422);
-    expect(payload.error).toBe("Missing stage prerequisites");
-    expect(payload.detail).toContain("prior note");
-    expect(serverClient.callsLogLimit).toHaveBeenCalledOnce();
-    expect(serverClient.leadUpdateSelect).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(serverClient.leadUpdateSelect).toHaveBeenCalledOnce();
   });
 
-  it("allows moving to nurture with a free-text next step when due date and context exist", async () => {
+  it("allows moving to nurture with only a due date", async () => {
     const serverClient = buildServerClient();
     mocks.createServerClient.mockReturnValue(serverClient);
 
@@ -246,10 +240,8 @@ describe("PATCH /api/prospects", () => {
       body: JSON.stringify({
         lead_id: "lead-1",
         status: "nurture",
-        next_action: "See if sold, MLS expired, revisit in 6 months",
         next_action_due_at: "2026-10-10T16:00:00.000Z",
         next_follow_up_at: "2026-10-10T16:00:00.000Z",
-        note_append: "Family asked for a longer-term follow-up.",
       }),
     }) as never);
 
@@ -272,7 +264,6 @@ describe("PATCH /api/prospects", () => {
       body: JSON.stringify({
         lead_id: "lead-1",
         qualification_route: "nurture",
-        next_action: "Nurture check-in in 6 months",
         next_action_due_at: "2026-10-10T16:00:00.000Z",
         next_follow_up_at: "2026-10-10T16:00:00.000Z",
         note_append: "Family requested we revisit this after the estate clears.",
@@ -282,7 +273,7 @@ describe("PATCH /api/prospects", () => {
     expect(response.status).toBe(200);
     expect(serverClient.tasksInsert).toHaveBeenCalledTimes(1);
     expect(serverClient.tasksInsert.mock.calls[0]?.[0]).toMatchObject({
-      title: "Nurture check-in in 6 months",
+      title: "Nurture check-in",
       source_type: "lead_follow_up",
       source_key: "lead:lead-1:primary_call",
     });
