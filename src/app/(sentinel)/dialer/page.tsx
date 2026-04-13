@@ -695,10 +695,38 @@ function numberFromUnknown(value: unknown): number | null {
   return null;
 }
 
-function formatLotSizeCompact(value: number | null): string | null {
-  if (value == null || value <= 0) return null;
-  if (value > 10) return `${Math.round(value).toLocaleString()} sqft`;
-  return `${value.toFixed(2)} ac`;
+function formatLotSizeCompact(
+  storedLotSizeSqft: number | null,
+  countyAcreage: number | null,
+  propertyType: string | null,
+  livingSqft: number | null,
+): string | null {
+  const normalizedType = (propertyType ?? "").trim().toLowerCase();
+  const looksLikeLandOnly =
+    normalizedType.includes("vacant") ||
+    normalizedType.includes("land") ||
+    normalizedType.includes("lot");
+  const likelyImprovedResidential = livingSqft != null || (normalizedType.length > 0 && !looksLikeLandOnly);
+
+  if (storedLotSizeSqft != null && storedLotSizeSqft > 0) {
+    // Bad legacy ingest rows sometimes stored impossible residential lot sizes.
+    if (!(likelyImprovedResidential && storedLotSizeSqft > 5_000_000)) {
+      if (storedLotSizeSqft >= 43_560) {
+        const acres = storedLotSizeSqft / 43_560;
+        return acres >= 10 ? `${acres.toFixed(1)} ac` : `${acres.toFixed(2)} ac`;
+      }
+      return `${Math.round(storedLotSizeSqft).toLocaleString()} sqft`;
+    }
+  }
+
+  if (countyAcreage != null && countyAcreage > 0) {
+    if (countyAcreage >= 1) {
+      return countyAcreage >= 10 ? `${countyAcreage.toFixed(1)} ac` : `${countyAcreage.toFixed(2)} ac`;
+    }
+    return `${Math.round(countyAcreage * 43_560).toLocaleString()} sqft`;
+  }
+
+  return null;
 }
 
 function isUnknownOwnerName(value: string | null | undefined): boolean {
@@ -800,8 +828,10 @@ function deriveDialerPropertyContext(property: QueueLead["properties"] | null | 
     numberFromUnknown(prRaw?.delinquent_amount);
 
   const displayLotSize = formatLotSizeCompact(
-    numberFromUnknown(propertyRecord.lot_size) ??
+    numberFromUnknown(propertyRecord.lot_size),
     numberFromUnknown(countyData?.county_acreage),
+    displayPropertyType,
+    displaySqft,
   );
 
   return {
@@ -858,6 +888,12 @@ function LiveAnswerIntelPanel({
     displayPropertyType,
     isPendingEnrichment,
   } = deriveDialerPropertyContext(lead.properties);
+  const countyKey = typeof lead.properties?.county === "string"
+    ? lead.properties.county.trim().toLowerCase()
+    : "";
+  const scoutParcelUrl = displayParcel && countyKey.includes("spokane")
+    ? COUNTY_LINKS.spokane.assessor(displayParcel)
+    : null;
   const estimatedValue = displayValue;
   const compArv = typeof ownerFlags?.comp_arv === "number" ? ownerFlags.comp_arv : null;
   const brickedArv = typeof ownerFlags?.bricked_arv === "number" ? ownerFlags.bricked_arv : null;
@@ -903,11 +939,25 @@ function LiveAnswerIntelPanel({
             {dialedPhone ? ` · ${formatUsPhone(dialedPhone.replace(/\D/g, "").slice(-10))}` : ""}
           </p>
           {(displayParcel || displayPropertyType || isPendingEnrichment) && (
-            <p className="text-xs text-muted-foreground/45 mt-1">
-              {[displayParcel ? `Parcel ${displayParcel}` : null, displayPropertyType, isPendingEnrichment ? "pending enrichment" : null]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground/45">
+              {displayParcel ? (
+                scoutParcelUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => window.open(scoutParcelUrl, "_blank", "noopener,noreferrer")}
+                    className="inline-flex items-center gap-1 text-primary/80 hover:text-primary hover:underline transition-colors"
+                    title={`Open Spokane SCOUT for parcel ${displayParcel}`}
+                  >
+                    <span>Parcel {displayParcel}</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </button>
+                ) : (
+                  <span>{`Parcel ${displayParcel}`}</span>
+                )
+              ) : null}
+              {displayPropertyType ? <span>{displayPropertyType}</span> : null}
+              {isPendingEnrichment ? <span>pending enrichment</span> : null}
+            </div>
           )}
           {mailingAddress && (
             <p className="text-xs text-muted-foreground/45 mt-1">
@@ -4535,11 +4585,34 @@ function DialerPageInner() {
                               displayPropertyType,
                               isPendingEnrichment,
                             } = deriveDialerPropertyContext(currentLead.properties);
-                            const meta = [displayParcel ? `Parcel ${displayParcel}` : null, displayPropertyType, isPendingEnrichment ? "pending enrichment" : null]
-                              .filter(Boolean)
-                              .join(" · ");
-                            if (!meta) return null;
-                            return <p className="text-xs text-amber-200/75 mt-0.5">{meta}</p>;
+                            const countyKey = typeof currentLead.properties?.county === "string"
+                              ? currentLead.properties.county.trim().toLowerCase()
+                              : "";
+                            const scoutParcelUrl = displayParcel && countyKey.includes("spokane")
+                              ? COUNTY_LINKS.spokane.assessor(displayParcel)
+                              : null;
+                            if (!displayParcel && !displayPropertyType && !isPendingEnrichment) return null;
+                            return (
+                              <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-amber-200/75">
+                                {displayParcel ? (
+                                  scoutParcelUrl ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => window.open(scoutParcelUrl, "_blank", "noopener,noreferrer")}
+                                      className="inline-flex items-center gap-1 text-amber-200 hover:text-amber-100 hover:underline transition-colors"
+                                      title={`Open Spokane SCOUT for parcel ${displayParcel}`}
+                                    >
+                                      <span>Parcel {displayParcel}</span>
+                                      <ExternalLink className="h-3 w-3" />
+                                    </button>
+                                  ) : (
+                                    <span>{`Parcel ${displayParcel}`}</span>
+                                  )
+                                ) : null}
+                                {displayPropertyType ? <span>{displayPropertyType}</span> : null}
+                                {isPendingEnrichment ? <span>pending enrichment</span> : null}
+                              </div>
+                            );
                           })()}
                           <p className="text-xs text-muted-foreground/35 mt-0.5">
                             {buildSourceLabel(currentLead.source, currentLead.source_vendor, currentLead.source_list_name)}
