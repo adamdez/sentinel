@@ -19,7 +19,7 @@ describe("precheckWorkflowStageChange", () => {
     hasActivityNoteContext: false,
   };
 
-  it("blocks nurture without a nurture-specific next step", () => {
+  it("allows nurture with a free-text next step, future date, and context", () => {
     const result = precheckWorkflowStageChange({
       ...base,
       targetStatus: "nurture",
@@ -28,8 +28,8 @@ describe("precheckWorkflowStageChange", () => {
       noteDraft: "Family asked us to revisit this later in the year.",
     });
 
-    expect(result.ok).toBe(false);
-    expect(result.requiredActions).toContain("Choose a nurture next step before moving to Nurture. Generic callbacks do not qualify.");
+    expect(result.ok).toBe(true);
+    expect(result.requiredActions).toEqual([]);
   });
 
   it("blocks nurture without context even when nurture intent is present", () => {
@@ -47,7 +47,7 @@ describe("precheckWorkflowStageChange", () => {
     expect(result.blockingReason).toContain("requires context");
   });
 
-  it("allows nurture with future date, nurture intent, and context", () => {
+  it("allows nurture with future date, route, and context", () => {
     const result = precheckWorkflowStageChange({
       ...base,
       targetStatus: "nurture",

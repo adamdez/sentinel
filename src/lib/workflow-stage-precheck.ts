@@ -58,8 +58,7 @@ function hasNurtureIntentSignal(
   nextAction: string | null | undefined,
 ): boolean {
   if (qualificationRoute === "nurture") return true;
-  if (typeof nextAction !== "string") return false;
-  return nextAction.trim().toLowerCase().includes("nurture");
+  return typeof nextAction === "string" && nextAction.trim().length > 0;
 }
 
 function stageLabel(status: LeadStatus): string {

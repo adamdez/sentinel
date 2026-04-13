@@ -270,25 +270,13 @@ describe("evaluateStageEntryPrerequisites", () => {
     expect(err).toBeNull();
   });
 
-  it("blocks nurture when the next step is a generic callback", () => {
+  it("allows nurture with a free-text next step and note context", () => {
     const err = evaluateStageEntryPrerequisites({
       ...base,
       targetStatus: "nurture",
       effectiveNextFollowUpAt: "2026-10-01T12:00:00Z",
       nextQualificationRoute: null,
-      nextAction: "Call seller back in 6 months",
-      noteAppendText: "Family asked us to revisit the property later this year.",
-    });
-    expect(err).toContain("nurture next step");
-  });
-
-  it("allows nurture with nurture-specific next step and note context", () => {
-    const err = evaluateStageEntryPrerequisites({
-      ...base,
-      targetStatus: "nurture",
-      effectiveNextFollowUpAt: "2026-10-01T12:00:00Z",
-      nextQualificationRoute: null,
-      nextAction: "Nurture check-in in 6 months",
+      nextAction: "See if sold, MLS expired, bring back in 6 months",
       noteAppendText: "Family requested a six-month follow-up after probate work settles.",
     });
     expect(err).toBeNull();

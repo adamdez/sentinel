@@ -231,7 +231,7 @@ describe("PATCH /api/prospects", () => {
     expect(serverClient.leadUpdateSelect).not.toHaveBeenCalled();
   });
 
-  it("blocks moving to nurture when the next step is only a generic callback", async () => {
+  it("allows moving to nurture with a free-text next step when due date and context exist", async () => {
     const serverClient = buildServerClient();
     mocks.createServerClient.mockReturnValue(serverClient);
 
@@ -246,18 +246,15 @@ describe("PATCH /api/prospects", () => {
       body: JSON.stringify({
         lead_id: "lead-1",
         status: "nurture",
-        next_action: "Call back in 6 months",
+        next_action: "See if sold, MLS expired, revisit in 6 months",
         next_action_due_at: "2026-10-10T16:00:00.000Z",
         next_follow_up_at: "2026-10-10T16:00:00.000Z",
         note_append: "Family asked for a longer-term follow-up.",
       }),
     }) as never);
 
-    const payload = await response.json();
-
-    expect(response.status).toBe(422);
-    expect(payload.detail).toContain("nurture next step");
-    expect(serverClient.leadUpdateSelect).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(serverClient.leadUpdateSelect).toHaveBeenCalledOnce();
   });
 
   it("creates only one canonical follow-up task when saving a nurture closeout", async () => {
