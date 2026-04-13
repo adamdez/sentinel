@@ -1,5 +1,10 @@
 [
   {
+    "hash": "92f1a6c2",
+    "date": "2026-04-13",
+    "message": "[codex] Harden Jeff inbound message persistence"
+  },
+  {
     "hash": "1fda5a89",
     "date": "2026-04-13",
     "message": "[codex] Repair outbound SMS messaging service routing"
@@ -118,10 +123,5 @@
     "hash": "14e25c75",
     "date": "2026-04-09",
     "message": "[codex] Unify client-file phone truth and add phone entry"
-  },
-  {
-    "hash": "c5b0ad18",
-    "date": "2026-04-09",
-    "message": "[codex] Fix deep search review coherence"
   }
 ]

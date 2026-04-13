@@ -27,6 +27,7 @@ import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
 import { useModal } from "@/providers/modal-provider";
 import { cn } from "@/lib/utils";
+import { classifyActiveWork, isDialReadyActiveWork, isNonDialingNextActionText } from "@/lib/active-work";
 
 type SectionError = string | null;
 
@@ -66,6 +67,13 @@ interface BriefLead {
   last_call_disposition?: string | null;
   last_call_notes?: string | null;
   properties: { address: string | null; city: string | null; owner_name: string | null; owner_phone?: string | null } | null;
+}
+
+interface ActiveLead extends BriefLead {
+  assigned_to: string | null;
+  last_contact_at: string | null;
+  status: string;
+  total_calls?: number | null;
 }
 
 interface ReviewBlocker {
@@ -135,6 +143,27 @@ function leadTitle(lead: BriefLead) {
   }
   if (lead.properties?.address) return lead.properties.address;
   return lead.source ?? `Lead ${lead.id.slice(0, 8)}`;
+}
+
+function activeWorkLabel(lead: ActiveLead): string {
+  switch (classifyActiveWork({
+    assignedTo: lead.assigned_to,
+    nextAction: lead.next_action,
+    nextActionDueAt: lead.next_action_due_at,
+    lastContactAt: lead.last_contact_at,
+  })) {
+    case "call_now":
+      return "Call now";
+    case "due_today":
+      return "Due today";
+    case "stale":
+      return "Stale";
+    case "broken":
+      return "Broken";
+    case "upcoming":
+    default:
+      return "Upcoming";
+  }
 }
 
 function cut(text: string, limit = 96) {
@@ -212,6 +241,7 @@ export function DashboardGrid() {
   const [opsError, setOpsError] = useState<SectionError>(null);
   const [allTasks, setAllTasks] = useState<DashTask[]>([]);
   const [inboundLeads, setInboundLeads] = useState<BriefLead[]>([]);
+  const [activeLeads, setActiveLeads] = useState<ActiveLead[]>([]);
   const [stalledDeals, setStalledDeals] = useState<BriefLead[]>([]);
   const [reviewBlockers, setReviewBlockers] = useState<ReviewBlocker[]>([]);
   const [teamExpanded, setTeamExpanded] = useState(false);
@@ -257,6 +287,21 @@ export function DashboardGrid() {
       console.error("[Today] inbound error:", err);
       setInboundLeads([]);
       setInboundError("Failed to load new inbound");
+    }
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase.from("leads") as any)
+        .select("id, assigned_to, status, next_action_due_at, next_action, created_at, dial_queue_active, last_contact_at, total_calls, properties(address, city, owner_name, owner_phone)")
+        .eq("status", "active")
+        .eq("assigned_to", currentUser?.id ?? "")
+        .order("next_action_due_at", { ascending: true, nullsFirst: false })
+        .limit(30);
+      if (error) throw error;
+      setActiveLeads(data ?? []);
+    } catch (err) {
+      console.error("[Today] active work error:", err);
+      setActiveLeads([]);
     }
 
     try {
@@ -328,6 +373,28 @@ export function DashboardGrid() {
     () => myTasks.filter((task) => dueBucket(task.due_at) === "today").length,
     [myTasks],
   );
+  const taskOwnedActiveLeadIds = useMemo(
+    () => new Set([
+      ...myTaskCallbacks.map((task) => task.lead_id).filter((value): value is string => typeof value === "string" && value.length > 0),
+      ...myDriveByTasks.map((task) => task.lead_id).filter((value): value is string => typeof value === "string" && value.length > 0),
+    ]),
+    [myDriveByTasks, myTaskCallbacks],
+  );
+  const myActiveWork = useMemo(
+    () => activeLeads.filter((lead) => {
+      const state = classifyActiveWork({
+        assignedTo: lead.assigned_to,
+        nextAction: lead.next_action,
+        nextActionDueAt: lead.next_action_due_at,
+        lastContactAt: lead.last_contact_at,
+      });
+      if (state === "upcoming") return false;
+      if (taskOwnedActiveLeadIds.has(lead.id)) return false;
+      if (state !== "broken" && isNonDialingNextActionText(lead.next_action)) return false;
+      return true;
+    }),
+    [activeLeads, taskOwnedActiveLeadIds],
+  );
   const teamGroups = useMemo(() => {
     const groups: Record<string, { name: string; tasks: DashTask[] }> = {};
     for (const task of allTasks) {
@@ -364,7 +431,7 @@ export function DashboardGrid() {
   const queueLeadIds = useCallback(async (inputLeadIds: string[]) => {
     const leadIds = [...new Set(inputLeadIds.filter((value): value is string => typeof value === "string" && value.length > 0))];
     if (leadIds.length === 0) {
-      toast.error("No lead is attached to those callbacks.");
+      toast.error("No lead is attached to this work.");
       return;
     }
     setQueueingLeadIds((prev) => [...new Set([...prev, ...leadIds])]);
@@ -379,16 +446,16 @@ export function DashboardGrid() {
         body: JSON.stringify({ leadIds }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(typeof json?.error === "string" ? json.error : "Failed to queue callbacks");
+      if (!res.ok) throw new Error(typeof json?.error === "string" ? json.error : "Failed to queue leads");
       const queued = Array.isArray(json?.queuedIds) ? json.queuedIds.length : 0;
       const conflicted = Array.isArray(json?.conflictedIds) ? json.conflictedIds.length : 0;
-      if (queued > 0) toast.success(`${queued} callback${queued === 1 ? "" : "s"} queued to dialer.`);
+      if (queued > 0) toast.success(`${queued} lead${queued === 1 ? "" : "s"} queued to dialer.`);
       if (conflicted > 0) toast.error(`${conflicted} lead${conflicted === 1 ? "" : "s"} could not be queued because they belong to another operator.`);
       setSelectedCallbacks([]);
       await fetchAll();
     } catch (err) {
       console.error("[Today] queue callbacks error:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to queue callbacks");
+      toast.error(err instanceof Error ? err.message : "Failed to queue leads");
     } finally {
       setQueueingLeadIds((prev) => prev.filter((leadId) => !leadIds.includes(leadId)));
     }
@@ -557,6 +624,62 @@ export function DashboardGrid() {
     </div>
   );
 
+  const renderActiveLeadRow = (lead: ActiveLead) => {
+    const queueing = queueingLeadIds.includes(lead.id);
+    const inQueue = lead.dial_queue_active === true;
+    const dialReady = isDialReadyActiveWork({
+      assignedTo: lead.assigned_to,
+      nextAction: lead.next_action,
+      nextActionDueAt: lead.next_action_due_at,
+      lastContactAt: lead.last_contact_at,
+    });
+
+    return (
+      <div key={lead.id} className="rounded-lg border border-border/30 bg-background/30 p-3">
+        <div className="flex items-start gap-3">
+          <span className={cn(
+            "mt-1 h-2.5 w-2.5 shrink-0 rounded-full",
+            activeWorkLabel(lead) === "Broken" ? "bg-red-500" : activeWorkLabel(lead) === "Call now" ? "bg-primary" : "bg-amber-400",
+          )} />
+          <div className="min-w-0 flex-1">
+            <button onClick={() => openLead(lead.id)} className="block text-left text-sm font-semibold text-foreground hover:text-primary">
+              {leadTitle(lead)}
+            </button>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {activeWorkLabel(lead)} · {lead.next_action?.trim() || "Next action missing"}
+            </p>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground/75">
+              <span>{dueLabel(lead.next_action_due_at)}</span>
+              <span>{lead.total_calls ?? 0} call{lead.total_calls === 1 ? "" : "s"}</span>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {dialReady && (
+              inQueue ? (
+                <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/10">In Dial Queue</Badge>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void queueLeadIds([lead.id])}
+                  disabled={queueing}
+                  className="h-8 gap-1 text-xs"
+                >
+                  {queueing ? <Loader2 className="h-3 w-3 animate-spin" /> : <PhoneCall className="h-3 w-3" />}
+                  Queue Now
+                </Button>
+              )
+            )}
+            <Button size="sm" onClick={() => openLead(lead.id)} className="h-8 gap-1 text-xs">
+              <Phone className="h-3 w-3" />
+              Open
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="space-y-5">
@@ -605,6 +728,14 @@ export function DashboardGrid() {
 
       <Section icon={Clock} title="My Tasks Today" iconColor="text-amber-400" count={myActionTasks.length}>
         {myActionTasks.length === 0 ? <Empty icon={CheckCircle2} message="No non-call tasks are due today." /> : myActionTasks.map((task) => renderTaskRow(task))}
+      </Section>
+
+      <Section icon={Users} title="My Active Work" iconColor="text-primary" count={myActiveWork.length}>
+        {myActiveWork.length === 0 ? (
+          <Empty icon={CheckCircle2} message="No active files need attention right now." />
+        ) : (
+          myActiveWork.map((lead) => renderActiveLeadRow(lead))
+        )}
       </Section>
 
       <Section

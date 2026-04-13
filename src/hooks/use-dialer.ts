@@ -7,6 +7,7 @@ import { useSentinelStore } from "@/lib/store";
 import type { QualificationRoute } from "@/lib/types";
 import type { AutoCycleLeadState, AutoCyclePhoneState } from "@/lib/dialer/types";
 import { isDeepDiveNextAction } from "@/lib/deep-dive";
+import { resolveLeadDueAt } from "@/lib/active-work";
 import type {
   DialerKpiPreset,
   DialerKpiRange,
@@ -90,13 +91,17 @@ const TERMINAL_QUEUE_DISPOSITIONS = new Set([
 
 function shouldRenderInDialQueue(lead: QueueLead): boolean {
   const status = (lead.status ?? "").toLowerCase();
-  if (status !== "prospect" && status !== "lead") return false;
+  const isActiveLead = status === "active";
+  if (status !== "prospect" && status !== "lead" && !isActiveLead) return false;
   if (lead.dial_queue_active === false) return false;
-  if (lead.intro_sop_active === false) return false;
-  if (lead.intro_exit_category) return false;
+  if (!isActiveLead) {
+    if (lead.intro_sop_active === false) return false;
+    if (lead.intro_exit_category) return false;
+  }
   const disposition = (lead.disposition_code ?? "").toLowerCase();
   if (TERMINAL_QUEUE_DISPOSITIONS.has(disposition)) return false;
   const nextAction = (lead.next_action ?? "").toLowerCase();
+  if (isActiveLead && (!lead.next_action?.trim() || !resolveLeadDueAt(lead))) return false;
   if (nextAction.startsWith("drive by")) return false;
   if (isDeepDiveNextAction(lead.next_action)) return false;
   return true;
@@ -115,10 +120,9 @@ async function fetchQueueRowsForUser(userId: string, limit: number) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase.from("leads") as any)
       .select("*, properties(*)")
-      .in("status", ["prospect", "lead"])
+      .in("status", ["prospect", "lead", "active"])
       .eq("assigned_to", userId)
       .eq("dial_queue_active", true)
-      .eq("intro_sop_active", true)
       .order("dial_queue_added_at", { ascending: false })
       .limit(limit + 40),
     10_000,

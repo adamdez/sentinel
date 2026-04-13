@@ -5414,7 +5414,7 @@ export function MasterClientFileModal({
 
     setQualificationSuggestedRoute(null);
 
-    const existingNextAction = toLocalDateTimeInput(clientFile?.nextCallScheduledAt ?? clientFile?.followUpDate);
+    const existingNextAction = toLocalDateTimeInput(clientFile?.nextActionDueAt ?? clientFile?.nextCallScheduledAt ?? clientFile?.followUpDate);
 
     setNextActionAt(existingNextAction);
 
@@ -6167,6 +6167,10 @@ export function MasterClientFileModal({
       return;
     }
 
+    const stageNextActionDueIso = stageNextActionDueAt
+      ? (fromLocalDateTimeInput(stageNextActionDueAt) ?? stageNextActionDueAt)
+      : null;
+
     const precheck = precheckWorkflowStageChange({
 
       currentStatus: currentStatus as LeadStatus,
@@ -6181,9 +6185,9 @@ export function MasterClientFileModal({
 
       dispositionCode: clientFile.dispositionCode,
 
-      nextCallScheduledAt: stageNextActionDueAt || clientFile.nextCallScheduledAt,
+      nextCallScheduledAt: stageNextActionDueIso || clientFile.nextCallScheduledAt,
 
-      nextFollowUpAt: stageNextActionDueAt || clientFile.followUpDate,
+      nextFollowUpAt: stageNextActionDueIso || clientFile.followUpDate,
 
       qualificationRoute: clientFile.qualificationRoute,
 
@@ -6273,7 +6277,7 @@ export function MasterClientFileModal({
 
           next_action: stageNextAction.trim() || null,
 
-          next_action_due_at: stageNextActionDueAt || null,
+          next_action_due_at: stageNextActionDueIso,
 
         }),
 
@@ -7355,9 +7359,13 @@ export function MasterClientFileModal({
 
           lead_id: clientFile.id,
 
+          next_action: clientFile.nextAction?.trim() || null,
+
           next_call_scheduled_at: nextIso,
 
           next_follow_up_at: nextIso,
+
+          next_action_due_at: nextIso,
 
         }),
 
@@ -8629,7 +8637,11 @@ export function MasterClientFileModal({
       }
 
       const nextAction = options?.nextAction ?? (stageNextAction.trim() || null);
-      const nextActionDueAt = options?.nextActionDueAt ?? (stageNextActionDueAt || null);
+      const nextActionDueAt = options?.nextActionDueAt ?? (
+        stageNextActionDueAt
+          ? (fromLocalDateTimeInput(stageNextActionDueAt) ?? stageNextActionDueAt)
+          : null
+      );
 
       const res = await fetch(`/api/leads/${clientFile.id}/stage`, {
         method: "PATCH",
@@ -8705,7 +8717,12 @@ export function MasterClientFileModal({
           lead_id: clientFile.id,
           status: "active",
           next_action: stageNextAction.trim() || clientFile.nextAction?.trim() || "Initial seller outreach",
-          next_action_due_at: stageNextActionDueAt || clientFile.nextActionDueAt || clientFile.nextCallScheduledAt || clientFile.followUpDate || null,
+          next_action_due_at:
+            (stageNextActionDueAt ? (fromLocalDateTimeInput(stageNextActionDueAt) ?? stageNextActionDueAt) : null)
+            || clientFile.nextActionDueAt
+            || clientFile.nextCallScheduledAt
+            || clientFile.followUpDate
+            || null,
         };
         if (noteAppend) {
           payload.note_append = noteAppend;
@@ -8867,7 +8884,9 @@ export function MasterClientFileModal({
 
     if (transition.requires_next_action) {
       setStageNextAction(clientFile.nextAction?.trim() ?? "");
-      setStageNextActionDueAt(clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate ?? "");
+      setStageNextActionDueAt(
+        toLocalDateTimeInput(clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate) ?? "",
+      );
       setMoveTarget("");
       return;
     }
@@ -9009,6 +9028,10 @@ export function MasterClientFileModal({
 
   const stageChanged = selectedStage !== currentStage;
 
+  const stagePrecheckDueIso = stageNextActionDueAt
+    ? (fromLocalDateTimeInput(stageNextActionDueAt) ?? stageNextActionDueAt)
+    : null;
+
   const stagePrecheck = precheckWorkflowStageChange({
 
     currentStatus: currentStage as LeadStatus,
@@ -9023,9 +9046,9 @@ export function MasterClientFileModal({
 
     dispositionCode: clientFile.dispositionCode,
 
-    nextCallScheduledAt: stageNextActionDueAt || clientFile.nextCallScheduledAt,
+    nextCallScheduledAt: stagePrecheckDueIso || clientFile.nextCallScheduledAt,
 
-    nextFollowUpAt: stageNextActionDueAt || clientFile.followUpDate,
+    nextFollowUpAt: stagePrecheckDueIso || clientFile.followUpDate,
 
     qualificationRoute: clientFile.qualificationRoute,
 
@@ -9629,7 +9652,7 @@ export function MasterClientFileModal({
                         className="flex-1 bg-overlay-4 border border-overlay-10 rounded-md px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
                       />
                       <input
-                        type="date"
+                        type="datetime-local"
                         value={stageNextActionDueAt}
                         onChange={(e) => setStageNextActionDueAt(e.target.value)}
                         className="bg-overlay-4 border border-overlay-10 rounded-md px-2 py-1 text-xs text-foreground focus:outline-none focus:border-primary/30"

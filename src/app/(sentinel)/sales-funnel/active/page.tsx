@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertTriangle, ArrowUpDown, Briefcase, Clock, ExternalLink, Loader2, Search, UserRoundCheck } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, Briefcase, Clock, ExternalLink, Loader2, PhoneCall, Search, UserRoundCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
 import { GlassCard } from "@/components/sentinel/glass-card";
@@ -12,10 +12,35 @@ import { compareRowText, sortRowsWithComparator } from "@/hooks/use-leads-sort";
 import { MasterClientFileModal, clientFileFromRaw } from "@/components/sentinel/master-client-file-modal";
 import { supabase } from "@/lib/supabase";
 import { getAuthenticatedProspectPatchHeaders } from "@/lib/prospect-api-client";
+import { classifyActiveWork, isDialReadyActiveWork } from "@/lib/active-work";
 import type { ProspectRow } from "@/hooks/use-prospects";
 
 type ActiveSortField = "owner_name" | "address" | "source" | "assigned_to" | "next_action" | "next_action_due_at" | "last_contact_at";
 type SortDir = "asc" | "desc";
+type ActiveScope = "mine" | "team";
+
+function activeStateLabel(row: ProspectRow): string {
+  switch (classifyActiveWork({
+    assignedTo: row.assigned_to,
+    nextAction: row.next_action,
+    nextActionDueAt: row.next_action_due_at,
+    nextCallScheduledAt: row.next_call_scheduled_at,
+    nextFollowUpAt: row.next_follow_up_at,
+    lastContactAt: row.last_contact_at,
+  })) {
+    case "call_now":
+      return "Call now";
+    case "due_today":
+      return "Due today";
+    case "stale":
+      return "Stale";
+    case "broken":
+      return "Broken";
+    case "upcoming":
+    default:
+      return "Upcoming";
+  }
+}
 
 function labelOrDash(value: string | null | undefined): string {
   return value && value.trim().length > 0 ? value : "—";
@@ -58,12 +83,15 @@ function lastTouchLabel(iso: string | null | undefined): string {
 
 export default function ActivePage() {
   const [search, setSearch] = useState("");
+  const [scope, setScope] = useState<ActiveScope>("mine");
   const [sortField, setSortField] = useState<ActiveSortField>("next_action_due_at");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const { rows: rawRows, loading, error, totalCount, refetch } = useLeadsByStatus("active", { search });
   const [selectedRow, setSelectedRow] = useState<ProspectRow | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
+  const [queueingId, setQueueingId] = useState<string | null>(null);
   const [assignedNames, setAssignedNames] = useState<Record<string, string>>({});
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,8 +116,29 @@ export default function ActivePage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error: authError } = await supabase.auth.getUser();
+        if (cancelled || authError) return;
+        setCurrentUserId(data.user?.id ?? null);
+      } catch {
+        if (!cancelled) setCurrentUserId(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const rows = useMemo(() => {
-    return sortRowsWithComparator(rawRows, (a, b) => {
+    const scopedRows =
+      scope === "mine" && currentUserId
+        ? rawRows.filter((row) => row.assigned_to === currentUserId)
+        : rawRows;
+
+    return sortRowsWithComparator(scopedRows, (a, b) => {
       switch (sortField) {
         case "owner_name":
           return (
@@ -141,13 +190,15 @@ export default function ActivePage() {
           );
       }
     });
-  }, [assignedNames, rawRows, sortDir, sortField]);
+  }, [assignedNames, currentUserId, rawRows, scope, sortDir, sortField]);
 
   const stats = useMemo(() => {
     const overdue = rows.filter((row) => dueValue(row) < Date.now()).length;
     const unassigned = rows.filter((row) => !row.assigned_to).length;
     return { active: rows.length, overdue, unassigned };
   }, [rows]);
+
+  const activeCountLabel = scope === "mine" ? "my active file" : "active file";
 
   const toggleSort = (field: ActiveSortField) => {
     if (sortField === field) {
@@ -197,6 +248,36 @@ export default function ActivePage() {
     }
   };
 
+  const handleQueueLead = async (row: ProspectRow, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setQueueingId(row.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      const res = await fetch("/api/dialer/v1/dial-queue", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ leadIds: [row.id] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not queue active lead");
+        return;
+      }
+      if (Array.isArray(data.conflictedIds) && data.conflictedIds.includes(row.id)) {
+        toast.error("This file could not be queued right now.");
+        return;
+      }
+      toast.success(`${row.owner_name} queued to dialer`);
+      await refetch();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not queue active lead");
+    } finally {
+      setQueueingId(null);
+    }
+  };
+
   return (
     <Fragment>
       <PageShell
@@ -216,6 +297,24 @@ export default function ActivePage() {
         </div>
 
         <div className="flex items-center gap-3 mb-4">
+          <div className="inline-flex items-center rounded-[12px] border border-overlay-8 bg-overlay-3 p-1">
+            <Button
+              size="sm"
+              variant={scope === "mine" ? "default" : "ghost"}
+              className="h-8 px-3"
+              onClick={() => setScope("mine")}
+            >
+              My Active
+            </Button>
+            <Button
+              size="sm"
+              variant={scope === "team" ? "default" : "ghost"}
+              className="h-8 px-3"
+              onClick={() => setScope("team")}
+            >
+              Team Active
+            </Button>
+          </div>
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50" />
             <input
@@ -226,13 +325,21 @@ export default function ActivePage() {
               className="w-full pl-9 pr-3 py-2 rounded-[10px] text-sm bg-overlay-4 border border-overlay-8 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30 focus:ring-1 focus:ring-ring/20 transition-all"
             />
           </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">{totalCount} active file{totalCount !== 1 ? "s" : ""}</div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            {rows.length} {activeCountLabel}
+            {rows.length !== 1 ? "s" : ""}
+            {scope === "mine" ? ` · ${totalCount} team total` : ""}
+          </div>
         </div>
 
         <GlassCard hover={false}>
           {error && <div className="p-6 text-center text-foreground text-sm flex items-center justify-center gap-2"><AlertTriangle className="h-4 w-4" />{error}<Button size="sm" variant="outline" onClick={() => refetch()} className="ml-2 text-xs">Retry</Button></div>}
           {loading && !error && rows.length === 0 && <div className="p-12 text-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />Loading active files...</div>}
-          {!loading && !error && rows.length === 0 && <div className="p-12 text-center text-muted-foreground">No files are in Active right now</div>}
+          {!loading && !error && rows.length === 0 && (
+            <div className="p-12 text-center text-muted-foreground">
+              {scope === "mine" ? "No files are assigned to you in Active right now" : "No files are in Active right now"}
+            </div>
+          )}
 
           {rows.length > 0 && (
             <div className="overflow-x-auto">
@@ -254,12 +361,43 @@ export default function ActivePage() {
                       <motion.tr key={row.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ delay: index * 0.02 }} className="border-b border-overlay-4 hover:bg-overlay-4 cursor-pointer transition-colors" onClick={() => setSelectedRow(row)}>
                         <td className="px-4 py-3 max-w-[280px]"><div className="text-sm font-semibold truncate">{row.owner_name || "Unknown owner"}</div><div className="text-xs text-muted-foreground truncate">{row.address || "No address"}</div></td>
                         <td className="px-3 py-3"><div className="text-xs text-muted-foreground truncate">{labelOrDash(row.source)}</div></td>
-                        <td className="px-3 py-3 max-w-[220px]"><div className="text-sm font-medium truncate">{labelOrDash(row.next_action)}</div><div className="text-xs text-muted-foreground truncate">{row.total_calls} call{row.total_calls === 1 ? "" : "s"}</div></td>
+                        <td className="px-3 py-3 max-w-[220px]">
+                          <div className="text-sm font-medium truncate">{labelOrDash(row.next_action)}</div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground truncate">
+                            <span>{row.total_calls} call{row.total_calls === 1 ? "" : "s"}</span>
+                            <span className="rounded border border-overlay-10 bg-overlay-4 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              {activeStateLabel(row)}
+                            </span>
+                          </div>
+                        </td>
                         <td className="px-3 py-3 text-center"><span className="text-xs text-muted-foreground">{dueLabel(row)}</span></td>
                         <td className="px-3 py-3 text-center"><span className="text-xs text-muted-foreground">{lastTouchLabel(row.last_contact_at)}</span></td>
                         <td className="px-3 py-3"><span className="text-xs text-muted-foreground truncate">{row.assigned_to ? (assignedNames[row.assigned_to] ?? "Assigned") : "Unassigned"}</span></td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            {row.dial_queue_active ? (
+                              <span className="inline-flex h-7 items-center rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 text-xs font-semibold text-emerald-400">
+                                In Dial Queue
+                              </span>
+                            ) : currentUserId && row.assigned_to === currentUserId && isDialReadyActiveWork({
+                              assignedTo: row.assigned_to,
+                              nextAction: row.next_action,
+                              nextActionDueAt: row.next_action_due_at,
+                              nextCallScheduledAt: row.next_call_scheduled_at,
+                              nextFollowUpAt: row.next_follow_up_at,
+                              lastContactAt: row.last_contact_at,
+                            }) ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 gap-1 text-sm text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]"
+                                onClick={(event) => void handleQueueLead(row, event)}
+                                disabled={queueingId === row.id}
+                              >
+                                {queueingId === row.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <PhoneCall className="h-3 w-3" />}
+                                Queue Now
+                              </Button>
+                            ) : null}
                             <Button size="sm" variant="outline" className="h-7 px-2 gap-1 text-sm text-foreground border-border/20 hover:border-border/40 hover:bg-muted/[0.06]" onClick={(event) => void handleMoveToNegotiation(row, event)} disabled={movingId === row.id}>
                               {movingId === row.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "Negotiate"}
                             </Button>
