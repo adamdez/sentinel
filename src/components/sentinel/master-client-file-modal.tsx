@@ -234,6 +234,8 @@ import {
   workflowStageLabel,
 
   sourceDisplayLabel, buildSourceLabel,
+  buildCountyParcelAssessorUrl,
+  buildZillowSearchUrl,
 
   marketDisplayLabel,
 
@@ -1501,6 +1503,16 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
   const displaySqft = cf.sqft ?? scoutSqft;
   const displayYearBuilt = cf.yearBuilt ?? scoutYearBuilt;
   const displayLotSize = cf.lotSize ?? countyAcreage;
+  const zillowUrl = buildZillowSearchUrl({
+    address: cf.address,
+    city: cf.city,
+    state: cf.state,
+    zip: cf.zip,
+  });
+  const parcelDetailsUrl = buildCountyParcelAssessorUrl({
+    county: cf.county,
+    parcel: cf.apn,
+  });
   const displayedTaxOwed = scoutTaxOwed ?? scoutRemainingCharges ?? scoutTaxSignalsOwed ?? cf.delinquentAmount ?? prDelinquentAmount ?? 0;
   const scoutAnnualTaxesDisplay = scoutAnnualTaxes ?? 0;
   const countyTaxableValueDisplay = countyTaxableValue ?? 0;
@@ -1814,6 +1826,34 @@ function OverviewTab({ cf, computedArv, activityRefreshToken, onDial, calling, o
 
         {cf.fullAddress && (
           <p className="text-sm text-foreground mb-1.5">{cf.fullAddress}</p>
+        )}
+
+        {(zillowUrl || parcelDetailsUrl) && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            {zillowUrl ? (
+              <a
+                href={zillowUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-overlay-10 bg-overlay-3 px-2 py-1 text-xs text-primary/85 hover:text-primary hover:border-primary/30 hover:underline transition-colors"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Zillow
+              </a>
+            ) : null}
+            {parcelDetailsUrl ? (
+              <a
+                href={parcelDetailsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-overlay-10 bg-overlay-3 px-2 py-1 text-xs text-primary/85 hover:text-primary hover:border-primary/30 hover:underline transition-colors"
+                title={`Open parcel details for ${cf.apn}`}
+              >
+                <ExternalLink className="h-3 w-3" />
+                Parcel {cf.apn}
+              </a>
+            ) : null}
+          </div>
         )}
 
         <div className="grid grid-cols-4 gap-x-4 gap-y-1.5 text-sm">
@@ -5000,14 +5040,10 @@ export function MasterClientFileModal({
     if (!clientFile) return;
     setActiveTab("overview");
     setCloseoutOpen(true);
-    setCloseoutOutcome(clientFile.dispositionCode ?? "");
     setCloseoutNote("");
-    setCloseoutAction("follow_up_call");
-    setCloseoutPreset("call_3_days");
     setCloseoutAt(
-      toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.nextActionDueAt ?? clientFile.followUpDate) || presetDateTimeLocal(3),
+      toLocalDateTimeInput(clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate) || "",
     );
-    setCloseoutPresetTouched(false);
     setCloseoutDateTouched(false);
   }, [clientFile]);
 
@@ -7552,41 +7588,20 @@ export function MasterClientFileModal({
 
 
 
-    if (closeoutActionRequiresDueDate(closeoutAction) && !nextIso) {
-
-      toast.error("Select a follow-up date for this closeout.");
-
-      return;
-
-    }
-
-
-
     const currentStatus = normalizeWorkflowStage(clientFile.status);
-    const routeToApply = routeForCloseoutAction(closeoutAction);
 
     const existingNextIso = clientFile.nextCallScheduledAt ?? clientFile.nextActionDueAt ?? clientFile.followUpDate ?? null;
 
-    const explicitDueIntent = closeoutPresetTouched || closeoutDateTouched;
-
-    const normalizedOutcome = closeoutOutcome.trim() || null;
-
-    const outcomeChanged = normalizedOutcome !== (clientFile.dispositionCode ?? null);
+    const explicitDueIntent = closeoutDateTouched;
 
     const nextChanged = nextIso !== existingNextIso;
 
     const noteText = closeoutNote.trim();
 
-    const routeChanged = routeToApply != null && routeToApply !== (clientFile.qualificationRoute ?? null);
-    const shouldForceDeadStatus = closeoutAction === "mark_dead" && currentStatus !== "dead";
-    const shouldForceActiveStatus = closeoutAction === "move_active" && currentStatus !== "active";
     const shouldSendDueDates = explicitDueIntent && nextChanged;
+    void currentStatus;
 
-
-
-    const hasNextActionWrite = closeoutNextActionText(closeoutAction, closeoutPreset) != null;
-
-    if (!outcomeChanged && !shouldSendDueDates && noteText.length === 0 && !routeChanged && !hasNextActionWrite && !shouldForceDeadStatus && !shouldForceActiveStatus) {
+    if (!shouldSendDueDates && noteText.length === 0) {
 
       toast.message("No closeout changes to save.");
 
@@ -7636,16 +7651,6 @@ export function MasterClientFileModal({
 
       const payload: Record<string, unknown> = { lead_id: clientFile.id };
 
-      if (outcomeChanged) {
-
-        payload.disposition_code = normalizedOutcome;
-
-        if (clientFile.ownerPhone) {
-          payload.phone_number = clientFile.ownerPhone;
-        }
-
-      }
-
       if (noteText.length > 0) {
 
         payload.note_append = noteText;
@@ -7653,49 +7658,8 @@ export function MasterClientFileModal({
       }
 
       if (shouldSendDueDates) {
-
-        payload.next_call_scheduled_at = nextIso;
-
         payload.next_follow_up_at = nextIso;
-
-      }
-
-      if (closeoutAction === "mark_dead") {
-
-        payload.status = "dead";
-
-        payload.next_call_scheduled_at = null;
-
-        payload.next_follow_up_at = null;
-
-        payload.next_action_due_at = null;
-
-      } else if (shouldForceActiveStatus) {
-        payload.status = "active";
-
-      }
-
-      if (routeChanged && routeToApply) {
-
-        payload.qualification_route = routeToApply;
-
-      }
-
-      const nextActionText = closeoutNextActionText(closeoutAction, closeoutPreset);
-
-      if (nextActionText) {
-
-        payload.next_action = nextActionText;
-
-        if (closeoutAction === "mark_dead") {
-
-          payload.next_action_due_at = null;
-
-        } else if (nextIso) {
-
-          payload.next_action_due_at = nextIso;
-
-        }
+        payload.next_action_due_at = nextIso;
 
       }
 
@@ -7749,23 +7713,13 @@ export function MasterClientFileModal({
 
       setCloseoutOpen(false);
 
-      setCloseoutPresetTouched(false);
-
       setCloseoutDateTouched(false);
 
       setNextActionAt(toLocalDateTimeInput(nextIso));
 
       setActivityRefreshToken((v) => v + 1);
 
-      toast.success(closeoutSuccessMessage(closeoutAction, nextIso));
-
-      if (
-        normalizedOutcome
-        && ["wrong_number", "disconnected", "do_not_call"].includes(normalizedOutcome)
-        && data.phone_outcome_applied !== true
-      ) {
-        toast.warning("Call outcome saved, but Sentinel could not confirm canonical phone deactivation.");
-      }
+      toast.success(nextIso ? "Saved closeout and scheduled follow-up." : "Saved closeout.");
 
       onRefresh?.();
 
@@ -7787,19 +7741,11 @@ export function MasterClientFileModal({
 
     clientFile,
 
-    closeoutAction,
-
     closeoutAt,
 
     closeoutDateTouched,
 
     closeoutNote,
-
-    closeoutOutcome,
-
-    closeoutPreset,
-
-    closeoutPresetTouched,
 
     onRefresh,
 
@@ -8720,7 +8666,6 @@ export function MasterClientFileModal({
         const payload: Record<string, unknown> = {
           lead_id: clientFile.id,
           status: "active",
-          next_action: stageNextAction.trim() || clientFile.nextAction?.trim() || "Initial seller outreach",
           next_action_due_at:
             (stageNextActionDueAt ? (fromLocalDateTimeInput(stageNextActionDueAt) ?? stageNextActionDueAt) : null)
             || clientFile.nextActionDueAt
@@ -8742,26 +8687,7 @@ export function MasterClientFileModal({
         return { res, data };
       };
 
-      const missingActiveNoteMessage = "Add a short seller progress note before moving to Active when no prior note exists.";
-      const isMissingActiveNoteError = (status: number, data: { error?: string; detail?: string }) =>
-        status === 422 && `${data.detail ?? data.error ?? ""}`.toLowerCase().includes("progress note");
-
       let result = await moveToActive();
-
-      if (!result.res.ok && isMissingActiveNoteError(result.res.status, result.data)) {
-        const activeSummary = window.prompt("Add a short seller progress note for Active (required because no prior note exists):");
-        if (activeSummary == null) {
-          return;
-        }
-
-        const trimmed = activeSummary.trim();
-        if (!trimmed) {
-          toast.error(missingActiveNoteMessage);
-          return;
-        }
-
-        result = await moveToActive(trimmed);
-      }
 
       if (!result.res.ok) {
         toast.error(result.data.detail ?? result.data.error ?? "Failed to move to Active");
@@ -8838,14 +8764,11 @@ export function MasterClientFileModal({
 
     if (moveTarget === "drive_by") {
       setCloseoutOpen(true);
-      setCloseoutOutcome(clientFile.dispositionCode ?? "");
       setCloseoutNote("");
       setCloseoutAction("drive_by");
-      setCloseoutPreset("drive_by_tomorrow");
       setCloseoutAt(
-        toLocalDateTimeInput(clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate) || presetDateTimeLocal(1),
+        toLocalDateTimeInput(clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate) || "",
       );
-      setCloseoutPresetTouched(false);
       setCloseoutDateTouched(false);
       setNextActionEditorOpen(false);
       setNoteEditorOpen(false);
@@ -8886,18 +8809,11 @@ export function MasterClientFileModal({
     setNextActionEditorOpen(false);
     setNoteEditorOpen(false);
 
-    if (transition.requires_next_action) {
-      setStageNextAction(clientFile.nextAction?.trim() ?? "");
-      setStageNextActionDueAt(
-        toLocalDateTimeInput(clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate) ?? "",
-      );
-      setMoveTarget("");
-      return;
-    }
-
     await moveLeadToStage(targetStage, {
       nextAction: null,
-      nextActionDueAt: null,
+      nextActionDueAt: stageNextActionDueAt
+        ? (fromLocalDateTimeInput(stageNextActionDueAt) ?? stageNextActionDueAt)
+        : null,
     });
     setMoveTarget("");
   }, [
@@ -9380,86 +9296,8 @@ export function MasterClientFileModal({
                       <div className="rounded-[10px] border border-overlay-20 bg-overlay-6 p-2.5 space-y-2">
 
                         <div className="flex items-center justify-between gap-2">
-
-                          <p className="text-sm uppercase tracking-wider font-semibold text-foreground">Log Call Result</p>
-
-                          <span className="text-xs text-foreground/80">{closeoutActionLabel(closeoutAction)}</span>
-
-                        </div>
-
-                        <label className="space-y-1">
-
-                          <span className="text-xs uppercase tracking-wider text-muted-foreground">Call Outcome</span>
-
-                          <select
-
-                            value={closeoutOutcome}
-
-                            onChange={(e) => {
-                              const outcome = e.target.value;
-                              setCloseoutOutcome(outcome);
-                              const defaultPresetId = OUTCOME_PRESET_DEFAULTS[outcome];
-                              if (defaultPresetId) handleCloseoutPresetSelect(defaultPresetId);
-                            }}
-
-                            className="h-8 w-full rounded-[8px] border border-overlay-12 bg-overlay-4 px-2 text-xs text-foreground focus:outline-none focus:border-overlay-30"
-
-                          >
-
-                            <option value="">No change</option>
-
-                            {closeoutOutcome && !CALL_OUTCOME_OPTIONS.some((opt) => opt.id === closeoutOutcome) && (
-
-                              <option value={closeoutOutcome}>{closeoutOutcome.replace(/_/g, " ")}</option>
-
-                            )}
-
-                            {CALL_OUTCOME_OPTIONS.map((opt) => (
-
-                              <option key={opt.id} value={opt.id}>{opt.label}</option>
-
-                            ))}
-
-                          </select>
-
-                        </label>
-
-                        <div className="space-y-1">
-
-                          <p className="text-xs uppercase tracking-wider text-muted-foreground">Next Step</p>
-
-                          <div className="space-y-2">
-                            {CLOSEOUT_PRESET_GROUPS.map((group) => (
-                              <div key={group.id} className="space-y-1">
-                                <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/75">
-                                  {group.label}
-                                </p>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {group.presetIds.map((presetId) => {
-                                    const preset = CLOSEOUT_PRESETS.find((item) => item.id === presetId);
-                                    if (!preset) return null;
-                                    return (
-                                      <button
-                                        key={preset.id}
-                                        type="button"
-                                        onClick={() => handleCloseoutPresetSelect(preset.id)}
-                                        className={cn(
-                                          "h-6 px-2 rounded-[7px] border text-sm transition-colors",
-                                          closeoutPreset === preset.id
-                                            ? "border-overlay-40 text-foreground bg-overlay-12"
-                                            : "border-overlay-12 text-muted-foreground hover:text-foreground hover:border-white/[0.24]",
-                                        )}
-                                      >
-                                        {preset.label}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-
-
+                          <p className="text-sm uppercase tracking-wider font-semibold text-foreground">Quick Closeout</p>
+                          <span className="text-xs text-foreground/60">Optional follow-up only.</span>
                         </div>
 
                         <label className="space-y-1 block">
@@ -9492,7 +9330,7 @@ export function MasterClientFileModal({
 
                           onChange={(e) => setCloseoutNote(e.target.value)}
 
-                          placeholder="Quick call summary note..."
+                          placeholder="Quick note..."
 
                           className="w-full h-16 rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-overlay-30"
 
@@ -9532,21 +9370,13 @@ export function MasterClientFileModal({
 
                               setCloseoutOpen(false);
 
-                              setCloseoutOutcome(clientFile.dispositionCode ?? "");
-
                               setCloseoutNote("");
-
-                              setCloseoutAction("follow_up_call");
-
-                              setCloseoutPreset("call_3_days");
 
                               setCloseoutAt(
 
-                                toLocalDateTimeInput(clientFile.nextCallScheduledAt ?? clientFile.nextActionDueAt ?? clientFile.followUpDate) || presetDateTimeLocal(3),
+                                toLocalDateTimeInput(clientFile.nextActionDueAt ?? clientFile.nextCallScheduledAt ?? clientFile.followUpDate) || "",
 
                               );
-
-                              setCloseoutPresetTouched(false);
 
                               setCloseoutDateTouched(false);
 
@@ -9647,14 +9477,8 @@ export function MasterClientFileModal({
                   <div className="shrink-0 px-4 py-2 border-b border-overlay-6 bg-overlay-2 flex items-center gap-3">
                     <div className="flex-1 flex items-center gap-2">
                       <label className="text-xs text-muted-foreground shrink-0">
-                        Next action{transition.requires_next_action ? " *" : ""}:
+                        Due date:
                       </label>
-                      <input
-                        value={stageNextAction}
-                        onChange={(e) => setStageNextAction(e.target.value)}
-                        placeholder={transition.requires_next_action ? "Required — what's the next step?" : "Optional next action"}
-                        className="flex-1 bg-overlay-4 border border-overlay-10 rounded-md px-2.5 py-1 text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/30"
-                      />
                       <input
                         type="datetime-local"
                         value={stageNextActionDueAt}
@@ -9669,7 +9493,7 @@ export function MasterClientFileModal({
                     </div>
                     <button
                       onClick={handleMoveStage}
-                      disabled={stageUpdating || !stagePrecheck.ok || (transition.requires_next_action && !stageNextAction.trim())}
+                      disabled={stageUpdating || !stagePrecheck.ok}
                       className="h-7 px-3 rounded-md text-xs font-bold bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25 transition-colors disabled:opacity-40"
                     >
                       {stageUpdating ? "Moving..." : `Move to ${workflowStageLabel(selectedStage)}`}

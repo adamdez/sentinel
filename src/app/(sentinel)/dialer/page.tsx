@@ -73,7 +73,8 @@ import {
   type DialerKpiSnapshot,
 } from "@/lib/dialer-kpis";
 import {
-  COUNTY_LINKS,
+  buildCountyParcelAssessorUrl,
+  buildZillowSearchUrl,
   sourceDisplayLabel,
   buildSourceLabel,
   clientFileFromRaw,
@@ -88,8 +89,10 @@ import { useIdleRailAttention } from "@/hooks/use-idle-rail-attention";
 import {
   buildDialerQueueCollections,
   findRefreshedDialerLead,
+  resolveVisibleDialerLead,
   selectFallbackDialerLead,
   selectInitialDialerLead,
+  shouldLockDialerLeadSelection,
 } from "@/lib/dialer/dialer-ui-state";
 import { matchesCommunicationSearch } from "@/lib/dialer/communication-search";
 import { formatDialerEquityDisplay } from "@/lib/dialer/equity";
@@ -525,26 +528,6 @@ function formatCurrency(n: number): string {
   return `$${n}`;
 }
 
-function buildZillowSearchUrl(property: {
-  address?: string | null;
-  city?: string | null;
-  state?: string | null;
-  zip?: string | null;
-} | null | undefined): string | null {
-  if (!property?.address) return null;
-
-  const parts = [
-    property.address,
-    property.city,
-    property.state,
-    property.zip,
-  ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
-
-  if (parts.length === 0) return null;
-
-  return `https://www.zillow.com/homes/${encodeURIComponent(parts.join(", "))}_rb/`;
-}
-
 function getScoreLabel(score: number): { label: string; variant: "platinum" | "gold" | "silver" | "bronze" } {
   if (score >= 85) return { label: "TOP", variant: "platinum" };
   if (score >= 70) return { label: "HIGH", variant: "gold" };
@@ -888,12 +871,10 @@ function LiveAnswerIntelPanel({
     displayPropertyType,
     isPendingEnrichment,
   } = deriveDialerPropertyContext(lead.properties);
-  const countyKey = typeof lead.properties?.county === "string"
-    ? lead.properties.county.trim().toLowerCase()
-    : "";
-  const scoutParcelUrl = displayParcel && countyKey.includes("spokane")
-    ? COUNTY_LINKS.spokane.assessor(displayParcel)
-    : null;
+  const scoutParcelUrl = buildCountyParcelAssessorUrl({
+    county: lead.properties?.county,
+    parcel: displayParcel,
+  });
   const estimatedValue = displayValue;
   const compArv = typeof ownerFlags?.comp_arv === "number" ? ownerFlags.comp_arv : null;
   const brickedArv = typeof ownerFlags?.bricked_arv === "number" ? ownerFlags.bricked_arv : null;
@@ -1162,7 +1143,8 @@ function DialerPageInner() {
   const timer = useCallTimer();
 
   const [callState, setCallState] = useState<CallState>("idle");
-  const [currentLead, setCurrentLead] = useState<DialerQueueLead | null>(null);
+  const [selectedQueueLead, setSelectedQueueLead] = useState<DialerQueueLead | null>(null);
+  const [activeCallLead, setActiveCallLead] = useState<DialerQueueLead | null>(null);
   const [dialerMode, setDialerMode] = useState<DialerMode>("queue");
   const autoCycleMode = dialerMode === "autoCycle";
   const [queueSkipTracing, setQueueSkipTracing] = useState(false);
@@ -1199,9 +1181,11 @@ function DialerPageInner() {
         autoCycleQueue,
         autoCycleQueueLoading,
         isReadyLead: (lead) => !isAutoCycleQueueLead(lead) || lead.autoCycle.readyNow,
-      }),
+    }),
     [autoCycleMode, autoCycleQueue, autoCycleQueueLoading, queue, queueLoading],
   );
+  const isLeadSelectionLocked = shouldLockDialerLeadSelection(callState);
+  const currentLead = resolveVisibleDialerLead(callState, activeCallLead, selectedQueueLead);
   const currentAutoCycleLead = isAutoCycleQueueLead(currentLead) ? currentLead : null;
   const phoneSelection = useMemo(
     () =>
@@ -1561,18 +1545,36 @@ function DialerPageInner() {
   const [diagLoading, setDiagLoading] = useState(false);
   const [deepDiveLeadId, setDeepDiveLeadId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!currentLead) {
-      const nextLead = selectInitialDialerLead(autoCycleMode, executionQueue, preferredQueue);
-      if (!nextLead) return;
-      setCurrentLead(nextLead);
+  const blockLeadSelectionWhileActiveCall = useCallback(() => {
+    toast.info("Finish current call before switching files");
+  }, []);
+
+  const selectQueueLead = useCallback((lead: DialerQueueLead | null, options?: { resetPhone?: boolean }) => {
+    setSelectedQueueLead(lead);
+    if (options?.resetPhone !== false) {
       setPhoneIndex(0);
     }
-  }, [autoCycleMode, currentLead, executionQueue, preferredQueue]);
+  }, []);
+
+  const trySelectQueueLead = useCallback((lead: DialerQueueLead | null, options?: { resetPhone?: boolean }) => {
+    if (isLeadSelectionLocked) {
+      blockLeadSelectionWhileActiveCall();
+      return false;
+    }
+    selectQueueLead(lead, options);
+    return true;
+  }, [blockLeadSelectionWhileActiveCall, isLeadSelectionLocked, selectQueueLead]);
 
   useEffect(() => {
-    if (!currentLead) return;
-    if (displayedQueue.some((lead) => lead.id === currentLead.id)) return;
+    if (selectedQueueLead || isLeadSelectionLocked) return;
+    const nextLead = selectInitialDialerLead(autoCycleMode, executionQueue, preferredQueue);
+    if (!nextLead) return;
+    selectQueueLead(nextLead);
+  }, [autoCycleMode, executionQueue, isLeadSelectionLocked, preferredQueue, selectQueueLead, selectedQueueLead]);
+
+  useEffect(() => {
+    if (isLeadSelectionLocked || !selectedQueueLead) return;
+    if (displayedQueue.some((lead) => lead.id === selectedQueueLead.id)) return;
     const nextLead = selectFallbackDialerLead({
       autoCycleMode,
       displayedQueue,
@@ -1581,11 +1583,8 @@ function DialerPageInner() {
       fileModalOpen,
     });
     if (nextLead === null && fileModalOpen) return;
-    setCurrentLead(nextLead);
-    if (autoCycleMode) {
-      setPhoneIndex(0);
-    }
-  }, [autoCycleMode, displayedQueue, executionQueue, preferredQueue, currentLead, fileModalOpen]);
+    selectQueueLead(nextLead);
+  }, [autoCycleMode, displayedQueue, executionQueue, preferredQueue, selectedQueueLead, fileModalOpen, isLeadSelectionLocked, selectQueueLead]);
 
   // Keep activeCallRef in sync for polling callback closures
   useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
@@ -1612,17 +1611,32 @@ function DialerPageInner() {
     }
   }, [callState, manualStatus]);
 
-  // Sync currentLead with refreshed queue data when the queue updates.
-  // Deps intentionally use currentLead?.id (not currentLead) to avoid an
-  // infinite loop: setCurrentLead → currentLead changes → effect re-fires.
-  const currentLeadIdRef = useRef(currentLead?.id);
-  currentLeadIdRef.current = currentLead?.id;
+  // Keep both idle selection and active-call context in sync with queue refreshes
+  // without allowing queue churn to swap out the live call file mid-session.
+  const activeCallLeadIdRef = useRef(activeCallLead?.id);
+  activeCallLeadIdRef.current = activeCallLead?.id;
   useEffect(() => {
-    const refreshedLead = findRefreshedDialerLead(displayedQueue, currentLeadIdRef.current);
+    if (!isLeadSelectionLocked) return;
+    const refreshedLead = findRefreshedDialerLead(displayedQueue, activeCallLeadIdRef.current);
     if (refreshedLead) {
-      setCurrentLead(refreshedLead);
+      setActiveCallLead(refreshedLead);
     }
-  }, [displayedQueue]);
+  }, [displayedQueue, isLeadSelectionLocked]);
+
+  const selectedQueueLeadIdRef = useRef(selectedQueueLead?.id);
+  selectedQueueLeadIdRef.current = selectedQueueLead?.id;
+  useEffect(() => {
+    if (isLeadSelectionLocked) return;
+    const refreshedLead = findRefreshedDialerLead(displayedQueue, selectedQueueLeadIdRef.current);
+    if (refreshedLead) {
+      setSelectedQueueLead(refreshedLead);
+    }
+  }, [displayedQueue, isLeadSelectionLocked]);
+
+  useEffect(() => {
+    if (!activeCallLead || isLeadSelectionLocked) return;
+    setActiveCallLead(null);
+  }, [activeCallLead, isLeadSelectionLocked]);
 
   useEffect(() => {
     if (!autoCycleMode) {
@@ -1669,7 +1683,7 @@ function DialerPageInner() {
     const previousIndex = selectedPhoneIndex;
 
     setPhoneIndex(index);
-    setCurrentLead({
+    setSelectedQueueLead({
       ...currentLead,
       autoCycle: {
         ...currentLead.autoCycle,
@@ -1695,7 +1709,7 @@ function DialerPageInner() {
       void refetchAutoCycleQueue();
     } catch (error) {
       setPhoneIndex(previousIndex);
-      setCurrentLead(previousLead);
+      setSelectedQueueLead(previousLead);
       toast.error(error instanceof Error ? error.message : "Could not save the selected Power Dial phone");
     }
   }, [activeLeadPhones, autoCycleMode, callState, currentLead, refetchAutoCycleQueue, selectedPhoneIndex]);
@@ -1725,8 +1739,7 @@ function DialerPageInner() {
         }
       }
 
-      setCurrentLead(null);
-      setPhoneIndex(0);
+      selectQueueLead(null);
       await refreshQueues();
     } catch (error) {
       console.error("[PowerDial] Failed to enter power dial:", error);
@@ -1734,7 +1747,7 @@ function DialerPageInner() {
     } finally {
       setPowerDialStarting(false);
     }
-  }, [autoCycleQueue, powerDialStarting, queue, refreshQueues]);
+  }, [autoCycleQueue, powerDialStarting, queue, refreshQueues, selectQueueLead]);
 
   const handleModalRefresh = useCallback(() => {
     void refreshQueues();
@@ -1754,13 +1767,14 @@ function DialerPageInner() {
         method: "DELETE",
         headers,
       }).catch(() => {});
-      if (currentLead?.id === leadId) setCurrentLead(null);
+      if (selectedQueueLead?.id === leadId) setSelectedQueueLead(null);
+      if (activeCallLead?.id === leadId) setActiveCallLead(null);
       await refreshQueues();
       toast.success("Removed from queue");
     } catch {
       toast.error("Could not remove from queue");
     }
-  }, [currentLead?.id, refreshQueues]);
+  }, [activeCallLead?.id, refreshQueues, selectedQueueLead?.id]);
 
   const applyIntroExitForLead = useCallback(async (
     leadId: string,
@@ -1843,11 +1857,10 @@ function DialerPageInner() {
 
   const openLeadNextStepFix = useCallback((lead: QueueLead, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    setCurrentLead(lead);
-    setPhoneIndex(0);
+    if (!trySelectQueueLead(lead)) return;
     setFileModalOpen(true);
     setOpenCloseoutSignal((prev) => prev + 1);
-  }, []);
+  }, [trySelectQueueLead]);
 
   const handleSkipTraceQueue = useCallback(async () => {
     if (queueSkipTracing) return;
@@ -2012,8 +2025,7 @@ function DialerPageInner() {
   const openLeadClientFile = useCallback(async (leadId: string) => {
     const queuedLead = displayedQueue.find((lead) => lead.id === leadId);
     if (queuedLead) {
-      setCurrentLead(queuedLead);
-      setPhoneIndex(0);
+      if (!trySelectQueueLead(queuedLead)) return;
       setFileModalOpen(true);
       return;
     }
@@ -2030,19 +2042,23 @@ function DialerPageInner() {
         return;
       }
 
-      setCurrentLead({
+      if (isLeadSelectionLocked) {
+        blockLeadSelectionWhileActiveCall();
+        return;
+      }
+
+      selectQueueLead({
         ...data,
         predictiveScore: null,
         blendedPriority: typeof data.priority === "number" ? data.priority : 0,
         compliant: true,
         scrubbing: false,
       } as QueueLead);
-      setPhoneIndex(0);
       setFileModalOpen(true);
     } catch {
       toast.error("Could not open that lead right now.");
     }
-  }, [displayedQueue]);
+  }, [blockLeadSelectionWhileActiveCall, displayedQueue, isLeadSelectionLocked, selectQueueLead, trySelectQueueLead]);
 
   const runLeadSkipTrace = useCallback(async (lead: QueueLead, manual = false) => {
     if (!lead.properties?.id || leadSkipTracingId) return;
@@ -2154,7 +2170,7 @@ function DialerPageInner() {
       if (autoCycleMode && isAutoCycleQueueLead(currentLead)) {
         const nextPhone = activeLeadPhones[plan.nextPhoneIndex] ?? null;
         if (nextPhone) {
-          setCurrentLead({
+          setSelectedQueueLead({
             ...currentLead,
             autoCycle: {
               ...currentLead.autoCycle,
@@ -2181,8 +2197,7 @@ function DialerPageInner() {
 
     if (plan.action === "next") {
       const nextLead = executionQueue.find((lead) => lead.id === plan.leadId) ?? null;
-      setCurrentLead(nextLead);
-      setPhoneIndex(0);
+      selectQueueLead(nextLead);
       if (autoDial && powerDialPaused && nextLead) {
         setPendingAutoDialLeadId(null);
         toast.info(isLeadTerminalDisposition ? "Lead done - Power Dial paused on next lead" : "Power Dial paused on next lead");
@@ -2199,8 +2214,7 @@ function DialerPageInner() {
         toast.info(disposition === "dead_lead" || disposition === "disqualified" ? "Lead done — next lead loaded" : "Next lead loaded");
       } else {
         if (autoCycleMode) {
-          setCurrentLead(null);
-          setPhoneIndex(0);
+          selectQueueLead(null);
           toast.info("Power Dial complete — you've called every ready lead. Add more leads to continue.");
         } else {
           toast.info(autoDial ? "Power Dial complete — queue finished" : "Queue complete — all leads attempted");
@@ -2211,13 +2225,12 @@ function DialerPageInner() {
 
     setPendingAutoDialLeadId(null);
     if (autoCycleMode) {
-      setCurrentLead(null);
-      setPhoneIndex(0);
+      selectQueueLead(null);
       toast.info("Power Dial complete — you've called every ready lead. Add more leads to continue.");
       return;
     }
     toast.info(autoDial ? "Power Dial complete — queue finished" : "Queue complete — all leads attempted");
-  }, [activeLeadPhones, autoCycleMode, currentLead, executionQueue, leadPhones, phoneIndex, powerDialPaused, refreshCurrentLeadPhones]);
+  }, [activeLeadPhones, autoCycleMode, currentLead, executionQueue, leadPhones, phoneIndex, powerDialPaused, refreshCurrentLeadPhones, selectQueueLead]);
 
   // ── Incoming call handler — attached to provider-managed Device ──
   useEffect(() => {
@@ -2502,7 +2515,8 @@ function DialerPageInner() {
     if (incomingMatch?.type === "lead" && incomingFrom) {
       matchedLead = displayedQueue.find((q) => q.properties?.owner_phone?.replace(/\D/g, "")?.slice(-10) === incomingFrom.replace(/\D/g, "").slice(-10)) ?? null;
       if (matchedLead) {
-        setCurrentLead(matchedLead);
+        setActiveCallLead(matchedLead);
+        setSelectedQueueLead(matchedLead);
         setFileModalOpen(true);
       }
     }
@@ -2512,7 +2526,8 @@ function DialerPageInner() {
       const briefLead = displayedQueue.find((q) => q.id === incomingMatch.transferBrief!.leadId) ?? null;
       if (briefLead) {
         matchedLead = briefLead;
-        setCurrentLead(briefLead);
+        setActiveCallLead(briefLead);
+        setSelectedQueueLead(briefLead);
         setFileModalOpen(true);
       } else if (incomingMatch.transferBrief.leadUrl) {
         window.open(incomingMatch.transferBrief.leadUrl, "_blank");
@@ -2675,7 +2690,8 @@ function DialerPageInner() {
       return;
     }
 
-    setCurrentLead(target);
+    setActiveCallLead(target);
+    setSelectedQueueLead(target);
     setCurrentDialedPhone(phone);
     setCallState("dialing");
     setCallNotes("");
@@ -3238,6 +3254,7 @@ function DialerPageInner() {
     }
 
     setCallState("idle");
+    setActiveCallLead(null);
     setCurrentCallLogId(null);
     setCurrentCallSid(null);
     setDialerSessionId(null);
@@ -3261,6 +3278,7 @@ function DialerPageInner() {
     meta?: { autoCycleStatus?: string | null },
   ) => {
     setCallState("idle");
+    setActiveCallLead(null);
     setCurrentCallLogId(null);
     setCurrentCallSid(null);
     setDialerSessionId(null);
@@ -3281,13 +3299,12 @@ function DialerPageInner() {
     ) {
       setPendingAutoDialLeadId(null);
       await refreshQueues();
-      setCurrentLead(null);
-      setPhoneIndex(0);
+      selectQueueLead(null);
       return;
     }
 
     advanceQueueAfterDisposition(disposition, autoCycleMode);
-  }, [advanceQueueAfterDisposition, autoCycleMode, refreshQueues, timer]);
+  }, [advanceQueueAfterDisposition, autoCycleMode, refreshQueues, selectQueueLead, timer]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────
   useEffect(() => {
@@ -3904,7 +3921,7 @@ function DialerPageInner() {
                 type="button"
                 onClick={() => {
                   const lead = displayedQueue.find((q) => q.id === phoneMatchResult.leads[0].id);
-                  if (lead) { setCurrentLead(lead); toast.success("Lead loaded"); }
+                  if (lead && trySelectQueueLead(lead)) { toast.success("Lead loaded"); }
                   else toast.info("Lead found but not in queue — search in Leads tab");
                 }}
                 className="w-full text-left text-sm text-foreground/85 hover:text-foreground"
@@ -3922,7 +3939,7 @@ function DialerPageInner() {
                     type="button"
                     onClick={() => {
                       const lead = displayedQueue.find((q) => q.id === l.id);
-                      if (lead) { setCurrentLead(lead); toast.success("Lead loaded"); }
+                      if (lead && trySelectQueueLead(lead)) { toast.success("Lead loaded"); }
                       else toast.info("Lead found but not in queue — search in Leads tab");
                     }}
                     className="block w-full text-left text-sm text-foreground/75 hover:text-foreground px-1.5 py-0.5 rounded hover:bg-overlay-4"
@@ -4373,15 +4390,18 @@ function DialerPageInner() {
                   return (
                     <button
                       key={lead.id}
+                      type="button"
+                      disabled={isLeadSelectionLocked}
                       onClick={() => {
-                        setCurrentLead(lead);
-                        setPhoneIndex(0);
+                        void trySelectQueueLead(lead);
                       }}
                       className={`w-full text-left rounded-[12px] p-2.5 transition-all duration-200 border ${
                         isActive
                           ? "bg-primary/5 border-primary/20 shadow-[0_0_12px_var(--shadow-soft)]"
-                          : "bg-secondary/10 border-transparent hover:bg-secondary/20"
-                      }`}
+                          : isLeadSelectionLocked
+                            ? "bg-secondary/10 border-transparent opacity-70 cursor-not-allowed"
+                            : "bg-secondary/10 border-transparent hover:bg-secondary/20"
+                      } ${isLeadSelectionLocked ? "pointer-events-auto" : ""}`}
                     >
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
@@ -4601,12 +4621,10 @@ function DialerPageInner() {
                               displayPropertyType,
                               isPendingEnrichment,
                             } = deriveDialerPropertyContext(currentLead.properties);
-                            const countyKey = typeof currentLead.properties?.county === "string"
-                              ? currentLead.properties.county.trim().toLowerCase()
-                              : "";
-                            const scoutParcelUrl = displayParcel && countyKey.includes("spokane")
-                              ? COUNTY_LINKS.spokane.assessor(displayParcel)
-                              : null;
+                            const scoutParcelUrl = buildCountyParcelAssessorUrl({
+                              county: currentLead.properties?.county,
+                              parcel: displayParcel,
+                            });
                             if (!displayParcel && !displayPropertyType && !isPendingEnrichment) return null;
                             return (
                               <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-amber-200/75">
@@ -4762,12 +4780,10 @@ function DialerPageInner() {
                         const displayBedrooms = numberFromUnknown(p?.bedrooms);
                         const displayBathrooms = numberFromUnknown(p?.bathrooms);
                         const equityDisplay = formatDialerEquityDisplay(currentLead.properties);
-                        const countyKey = typeof currentLead.properties?.county === "string"
-                          ? currentLead.properties.county.trim().toLowerCase()
-                          : "";
-                        const scoutParcelUrl = displayParcel && countyKey.includes("spokane")
-                          ? COUNTY_LINKS.spokane.assessor(displayParcel)
-                          : null;
+                        const scoutParcelUrl = buildCountyParcelAssessorUrl({
+                          county: currentLead.properties?.county,
+                          parcel: displayParcel,
+                        });
                         return (
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
                         <span className="font-mono text-foreground">{activeCallPhoneLabel}</span>
@@ -4929,8 +4945,7 @@ function DialerPageInner() {
                               const currentIdx = executionQueue.findIndex((l) => l.id === currentLead.id);
                               const nextLead = executionQueue[currentIdx + 1] ?? executionQueue[0] ?? null;
                               if (nextLead) {
-                                setCurrentLead(nextLead);
-                                setPhoneIndex(0);
+                                selectQueueLead(nextLead);
                               }
                             }}
                             variant="outline"
@@ -5284,8 +5299,8 @@ function DialerPageInner() {
                         className="w-full mt-3 gap-2 text-xs"
                         onClick={() => {
                           const idx = executionQueue.findIndex((l) => l.id === currentLead?.id);
-                          setCurrentLead(executionQueue[(idx + 1) % executionQueue.length] ?? null);
-                          setPhoneIndex(0);
+                          setActiveCallLead(null);
+                          selectQueueLead(executionQueue[(idx + 1) % executionQueue.length] ?? null);
                           setCallState("idle");
                           setCurrentCallLogId(null);
                           setCurrentCallSid(null);

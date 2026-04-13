@@ -630,6 +630,36 @@ export const COUNTY_LINKS: Record<string, { name: string; gis: (apn: string) => 
   },
 };
 
+export function buildZillowSearchUrl(property: {
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+} | null | undefined): string | null {
+  if (!property) return null;
+  const parts = [
+    property.address?.trim(),
+    property.city?.trim(),
+    property.state?.trim(),
+    property.zip?.trim(),
+  ].filter((value): value is string => Boolean(value && value.length > 0));
+
+  if (parts.length === 0) return null;
+  return `https://www.zillow.com/homes/${encodeURIComponent(parts.join(", "))}_rb/`;
+}
+
+export function buildCountyParcelAssessorUrl(input: {
+  county?: string | null;
+  parcel?: string | null;
+} | null | undefined): string | null {
+  if (!input) return null;
+  const parcel = input.parcel?.trim();
+  if (!parcel) return null;
+  const countyKey = input.county?.trim().toLowerCase() ?? "";
+  const countyInfo = Object.entries(COUNTY_LINKS).find(([key]) => countyKey.includes(key))?.[1];
+  return countyInfo ? countyInfo.assessor(parcel) : null;
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Pure utility functions
 // ═══════════════════════════════════════════════════════════════════════
