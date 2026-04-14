@@ -39,8 +39,10 @@ export interface CallMeta {
   phone: string;
   leadId?: string;
   leadName?: string;
+  propertyAddress?: string;
   callLogId?: string;
   sessionId?: string;
+  direction?: "inbound" | "outbound";
 }
 
 interface TwilioContextValue {
@@ -50,6 +52,7 @@ interface TwilioContextValue {
   callMeta: CallMeta | null;
   incomingCall: Call | null;
   incomingFrom: string | null;
+  incomingMeta: CallMeta | null;
   isMuted: boolean;
   elapsed: number;
   formatted: string;
@@ -59,13 +62,15 @@ interface TwilioContextValue {
     phone: string,
     leadId?: string,
     leadName?: string,
+    propertyAddress?: string,
   ) => Promise<void>;
   endCall: () => void;
-  answerIncoming: () => void;
+  answerIncoming: () => Promise<void>;
   rejectIncoming: () => void;
   toggleMute: () => void;
   initDevice: () => Promise<void>;
   setSuppressIncoming: (v: boolean) => void;
+  clearCallState: () => void;
 }
 
 const TwilioContext = createContext<TwilioContextValue | null>(null);
@@ -86,8 +91,11 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
   const [callMeta, setCallMeta] = useState<CallMeta | null>(null);
   const [incomingCall, setIncomingCall] = useState<Call | null>(null);
   const [incomingFrom, setIncomingFrom] = useState<string | null>(null);
+  const [incomingMeta, setIncomingMeta] = useState<CallMeta | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [voipCallerId, setVoipCallerId] = useState("");
+  const callMetaRef = useRef<CallMeta | null>(null);
+  const incomingLookupSeqRef = useRef(0);
 
   // Call timer
   const [elapsed, setElapsed] = useState(0);
@@ -127,9 +135,68 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
   // a second inbound arriving while already on a call.
   const callStateRef = useRef<CallState>("idle");
   useEffect(() => { callStateRef.current = callState; }, [callState]);
+  useEffect(() => { callMetaRef.current = callMeta; }, [callMeta]);
 
   const deviceRef = useRef<Device | null>(null);
   const initDeviceCancelRef = useRef<(() => void) | null>(null);
+
+  const clearCallState = useCallback(() => {
+    setActiveCall(null);
+    setCallState("idle");
+    setCallMeta(null);
+    setIncomingCall(null);
+    setIncomingFrom(null);
+    setIncomingMeta(null);
+    setIsMuted(false);
+    timerReset();
+  }, [timerReset]);
+
+  const hydrateIncomingMeta = useCallback(async (phone: string) => {
+    const lookupSeq = ++incomingLookupSeqRef.current;
+    const seed: CallMeta = { phone, direction: "inbound" };
+    setIncomingMeta(seed);
+
+    try {
+      const headers = await authHeaders();
+      const [contextRes, sessionRes] = await Promise.all([
+        fetch(`/api/dialer/v1/inbound/context?phone=${encodeURIComponent(phone)}`, { headers }),
+        fetch("/api/dialer/v1/sessions/inbound-ringing", { headers }),
+      ]);
+
+      let nextMeta = seed;
+
+      if (contextRes.ok) {
+        const context = await contextRes.json() as {
+          lead?: { leadId?: string | null; ownerName?: string | null; address?: string | null } | null;
+          property_address?: string | null;
+          owner_name?: string | null;
+        };
+        nextMeta = {
+          ...nextMeta,
+          leadId: context.lead?.leadId ?? undefined,
+          leadName: context.lead?.ownerName ?? context.owner_name ?? undefined,
+          propertyAddress: context.lead?.address ?? context.property_address ?? undefined,
+        };
+      }
+
+      if (sessionRes.ok) {
+        const sessionData = await sessionRes.json() as {
+          session?: { id?: string | null; lead_id?: string | null } | null;
+        };
+        nextMeta = {
+          ...nextMeta,
+          sessionId: sessionData.session?.id ?? nextMeta.sessionId,
+          leadId: sessionData.session?.lead_id ?? nextMeta.leadId,
+        };
+      }
+
+      if (incomingLookupSeqRef.current === lookupSeq) {
+        setIncomingMeta(nextMeta);
+      }
+    } catch (error) {
+      console.warn("[VoIP] Incoming context lookup failed:", error);
+    }
+  }, []);
 
   const initDevice = useCallback(async () => {
     if (!currentUser.id) return;
@@ -213,6 +280,7 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
         setIncomingCall(call);
         setIncomingFrom(from);
         setCallState("incoming");
+        void hydrateIncomingMeta(from);
 
         toast("Incoming call", {
           description: from,
@@ -232,12 +300,16 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
           console.log("[VoIP] Incoming call cancelled");
           setIncomingCall(null);
           setIncomingFrom(null);
+          incomingLookupSeqRef.current += 1;
+          setIncomingMeta(null);
           setCallState((prev) => prev === "incoming" ? "idle" : prev);
         });
 
         call.on("disconnect", () => {
           setIncomingCall(null);
           setIncomingFrom(null);
+          incomingLookupSeqRef.current += 1;
+          setIncomingMeta(null);
         });
       });
 
@@ -247,7 +319,7 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
       console.error("[VoIP] Device init failed:", err);
       if (!cancelled) setDeviceStatus("error");
     }
-  }, [currentUser.id]);
+  }, [currentUser.id, hydrateIncomingMeta]);
 
   useEffect(() => {
     if (!currentUser.id) return;
@@ -271,7 +343,7 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
   }, [currentUser.id, initDevice]);
 
   const startCall = useCallback(
-    async (phone: string, leadId?: string, leadName?: string) => {
+    async (phone: string, leadId?: string, leadName?: string, propertyAddress?: string) => {
       if (!deviceRef.current || deviceStatus !== "ready") {
         toast.error("VoIP not connected — click Reconnect and try again");
         return;
@@ -281,7 +353,13 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
       setIsMuted(false);
       timerStart();
 
-      const meta: CallMeta = { phone, leadId, leadName };
+      const meta: CallMeta = {
+        phone,
+        leadId,
+        leadName,
+        propertyAddress,
+        direction: "outbound",
+      };
 
       try {
         let newSessionId: string | null = null;
@@ -320,9 +398,7 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
 
         if (!res.ok) {
           toast.error(data.error ?? "Call failed");
-          setCallState("idle");
-          setCallMeta(null);
-          timerReset();
+          clearCallState();
           return;
         }
 
@@ -387,19 +463,11 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
               }
             }).catch(() => {});
           }
-          setTimeout(() => {
-            setCallState("idle");
-            setCallMeta(null);
-            timerReset();
-          }, 3000);
         });
 
         call.on("error", (err: { message?: string }) => {
           toast.error(`Call error: ${err.message ?? "unknown"}`);
-          setActiveCall(null);
-          setCallState("idle");
-          setCallMeta(null);
-          timerReset();
+          clearCallState();
           if (newSessionId) {
             authHeaders().then((hdrs) =>
               fetch(`/api/dialer/v1/sessions/${newSessionId}`, {
@@ -412,20 +480,15 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
         });
 
         call.on("cancel", () => {
-          setActiveCall(null);
-          setCallState("idle");
-          setCallMeta(null);
-          timerReset();
+          clearCallState();
         });
       } catch (err) {
         console.error("[VoIP] startCall failed:", err);
         toast.error("Failed to start call");
-        setCallState("idle");
-        setCallMeta(null);
-        timerReset();
+        clearCallState();
       }
     },
-    [currentUser.id, deviceStatus, ghostMode, voipCallerId, timerStart, timerStop, timerReset],
+    [clearCallState, currentUser.id, deviceStatus, ghostMode, voipCallerId, timerStart, timerStop],
   );
 
   const endCall = useCallback(() => {
@@ -434,43 +497,159 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
     }
   }, [activeCall]);
 
-  const answerIncoming = useCallback(() => {
+  const answerIncoming = useCallback(async () => {
     if (!incomingCall) return;
-    incomingCall.accept();
-    setActiveCall(incomingCall);
+
+    const acceptedCall = incomingCall;
+    acceptedCall.accept();
+    setActiveCall(acceptedCall);
     setCallState("connected");
-    setCallMeta({ phone: incomingFrom ?? "Unknown" });
+    setCallMeta({
+      phone: incomingFrom ?? "Unknown",
+      direction: "inbound",
+      ...incomingMeta,
+    });
     setIncomingCall(null);
     setIncomingFrom(null);
+    incomingLookupSeqRef.current += 1;
+    setIncomingMeta(null);
     setIsMuted(false);
     timerStart();
 
-    incomingCall.on("disconnect", () => {
+    let resolvedSessionId = incomingMeta?.sessionId ?? null;
+    let resolvedCallLogId = incomingMeta?.callLogId ?? null;
+
+    try {
+      const headers = await authHeaders();
+
+      if (!resolvedSessionId) {
+        const ringingRes = await fetch("/api/dialer/v1/sessions/inbound-ringing", { headers });
+        if (ringingRes.ok) {
+          const ringingData = await ringingRes.json() as {
+            session?: { id?: string | null; lead_id?: string | null } | null;
+          };
+          resolvedSessionId = ringingData.session?.id ?? null;
+          if (ringingData.session?.lead_id) {
+            setCallMeta((prev) => prev ? {
+              ...prev,
+              leadId: ringingData.session?.lead_id ?? prev.leadId,
+            } : prev);
+          }
+        }
+      }
+
+      if (resolvedSessionId) {
+        await fetch("/api/dialer/v1/sessions/claim-inbound", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ sessionId: resolvedSessionId }),
+        }).catch(() => {});
+
+        const callLogRes = await fetch(
+          `/api/dialer/call-status?sessionId=${encodeURIComponent(resolvedSessionId)}`,
+          { headers },
+        );
+        if (callLogRes.ok) {
+          const statusData = await callLogRes.json() as { callLogId?: string | null };
+          resolvedCallLogId = statusData.callLogId ?? null;
+        }
+      } else if (incomingFrom) {
+        const sessionRes = await fetch("/api/dialer/v1/sessions", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            lead_id: incomingMeta?.leadId ?? null,
+            phone_dialed: toE164(incomingFrom),
+          }),
+        });
+
+        if (sessionRes.ok) {
+          const sessionData = await sessionRes.json() as {
+            session?: { id?: string | null } | null;
+          };
+          resolvedSessionId = sessionData.session?.id ?? null;
+          if (resolvedSessionId) {
+            await fetch(`/api/dialer/v1/sessions/${resolvedSessionId}`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify({ status: "connected" }),
+            }).catch(() => {});
+          }
+        }
+      }
+
+      if (resolvedSessionId || resolvedCallLogId) {
+        setCallMeta((prev) => prev ? {
+          ...prev,
+          sessionId: resolvedSessionId ?? prev.sessionId,
+          callLogId: resolvedCallLogId ?? prev.callLogId,
+        } : prev);
+      }
+    } catch (error) {
+      console.warn("[VoIP] Inbound session wiring failed:", error);
+    }
+
+    acceptedCall.on("disconnect", () => {
       setActiveCall(null);
       setCallState("ended");
       timerStop();
-      setTimeout(() => {
-        setCallState("idle");
-        setCallMeta(null);
-        timerReset();
-      }, 3000);
+      const sessionId = callMetaRef.current?.sessionId;
+      if (sessionId) {
+        authHeaders().then(async (headers) => {
+          const res = await fetch(`/api/dialer/v1/sessions/${sessionId}`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({ status: "ended" }),
+          });
+          if (!res.ok) {
+            await fetch(`/api/dialer/v1/sessions/${sessionId}`, {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify({ status: "failed" }),
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
     });
 
-    incomingCall.on("error", (err: { message?: string }) => {
+    acceptedCall.on("error", (err: { message?: string }) => {
       console.error("[VoIP] Incoming call error:", err);
       toast.error(`Call error: ${err.message ?? "unknown"}`);
-      setActiveCall(null);
-      setCallState("idle");
-      setCallMeta(null);
-      timerReset();
+      const sessionId = callMetaRef.current?.sessionId;
+      if (sessionId) {
+        authHeaders().then((headers) =>
+          fetch(`/api/dialer/v1/sessions/${sessionId}`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({ status: "failed" }),
+          }),
+        ).catch(() => {});
+      }
+      clearCallState();
     });
-  }, [incomingCall, incomingFrom, timerStart, timerStop, timerReset]);
+
+    acceptedCall.on("cancel", () => {
+      const sessionId = callMetaRef.current?.sessionId;
+      if (sessionId) {
+        authHeaders().then((headers) =>
+          fetch(`/api/dialer/v1/sessions/${sessionId}`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({ status: "failed" }),
+          }),
+        ).catch(() => {});
+      }
+      clearCallState();
+    });
+  }, [clearCallState, incomingCall, incomingFrom, incomingMeta, timerStart, timerStop]);
 
   const rejectIncoming = useCallback(() => {
     if (!incomingCall) return;
     incomingCall.reject();
     setIncomingCall(null);
     setIncomingFrom(null);
+    incomingLookupSeqRef.current += 1;
+    setIncomingMeta(null);
     setCallState("idle");
   }, [incomingCall]);
 
@@ -491,6 +670,7 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
         callMeta,
         incomingCall,
         incomingFrom,
+        incomingMeta,
         isMuted,
         elapsed,
         formatted,
@@ -503,6 +683,7 @@ export function TwilioProvider({ children }: { children: ReactNode }) {
         toggleMute,
         initDevice,
         setSuppressIncoming,
+        clearCallState,
       }}
     >
       {children}

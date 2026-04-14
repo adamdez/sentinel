@@ -5733,6 +5733,15 @@ export function MasterClientFileModal({
 
   }, [extractUpdatedOwnerFlags]);
 
+  const applyOwnerFlagsPatch = useCallback((patch: Record<string, unknown>) => {
+    if (!patch || typeof patch !== "object" || Array.isArray(patch)) return;
+    setOwnerFlagsOverride((prev) => ({
+      ...(((clientFile?.ownerFlags as Record<string, unknown> | undefined) ?? {})),
+      ...(prev ?? {}),
+      ...patch,
+    }));
+  }, [clientFile?.ownerFlags]);
+
 
 
   const applyLeadPatchFromResponse = useCallback((payload: unknown) => {
@@ -7847,7 +7856,7 @@ export function MasterClientFileModal({
 
     const digits = numberToDial.replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
 
-    startCall(digits, clientFile?.id, clientFile?.ownerName);
+    startCall(digits, clientFile?.id, clientFile?.ownerName, clientFile?.address);
 
   }, [displayPhone, startCall, clientFile]);
 
@@ -9760,6 +9769,8 @@ export function MasterClientFileModal({
                           cachedCompSelection={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.bricked_comp_selection as number[] | null}
 
                           cachedRepairsEdited={(clientFile.ownerFlags as Record<string, unknown> | undefined)?.bricked_repairs_edited as BrickedAnalysisPanelProps["cachedRepairsEdited"]}
+
+                          onOwnerFlagsPatched={applyOwnerFlagsPatch}
 
                         />
 

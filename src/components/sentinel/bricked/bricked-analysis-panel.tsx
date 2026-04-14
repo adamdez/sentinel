@@ -42,6 +42,43 @@ export interface BrickedAnalysisPanelProps {
   cachedDealConfig?: DealConfig | null;
   cachedCompSelection?: number[] | null;
   cachedRepairsEdited?: EditableRepair[] | null;
+  onOwnerFlagsPatched?: (patch: Record<string, unknown>) => void;
+}
+
+function buildBrickedOwnerFlagsPatch(data: BrickedAnalysisResponse, fetchedAt: string): Record<string, unknown> {
+  const patch: Record<string, unknown> = {
+    bricked_full_response: data,
+    bricked_fetched_at: fetchedAt,
+  };
+
+  if (data.arv) patch.bricked_arv = data.arv;
+  if (data.arv) patch.comp_arv = data.arv;
+  if (data.cmv) patch.bricked_cmv = data.cmv;
+  if (data.totalRepairCost) patch.bricked_repair_cost = data.totalRepairCost;
+  if (data.shareLink) patch.bricked_share_link = data.shareLink;
+  if (data.dashboardLink) patch.bricked_dashboard_link = data.dashboardLink;
+  if (data.id) patch.bricked_id = data.id;
+  if (data.repairs?.length) patch.bricked_repairs = data.repairs;
+  if (data.comps?.length) patch.comp_count = data.comps.filter((comp) => comp.selected).length;
+  if (data.property?.mortgageDebt?.estimatedEquity) patch.bricked_equity = data.property.mortgageDebt.estimatedEquity;
+  if (data.property?.mortgageDebt?.openMortgageBalance) {
+    patch.bricked_open_mortgage = data.property.mortgageDebt.openMortgageBalance;
+  }
+  if (data.property?.ownership?.owners?.length) {
+    patch.bricked_owner_names = data.property.ownership.owners
+      .map((owner) => [owner.firstName, owner.lastName].filter(Boolean).join(" "))
+      .filter(Boolean)
+      .join("; ");
+  }
+  if (data.property?.ownership?.ownershipLength) {
+    patch.bricked_ownership_years = data.property.ownership.ownershipLength;
+  }
+  if (data.property?.details?.renovationScore?.hasScore) {
+    patch.bricked_renovation_score = data.property.details.renovationScore.score;
+  }
+  if (data.property?.images?.length) patch.bricked_subject_images = data.property.images;
+
+  return patch;
 }
 
 export function BrickedAnalysisPanel({
@@ -57,6 +94,7 @@ export function BrickedAnalysisPanel({
   cachedDealConfig,
   cachedCompSelection,
   cachedRepairsEdited,
+  onOwnerFlagsPatched,
 }: BrickedAnalysisPanelProps) {
   const hasCachedData = cachedBrickedResponse != null;
 
@@ -125,13 +163,15 @@ export function BrickedAnalysisPanel({
           (json as { error?: string }).error ?? `Bricked returned ${res.status}`,
         );
       const data = json as BrickedAnalysisResponse;
+      const fetchedAt = new Date().toISOString();
       setAnalysis(data);
-      setLastFetchedAt(new Date().toISOString());
+      setLastFetchedAt(fetchedAt);
       const initial = new Set<number>();
       (data.comps ?? []).forEach((c, i) => {
         if (c.selected) initial.add(i);
       });
       setSelectedSet(initial);
+      onOwnerFlagsPatched?.(buildBrickedOwnerFlagsPatch(data, fetchedAt));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Analysis failed";
       if (analysis) {
@@ -163,11 +203,12 @@ export function BrickedAnalysisPanel({
           headers,
           body: JSON.stringify({ leadId, ...patch }),
         });
+        onOwnerFlagsPatched?.(patch);
       } catch {
         // non-blocking — cache persists next time
       }
     },
-    [leadId],
+    [leadId, onOwnerFlagsPatched],
   );
 
   const toggleComp = useCallback((idx: number) => {
