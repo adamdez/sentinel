@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyStrategistMove,
   buildLiveCoachResponse,
   computeHighestPriorityGap,
   createEmptyLiveCoachState,
   reduceLiveCoachState,
+  shouldInvokeStrategist,
 } from "@/lib/dialer/live-coach-service";
 import type { LiveCoachNoteInput } from "@/lib/dialer/live-coach-service";
 
@@ -173,5 +175,64 @@ describe("live-coach-service", () => {
     expect(result.state.discoveryMap.desired_relief.status).not.toBe("confirmed");
     expect(result.state.discoveryMap.human_pain.status).toBe("partial");
     expect(result.state.discoveryMap.desired_relief.status).toBe("partial");
+  });
+
+  it("tracks seller turn freshness in the response", () => {
+    const result = reduceLiveCoachState(
+      createEmptyLiveCoachState(NOW),
+      [note(1, "We are trying to get this solved this month.")],
+      "outbound",
+      NOW,
+    );
+
+    expect(result.hasNewSellerTurn).toBe(true);
+    expect(result.state.lastSellerTurnAt).toBe(NOW);
+
+    const response = buildLiveCoachResponse(result.state, "outbound");
+    expect(response.lastSellerTurnAt).toBe(NOW);
+    expect(response.lastProcessedSequence).toBe(1);
+  });
+
+  it("re-strategizes on a fresh seller turn even when the gap stays the same", () => {
+    const firstPass = reduceLiveCoachState(
+      createEmptyLiveCoachState("2026-03-22T20:00:00.000Z"),
+      [note(1, "The roof leak is getting worse.")],
+      "outbound",
+      "2026-03-22T20:00:00.000Z",
+    );
+    const strategized = applyStrategistMove(
+      firstPass.state,
+      {
+        currentStage: null,
+        whyThisGapNow: null,
+        nextBestQuestion: null,
+        backupQuestion: null,
+        suggestedMirror: null,
+        suggestedLabel: null,
+        guardrail: null,
+        nepqQuestions: null,
+        vossLabels: null,
+      },
+      "outbound",
+      "2026-03-22T20:00:00.000Z",
+    );
+
+    const secondPass = reduceLiveCoachState(
+      strategized,
+      [note(2, "Yeah, I hear you.")],
+      "outbound",
+      "2026-03-22T20:00:04.000Z",
+    );
+
+    expect(secondPass.gapChanged).toBe(false);
+    expect(secondPass.hasNewSellerTurn).toBe(true);
+    expect(secondPass.state.lastProcessedSequence).toBe(2);
+    expect(
+      shouldInvokeStrategist(
+        strategized,
+        secondPass,
+        Date.parse("2026-03-22T20:00:04.000Z"),
+      ),
+    ).toBe(true);
   });
 });

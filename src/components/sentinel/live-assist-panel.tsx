@@ -92,6 +92,19 @@ function statusLabel(status: string): string {
   return "Missing";
 }
 
+function relativeFreshness(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return null;
+  const deltaMs = Date.now() - ts;
+  const seconds = Math.max(0, Math.round(deltaMs / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  return `${hours}h ago`;
+}
+
 const GENERIC_GUARDRAILS = new Set([
   "Keep the call calm, specific, and discovery-first.",
   "Keep the call calm, specific, and discovery-first",
@@ -202,9 +215,22 @@ function LiveCoachBody({
   const confirmed = discoveryRows.filter((r) => r.item.status === "confirmed").length;
   const partial = discoveryRows.filter((r) => r.item.status === "partial").length;
   const total = discoveryRows.length;
+  const sellerFreshness = relativeFreshness(coach.lastSellerTurnAt);
+  const strategistFreshness = relativeFreshness(coach.lastStrategizedAt);
 
   return (
     <div className="space-y-2.5">
+      <div className="flex flex-wrap items-center gap-2 px-1 text-[11px] text-muted-foreground/55">
+        <Pill
+          label={sellerFreshness ? `Seller turn ${sellerFreshness}` : "No fresh seller turn"}
+          tone={sellerFreshness ? "accent" : "muted"}
+        />
+        <Pill
+          label={strategistFreshness ? `Strategy ${strategistFreshness}` : "Rules only"}
+          tone={strategistFreshness ? "default" : "muted"}
+        />
+      </div>
+
       {/* ── PRIMARY: Next Best Question ── */}
       <div className="rounded-[10px] border border-primary/20 bg-primary/[0.06] p-3">
         <div className="flex items-center justify-between gap-2 mb-1">

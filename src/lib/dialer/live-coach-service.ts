@@ -49,6 +49,8 @@ export interface ReduceLiveCoachStateResult {
   state: LiveCoachCachedState;
   gapChanged: boolean;
   hasNewSellerEvidence: boolean;
+  hasNewSellerTurn: boolean;
+  hasNewTurns: boolean;
   processedCount: number;
 }
 
@@ -177,7 +179,9 @@ export function createEmptyLiveCoachState(now = new Date().toISOString()): LiveC
     lastUpdatedAt: now,
     lastStrategizedAt: null,
     lastStrategizedGap: null,
+    lastStrategizedSequence: 0,
     lastSellerEvidenceSequence: 0,
+    lastSellerTurnAt: null,
   };
 }
 
@@ -400,8 +404,11 @@ export function parseLiveCoachState(raw: Record<string, unknown> | null | undefi
     lastStrategizedGap: SLOT_KEYS.includes(raw.lastStrategizedGap as DiscoveryMapSlotKey)
       ? (raw.lastStrategizedGap as DiscoveryMapSlotKey)
       : null,
+    lastStrategizedSequence:
+      typeof raw.lastStrategizedSequence === "number" ? raw.lastStrategizedSequence : 0,
     lastSellerEvidenceSequence:
       typeof raw.lastSellerEvidenceSequence === "number" ? raw.lastSellerEvidenceSequence : 0,
+    lastSellerTurnAt: typeof raw.lastSellerTurnAt === "string" ? raw.lastSellerTurnAt : null,
   };
 }
 
@@ -1491,6 +1498,9 @@ export function buildLiveCoachResponse(
     suggestedLabel: bestMove.suggestedLabel,
     nepqQuestions: bestMove.nepqQuestions,
     vossLabels: bestMove.vossLabels,
+    lastProcessedSequence: state.lastProcessedSequence,
+    lastStrategizedAt: state.lastStrategizedAt,
+    lastSellerTurnAt: state.lastSellerTurnAt,
   };
 }
 
@@ -1687,11 +1697,13 @@ export function applyStrategistMove(
     lastUpdatedAt: now,
     lastStrategizedAt: now,
     lastStrategizedGap: bestMove.highestPriorityGap,
+    lastStrategizedSequence: state.lastProcessedSequence,
   };
 }
 
 /** Minimum cooldown between strategist calls even when new evidence arrives */
-const STRATEGIST_MIN_COOLDOWN_MS = 4_000;
+const STRATEGIST_MIN_COOLDOWN_MS = 2_500;
+const STRATEGIST_NEW_TURN_COOLDOWN_MS = 3_500;
 
 export function shouldInvokeStrategist(
   state: LiveCoachCachedState,
@@ -1702,13 +1714,25 @@ export function shouldInvokeStrategist(
   if (!state.lastStrategizedAt) return true;
 
   const elapsed = now - Date.parse(state.lastStrategizedAt);
+  const hasUnstrategizedTurns =
+    reduction.state.lastProcessedSequence > state.lastStrategizedSequence;
 
   // Gap changed or new seller evidence — allow but enforce minimum cooldown
   if (reduction.gapChanged || reduction.hasNewSellerEvidence) {
     return elapsed >= STRATEGIST_MIN_COOLDOWN_MS;
   }
 
-  // Otherwise use the stale threshold (25s)
+  // Fresh seller turns should refresh the strategy before the stale timeout.
+  if (reduction.hasNewSellerTurn && hasUnstrategizedTurns) {
+    return elapsed >= STRATEGIST_NEW_TURN_COOLDOWN_MS;
+  }
+
+  // Generic new turns can still refresh eventually if the strategist is behind.
+  if (reduction.hasNewTurns && hasUnstrategizedTurns) {
+    return elapsed >= STRATEGIST_STALE_MS / 2;
+  }
+
+  // Otherwise use the stale threshold.
   return elapsed >= STRATEGIST_STALE_MS;
 }
 
@@ -1728,6 +1752,7 @@ export function reduceLiveCoachState(
   };
   let processedCount = 0;
   let hasNewSellerEvidence = false;
+  let hasNewSellerTurn = false;
   const previousGap = computeHighestPriorityGap(state.discoveryMap);
 
   const ordered = [...notes].sort((a, b) => a.sequenceNum - b.sequenceNum);
@@ -1738,6 +1763,10 @@ export function reduceLiveCoachState(
     state.lastUpdatedAt = note.createdAt ?? now;
     state.recentTurns = upsertRecentTurn(state.recentTurns, note);
     state.speakerReliability = updateSpeakerReliability(state.speakerReliability, note);
+    if (normalizeSpeaker(note.speaker) === "seller") {
+      hasNewSellerTurn = true;
+      state.lastSellerTurnAt = note.createdAt ?? now;
+    }
 
     const detections = detectSignals(note);
     for (const detection of detections) {
@@ -1768,6 +1797,8 @@ export function reduceLiveCoachState(
     state,
     gapChanged: computeHighestPriorityGap(state.discoveryMap) !== previousGap,
     hasNewSellerEvidence,
+    hasNewSellerTurn,
+    hasNewTurns: processedCount > 0,
     processedCount,
   };
 }

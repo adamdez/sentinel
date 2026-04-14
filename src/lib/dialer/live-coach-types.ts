@@ -127,7 +127,9 @@ export interface LiveCoachCachedState {
   lastUpdatedAt: string;
   lastStrategizedAt: string | null;
   lastStrategizedGap: DiscoveryMapSlotKey | null;
+  lastStrategizedSequence: number;
   lastSellerEvidenceSequence: number;
+  lastSellerTurnAt: string | null;
 }
 
 export interface LiveCoachResponseV2 {
@@ -155,4 +157,7 @@ export interface LiveCoachResponseV2 {
   suggestedLabel: string | null;
   nepqQuestions: [string, string, string];
   vossLabels: [string, string, string];
+  lastProcessedSequence: number;
+  lastStrategizedAt: string | null;
+  lastSellerTurnAt: string | null;
 }
