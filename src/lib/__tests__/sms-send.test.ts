@@ -88,64 +88,36 @@ describe("sendAndLogSMS", () => {
   });
 
   it("falls back to direct From routing when no messaging service is configured", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({ sid: "SM123", status: "queued" }),
-    }));
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     const { sendAndLogSMS } = await import("@/lib/sms/send");
 
-    await sendAndLogSMS({
+    const result = await sendAndLogSMS({
       to: "+15092795818",
       body: "Checking in.",
       context: "operator_forced",
     });
 
-    const fetchMock = vi.mocked(fetch);
-    const [, request] = fetchMock.mock.calls.at(-1)!;
-    const params = new URLSearchParams(String(request?.body));
-    expect(params.get("From")).toBe("+15099921136");
-    expect(params.get("MessagingServiceSid")).toBeNull();
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("TWILIO_SMS_MESSAGING_SERVICE_SID");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("discovers the messaging service that owns the operator number when only the notify service is configured", async () => {
+  it("does not fall back to the notify messaging service when seller SMS service is missing", async () => {
     process.env.TWILIO_NOTIFY_MESSAGING_SERVICE_SID = "MGnotify";
-    vi.stubGlobal("fetch", vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          phone_numbers: [{ phone_number: "+15098225460" }],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          services: [{ sid: "MGnotify" }, { sid: "MGoperator" }],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          phone_numbers: [{ phone_number: "+15099921136" }],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ sid: "SM123", status: "queued" }),
-      }));
-
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
     const { sendAndLogSMS } = await import("@/lib/sms/send");
 
-    await sendAndLogSMS({
+    const result = await sendAndLogSMS({
       to: "+15092795818",
       body: "Checking in.",
       context: "operator_forced",
     });
 
-    const fetchMock = vi.mocked(fetch);
-    const [, request] = fetchMock.mock.calls[3];
-    const params = new URLSearchParams(String(request?.body));
-    expect(params.get("From")).toBe("+15099921136");
-    expect(params.get("MessagingServiceSid")).toBe("MGoperator");
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("TWILIO_SMS_MESSAGING_SERVICE_SID");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("blocks seller-facing outbound SMS during quiet hours", async () => {

@@ -51,7 +51,6 @@ export interface SendSMSResult {
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const MAX_BODY_LENGTH = 1_600;
-const messagingServiceSidCache = new Map<string, string | null>();
 const SMS_QUIET_HOURS_START = 20;
 const SMS_QUIET_HOURS_END = 8;
 
@@ -81,84 +80,6 @@ export function isSellerFacingSmsQuietHours(now = new Date()): boolean {
 function resolveMessagingServiceSid(): string | null {
   const value = process.env.TWILIO_SMS_MESSAGING_SERVICE_SID?.trim();
   return value || null;
-}
-
-function resolveNotifyMessagingServiceSid(): string | null {
-  const value = process.env.TWILIO_NOTIFY_MESSAGING_SERVICE_SID?.trim();
-  return value || null;
-}
-
-async function serviceContainsFromNumber(
-  serviceSid: string,
-  fromNumber: string,
-  authHeader: string,
-): Promise<boolean> {
-  const res = await fetch(
-    `https://messaging.twilio.com/v1/Services/${serviceSid}/PhoneNumbers?PageSize=100`,
-    {
-      headers: { Authorization: authHeader },
-    },
-  );
-
-  if (!res.ok) {
-    throw new Error(`Messaging Service lookup failed (${serviceSid}): ${res.status}`);
-  }
-
-  const data = await res.json() as { phone_numbers?: Array<{ phone_number?: string | null }> };
-  return (data.phone_numbers ?? []).some((entry) => entry.phone_number === fromNumber);
-}
-
-async function discoverMessagingServiceSid(
-  fromNumber: string,
-  authHeader: string,
-): Promise<string | null> {
-  if (messagingServiceSidCache.has(fromNumber)) {
-    return messagingServiceSidCache.get(fromNumber) ?? null;
-  }
-
-  const explicitSmsServiceSid = resolveMessagingServiceSid();
-  if (explicitSmsServiceSid) {
-    messagingServiceSidCache.set(fromNumber, explicitSmsServiceSid);
-    return explicitSmsServiceSid;
-  }
-
-  const preferredSid = resolveNotifyMessagingServiceSid();
-  const checked = new Set<string>();
-
-  try {
-    if (preferredSid) {
-      checked.add(preferredSid);
-      if (await serviceContainsFromNumber(preferredSid, fromNumber, authHeader)) {
-        messagingServiceSidCache.set(fromNumber, preferredSid);
-        return preferredSid;
-      }
-    }
-
-    const res = await fetch("https://messaging.twilio.com/v1/Services?PageSize=50", {
-      headers: { Authorization: authHeader },
-    });
-    if (!res.ok) {
-      throw new Error(`Messaging Service list failed: ${res.status}`);
-    }
-
-    const data = await res.json() as { services?: Array<{ sid?: string | null }> };
-    for (const service of data.services ?? []) {
-      const sid = service.sid?.trim();
-      if (!sid || checked.has(sid)) continue;
-      checked.add(sid);
-      if (await serviceContainsFromNumber(sid, fromNumber, authHeader)) {
-        messagingServiceSidCache.set(fromNumber, sid);
-        return sid;
-      }
-    }
-  } catch (err) {
-    console.error("[sms/send] Messaging Service discovery failed:", err);
-    messagingServiceSidCache.set(fromNumber, preferredSid ?? null);
-    return preferredSid ?? null;
-  }
-
-  messagingServiceSidCache.set(fromNumber, preferredSid ?? null);
-  return preferredSid ?? null;
 }
 
 // ── FROM number routing ───────────────────────────────────────────────
@@ -300,21 +221,25 @@ export async function sendAndLogSMS(params: SendSMSParams): Promise<SendSMSResul
     return { success: false, error: "No Twilio phone number configured" };
   }
 
+  const messagingServiceSid = resolveMessagingServiceSid();
+  if (!messagingServiceSid) {
+    return {
+      success: false,
+      error: "TWILIO_SMS_MESSAGING_SERVICE_SID is not configured. Seller SMS is pinned to an explicit Twilio Messaging Service and will not auto-discover.",
+    };
+  }
+
   // ── Send via Twilio ─────────────────────────────────────────────────
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sentinel.dominionhomedeals.com";
   const statusCallbackUrl = `${siteUrl}/api/twilio/sms/status`;
-  const messagingServiceSid = await discoverMessagingServiceSid(fromNumber, creds.authHeader);
 
   const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${creds.sid}/Messages.json`;
   const twilioParams = new URLSearchParams({
     To: e164,
     Body: truncatedBody,
     StatusCallback: statusCallbackUrl,
+    MessagingServiceSid: messagingServiceSid,
   });
-
-  if (messagingServiceSid) {
-    twilioParams.set("MessagingServiceSid", messagingServiceSid);
-  }
   twilioParams.set("From", fromNumber);
 
   let twilioData: Record<string, unknown>;
