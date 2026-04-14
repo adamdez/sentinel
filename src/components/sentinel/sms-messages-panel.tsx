@@ -47,6 +47,7 @@ interface LeadInfo {
   score: number | null;
   tags: string[];
   status: string;
+  propertyAddress?: string | null;
 }
 
 interface SuggestedLeadInfo extends LeadInfo {
@@ -166,6 +167,12 @@ function ThreadRow({
 
 // ── Thread Detail ─────────────────────────────────────────────────────
 
+type DialerCallTarget = {
+  phone: string;
+  leadId?: string | null;
+  leadName?: string | null;
+};
+
 function ThreadDetail({
   phone,
   onBack,
@@ -174,7 +181,7 @@ function ThreadDetail({
 }: {
   phone: string;
   onBack: () => void;
-  onCallNow: (phone: string) => void;
+  onCallNow: (target: DialerCallTarget) => void;
   onOpenLead: (leadId: string) => void;
 }) {
   const [messages, setMessages] = useState<SmsMessage[]>([]);
@@ -587,7 +594,11 @@ function ThreadDetail({
         {/* Quick actions */}
         <div className="flex items-center gap-2 mt-2">
           <button
-            onClick={() => onCallNow(phone)}
+            onClick={() => onCallNow({
+              phone,
+              leadId: leadInfo?.id ?? suggestedLead?.id ?? null,
+              leadName: leadInfo?.name ?? suggestedLead?.name ?? null,
+            })}
             className="text-xs px-2.5 py-1 rounded-[8px] border border-overlay-8 text-muted-foreground/60 hover:text-foreground hover:border-overlay-20 transition-colors flex items-center gap-1"
           >
             <Phone className="h-3 w-3" />
@@ -717,7 +728,7 @@ function ComposeNew({
 // ── Main Panel ────────────────────────────────────────────────────────
 
 interface SmsMessagesPanelProps {
-  onCallNumber: (phone: string) => void;
+  onCallNumber: (target: DialerCallTarget) => void;
   query?: string;
 }
 

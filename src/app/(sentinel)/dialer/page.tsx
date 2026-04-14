@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Call } from "@twilio/voice-sdk";
 import {
@@ -98,6 +98,7 @@ import {
 } from "@/lib/dialer/dialer-ui-state";
 import { matchesCommunicationSearch } from "@/lib/dialer/communication-search";
 import { formatDialerEquityDisplay } from "@/lib/dialer/equity";
+import { pushToDialer } from "@/components/sentinel/dialer-navigation";
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -1332,11 +1333,15 @@ function DialerPageInner() {
   // Seed structured note scaffold once when call first becomes connected (session-backed only).
   // Only fires when callNotes is empty — never overwrites operator input.
   // Quick Manual Dial state
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [manualPhone, setManualPhone] = useState(() => {
-    const p = searchParams.get("phone") ?? "";
-    return p.replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
-  });
+  const requestedPhone = (searchParams.get("phone") ?? "").replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
+  const requestedLeadId = searchParams.get("lead_id")?.trim() || null;
+  const requestedSource = searchParams.get("source")?.trim() || null;
+  const requestedAutoDial = searchParams.get("autodial") === "1";
+  const requestedOpenClientFile = searchParams.get("open_client_file") === "1";
+  const requestedActionId = searchParams.get("request_id")?.trim() || null;
+  const [manualPhone, setManualPhone] = useState(() => requestedPhone);
   const [manualDialExpanded, setManualDialExpanded] = useState(false);
   const [manualDialing, setManualDialing] = useState(false);
   const [manualCallLogId, setManualCallLogId] = useState<string | null>(null);
@@ -1374,6 +1379,23 @@ function DialerPageInner() {
     unlinkedSessions: Array<{ id: string; startedAt: string; summary: string | null }>;
   } | null>(null);
   const phoneMatchFired = useRef<string | null>(null);
+  const hydratedDialerRequestRef = useRef<string | null>(null);
+  const autoDialConsumedRef = useRef<string | null>(null);
+  const autoDialConsumptionKey = requestedAutoDial
+    ? `dialer-autodial:${requestedActionId ?? [requestedLeadId ?? "", requestedPhone, requestedSource ?? ""].join("|")}`
+    : null;
+
+  const markAutoDialConsumed = useCallback(() => {
+    if (!autoDialConsumptionKey || typeof window === "undefined") return;
+    window.sessionStorage.setItem(autoDialConsumptionKey, "1");
+    autoDialConsumedRef.current = autoDialConsumptionKey;
+  }, [autoDialConsumptionKey]);
+
+  useEffect(() => {
+    if (callState !== "idle" || manualStatus === "connected" || manualStatus === "dialing") return;
+    if (manualPhone === requestedPhone) return;
+    setManualPhone(requestedPhone);
+  }, [callState, manualPhone, manualStatus, requestedPhone]);
 
   useEffect(() => {
     if (manualStatus !== "connected" || !manualPhone || currentLead) return;
@@ -2132,11 +2154,16 @@ function DialerPageInner() {
     );
   }, [callState, handleQuickPhoneDisposition, phoneActionPhoneId]);
 
-  const openLeadClientFile = useCallback(async (leadId: string) => {
+  const loadLeadIntoDialer = useCallback(async (
+    leadId: string,
+    options?: { openFile?: boolean },
+  ) => {
     const queuedLead = displayedQueue.find((lead) => lead.id === leadId);
     if (queuedLead) {
       if (!trySelectQueueLead(queuedLead)) return;
-      setFileModalOpen(true);
+      if (options?.openFile) {
+        setFileModalOpen(true);
+      }
       return;
     }
 
@@ -2164,11 +2191,39 @@ function DialerPageInner() {
         compliant: true,
         scrubbing: false,
       } as QueueLead);
-      setFileModalOpen(true);
+      if (options?.openFile) {
+        setFileModalOpen(true);
+      }
     } catch {
       toast.error("Could not open that lead right now.");
     }
   }, [blockLeadSelectionWhileActiveCall, displayedQueue, isLeadSelectionLocked, selectQueueLead, trySelectQueueLead]);
+
+  const openLeadClientFile = useCallback(async (leadId: string) => {
+    await loadLeadIntoDialer(leadId, { openFile: true });
+  }, [loadLeadIntoDialer]);
+
+  useEffect(() => {
+    const hydrateKey = [
+      requestedActionId ?? "",
+      requestedLeadId ?? "",
+      requestedPhone,
+      requestedOpenClientFile ? "1" : "0",
+      requestedSource ?? "",
+    ].join("|");
+    if (!hydrateKey.replace(/\|/g, "")) return;
+    if (hydratedDialerRequestRef.current === hydrateKey) return;
+    hydratedDialerRequestRef.current = hydrateKey;
+
+    if (requestedPhone) {
+      setManualPhone(requestedPhone);
+    }
+    if (requestedLeadId) {
+      void loadLeadIntoDialer(requestedLeadId, { openFile: requestedOpenClientFile });
+    } else if (requestedOpenClientFile) {
+      setFileModalOpen(false);
+    }
+  }, [loadLeadIntoDialer, requestedActionId, requestedLeadId, requestedOpenClientFile, requestedPhone, requestedSource]);
 
   const runLeadSkipTrace = useCallback(async (lead: QueueLead, manual = false) => {
     if (!lead.properties?.id || leadSkipTracingId) return;
@@ -3181,6 +3236,52 @@ function DialerPageInner() {
       setManualDialing(false);
     }
   }, [manualPhone, currentUser.id, ghostMode, deviceStatus, voipCallerId]);
+
+  useEffect(() => {
+    if (!requestedAutoDial) return;
+    if (callState !== "idle" || manualStatus !== "idle") return;
+
+    if (
+      autoDialConsumptionKey
+      && autoDialConsumedRef.current !== autoDialConsumptionKey
+      && typeof window !== "undefined"
+      && window.sessionStorage.getItem(autoDialConsumptionKey) === "1"
+    ) {
+      autoDialConsumedRef.current = autoDialConsumptionKey;
+      return;
+    }
+
+    if (autoDialConsumptionKey && autoDialConsumedRef.current === autoDialConsumptionKey) {
+      return;
+    }
+
+    if (requestedLeadId) {
+      if (!currentLead || currentLead.id !== requestedLeadId) return;
+      markAutoDialConsumed();
+      void handleDial();
+      return;
+    }
+
+    if (requestedPhone.length !== 10) {
+      markAutoDialConsumed();
+      toast.error("Enter a valid 10-digit phone number");
+      return;
+    }
+
+    markAutoDialConsumed();
+    void handleManualDial();
+  }, [
+    autoDialConsumptionKey,
+    callState,
+    currentLead,
+    handleDial,
+    handleManualDial,
+    manualStatus,
+    markAutoDialConsumed,
+    requestedAutoDial,
+    requestedLeadId,
+    requestedPhone,
+  ]);
 
   const handleManualHangup = useCallback(() => {
     if (activeCall) {
@@ -5608,13 +5709,14 @@ function DialerPageInner() {
 
                   {/* SMS tab — component renders its own GlassCard */}
                   {idleRailTab === "sms" && (
-                    <SmsMessagesPanel onCallNumber={(phone) => {
-                      const digits = phone.replace(/\D/g, "").slice(-10);
-                      if (digits.length === 10 && deviceStatus === "ready") {
-                        timer.start();
-                        const formatted = `+1${digits}`;
-                        deviceRef.current?.connect({ params: { To: formatted, From: voipCallerId || "" } });
-                      }
+                    <SmsMessagesPanel onCallNumber={({ phone, leadId }) => {
+                      pushToDialer(router, {
+                        phone,
+                        leadId: leadId ?? null,
+                        openClientFile: true,
+                        autodial: true,
+                        source: "sms-thread-call-now",
+                      });
                     }} query={idleRailQuery} />
                   )}
 

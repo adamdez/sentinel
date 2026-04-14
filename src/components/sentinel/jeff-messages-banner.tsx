@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Phone, UserPlus, X, ChevronDown, ChevronRight,
@@ -9,6 +10,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { GlassCard } from "@/components/sentinel/glass-card";
+import { pushToDialer } from "@/components/sentinel/dialer-navigation";
 
 // ── Types ─────────────────────────────────────────────────────────────
 
@@ -71,6 +73,7 @@ export function JeffMessagesBanner({
   onCallBack?: (phone: string, summary: string | null) => void;
   onLinked?: () => void;
 }) {
+  const router = useRouter();
   const [messages, setMessages] = useState<JeffMessage[]>([]);
   const [open, setOpen] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -140,6 +143,17 @@ export function JeffMessagesBanner({
   const newMessages = messages.filter((m) => !m.acknowledged);
   const recentMessages = messages.filter((m) => m.acknowledged);
   const hasNew = newMessages.length > 0;
+  const handleCallBack = useCallback((phone: string, summary: string | null) => {
+    if (onCallBack) {
+      onCallBack(phone, summary);
+      return;
+    }
+    pushToDialer(router, {
+      phone,
+      autodial: true,
+      source: "jeff-message-call-back",
+    });
+  }, [onCallBack, router]);
 
   return (
     <GlassCard hover={false} className={`!p-3 mb-3 ${hasNew ? "border-red-500/20 bg-red-500/[0.03]" : "border-overlay-6 bg-overlay-2/30"}`}>
@@ -187,7 +201,7 @@ export function JeffMessagesBanner({
                   onToggle={() => setExpandedId((prev) => prev === msg.id ? null : msg.id)}
                   onCallBack={(phone, summary) => {
                     handleAcknowledge(msg.id, "called_back");
-                    onCallBack?.(phone, summary);
+                    handleCallBack(phone, summary);
                   }}
                   onConvert={(leadId) => handleAcknowledge(msg.id, "converted_to_lead", leadId)}
                   onDismiss={() => handleAcknowledge(msg.id, "dismissed")}
@@ -212,7 +226,7 @@ export function JeffMessagesBanner({
                   expanded={expandedId === msg.id}
                   onToggle={() => setExpandedId((prev) => prev === msg.id ? null : msg.id)}
                   onCallBack={(phone, summary) => {
-                    onCallBack?.(phone, summary);
+                    handleCallBack(phone, summary);
                   }}
                   onConvert={() => {}}
                   onDismiss={() => {}}

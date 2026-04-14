@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 import { cn, formatCurrency } from "@/lib/utils";
+import { pushToDialer } from "@/components/sentinel/dialer-navigation";
 
 import type { ProspectRow } from "@/hooks/use-prospects";
 
@@ -4718,7 +4719,7 @@ export function MasterClientFileModal({
   const router = useRouter();
   const { openModal } = useModal();
 
-  const { startCall, callState: twilioCallState } = useTwilio();
+  const { callState: twilioCallState } = useTwilio();
 
   const { sidebarOpen, sidebarWidth } = useSentinelStore();
 
@@ -6034,7 +6035,12 @@ export function MasterClientFileModal({
 
       onRefresh?.();
 
-      window.location.href = "/dialer";
+      pushToDialer(router, {
+        leadId: clientFile.id,
+        phone: clientFile.ownerPhone ?? null,
+        openClientFile: true,
+        source: "client-file-add-to-queue",
+      });
 
     } catch (err) {
 
@@ -6048,7 +6054,7 @@ export function MasterClientFileModal({
 
     }
 
-  }, [clientFile, onRefresh]);
+  }, [clientFile, onRefresh, router]);
 
 
 
@@ -7854,11 +7860,15 @@ export function MasterClientFileModal({
 
     if (!numberToDial) return;
 
-    const digits = numberToDial.replace(/\D/g, "").replace(/^1/, "").slice(0, 10);
+    pushToDialer(router, {
+      phone: numberToDial,
+      leadId: clientFile?.id ?? null,
+      openClientFile: true,
+      autodial: true,
+      source: "client-file-call-now",
+    });
 
-    startCall(digits, clientFile?.id, clientFile?.ownerName, clientFile?.address);
-
-  }, [displayPhone, startCall, clientFile]);
+  }, [clientFile?.id, displayPhone, router]);
 
 
 

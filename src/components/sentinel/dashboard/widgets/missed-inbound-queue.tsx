@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -24,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { MissedInbound, UnclassifiedAnswered } from "@/app/api/dialer/v1/queue/route";
 import { matchesCommunicationSearch } from "@/lib/dialer/communication-search";
+import { buildDialerHref, pushToDialer } from "@/components/sentinel/dialer-navigation";
 
 const inboundDateFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "America/Los_Angeles",
@@ -140,6 +142,7 @@ interface MissedInboundRowProps {
 }
 
 function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
+  const router = useRouter();
   const [mode, setMode] = useState<"idle" | "dismiss">("idle");
   const [dismissReason, setDismissReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -159,7 +162,7 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
       return `/intake?open=${item.open_target_id}`;
     }
     if (item.open_target_type === "phone_lookup" && item.from_number !== "unknown") {
-      return `/dialer?phone=${encodeURIComponent(item.from_number)}`;
+      return buildDialerHref({ phone: item.from_number, source: "missed-inbound-open-context" });
     }
     return null;
   }, [item]);
@@ -310,14 +313,20 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
       )}
 
       <div className="flex items-center gap-1.5 flex-wrap">
-        <Link
-          href={`/dialer?phone=${encodeURIComponent(item.from_number)}${item.lead_id ? `&lead_id=${item.lead_id}` : ""}`}
+        <Button
+          size="sm"
+          className="h-7 text-xs px-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30"
+          onClick={() => pushToDialer(router, {
+            phone: item.from_number,
+            leadId: item.lead_id ?? null,
+            openClientFile: true,
+            autodial: true,
+            source: "missed-inbound-call-back",
+          })}
         >
-          <Button size="sm" className="h-7 text-xs px-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30">
-            <Phone className="h-3 w-3 mr-1" />
-            Call Back Now
-          </Button>
-        </Link>
+          <Phone className="h-3 w-3 mr-1" />
+          Call Back Now
+        </Button>
 
         {openHref && openLabel && (
           <Link href={openHref}>

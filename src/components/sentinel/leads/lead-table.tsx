@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { formatOwnerName } from "@/lib/format-name";
 import {
   ArrowUpDown,
@@ -31,6 +32,7 @@ import { deriveSkipGenieMarker } from "@/lib/skip-genie";
 import type { UrgencyLevel } from "@/lib/action-derivation";
 import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-workflow-summary";
 import { SkipGenieBadge } from "@/components/sentinel/skip-genie-badge";
+import { pushToDialer } from "@/components/sentinel/dialer-navigation";
 import type { SortField, SortDir } from "@/hooks/use-leads";
 import { cn } from "@/lib/utils";
 import { LogCallModal } from "./log-call-modal";
@@ -127,6 +129,7 @@ export function LeadTable({
   onRefresh,
   currentUserId,
 }: LeadTableProps) {
+  const router = useRouter();
   const [logCallLead, setLogCallLead] = useState<LeadRow | null>(null);
   const [queuingId, setQueuingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -982,13 +985,22 @@ export function LeadTable({
               {lead.ownerPhone && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <a
-                      href={`tel:${lead.ownerPhone}`}
+                    <button
+                      type="button"
                       className="h-6 w-6 flex items-center justify-center rounded-md text-foreground hover:bg-muted/10 transition-colors"
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        pushToDialer(router, {
+                          phone: lead.ownerPhone,
+                          leadId: lead.id,
+                          openClientFile: true,
+                          autodial: true,
+                          source: "lead-table-call-now",
+                        });
+                      }}
                     >
                       <Phone className="h-3.5 w-3.5" />
-                    </a>
+                    </button>
                   </TooltipTrigger>
                   <TooltipContent className="text-sm">{formatPhone(lead.ownerPhone)}</TooltipContent>
                 </Tooltip>
