@@ -15,6 +15,7 @@ import {
   FileText,
 } from "lucide-react";
 import { toast } from "sonner";
+import { resolveCourtSourceUrl } from "@/lib/court-links";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
 import type { UnifiedResearchStatusResponse } from "@/lib/research-run-types";
 
@@ -438,9 +439,21 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
                         )}
                         <DetailRow label="Status" value={doc.status} />
                         <DetailRow label="Source" value={sourceLabel(doc.source)} />
-                        {doc.source_url && (
+                        {resolveCourtSourceUrl({
+                          source: doc.source,
+                          sourceUrl: doc.source_url,
+                          courtName: doc.court_name,
+                          caseNumber: doc.case_number,
+                          instrumentNumber: doc.instrument_number,
+                        }) && (
                           <a
-                            href={doc.source_url}
+                            href={resolveCourtSourceUrl({
+                              source: doc.source,
+                              sourceUrl: doc.source_url,
+                              courtName: doc.court_name,
+                              caseNumber: doc.case_number,
+                              instrumentNumber: doc.instrument_number,
+                            })!}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 text-sm text-primary-300/70 hover:text-primary-300 mt-2"
@@ -524,9 +537,21 @@ export function LegalBriefPanel({ leadId }: LegalBriefPanelProps) {
                       </p>
                     )}
 
-                    {c.source_url && (
+                    {resolveCourtSourceUrl({
+                      source: c.source,
+                      sourceUrl: c.source_url,
+                      courtName: c.court_name,
+                      caseNumber: c.case_number,
+                      instrumentNumber: c.instrument_number,
+                    }) && (
                       <a
-                        href={c.source_url}
+                        href={resolveCourtSourceUrl({
+                          source: c.source,
+                          sourceUrl: c.source_url,
+                          courtName: c.court_name,
+                          caseNumber: c.case_number,
+                          instrumentNumber: c.instrument_number,
+                        })!}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-[10px] text-primary-300/60 hover:text-primary-300"

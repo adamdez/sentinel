@@ -19,6 +19,7 @@ import { useMemo } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { resolveCourtSourceLink, resolveCourtSourceUrl } from "@/lib/court-links";
 import { buildResearchGapSourceKey } from "@/lib/deep-dive";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
 import type {
@@ -399,7 +400,11 @@ function resolveFactLink(
       || (artifact.extracted_notes?.toLowerCase().includes(textNeedle.slice(0, Math.min(textNeedle.length, 28))) ?? false)
     ));
   if (artifactMatch?.source_url) {
-    return { label: artifactMatch.source_label ?? "Evidence", url: artifactMatch.source_url };
+    return resolveCourtSourceLink({
+      sourceUrl: artifactMatch.source_url,
+      sourceLabel: artifactMatch.source_label,
+      caseNumber: parseArtifactCaseNumber(artifactMatch.extracted_notes, artifactMatch.raw_excerpt, artifactMatch.source_label),
+    }, artifactMatch.source_label ?? "Evidence");
   }
 
   const documentMatch = documents.find((document) =>
@@ -411,7 +416,13 @@ function resolveFactLink(
         .includes(textNeedle.slice(0, Math.min(textNeedle.length, 28)))
     ));
   if (documentMatch?.source_url) {
-    return { label: sourceTitle(documentMatch.source), url: documentMatch.source_url };
+    return resolveCourtSourceLink({
+      source: documentMatch.source,
+      sourceUrl: documentMatch.source_url,
+      courtName: documentMatch.court_name,
+      caseNumber: documentMatch.case_number,
+      instrumentNumber: documentMatch.instrument_number,
+    }, sourceTitle(documentMatch.source));
   }
 
   const sourceLinkMatch = sourceLinks.find((link) =>
@@ -441,7 +452,14 @@ function resolveCandidateLinks(
     if (!artifact.source_url) continue;
     const haystack = `${artifact.source_label ?? ""} ${artifact.extracted_notes ?? ""} ${artifact.raw_excerpt ?? ""}`.toLowerCase();
     if (haystack.includes(nameNeedle)) {
-      links.set(artifact.source_url, { label: artifact.source_label ?? "Evidence", url: artifact.source_url });
+      const resolvedLink = resolveCourtSourceLink({
+        sourceUrl: artifact.source_url,
+        sourceLabel: artifact.source_label,
+        caseNumber: parseArtifactCaseNumber(artifact.extracted_notes, artifact.raw_excerpt, artifact.source_label),
+      }, artifact.source_label ?? "Evidence");
+      if (resolvedLink) {
+        links.set(resolvedLink.url, resolvedLink);
+      }
     }
   }
 
@@ -449,7 +467,16 @@ function resolveCandidateLinks(
     if (!document.source_url) continue;
     const haystack = `${document.grantor ?? ""} ${document.grantee ?? ""} ${document.attorney_name ?? ""} ${document.event_description ?? ""}`.toLowerCase();
     if (haystack.includes(nameNeedle)) {
-      links.set(document.source_url, { label: sourceTitle(document.source), url: document.source_url });
+      const resolvedLink = resolveCourtSourceLink({
+        source: document.source,
+        sourceUrl: document.source_url,
+        courtName: document.court_name,
+        caseNumber: document.case_number,
+        instrumentNumber: document.instrument_number,
+      }, sourceTitle(document.source));
+      if (resolvedLink) {
+        links.set(resolvedLink.url, resolvedLink);
+      }
     }
   }
 
@@ -649,12 +676,13 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
         ]),
         title: `${docTypeLabel(document.document_type)}${document.instrument_number ? ` #${document.instrument_number}` : ""}`,
         subtitle: [sourceTitle(document.source), documentDateLabel, document.case_number].filter(Boolean).join(" - "),
-        link: isHelpfulSourceUrl(document.source_url, {
+        link: resolveCourtSourceLink({
+          source: document.source,
+          sourceUrl: document.source_url,
+          courtName: document.court_name,
           caseNumber: document.case_number,
           instrumentNumber: document.instrument_number,
-        })
-          ? { label: "Open Source", url: document.source_url! }
-          : null,
+        }),
         notes: document.event_description ?? ([document.grantor, document.grantee].filter(Boolean).join(" -> ") || null),
         rawExcerpt: document.raw_excerpt ?? null,
         amount: document.amount ?? null,
@@ -678,11 +706,11 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
           artifact.source_type?.replace(/_/g, " "),
           artifactDate ? formatDate(artifactDate) : "",
         ].filter(Boolean).join(" - "),
-        link: isHelpfulSourceUrl(artifact.source_url, {
+        link: resolveCourtSourceLink({
+          sourceUrl: artifact.source_url,
+          sourceLabel: artifact.source_label,
           caseNumber: parseArtifactCaseNumber(artifact.extracted_notes, artifact.raw_excerpt, artifact.source_label),
-        })
-          ? { label: "Open Source", url: artifact.source_url! }
-          : null,
+        }),
         notes: artifact.extracted_notes ?? null,
         rawExcerpt: artifact.raw_excerpt ?? null,
         amount: parseArtifactAmount(artifact.extracted_notes, artifact.raw_excerpt),
@@ -728,7 +756,13 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
         key: `doc-${document.id}`,
         title: `${docTypeLabel(document.document_type)}${document.instrument_number ? ` #${document.instrument_number}` : ""}`,
         subtitle: [sourceTitle(document.source), formatDate(document.recording_date), document.case_number].filter(Boolean).join(" - "),
-        link: document.source_url ? { label: "Open Source", url: document.source_url } : null,
+        link: resolveCourtSourceLink({
+          source: document.source,
+          sourceUrl: document.source_url,
+          courtName: document.court_name,
+          caseNumber: document.case_number,
+          instrumentNumber: document.instrument_number,
+        }),
         notes: document.event_description ?? ([document.grantor, document.grantee].filter(Boolean).join(" -> ") || null),
         rawExcerpt: document.raw_excerpt ?? null,
         trust: trustTone("court_record"),
@@ -740,7 +774,11 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
         key: `artifact-${artifact.id}`,
         title: artifact.source_label ?? artifact.source_type ?? "Evidence",
         subtitle: [artifact.source_type?.replace(/_/g, " "), formatDate(artifact.created_at)].filter(Boolean).join(" - "),
-        link: artifact.source_url ? { label: "Open Source", url: artifact.source_url } : null,
+        link: resolveCourtSourceLink({
+          sourceUrl: artifact.source_url,
+          sourceLabel: artifact.source_label,
+          caseNumber: parseArtifactCaseNumber(artifact.extracted_notes, artifact.raw_excerpt, artifact.source_label),
+        }),
         notes: artifact.extracted_notes ?? null,
         rawExcerpt: artifact.raw_excerpt ?? null,
         trust: trustTone(artifact.source_type),
@@ -752,7 +790,13 @@ export function DeepSearchPanel({ leadId, recommendProbatePack = false }: DeepSe
         key: `link-${link.url}`,
         title: link.label,
         subtitle: "Source Link",
-        link,
+        link: {
+          label: link.label,
+          url: resolveCourtSourceUrl({
+            sourceUrl: link.url,
+            sourceLabel: link.label,
+          }) ?? link.url,
+        },
         notes: null,
         rawExcerpt: null,
         trust: trustTone(null),

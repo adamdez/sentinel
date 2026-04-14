@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { deriveSkipGenieMarker } from "@/lib/skip-genie";
+import { resolveCourtSourceUrl } from "@/lib/court-links";
 import { toast } from "sonner";
 import {
   type ClientFile,
@@ -1760,9 +1761,17 @@ function ImportedLegalSection({ ownerFlags }: { ownerFlags: Record<string, any> 
           </div>
         ))}
       </div>
-      {typeof legal.source_url === "string" && legal.source_url.trim().length > 0 && (
+      {resolveCourtSourceUrl({
+        sourceUrl: typeof legal.source_url === "string" ? legal.source_url : null,
+        courtName: typeof legal.court_name === "string" ? legal.court_name : null,
+        caseNumber: typeof legal.case_number === "string" ? legal.case_number : null,
+      }) && (
         <a
-          href={legal.source_url}
+          href={resolveCourtSourceUrl({
+            sourceUrl: typeof legal.source_url === "string" ? legal.source_url : null,
+            courtName: typeof legal.court_name === "string" ? legal.court_name : null,
+            caseNumber: typeof legal.case_number === "string" ? legal.case_number : null,
+          })!}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-sm text-primary hover:underline"

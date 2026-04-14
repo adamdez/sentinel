@@ -17,6 +17,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { resolveCourtSourceUrl } from "@/lib/court-links";
 import { sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
 import type { NextOfKinCandidate, PeopleIntelHighlight, UnifiedResearchStatusResponse } from "@/lib/research-run-types";
 
@@ -423,9 +424,18 @@ export function LeadDossierPanel({ leadId }: { leadId: string }) {
             (artifactsQuery.data ?? []).map((artifact) => (
               <div key={artifact.id} className="p-3 text-sm space-y-1">
                 <p className="font-medium text-foreground/80">{artifact.source_label ?? artifact.source_type ?? "Evidence"}</p>
-                {artifact.source_url && (
-                  <a href={artifact.source_url} target="_blank" rel="noreferrer" className="text-primary/70 hover:text-primary break-all text-xs">
-                    {artifact.source_url}
+                {resolveCourtSourceUrl({
+                  sourceUrl: artifact.source_url,
+                  sourceLabel: artifact.source_label,
+                }) && (
+                  <a href={resolveCourtSourceUrl({
+                    sourceUrl: artifact.source_url,
+                    sourceLabel: artifact.source_label,
+                  })!} target="_blank" rel="noreferrer" className="text-primary/70 hover:text-primary break-all text-xs">
+                    {resolveCourtSourceUrl({
+                      sourceUrl: artifact.source_url,
+                      sourceLabel: artifact.source_label,
+                    })}
                   </a>
                 )}
                 {artifact.extracted_notes && <p className="text-xs text-muted-foreground/80 whitespace-pre-wrap line-clamp-3">{artifact.extracted_notes}</p>}
