@@ -38,13 +38,14 @@ vi.mock("@/lib/lead-phone-outcome", () => ({
 }));
 
 type BuildServerClientParams = {
+  status?: "lead" | "active" | "nurture" | "dead" | "closed";
   leadNotes?: string | null;
   activityNotes?: string[];
 };
 
-function buildServerClient({ leadNotes = null, activityNotes = [] }: BuildServerClientParams = {}) {
+function buildServerClient({ status = "lead", leadNotes = null, activityNotes = [] }: BuildServerClientParams = {}) {
   const leadRow = {
-    status: "lead",
+    status,
     lock_version: 2,
     notes: leadNotes,
     qualification_route: null,
@@ -310,5 +311,34 @@ describe("PATCH /api/prospects", () => {
     }));
     expect(payload.phone_outcome_applied).toBe(true);
     expect(payload.phone_outcome_phone_id).toBe("phone-1");
+  });
+
+  it("allows moving an active file directly into Drive By", async () => {
+    const serverClient = buildServerClient({ status: "active" });
+    mocks.createServerClient.mockReturnValue(serverClient);
+
+    const { PATCH } = await import("@/app/api/prospects/route");
+    const response = await PATCH(new Request("http://localhost/api/prospects", {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer token",
+        "x-lock-version": "2",
+      },
+      body: JSON.stringify({
+        lead_id: "lead-1",
+        status: "lead",
+        next_action: "Drive by",
+        next_action_due_at: null,
+        next_follow_up_at: null,
+        next_call_scheduled_at: null,
+      }),
+    }) as never);
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.status).toBe("lead");
+    expect(serverClient.leadUpdateSelect).toHaveBeenCalledOnce();
   });
 });

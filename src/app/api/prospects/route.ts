@@ -721,7 +721,14 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    if (targetStatus && !validateStatusTransition(currentStatus, targetStatus)) {
+    const requestedNextAction = typeof next_action === "string" ? next_action.trim() : "";
+    const isDirectDriveByMove =
+      requestedNextAction.toLowerCase().startsWith("drive by")
+      && targetStatus === "lead"
+      && currentStatus !== "dead"
+      && currentStatus !== "closed";
+
+    if (targetStatus && !isDirectDriveByMove && !validateStatusTransition(currentStatus, targetStatus)) {
       const allowed = getAllowedTransitions(currentStatus);
       return NextResponse.json(
         {
