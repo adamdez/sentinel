@@ -1098,12 +1098,30 @@ function isReadyPowerDialLead(lead: AutoCycleQueueLead | null | undefined): bool
   return lead?.powerDialState === "ready";
 }
 
+function formatPowerDialScheduledLabel(dueIso: string | null, now = new Date()): string {
+  if (!dueIso) return "Scheduled";
+
+  const dueAt = new Date(dueIso);
+  if (Number.isNaN(dueAt.getTime())) return "Scheduled";
+
+  const sameCalendarDay =
+    dueAt.getFullYear() === now.getFullYear()
+    && dueAt.getMonth() === now.getMonth()
+    && dueAt.getDate() === now.getDate();
+
+  if (sameCalendarDay && dueAt.getTime() > now.getTime()) {
+    return `Today ${dueAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  }
+
+  return formatDueDateLabel(dueIso, now).text;
+}
+
 function getPowerDialRowLabel(lead: AutoCycleQueueLead | null | undefined, dueIso: string | null): string {
   if (!lead) return "Queued";
   if (lead.autoCycle?.cycleStatus === "paused") return "Held";
   if (lead.powerDialState === "ready") return "Ready now";
   if (lead.powerDialState === "not_enrolled") return "Queued";
-  return dueIso ? formatDueDateLabel(dueIso).text : "Scheduled";
+  return formatPowerDialScheduledLabel(dueIso);
 }
 
 const DTMF_KEYPAD_ROWS = [
@@ -1874,7 +1892,12 @@ function DialerPageInner() {
         toast.info("Power Dial staging queued files...");
         return;
       }
-      toast.info("No Power Dial files are ready right now");
+      const nextScheduledLead = displayedQueue.find((lead) => isAutoCycleQueueLead(lead) && lead.autoCycle?.nextDueAt) ?? null;
+      if (nextScheduledLead && isAutoCycleQueueLead(nextScheduledLead)) {
+        toast.info(`No Power Dial files are ready right now. Next file wakes ${formatPowerDialScheduledLabel(nextScheduledLead.autoCycle?.nextDueAt ?? null)}.`);
+      } else {
+        toast.info("No Power Dial files are ready right now");
+      }
       return;
     }
 
