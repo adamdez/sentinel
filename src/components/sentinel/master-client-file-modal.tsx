@@ -7359,11 +7359,14 @@ export function MasterClientFileModal({
 
 
 
+    const noteText = noteDraft.trim();
+    const title = clientFile.nextAction?.trim() || "Call back";
+
     const { data: { session } } = await supabase.auth.getSession();
 
     if (!session?.access_token) {
 
-      toast.error("Session expired - cannot set next action");
+      toast.error("Session expired - cannot save resurface date");
 
       return;
 
@@ -7415,13 +7418,10 @@ export function MasterClientFileModal({
 
           lead_id: clientFile.id,
 
-          next_action: clientFile.nextAction?.trim() || null,
-
-          next_call_scheduled_at: nextIso,
-
-          next_follow_up_at: nextIso,
-
-          next_action_due_at: nextIso,
+          resurface_at: nextIso,
+          resurface_title: title,
+          resurface_task_type: "callback",
+          ...(noteText ? { note_append: noteText } : {}),
 
         }),
 
@@ -7433,7 +7433,7 @@ export function MasterClientFileModal({
 
       if (!res.ok) {
 
-        toast.error(`Could not save next action: ${data.error ?? `HTTP ${res.status}`}`);
+        toast.error(`Could not save resurface date: ${data.detail ?? data.error ?? `HTTP ${res.status}`}`);
 
         return;
 
@@ -7443,7 +7443,8 @@ export function MasterClientFileModal({
 
       applyLeadPatchFromResponse(data);
 
-      toast.success(nextIso ? "Next action updated" : "Next action cleared");
+      setActivityRefreshToken((v) => v + 1);
+      toast.success("Resurface saved");
 
       setNextActionEditorOpen(false);
 
@@ -7453,7 +7454,7 @@ export function MasterClientFileModal({
 
       console.error("[MCF] Set next action error:", err);
 
-      toast.error("Could not save next action");
+      toast.error("Could not save resurface date");
 
     } finally {
 
@@ -7461,7 +7462,7 @@ export function MasterClientFileModal({
 
     }
 
-  }, [applyLeadPatchFromResponse, clientFile, nextActionAt, onRefresh]);
+  }, [applyLeadPatchFromResponse, clientFile, nextActionAt, noteDraft, onRefresh]);
 
 
 
@@ -7604,20 +7605,9 @@ export function MasterClientFileModal({
 
 
 
-    const currentStatus = normalizeWorkflowStage(clientFile.status);
-
-    const existingNextIso = clientFile.nextCallScheduledAt ?? clientFile.nextActionDueAt ?? clientFile.followUpDate ?? null;
-
-    const explicitDueIntent = closeoutDateTouched;
-
-    const nextChanged = nextIso !== existingNextIso;
-
     const noteText = closeoutNote.trim();
 
-    const shouldSendDueDates = explicitDueIntent && nextChanged;
-    void currentStatus;
-
-    if (!shouldSendDueDates && noteText.length === 0) {
+    if (!nextIso && noteText.length === 0) {
 
       toast.message("No closeout changes to save.");
 
@@ -7673,10 +7663,10 @@ export function MasterClientFileModal({
 
       }
 
-      if (shouldSendDueDates) {
-        payload.next_follow_up_at = nextIso;
-        payload.next_action_due_at = nextIso;
-
+      if (nextIso) {
+        payload.resurface_at = nextIso;
+        payload.resurface_title = "Call back";
+        payload.resurface_task_type = "callback";
       }
 
 
@@ -7735,7 +7725,7 @@ export function MasterClientFileModal({
 
       setActivityRefreshToken((v) => v + 1);
 
-      toast.success(nextIso ? "Saved closeout and scheduled follow-up." : "Saved closeout.");
+      toast.success(nextIso ? "Saved resurface date and note." : "Saved note.");
 
       onRefresh?.();
 
@@ -7797,23 +7787,70 @@ export function MasterClientFileModal({
     if (!clientFile?.id) return;
     setTaskSaving(true);
     try {
-      await createTaskApi({
-        title: result.title,
-        lead_id: clientFile.id,
-        due_at: result.dueAt,
-        task_type: result.taskType,
-        notes: result.notes || undefined,
-        priority: 2,
-      } as Partial<TaskItem>);
-      toast.success("Task set");
+      if (result.taskType === "callback" || result.taskType === "follow_up") {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          throw new Error("Session expired - cannot save resurface date");
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: current, error: fetchErr } = await (supabase.from("leads") as any)
+          .select("lock_version")
+          .eq("id", clientFile.id)
+          .single();
+
+        if (fetchErr || !current) {
+          throw new Error("Could not load current lead state");
+        }
+
+        const res = await fetch("/api/prospects", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+            "x-lock-version": String(current.lock_version ?? 0),
+          },
+          body: JSON.stringify({
+            lead_id: clientFile.id,
+            resurface_at: result.dueAt,
+            resurface_title: result.taskType === "callback" ? "Call back" : "Follow up",
+            resurface_task_type: result.taskType,
+            ...(result.notes ? { note_append: result.notes } : {}),
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error((data.detail as string | undefined) ?? (data.error as string | undefined) ?? `HTTP ${res.status}`);
+        }
+        applyLeadPatchFromResponse(data);
+        setActivityRefreshToken((v) => v + 1);
+        toast.success("Resurface saved");
+      } else if (result.taskType === "drive_by") {
+        const moveResult = await moveLeadToDriveBy(clientFile.id);
+        if (!moveResult.ok) {
+          throw new Error(moveResult.data.error ?? "Failed to move to Drive By");
+        }
+        toast.success("Moved to Drive By");
+      } else {
+        await createTaskApi({
+          title: result.title,
+          lead_id: clientFile.id,
+          due_at: result.dueAt,
+          task_type: result.taskType,
+          notes: result.notes || undefined,
+          priority: 2,
+        } as Partial<TaskItem>);
+        toast.success("Task set");
+      }
       setTaskPanelOpen(false);
       fetchActiveTask();
+      onRefresh?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save task");
     } finally {
       setTaskSaving(false);
     }
-  }, [clientFile?.id, fetchActiveTask]);
+  }, [applyLeadPatchFromResponse, clientFile?.id, fetchActiveTask, onRefresh]);
 
   const handleTaskComplete = useCallback(async () => {
     if (!activeTask) return;
@@ -9248,7 +9285,7 @@ export function MasterClientFileModal({
 
                   >
 
-                    <CheckCircle2 className="h-3 w-3 text-foreground" />Log Outcome
+                    <Calendar className="h-3 w-3 text-foreground" />Resurface
 
                   </Button>
                   <div className="flex flex-col gap-1">
@@ -9350,13 +9387,13 @@ export function MasterClientFileModal({
                       <div className="rounded-[10px] border border-overlay-20 bg-overlay-6 p-2.5 space-y-2">
 
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm uppercase tracking-wider font-semibold text-foreground">Quick Closeout</p>
-                          <span className="text-xs text-foreground/60">Optional follow-up only.</span>
+                          <p className="text-sm uppercase tracking-wider font-semibold text-foreground">Resurface File</p>
+                          <span className="text-xs text-foreground/60">One date. One note. This date wins.</span>
                         </div>
 
                         <label className="space-y-1 block">
 
-                          <span className="text-xs uppercase tracking-wider text-muted-foreground">Due Date</span>
+                          <span className="text-xs uppercase tracking-wider text-muted-foreground">Resurface Date</span>
 
                           <input
 
@@ -9384,7 +9421,7 @@ export function MasterClientFileModal({
 
                           onChange={(e) => setCloseoutNote(e.target.value)}
 
-                          placeholder="Quick note..."
+                          placeholder="What should you remember when this file comes back?"
 
                           className="w-full h-16 rounded-[8px] border border-overlay-12 bg-overlay-4 px-2.5 py-2 text-xs text-foreground placeholder:text-muted-foreground/50 resize-none focus:outline-none focus:border-overlay-30"
 
@@ -9408,7 +9445,7 @@ export function MasterClientFileModal({
 
                             {closeoutSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
 
-                            Save Closeout
+                            Save Resurface
 
                           </Button>
 
@@ -9654,7 +9691,7 @@ export function MasterClientFileModal({
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex items-center gap-1.5">
                                   <Pin className="h-3.5 w-3.5 text-primary/70 shrink-0" />
-                                  <span className="text-xs font-semibold uppercase tracking-wider text-primary/70">Next Task</span>
+                                  <span className="text-xs font-semibold uppercase tracking-wider text-primary/70">Resurface</span>
                                 </div>
                                 {activeTask.due_at && (
                                   <span className={`text-[11px] font-medium shrink-0 ${

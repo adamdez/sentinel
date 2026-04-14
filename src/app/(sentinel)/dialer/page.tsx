@@ -80,6 +80,8 @@ import {
   buildSourceLabel,
   clientFileFromRaw,
   deriveSkipTraceUiState,
+  fromLocalDateTimeInput,
+  toLocalDateTimeInput,
   type SkipTraceUiState,
 } from "@/components/sentinel/master-client-file-helpers";
 import { deriveSkipGenieMarker } from "@/lib/skip-genie";
@@ -1170,6 +1172,10 @@ function DialerPageInner() {
   const [dialerSessionId, setDialerSessionId] = useState<string | null>(null); // PR3b: survives call end for PostCallPanel publish
   const [muted, setMuted] = useState(false);
   const [callNotes, setCallNotes] = useState("");
+  const [resurfaceOpen, setResurfaceOpen] = useState(false);
+  const [resurfaceAt, setResurfaceAt] = useState("");
+  const [resurfaceNote, setResurfaceNote] = useState("");
+  const [resurfaceSaving, setResurfaceSaving] = useState(false);
   const [dispositionPending, setDispositionPending] = useState(false);
   const [smsLoading, setSmsLoading] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
@@ -1203,6 +1209,18 @@ function DialerPageInner() {
   const isLeadSelectionLocked = shouldLockDialerLeadSelection(callState);
   const currentLead = resolveVisibleDialerLead(callState, activeCallLead, selectedQueueLead);
   const currentAutoCycleLead = isAutoCycleQueueLead(currentLead) ? currentLead : null;
+  useEffect(() => {
+    setResurfaceOpen(false);
+    setResurfaceNote("");
+    setResurfaceAt(
+      toLocalDateTimeInput(
+        currentLead?.next_action_due_at
+        ?? currentLead?.next_call_scheduled_at
+        ?? currentLead?.next_follow_up_at
+        ?? null,
+      ) || "",
+    );
+  }, [currentLead?.id, currentLead?.next_action_due_at, currentLead?.next_call_scheduled_at, currentLead?.next_follow_up_at]);
   const phoneSelection = useMemo(
     () =>
       resolveDialerPhoneSelection({
@@ -3098,6 +3116,47 @@ function DialerPageInner() {
       setLeadSmsSending(false);
     }
   }, [currentLead, leadSmsMsg, currentUser.id]);
+
+  const handleSaveResurface = useCallback(async () => {
+    if (!currentLead) return;
+    const nextIso = resurfaceAt.trim() ? fromLocalDateTimeInput(resurfaceAt) : null;
+    if (!nextIso) {
+      toast.error("Pick the exact date and time you want this file back.");
+      return;
+    }
+
+    setResurfaceSaving(true);
+    try {
+      const headers = await authHeaders();
+      headers["x-lock-version"] = String(currentLead.lock_version ?? 0);
+      const res = await fetch("/api/prospects", {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          lead_id: currentLead.id,
+          resurface_at: nextIso,
+          resurface_title: "Call back",
+          resurface_task_type: "callback",
+          ...(resurfaceNote.trim() ? { note_append: resurfaceNote.trim() } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error((data.detail as string | undefined) ?? (data.error as string | undefined) ?? `HTTP ${res.status}`);
+        return;
+      }
+
+      await refreshQueues();
+      setResurfaceOpen(false);
+      setResurfaceNote("");
+      toast.success("Resurface saved. This file will come back then.");
+    } catch (error) {
+      console.error("[dialer] resurface save failed:", error);
+      toast.error("Could not save resurface date");
+    } finally {
+      setResurfaceSaving(false);
+    }
+  }, [currentLead, refreshQueues, resurfaceAt, resurfaceNote]);
 
   // ── Quick Manual Dial handler ──────────────────────────────────────
   const handleManualDial = useCallback(async () => {
@@ -5242,6 +5301,14 @@ function DialerPageInner() {
                             <MessageSquare className="h-4 w-4" />
                             Text
                           </Button>
+                          <Button
+                            onClick={() => setResurfaceOpen((v) => !v)}
+                            variant="outline"
+                            className={`gap-2 border-border text-foreground hover:bg-muted ${resurfaceOpen ? "bg-muted border-border" : ""}`}
+                          >
+                            <CalendarCheck className="h-4 w-4" />
+                            Resurface
+                          </Button>
                         </>
                       )}
                       {(callState === "dialing" || callState === "connected") && (
@@ -5304,6 +5371,55 @@ function DialerPageInner() {
                     {false /* VoIP hint removed — shown in header badge instead */}
 
                     {/* Inline SMS compose for lead card */}
+                    {resurfaceOpen && callState === "idle" && (
+                      <div className="rounded-[12px] border border-primary/20 bg-primary/[0.04] p-3 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">Resurface file</p>
+                            <p className="text-xs text-muted-foreground/55">One date. One note. This date wins.</p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-muted-foreground/55 hover:text-foreground"
+                            onClick={() => setResurfaceOpen(false)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                        <input
+                          type="datetime-local"
+                          value={resurfaceAt}
+                          onChange={(e) => setResurfaceAt(e.target.value)}
+                          className="w-full rounded-[10px] border border-overlay-6 bg-overlay-3 px-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary/20"
+                        />
+                        <textarea
+                          value={resurfaceNote}
+                          onChange={(e) => setResurfaceNote(e.target.value)}
+                          placeholder="What should you remember when this file comes back?"
+                          className="w-full bg-transparent text-sm resize-none h-20 outline-none placeholder:text-muted-foreground/30 border border-overlay-4 rounded-[8px] p-2"
+                        />
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-3 text-muted-foreground/60 hover:text-foreground"
+                            onClick={() => setResurfaceOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="h-7 gap-1.5"
+                            disabled={resurfaceSaving}
+                            onClick={() => void handleSaveResurface()}
+                          >
+                            {resurfaceSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CalendarCheck className="h-3.5 w-3.5" />}
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     {leadSmsOpen && callState === "idle" && currentLead.properties?.owner_phone && (
                       <div className="mt-3 rounded-[12px] bg-overlay-3 border border-border p-3 space-y-2">
                         <div className="flex items-center justify-between">

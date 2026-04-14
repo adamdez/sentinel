@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  applyManualResurface,
   inferCallTaskType,
   isCallDrivingTaskType,
   isDialerCallbackTaskType,
@@ -55,5 +56,77 @@ describe("task-lead-sync helpers", () => {
     ]);
 
     expect(primary?.id).toBe("earlier-call");
+  });
+
+  it("pauses auto-cycle and hides dial queue when a manual resurface date is set", async () => {
+    const tasksUpdateEq = { eq: () => Promise.resolve({ error: null }) };
+    const taskSelectQuery = {
+      select: () => taskSelectQuery,
+      eq: () => taskSelectQuery,
+      limit: () => taskSelectQuery,
+      maybeSingle: () => Promise.resolve({ data: null, error: null }),
+      order: () => taskSelectQuery,
+      single: () => Promise.resolve({ data: { id: "task-1" }, error: null }),
+    };
+    const taskInsertQuery = {
+      select: () => ({ single: () => Promise.resolve({ data: { id: "task-1" }, error: null }) }),
+    };
+    const leadUpdate = {
+      eq: () => Promise.resolve({ error: null }),
+    };
+    const cycleLeadQuery = {
+      select: () => cycleLeadQuery,
+      eq: () => cycleLeadQuery,
+      in: () => cycleLeadQuery,
+      maybeSingle: () => Promise.resolve({ data: null, error: null }),
+      then: undefined,
+    };
+    const cycleLeadSelect = {
+      select: () => cycleLeadSelect,
+      eq: () => Promise.resolve({ data: [{ id: "cycle-1" }], error: null }),
+    };
+    const phoneUpdate = {
+      in: () => ({ eq: () => Promise.resolve({ error: null }) }),
+    };
+
+    const sb = {
+      from(table: string) {
+        if (table === "tasks") {
+          return {
+            ...taskSelectQuery,
+            insert: () => taskInsertQuery,
+            update: () => tasksUpdateEq,
+          };
+        }
+        if (table === "leads") {
+          return {
+            select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: { property_id: null }, error: null }) }) }),
+            update: () => leadUpdate,
+          };
+        }
+        if (table === "dialer_auto_cycle_leads") {
+          return {
+            select: () => ({ eq: () => Promise.resolve({ data: [{ id: "cycle-1" }], error: null }) }),
+            update: () => ({ in: () => Promise.resolve({ error: null }) }),
+          };
+        }
+        if (table === "dialer_auto_cycle_phones") {
+          return {
+            update: () => phoneUpdate,
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      },
+    };
+
+    const taskId = await applyManualResurface({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sb: sb as any,
+      leadId: "lead-1",
+      assignedTo: "user-1",
+      dueAt: "2026-05-05T16:00:00.000Z",
+    });
+
+    expect(taskId).toBe("task-1");
   });
 });

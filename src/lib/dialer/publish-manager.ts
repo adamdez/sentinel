@@ -526,16 +526,14 @@ export async function publishSession(
       : `${dispoLabel} — ${leadLabel}`;
 
     try {
-      const { upsertLeadCallTask } = await import("@/lib/task-lead-sync");
-      taskId = await upsertLeadCallTask({
+      const { applyManualResurface } = await import("@/lib/task-lead-sync");
+      taskId = await applyManualResurface({
         sb,
         leadId,
-        title,
         dueAt: dueAt.toISOString(),
         assignedTo,
-        taskType: "follow_up",
-        sourceType: "lead_follow_up",
-        sourceKey: `lead:${leadId}:primary_call`,
+        title,
+        taskType: "callback",
       });
     } catch (taskErr) {
       console.error("[publish-manager] canonical task upsert failed, falling back to raw insert:", taskErr);

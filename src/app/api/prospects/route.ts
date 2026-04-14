@@ -19,6 +19,7 @@ import {
   type QualificationScoreState,
 } from "@/lib/qualification-workflow";
 import {
+  applyManualResurface,
   completeOpenCallTasksForLead,
   isCallDrivingTaskType,
   projectLeadFromTasks,
@@ -346,6 +347,9 @@ export async function PATCH(req: NextRequest) {
       equity_flexibility_score,
       next_action,
       next_action_due_at,
+      resurface_at,
+      resurface_title,
+      resurface_task_type,
       phone_number,
     } = body;
 
@@ -371,7 +375,10 @@ export async function PATCH(req: NextRequest) {
       || occupancy_score !== undefined
       || equity_flexibility_score !== undefined
       || next_action !== undefined
-      || next_action_due_at !== undefined;
+      || next_action_due_at !== undefined
+      || resurface_at !== undefined
+      || resurface_title !== undefined
+      || resurface_task_type !== undefined;
 
     const hasQualificationMutation =
       motivation_level !== undefined
@@ -429,6 +436,7 @@ export async function PATCH(req: NextRequest) {
 
     const parsedNextCall = parseOptionalIso(next_call_scheduled_at);
     const parsedNextFollowUp = parseOptionalIso(next_follow_up_at);
+    const parsedResurface = parseOptionalIso(resurface_at);
     const parsedMotivation = parseOptionalSmallInt(motivation_level, 1, 5);
     const parsedTimeline = parseOptionalEnum<SellerTimeline>(seller_timeline, SELLER_TIMELINES);
     const parsedCondition = parseOptionalSmallInt(condition_level, 1, 5);
@@ -445,11 +453,21 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "equity_flexibility_score must be 1-5" }, { status: 400 });
     }
 
-    if (!parsedNextCall.valid || !parsedNextFollowUp.valid) {
+    if (!parsedNextCall.valid || !parsedNextFollowUp.valid || !parsedResurface.valid) {
       return NextResponse.json(
         { error: "Invalid datetime for next action" },
         { status: 400 },
       );
+    }
+
+    if (
+      resurface_task_type !== undefined
+      && resurface_task_type !== null
+      && resurface_task_type !== ""
+      && resurface_task_type !== "callback"
+      && resurface_task_type !== "follow_up"
+    ) {
+      return NextResponse.json({ error: "resurface_task_type must be callback or follow_up" }, { status: 400 });
     }
 
     if (!parsedMotivation.valid) {
@@ -555,6 +573,14 @@ export async function PATCH(req: NextRequest) {
 
     const now = new Date();
     const nowIso = now.toISOString();
+    const manualResurfaceRequested = parsedResurface.provided;
+    const manualResurfaceTitle = typeof resurface_title === "string" && resurface_title.trim().length > 0
+      ? resurface_title.trim()
+      : null;
+    const manualResurfaceTaskType =
+      resurface_task_type === "follow_up" || resurface_task_type === "callback"
+        ? resurface_task_type
+        : "callback";
 
     const addDays = (days: number) => {
       const d = new Date(now);
@@ -677,7 +703,9 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const effectiveNextCallAt = parsedNextCall.provided
+    const effectiveNextCallAt = manualResurfaceRequested
+      ? parsedResurface.iso
+      : parsedNextCall.provided
       ? parsedNextCall.iso
       : (currentLead.next_call_scheduled_at ?? null);
 
@@ -685,7 +713,9 @@ export async function PATCH(req: NextRequest) {
       ? parsedDisposition.value
       : (typeof currentLead.disposition_code === "string" ? currentLead.disposition_code : null);
 
-    const effectiveNextFollowUpAt = parsedNextFollowUp.provided
+    const effectiveNextFollowUpAt = manualResurfaceRequested
+      ? parsedResurface.iso
+      : parsedNextFollowUp.provided
       ? parsedNextFollowUp.iso
       : (plannedTask?.nextFollowUpAt ?? (parsedNextCall.provided ? parsedNextCall.iso : (currentLead.next_follow_up_at ?? null)));
     const effectiveNextAction =
@@ -1018,22 +1048,30 @@ export async function PATCH(req: NextRequest) {
 
     const trimmedNextAction = typeof next_action === "string" ? next_action.trim() || null : null;
     const projectedFollowUpTitle =
+      manualResurfaceRequested
+        ? (manualResurfaceTitle ?? "Call back")
+      :
       trimmedNextAction
       ?? (plannedTask && plannedTask.taskType === "follow_up" ? plannedTask.title : null);
     const normalizedFollowUpTitle =
       projectedFollowUpTitle
       ?? ((parsedNextActionDue.iso || parsedNextCall.iso || plannedTask?.nextFollowUpAt || parsedNextFollowUp.iso) ? "Follow up" : null);
     const projectedFollowUpTaskType =
+      manualResurfaceRequested
+        ? manualResurfaceTaskType
+      :
       inferLeadFollowUpTaskType({
         nextAction: normalizedFollowUpTitle,
         nextCallScheduledAt: parsedNextCall.iso,
         nextFollowUpAt: plannedTask?.nextFollowUpAt ?? parsedNextFollowUp.iso,
       });
-    const projectedFollowUpDueAt = resolveFollowUpTaskDueAt({
-      nextActionDueAt: parsedNextActionDue.iso,
-      nextCallScheduledAt: parsedNextCall.iso,
-      nextFollowUpAt: plannedTask?.nextFollowUpAt ?? parsedNextFollowUp.iso,
-    });
+    const projectedFollowUpDueAt = manualResurfaceRequested
+      ? parsedResurface.iso
+      : resolveFollowUpTaskDueAt({
+        nextActionDueAt: parsedNextActionDue.iso,
+        nextCallScheduledAt: parsedNextCall.iso,
+        nextFollowUpAt: plannedTask?.nextFollowUpAt ?? parsedNextFollowUp.iso,
+      });
     const terminalFollowUpState =
       finalStatus === "dead"
       || finalStatus === "closed"
@@ -1046,6 +1084,19 @@ export async function PATCH(req: NextRequest) {
         leadId: lead_id,
         completionNote: "Automatically completed after terminal lead outcome.",
       });
+    } else if (manualResurfaceRequested && projectedFollowUpDueAt && normalizedFollowUpTitle) {
+      const canonicalTaskId = await applyManualResurface({
+        sb,
+        leadId: lead_id,
+        assignedTo: effectiveAssignedTo ?? user.id,
+        dueAt: projectedFollowUpDueAt,
+        title: normalizedFollowUpTitle,
+        notes: noteAppendText || undefined,
+        taskType: projectedFollowUpTaskType === "follow_up" ? "follow_up" : "callback",
+      });
+      if (!createdTaskId && canonicalTaskId) {
+        createdTaskId = canonicalTaskId;
+      }
     } else if (projectedFollowUpTaskType && normalizedFollowUpTitle && effectiveAssignedTo) {
       const canonicalTaskId = await upsertLeadCallTask({
         sb,
@@ -1194,7 +1245,7 @@ export async function PATCH(req: NextRequest) {
           ? "STATUS_CHANGED"
           : parsedDisposition.provided
             ? "CALL_OUTCOME_UPDATED"
-          : noteAppendText && (parsedNextCall.provided || parsedNextFollowUp.provided)
+          : noteAppendText && (manualResurfaceRequested || parsedNextCall.provided || parsedNextFollowUp.provided)
             ? "CALL_CLOSEOUT"
           : noteAppendText
             ? "NOTE_ADDED"
@@ -1213,11 +1264,17 @@ export async function PATCH(req: NextRequest) {
           assigned_to: updateData.assigned_to,
           disposition_code_before: typeof currentLead.disposition_code === "string" ? currentLead.disposition_code : null,
           disposition_code_after: parsedDisposition.provided ? parsedDisposition.value : (typeof currentLead.disposition_code === "string" ? currentLead.disposition_code : null),
-          next_call_scheduled_at: parsedNextCall.provided ? parsedNextCall.iso : undefined,
-          next_follow_up_at: parsedNextFollowUp.provided
+          next_call_scheduled_at: manualResurfaceRequested
+            ? parsedResurface.iso
+            : parsedNextCall.provided ? parsedNextCall.iso : undefined,
+          next_follow_up_at: manualResurfaceRequested
+            ? parsedResurface.iso
+            : parsedNextFollowUp.provided
             ? parsedNextFollowUp.iso
             : (plannedTask?.nextFollowUpAt ?? (parsedNextCall.provided ? parsedNextCall.iso : undefined)),
           note_appended: noteAppendText || undefined,
+          manual_resurface_title: manualResurfaceRequested ? normalizedFollowUpTitle : undefined,
+          manual_resurface_task_type: manualResurfaceRequested ? projectedFollowUpTaskType : undefined,
           motivation_level: parsedMotivation.provided ? parsedMotivation.value : undefined,
           seller_timeline: parsedTimeline.provided ? parsedTimeline.value : undefined,
           condition_level: parsedCondition.provided ? parsedCondition.value : undefined,

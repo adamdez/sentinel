@@ -328,6 +328,102 @@ export async function upsertLeadCallTask(params: {
   return inserted?.id ?? null;
 }
 
+export async function applyManualResurface(params: {
+  sb: SupabaseClient;
+  leadId: string;
+  assignedTo: string;
+  dueAt: string;
+  title?: string | null;
+  notes?: string | null;
+  taskType?: "callback" | "follow_up";
+}): Promise<string | null> {
+  const nowIso = new Date().toISOString();
+  const normalizedTitle = typeof params.title === "string" && params.title.trim().length > 0
+    ? params.title.trim()
+    : "Call back";
+  const taskId = await upsertLeadCallTask({
+    sb: params.sb,
+    leadId: params.leadId,
+    assignedTo: params.assignedTo,
+    dueAt: params.dueAt,
+    title: normalizedTitle,
+    notes: params.notes,
+    taskType: params.taskType ?? "callback",
+    sourceType: "lead_follow_up",
+    sourceKey: `lead:${params.leadId}:primary_call`,
+  });
+
+  // A human-selected resurface date overrides queue/cadence automation until that due date.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: leadPatchErr } = await (params.sb.from("leads") as any)
+    .update({
+      intro_sop_active: false,
+      intro_completed_at: null,
+      intro_exit_category: null,
+      intro_exit_reason: "manual_resurface",
+      dial_queue_active: false,
+      dial_queue_added_at: null,
+      dial_queue_added_by: null,
+      updated_at: nowIso,
+    })
+    .eq("id", params.leadId);
+
+  if (leadPatchErr) {
+    console.error("[task-lead-sync] Failed to apply manual resurface lead override:", leadPatchErr.message);
+  }
+
+  // Keep any enrolled auto-cycle lead hidden until the operator-selected due date.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: cycleLeads, error: cycleLeadErr } = await (params.sb.from("dialer_auto_cycle_leads") as any)
+    .select("id")
+    .eq("lead_id", params.leadId);
+
+  if (cycleLeadErr) {
+    console.error("[task-lead-sync] Failed to load auto-cycle rows for manual resurface:", cycleLeadErr.message);
+    return taskId;
+  }
+
+  const cycleLeadIds = Array.isArray(cycleLeads)
+    ? cycleLeads
+      .map((row) => (row && typeof row.id === "string" ? row.id : null))
+      .filter((id): id is string => !!id)
+    : [];
+
+  if (cycleLeadIds.length === 0) {
+    return taskId;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: cyclePhoneErr } = await (params.sb.from("dialer_auto_cycle_phones") as any)
+    .update({
+      next_due_at: params.dueAt,
+      voicemail_drop_next: false,
+    })
+    .in("cycle_lead_id", cycleLeadIds)
+    .eq("phone_status", "active");
+
+  if (cyclePhoneErr) {
+    console.error("[task-lead-sync] Failed to retime auto-cycle phones for manual resurface:", cyclePhoneErr.message);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: cycleLeadPatchErr } = await (params.sb.from("dialer_auto_cycle_leads") as any)
+    .update({
+      cycle_status: "waiting",
+      next_due_at: params.dueAt,
+      last_outcome: "manual_resurface",
+      exit_reason: null,
+      updated_at: nowIso,
+    })
+    .in("id", cycleLeadIds);
+
+  if (cycleLeadPatchErr) {
+    console.error("[task-lead-sync] Failed to retime auto-cycle leads for manual resurface:", cycleLeadPatchErr.message);
+  }
+
+  return taskId;
+}
+
 export async function completeOpenCallTasksForLead(params: {
   sb: SupabaseClient;
   leadId: string;

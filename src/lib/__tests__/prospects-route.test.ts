@@ -97,23 +97,108 @@ function buildServerClient({ status = "lead", leadNotes = null, activityNotes = 
     limit: callsLogLimit,
   };
 
-  const tasksMaybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
-  const tasksSingle = vi.fn().mockResolvedValue({ data: { id: "task-1" }, error: null });
+  const taskRows: Array<Record<string, unknown>> = [];
+  let taskFilters: Record<string, unknown> = {};
+  let taskLimit: number | null = null;
+  const resetTaskQueryState = () => {
+    taskFilters = {};
+    taskLimit = null;
+  };
+  const getFilteredTasks = () => {
+    let rows = [...taskRows];
+    for (const [key, value] of Object.entries(taskFilters)) {
+      rows = rows.filter((row) => row[key] === value);
+    }
+    if (typeof taskLimit === "number") {
+      rows = rows.slice(0, taskLimit);
+    }
+    return rows;
+  };
+  const tasksEq = vi.fn((column: string, value: unknown) => {
+    taskFilters[column] = value;
+    return tasksSelectQuery;
+  });
+  const tasksMaybeSingle = vi.fn(async () => {
+    const rows = getFilteredTasks();
+    resetTaskQueryState();
+    return { data: rows[0] ?? null, error: null };
+  });
+  const tasksSingle = vi.fn(async () => {
+    const rows = getFilteredTasks();
+    resetTaskQueryState();
+    return { data: rows[0] ?? null, error: null };
+  });
   const tasksSelectQuery = {
     select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
+    eq: tasksEq,
     order: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
+    limit: vi.fn((value: number) => {
+      taskLimit = value;
+      return tasksSelectQuery;
+    }),
     maybeSingle: tasksMaybeSingle,
     single: tasksSingle,
+    then: (resolve: (value: { data: Array<Record<string, unknown>>; error: null }) => unknown) => {
+      const rows = getFilteredTasks();
+      resetTaskQueryState();
+      return Promise.resolve(resolve({ data: rows, error: null }));
+    },
   };
+  const tasksInsertSingle = vi.fn(async () => {
+    const inserted = taskRows[taskRows.length - 1] ?? null;
+    return { data: inserted ? { id: inserted.id } : null, error: null };
+  });
   const tasksInsertQuery = {
-    select: vi.fn().mockReturnValue({ single: tasksSingle }),
+    select: vi.fn().mockReturnValue({ single: tasksInsertSingle }),
   };
-  const tasksInsert = vi.fn().mockReturnValue(tasksInsertQuery);
+  const tasksInsert = vi.fn((payload: Record<string, unknown>) => {
+    const row = {
+      id: "task-1",
+      ...payload,
+    };
+    taskRows.push(row);
+    return tasksInsertQuery;
+  });
+  const tasksUpdateEq = vi.fn(async (_column: string, id: unknown) => {
+    const row = taskRows.find((task) => task.id === id);
+    if (row && currentTaskUpdatePayload) {
+      Object.assign(row, currentTaskUpdatePayload);
+    }
+    currentTaskUpdatePayload = null;
+    return { error: null };
+  });
+  const tasksUpdateIn = vi.fn(async (_column: string, ids: unknown[]) => {
+    if (currentTaskUpdatePayload) {
+      for (const row of taskRows) {
+        if (ids.includes(row.id)) {
+          Object.assign(row, currentTaskUpdatePayload);
+        }
+      }
+    }
+    currentTaskUpdatePayload = null;
+    return { error: null };
+  });
+  let currentTaskUpdatePayload: Record<string, unknown> | null = null;
   const tasksUpdateQuery = {
-    eq: vi.fn().mockResolvedValue({ error: null }),
+    eq: tasksUpdateEq,
+    in: tasksUpdateIn,
+  };
+  const tasksUpdate = vi.fn((payload: Record<string, unknown>) => {
+    currentTaskUpdatePayload = payload;
+    return tasksUpdateQuery;
+  });
+  const autoCycleLeadEq = vi.fn().mockResolvedValue({ data: [{ id: "cycle-1" }], error: null });
+  const autoCycleLeadSelectQuery = {
+    select: vi.fn().mockReturnThis(),
+    eq: autoCycleLeadEq,
+  };
+  const autoCycleLeadUpdateQuery = {
     in: vi.fn().mockResolvedValue({ error: null }),
+  };
+  const autoCyclePhoneUpdateQuery = {
+    in: vi.fn().mockReturnValue({
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    }),
   };
 
   const auditLogsQuery = {
@@ -139,7 +224,18 @@ function buildServerClient({ status = "lead", leadNotes = null, activityNotes = 
         return {
           ...tasksSelectQuery,
           insert: tasksInsert,
-          update: vi.fn().mockReturnValue(tasksUpdateQuery),
+          update: tasksUpdate,
+        };
+      }
+      if (table === "dialer_auto_cycle_leads") {
+        return {
+          ...autoCycleLeadSelectQuery,
+          update: vi.fn().mockReturnValue(autoCycleLeadUpdateQuery),
+        };
+      }
+      if (table === "dialer_auto_cycle_phones") {
+        return {
+          update: vi.fn().mockReturnValue(autoCyclePhoneUpdateQuery),
         };
       }
       if (table === "audit_logs") return auditLogsQuery;
@@ -149,6 +245,7 @@ function buildServerClient({ status = "lead", leadNotes = null, activityNotes = 
     callsLogLimit,
     leadUpdateSelect,
     tasksInsert,
+    autoCycleLeadSelectQuery,
   };
 }
 
@@ -278,6 +375,34 @@ describe("PATCH /api/prospects", () => {
       source_type: "lead_follow_up",
       source_key: "lead:lead-1:primary_call",
     });
+  });
+
+  it("uses the manual resurface path to schedule a callback and suppress auto-cycle resurfacing", async () => {
+    const serverClient = buildServerClient();
+    mocks.createServerClient.mockReturnValue(serverClient);
+
+    const { PATCH } = await import("@/app/api/prospects/route");
+    const response = await PATCH(new Request("http://localhost/api/prospects", {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer token",
+        "x-lock-version": "2",
+      },
+      body: JSON.stringify({
+        lead_id: "lead-1",
+        resurface_at: "2026-05-05T16:00:00.000Z",
+        resurface_title: "Call back",
+        resurface_task_type: "callback",
+        note_append: "Call in May instead of this week.",
+      }),
+    }) as never);
+
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.next_call_scheduled_at).toBe("2026-05-05T16:00:00.000Z");
+    expect(serverClient.autoCycleLeadSelectQuery.select).toHaveBeenCalled();
   });
 
   it("syncs canonical phone state for wrong-number closeouts when a phone number is provided", async () => {

@@ -1215,7 +1215,7 @@ export function PostCallPanel({
             ))}
           </div>
 
-          {/* ── Next task (chip-based, hard enforcement) ───────── */}
+          {/* ── Resurface (date + note, hard enforcement) ───────── */}
           {(() => {
             const taskDefaults = pendingDispo ? STEP3_TASK_DEFAULTS[pendingDispo] : undefined;
             return (
@@ -1225,7 +1225,7 @@ export function PostCallPanel({
                   : "border-primary/10 bg-primary/[0.03]"
               }`}>
                 <p className={`text-xs uppercase tracking-wider font-semibold ${!nextAction.trim() ? "text-amber-400" : "text-primary/60"}`}>
-                  {!nextAction.trim() ? "Next Task — Required" : "Next Task"}
+                  {!nextAction.trim() ? "Resurface — Required" : "Resurface"}
                 </p>
                 {nextAction.trim() ? (
                   <div className="flex items-center justify-between">
@@ -1391,7 +1391,7 @@ export function PostCallPanel({
 
           {/* Callback date input */}
           <label className="block text-sm text-muted-foreground/60 mb-1.5 px-0.5">
-            Callback date &amp; time <span className="opacity-50">(optional)</span>
+            Resurface date &amp; time <span className="opacity-50">(optional)</span>
           </label>
           <input
             type="datetime-local"
@@ -1417,20 +1417,20 @@ export function PostCallPanel({
                   Send confirmation SMS to seller
                 </p>
                 <p className="text-xs text-muted-foreground/30 leading-relaxed">
-                  Brief message confirming the callback date. Uses Dominion Homes caller ID.
+                  Brief message confirming the next touch date. Uses Dominion Homes caller ID.
                 </p>
               </div>
             </label>
           )}
 
-          {/* Next task — chip-based, follow-up/appointment path */}
+          {/* Resurface — date + note, follow-up/appointment path */}
           <div className={`mb-3 rounded-[10px] border p-2.5 space-y-1.5 ${
             !nextAction.trim()
               ? "border-amber-500/25 bg-amber-500/[0.04]"
               : "border-primary/10 bg-primary/[0.03]"
           }`}>
             <p className={`text-xs uppercase tracking-wider font-semibold ${!nextAction.trim() ? "text-amber-400" : "text-primary/60"}`}>
-              {!nextAction.trim() ? "Next Task — Required" : "Next Task"}
+              {!nextAction.trim() ? "Resurface — Required" : "Resurface"}
             </p>
             {nextAction.trim() ? (
               <div className="flex items-center justify-between">
