@@ -625,6 +625,12 @@ export interface PublishResult {
   intro_sop_active?: boolean;
   intro_day_count?: number;
   intro_exit_category?: string | null;
+  intro_retry_round?: 1 | 2 | 3;
+  intro_round_attempt_count?: number;
+  intro_round_attempt_limit?: number;
+  intro_retry_due_at?: string | null;
+  intro_pending_action?: "retry_or_route" | "final_route" | null;
+  intro_pending_final_exit?: boolean;
   requires_exit_category?: boolean;
   /** UUID of the tasks row created, if callback_at was provided. */
   task_id?: string | null;

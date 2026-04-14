@@ -7,6 +7,7 @@ import { useSentinelStore } from "@/lib/store";
 import type { QualificationRoute } from "@/lib/types";
 import type { AutoCycleLeadState, AutoCyclePhoneState } from "@/lib/dialer/types";
 import { isDeepDiveNextAction } from "@/lib/deep-dive";
+import { isIntroRetryHiddenUntilDue } from "@/lib/intro-sop-state";
 import { resolveLeadDueAt } from "@/lib/active-work";
 import type {
   DialerKpiPreset,
@@ -37,6 +38,7 @@ export interface QueueLead {
   intro_last_call_date?: string | null;
   intro_completed_at?: string | null;
   intro_exit_category?: string | null;
+  intro_exit_reason?: string | null;
   next_action?: string | null;
   next_action_due_at: string | null;
   next_follow_up_at: string | null;
@@ -110,6 +112,7 @@ function shouldRenderInDialQueue(lead: QueueLead): boolean {
   if (!isActiveLead) {
     if (lead.intro_sop_active === false) return false;
     if (lead.intro_exit_category) return false;
+    if (isIntroRetryHiddenUntilDue(lead)) return false;
   }
   const disposition = (lead.disposition_code ?? "").toLowerCase();
   if (TERMINAL_QUEUE_DISPOSITIONS.has(disposition)) return false;
@@ -188,7 +191,8 @@ function isMissingIntroSopColumnError(error: unknown): boolean {
     || message.includes("intro_day_count")
     || message.includes("intro_last_call_date")
     || message.includes("intro_completed_at")
-    || message.includes("intro_exit_category");
+    || message.includes("intro_exit_category")
+    || message.includes("intro_exit_reason");
 }
 
 // ── Dialer Queue Hook ─────────────────────────────────────────────────

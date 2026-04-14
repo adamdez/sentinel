@@ -1,4 +1,13 @@
 import { completeOpenCallTasksForLead, projectLeadFromTasks, upsertLeadCallTask } from "@/lib/task-lead-sync";
+import {
+  buildIntroRetryDueAt,
+  buildIntroRetryReason,
+  deriveIntroSopState,
+  INTRO_SOP_MAX_DAY_COUNT,
+  type IntroPendingAction,
+  type IntroRetryRound,
+  type IntroSopDerivedState,
+} from "@/lib/intro-sop-state";
 
 type SupabaseClientLike = {
   from: (table: string) => any;
@@ -15,13 +24,8 @@ export const INTRO_EXIT_CATEGORIES = ["nurture", "dead", "disposition", "drive_b
 export type IntroExitCategory = (typeof INTRO_EXIT_CATEGORIES)[number];
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 
-export interface IntroSopState {
-  intro_sop_active: boolean;
-  intro_day_count: number;
-  intro_last_call_date: string | null;
-  intro_completed_at: string | null;
-  intro_exit_category: string | null;
-  requires_exit_category: boolean;
+export interface IntroSopState extends IntroSopDerivedState {
+  intro_pending_action: IntroPendingAction;
 }
 
 function normalizeDateKey(value: string): string {
@@ -40,22 +44,7 @@ function isSchemaDriftError(error: { code?: string | null; message?: string | nu
 }
 
 export function toIntroSopState(raw: Record<string, unknown> | null | undefined): IntroSopState {
-  const dayCount =
-    typeof raw?.intro_day_count === "number" && Number.isFinite(raw.intro_day_count)
-      ? Math.max(0, Math.min(3, Math.floor(raw.intro_day_count)))
-      : 0;
-  const active = raw?.intro_sop_active !== false;
-  const completedAt = typeof raw?.intro_completed_at === "string" ? raw.intro_completed_at : null;
-  const exitCategory = typeof raw?.intro_exit_category === "string" ? raw.intro_exit_category : null;
-  const lastCallDate = typeof raw?.intro_last_call_date === "string" ? raw.intro_last_call_date : null;
-  return {
-    intro_sop_active: active,
-    intro_day_count: dayCount,
-    intro_last_call_date: lastCallDate,
-    intro_completed_at: completedAt,
-    intro_exit_category: exitCategory,
-    requires_exit_category: !!(completedAt && !exitCategory),
-  };
+  return deriveIntroSopState(raw);
 }
 
 async function applyLeadFollowUpFallbackProjection(input: {
@@ -94,7 +83,7 @@ export async function progressIntroSopForCallAttempt(input: {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leadFetch = await (input.sb.from("leads") as any)
-    .select("id, intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category")
+    .select("id, intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category, intro_exit_reason, next_action_due_at, next_follow_up_at")
     .eq("id", input.leadId)
     .single();
 
@@ -113,26 +102,24 @@ export async function progressIntroSopForCallAttempt(input: {
     return { supported: true, state: current };
   }
 
-  const nextDayCount = Math.min(3, current.intro_day_count + 1);
-  const nowIso = new Date().toISOString();
+  const nextDayCount = Math.min(INTRO_SOP_MAX_DAY_COUNT, current.intro_day_count + 1);
   const patch: Record<string, unknown> = {
     intro_day_count: nextDayCount,
     intro_last_call_date: attemptedDateKey,
+    intro_completed_at: null,
+    intro_exit_reason: null,
   };
-
-  if (nextDayCount >= 3) {
-    patch.intro_sop_active = false;
-    patch.intro_completed_at = nowIso;
-    patch.dial_queue_active = false;
-    patch.dial_queue_added_at = null;
-    patch.dial_queue_added_by = null;
+  if (current.intro_retry_scheduled) {
+    patch.next_action = null;
+    patch.next_action_due_at = null;
+    patch.next_follow_up_at = null;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: updated, error: patchError } = await (input.sb.from("leads") as any)
     .update(patch)
     .eq("id", input.leadId)
-    .select("intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category")
+    .select("intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category, intro_exit_reason, next_action_due_at, next_follow_up_at")
     .single();
 
   if (patchError) {
@@ -157,7 +144,6 @@ export async function exitIntroSop(input: {
   const category = input.category;
   const patch: Record<string, unknown> = {
     intro_sop_active: false,
-    intro_day_count: 3,
     intro_last_call_date: todayPacific,
     intro_completed_at: nowIso,
     intro_exit_category: category,
@@ -165,6 +151,8 @@ export async function exitIntroSop(input: {
     dial_queue_active: false,
     dial_queue_added_at: null,
     dial_queue_added_by: null,
+    next_action_due_at: null,
+    next_follow_up_at: null,
   };
 
   if (category === "drive_by") {
@@ -181,7 +169,7 @@ export async function exitIntroSop(input: {
   const { data: updated, error } = await (input.sb.from("leads") as any)
     .update(patch)
     .eq("id", input.leadId)
-    .select("assigned_to, intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category")
+    .select("assigned_to, intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category, intro_exit_reason, next_action_due_at, next_follow_up_at")
     .single();
 
   if (error) {
@@ -240,6 +228,61 @@ export async function exitIntroSop(input: {
         entity_id: input.leadId,
         details: {
           category,
+        },
+      })
+      .then(() => {});
+  }
+
+  return { supported: true, state: toIntroSopState(updated as Record<string, unknown>) };
+}
+
+export async function scheduleIntroRetry(input: {
+  sb: SupabaseClientLike;
+  leadId: string;
+  nextRound: Extract<IntroRetryRound, 2 | 3>;
+  userId?: string | null;
+  dueAtIso?: string | null;
+}): Promise<{ supported: boolean; state: IntroSopState | null }> {
+  const nowIso = new Date().toISOString();
+  const dueAt = input.dueAtIso ?? buildIntroRetryDueAt(new Date(nowIso));
+  const title = input.nextRound === 2 ? "Intro retry round 2" : "Intro final retry";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: updated, error } = await (input.sb.from("leads") as any)
+    .update({
+      intro_sop_active: true,
+      intro_exit_category: null,
+      intro_exit_reason: buildIntroRetryReason(input.nextRound),
+      intro_completed_at: null,
+      next_action: title,
+      next_action_due_at: dueAt,
+      next_call_scheduled_at: null,
+      next_follow_up_at: dueAt,
+      dial_queue_active: true,
+      updated_at: nowIso,
+    })
+    .eq("id", input.leadId)
+    .select("intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category, intro_exit_reason, next_action_due_at, next_follow_up_at")
+    .single();
+
+  if (error) {
+    if (isSchemaDriftError(error)) {
+      return { supported: false, state: null };
+    }
+    throw new Error(error.message ?? "Failed to schedule intro retry");
+  }
+
+  if (input.userId) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (input.sb.from("event_log") as any)
+      .insert({
+        user_id: input.userId,
+        action: "lead.intro_sop_retry_scheduled",
+        entity_type: "lead",
+        entity_id: input.leadId,
+        details: {
+          next_round: input.nextRound,
+          due_at: dueAt,
         },
       })
       .then(() => {});

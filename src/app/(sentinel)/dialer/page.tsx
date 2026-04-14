@@ -20,6 +20,14 @@ import { GlassCard } from "@/components/sentinel/glass-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -52,7 +60,7 @@ import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-wor
 import { Eye } from "lucide-react";
 import { useCoachSurface } from "@/providers/coach-provider";
 import { CoachPanel, CoachToggle } from "@/components/sentinel/coach-panel";
-import { PostCallPanel } from "@/components/sentinel/post-call-panel";
+import { PostCallPanel, type PostCallIntroStateMeta } from "@/components/sentinel/post-call-panel";
 import { SellerMemoryPanel } from "@/components/sentinel/seller-memory-panel";
 import { SellerMemoryPreview } from "@/components/sentinel/seller-memory-preview";
 import { LiveCoachWindow } from "@/components/sentinel/live-coach-window";
@@ -100,6 +108,7 @@ import {
 } from "@/lib/dialer/dialer-ui-state";
 import { matchesCommunicationSearch } from "@/lib/dialer/communication-search";
 import { formatDialerEquityDisplay } from "@/lib/dialer/equity";
+import { deriveIntroSopState } from "@/lib/intro-sop-state";
 import { pushToDialer } from "@/components/sentinel/dialer-navigation";
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -108,6 +117,16 @@ async function authHeaders(): Promise<Record<string, string>> {
   if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
   return headers;
 }
+
+type QueueAdvancePlan = ReturnType<typeof planNextQueueTarget>;
+
+type PendingIntroDecision = {
+  leadId: string;
+  autoDial: boolean;
+  shouldAdvanceAfterSave: boolean;
+  advancePlan: QueueAdvancePlan;
+  introState: PostCallIntroStateMeta;
+};
 
 type DialerStats = {
   myOutbound: number;
@@ -1176,6 +1195,8 @@ function DialerPageInner() {
   const [resurfaceAt, setResurfaceAt] = useState("");
   const [resurfaceNote, setResurfaceNote] = useState("");
   const [resurfaceSaving, setResurfaceSaving] = useState(false);
+  const [pendingIntroDecision, setPendingIntroDecision] = useState<PendingIntroDecision | null>(null);
+  const [introDecisionSaving, setIntroDecisionSaving] = useState(false);
   const [dispositionPending, setDispositionPending] = useState(false);
   const [smsLoading, setSmsLoading] = useState(false);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
@@ -1953,19 +1974,28 @@ function DialerPageInner() {
 
   const promptIntroExitCategory = useCallback(async (leadId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    const choice = window.prompt(
-      "Day 3 complete. Choose category: nurture, disposition, dead, drive_by",
-      "nurture",
-    )?.trim().toLowerCase();
-
-    if (!choice) return;
-    if (!["nurture", "disposition", "dead", "drive_by"].includes(choice)) {
-      toast.error("Invalid category. Use nurture, disposition, dead, or drive_by.");
+    const lead = displayedQueue.find((entry) => entry.id === leadId) ?? null;
+    if (!lead) {
+      toast.error("Could not load intro decision for this file.");
       return;
     }
 
-    await applyIntroExitForLead(leadId, choice as "nurture" | "dead" | "disposition" | "drive_by");
-  }, [applyIntroExitForLead]);
+    const introState = deriveIntroSopState(lead);
+    setPendingIntroDecision({
+      leadId,
+      autoDial: false,
+      shouldAdvanceAfterSave: false,
+      advancePlan: { action: "done" },
+      introState: {
+        pendingAction: introState.intro_pending_action ?? "retry_or_route",
+        retryRound: introState.intro_retry_round,
+        roundAttemptCount: introState.intro_round_attempt_count,
+        roundAttemptLimit: introState.intro_round_attempt_limit,
+        retryDueAt: introState.intro_retry_due_at,
+        pendingFinalExit: introState.intro_pending_final_exit,
+      },
+    });
+  }, [displayedQueue]);
 
   const handleMarkDeepDive = useCallback(async (lead: QueueLead, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -2333,7 +2363,97 @@ function DialerPageInner() {
     }
   }, [autoCycleMode, currentLead?.id, leadSkipTracingId, refetchQueue]);
 
-  const advanceQueueAfterDisposition = useCallback(async (disposition: string, autoDial: boolean) => {
+  const applyQueueAdvancePlan = useCallback((plan: QueueAdvancePlan, disposition: string, autoDial: boolean, isLeadTerminalDisposition: boolean) => {
+    if (!autoDial) {
+      setPendingAutoDialLeadId(null);
+    }
+
+    if (plan.action === "next") {
+      pendingSameLeadPhoneAdvanceRef.current = null;
+      const nextLead = executionQueue.find((lead) => lead.id === plan.leadId) ?? null;
+      selectQueueLead(nextLead);
+      if (autoDial && powerDialPaused && nextLead) {
+        setPendingAutoDialLeadId(null);
+        toast.info(isLeadTerminalDisposition ? "Lead done - Power Dial paused on next lead" : "Power Dial paused on next lead");
+        return;
+      }
+      if (!autoDial && nextLead && isLeadTerminalDisposition) {
+        toast.info("Lead done - next lead loaded");
+        return;
+      }
+      if (autoDial && nextLead) {
+        setPendingAutoDialLeadId(nextLead.id);
+        toast.info("Power Dial: next lead dialing...");
+      } else if (nextLead) {
+        toast.info(disposition === "dead_lead" || disposition === "disqualified" ? "Lead done - next lead loaded" : "Next lead loaded");
+      } else if (autoCycleMode) {
+        selectQueueLead(null);
+        toast.info("Power Dial complete - you've called every ready lead. Add more leads to continue.");
+      } else {
+        toast.info(autoDial ? "Power Dial complete - queue finished" : "Queue complete - all leads attempted");
+      }
+      return;
+    }
+
+    setPendingAutoDialLeadId(null);
+    pendingSameLeadPhoneAdvanceRef.current = null;
+    if (autoCycleMode) {
+      selectQueueLead(null);
+      toast.info("Power Dial complete - you've called every ready lead. Add more leads to continue.");
+      return;
+    }
+    toast.info(autoDial ? "Power Dial complete - queue finished" : "Queue complete - all leads attempted");
+  }, [autoCycleMode, executionQueue, powerDialPaused, selectQueueLead]);
+
+  const completeIntroDecisionAndAdvance = useCallback(async (request: PendingIntroDecision) => {
+    await refreshQueues();
+    setPendingIntroDecision(null);
+    if (request.shouldAdvanceAfterSave) {
+      applyQueueAdvancePlan(request.advancePlan, "completed", request.autoDial, false);
+    }
+  }, [applyQueueAdvancePlan, refreshQueues]);
+
+  const handleIntroDecision = useCallback(async (action: "retry" | "nurture" | "drive_by") => {
+    if (!pendingIntroDecision) return;
+
+    const request = pendingIntroDecision;
+    setIntroDecisionSaving(true);
+    try {
+      const headers = await authHeaders();
+      const body =
+        action === "retry"
+          ? { action: "retry", nextRound: request.introState.retryRound + 1 }
+          : { category: action };
+      const res = await fetch(`/api/leads/${request.leadId}/intro-exit`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({} as { error?: string }));
+      if (!res.ok) {
+        toast.error(data.error ?? "Could not update intro workflow");
+        return;
+      }
+
+      toast.success(
+        action === "retry"
+          ? request.introState.retryRound === 1
+            ? "Round 2 will resurface in 14 days"
+            : "Final retry will resurface in 14 days"
+          : action === "drive_by"
+            ? "Moved to Drive By"
+            : "Moved to Nurture",
+      );
+      await completeIntroDecisionAndAdvance(request);
+    } catch (error) {
+      console.error("[dialer] intro decision failed:", error);
+      toast.error("Could not update intro workflow");
+    } finally {
+      setIntroDecisionSaving(false);
+    }
+  }, [completeIntroDecisionAndAdvance, pendingIntroDecision]);
+
+  const advanceQueueAfterDisposition = useCallback(async (disposition: string, autoDial: boolean, introState?: PostCallIntroStateMeta | null) => {
     const activePhoneCount = leadPhones.filter((phone) => phone.status === "active").length;
     const isLeadTerminalDisposition = isAutoCycleLeadExitDisposition(disposition as Parameters<typeof isAutoCycleLeadExitDisposition>[0]);
     const plan = planNextQueueTarget({
@@ -2343,10 +2463,6 @@ function DialerPageInner() {
       activePhoneCount,
       isTerminalDisposition: isLeadTerminalDisposition,
     });
-
-    if (!autoDial) {
-      setPendingAutoDialLeadId(null);
-    }
 
     if (plan.action === "stay") {
       setPhoneIndex(plan.nextPhoneIndex);
@@ -2386,6 +2502,25 @@ function DialerPageInner() {
       return;
     }
 
+    if (
+      currentLead?.id
+      && introState
+      && (introState.pendingAction === "retry_or_route" || introState.pendingAction === "final_route")
+    ) {
+      setPendingAutoDialLeadId(null);
+      setPendingIntroDecision({
+        leadId: currentLead.id,
+        autoDial,
+        shouldAdvanceAfterSave: true,
+        advancePlan: plan,
+        introState,
+      });
+      return;
+    }
+
+    applyQueueAdvancePlan(plan, disposition, autoDial, isLeadTerminalDisposition);
+    return;
+
     if (plan.action === "next") {
       pendingSameLeadPhoneAdvanceRef.current = null;
       const nextLead = executionQueue.find((lead) => lead.id === plan.leadId) ?? null;
@@ -2423,7 +2558,7 @@ function DialerPageInner() {
       return;
     }
     toast.info(autoDial ? "Power Dial complete — queue finished" : "Queue complete — all leads attempted");
-  }, [activeLeadPhones, autoCycleMode, currentLead, executionQueue, leadPhones, persistPowerDialNextPhone, phoneIndex, powerDialPaused, refreshCurrentLeadPhones, selectQueueLead]);
+  }, [activeLeadPhones, applyQueueAdvancePlan, autoCycleMode, currentLead, executionQueue, leadPhones, persistPowerDialNextPhone, phoneIndex, powerDialPaused, refreshCurrentLeadPhones, selectQueueLead]);
 
   // ── Incoming call handler — attached to provider-managed Device ──
   useEffect(() => {
@@ -3557,7 +3692,7 @@ function DialerPageInner() {
   // Cycles to the next un-attempted phone before advancing to the next lead.
   const handlePostCallDone = useCallback(async (
     disposition = "completed",
-    meta?: { autoCycleStatus?: string | null },
+    meta?: { autoCycleStatus?: string | null; introState?: PostCallIntroStateMeta | null },
   ) => {
     setCallState("idle");
     setActiveCallLead(null);
@@ -3570,6 +3705,7 @@ function DialerPageInner() {
     setTransferStatus(null);
     setMuted(false);
     setSavedNotes([]);
+    setDispositionPending(false);
     pendingSavedNoteContentRef.current = null;
     noteSeqRef.current = 0;
     timer.reset();
@@ -3588,7 +3724,7 @@ function DialerPageInner() {
       return;
     }
 
-    await advanceQueueAfterDisposition(disposition, autoCycleMode);
+    await advanceQueueAfterDisposition(disposition, autoCycleMode, meta?.introState ?? null);
   }, [advanceQueueAfterDisposition, autoCycleMode, powerDialPaused, refreshQueues, selectQueueLead, timer]);
 
   // ── Manual dial PostCallPanel completion handler ──────────────────
@@ -5907,6 +6043,94 @@ function DialerPageInner() {
           openCloseoutComposerSignal={openCloseoutSignal}
         />
       )}
+
+      <Dialog open={!!pendingIntroDecision} onOpenChange={(open) => { if (!open && !introDecisionSaving) setPendingIntroDecision(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {pendingIntroDecision?.introState.pendingAction === "final_route" ? "Final Intro Decision" : "Intro Round Complete"}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingIntroDecision?.introState.pendingAction === "final_route"
+                ? "This file finished its last reduced retry round with no answer. Choose where it should go next."
+                : pendingIntroDecision?.introState.retryRound === 1
+                  ? "This file finished the 3-call intro cycle with no answer. You can move it now or bring it back in 14 days for a 2-call retry round."
+                  : "This file finished the 2-call retry round with no answer. You can move it now or bring it back in 14 days for one final call attempt."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <button
+              type="button"
+              disabled={introDecisionSaving}
+              onClick={() => void handleIntroDecision("drive_by")}
+              className="w-full rounded-[12px] border border-amber-500/20 bg-amber-500/[0.06] px-4 py-3 text-left transition-colors hover:bg-amber-500/[0.12] disabled:opacity-50"
+            >
+              <div className="flex items-center gap-3">
+                <MapPin className="h-4 w-4 text-amber-200" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Move to Drive By</p>
+                  <p className="text-xs text-muted-foreground/65">Stop calling and park this file in the drive-by workflow.</p>
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              disabled={introDecisionSaving}
+              onClick={() => void handleIntroDecision("nurture")}
+              className="w-full rounded-[12px] border border-border/20 bg-overlay-3 px-4 py-3 text-left transition-colors hover:bg-overlay-4 disabled:opacity-50"
+            >
+              <div className="flex items-center gap-3">
+                <Heart className="h-4 w-4 text-foreground" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Move to Nurture</p>
+                  <p className="text-xs text-muted-foreground/65">Stop this intro sequence and move the file into nurture follow-up.</p>
+                </div>
+              </div>
+            </button>
+
+            {pendingIntroDecision?.introState.pendingAction === "retry_or_route" && (
+              <button
+                type="button"
+                disabled={introDecisionSaving}
+                onClick={() => void handleIntroDecision("retry")}
+                className="w-full rounded-[12px] border border-primary/20 bg-primary/[0.06] px-4 py-3 text-left transition-colors hover:bg-primary/[0.12] disabled:opacity-50"
+              >
+                <div className="flex items-center gap-3">
+                  <CalendarCheck className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {pendingIntroDecision.introState.retryRound === 1 ? "Retry in 14 Days" : "Final 1-Call Retry in 14 Days"}
+                    </p>
+                    <p className="text-xs text-muted-foreground/65">
+                      {pendingIntroDecision.introState.retryRound === 1
+                        ? "Hide this file for 14 days, then bring it back for a 2-call retry round."
+                        : "Hide this file for 14 days, then bring it back for one last call attempt."}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setPendingIntroDecision(null)}
+              disabled={introDecisionSaving}
+            >
+              Decide Later
+            </Button>
+            {introDecisionSaving && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Saving...
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CoachPanel />
     </PageShell>

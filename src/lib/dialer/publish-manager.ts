@@ -278,7 +278,7 @@ export async function publishSession(
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: introLead } = await (sb.from("leads") as any)
-        .select("intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category")
+        .select("intro_sop_active, intro_day_count, intro_last_call_date, intro_completed_at, intro_exit_category, intro_exit_reason, next_action_due_at, next_follow_up_at")
         .eq("id", leadId)
         .maybeSingle();
       introState = toIntroSopState((introLead ?? null) as Record<string, unknown> | null);
@@ -837,11 +837,17 @@ export async function publishSession(
     ...(warnings.length > 0 ? { warnings } : {}),
     ...(introState
       ? {
-          intro_sop_active: introState.intro_sop_active,
-          intro_day_count: introState.intro_day_count,
-          intro_exit_category: introState.intro_exit_category,
-          requires_exit_category: introState.requires_exit_category,
-        }
+        intro_sop_active: introState.intro_sop_active,
+        intro_day_count: introState.intro_day_count,
+        intro_exit_category: introState.intro_exit_category,
+        intro_retry_round: introState.intro_retry_round,
+        intro_round_attempt_count: introState.intro_round_attempt_count,
+        intro_round_attempt_limit: introState.intro_round_attempt_limit,
+        intro_retry_due_at: introState.intro_retry_due_at,
+        intro_pending_action: introState.intro_pending_action,
+        intro_pending_final_exit: introState.intro_pending_final_exit,
+        requires_exit_category: introState.requires_exit_category,
+      }
       : {}),
   };
 }

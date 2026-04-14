@@ -304,7 +304,7 @@ export function buildLeadQueueRow(raw: RawLeadRecord, predictiveScore?: number |
     dialQueueActive: raw.dial_queue_active === true,
     dialQueueAddedAt: typeof raw.dial_queue_added_at === "string" ? raw.dial_queue_added_at : null,
     introSopActive: raw.intro_sop_active !== false,
-    introDayCount: typeof raw.intro_day_count === "number" ? Math.min(3, Math.max(0, Math.floor(raw.intro_day_count))) : 0,
+    introDayCount: typeof raw.intro_day_count === "number" ? Math.min(6, Math.max(0, Math.floor(raw.intro_day_count))) : 0,
     introLastCallDate: typeof raw.intro_last_call_date === "string" ? raw.intro_last_call_date : null,
     introCompletedAt: typeof raw.intro_completed_at === "string" ? raw.intro_completed_at : null,
     introExitCategory: typeof raw.intro_exit_category === "string" ? raw.intro_exit_category : null,

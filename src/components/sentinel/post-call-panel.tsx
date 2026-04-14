@@ -39,6 +39,7 @@ import { QualGapStripCompact } from "@/components/sentinel/qual-gap-strip";
 import type { QualCheckInput, QualItemKey } from "@/lib/dialer/qual-checklist";
 import type { PostCallStructureInput } from "@/lib/dialer/post-call-structure";
 import { formatDueDateLabel } from "@/lib/due-date-label";
+import type { IntroPendingAction } from "@/lib/intro-sop-state";
 
 interface PublishQaFinding {
   check_type: string;
@@ -236,6 +237,15 @@ export interface PostCallQualContext {
   hasOpenTask:            boolean;
 }
 
+export interface PostCallIntroStateMeta {
+  pendingAction: IntroPendingAction;
+  retryRound: 1 | 2 | 3;
+  roundAttemptCount: number;
+  roundAttemptLimit: number;
+  retryDueAt: string | null;
+  pendingFinalExit: boolean;
+}
+
 export interface PostCallPanelProps {
   sessionId: string;
   callLogId: string | null;
@@ -257,11 +267,11 @@ export interface PostCallPanelProps {
   beforePublish?: () => Promise<unknown> | unknown;
   onComplete: (
     disposition?: PublishDisposition,
-    meta?: { autoCycleStatus?: string | null },
+    meta?: { autoCycleStatus?: string | null; introState?: PostCallIntroStateMeta | null },
   ) => void | Promise<void>;
   onSkip: (
     disposition?: PublishDisposition,
-    meta?: { autoCycleStatus?: string | null },
+    meta?: { autoCycleStatus?: string | null; introState?: PostCallIntroStateMeta | null },
   ) => void | Promise<void>;
 }
 
@@ -611,21 +621,20 @@ export function PostCallPanel({
 
     setPublishQaFindings(qaFindings);
 
-    if (leadId && publishData?.requires_exit_category === true) {
-      const choice = window.prompt(
-        "Day 3 complete. Choose category: nurture, disposition, dead, drive_by",
-        "nurture",
-      )?.trim().toLowerCase();
-      if (choice && ["nurture", "disposition", "dead", "drive_by"].includes(choice)) {
-        await fetch(`/api/leads/${leadId}/intro-exit`, {
-          method: "POST",
-          headers: await authHeaders(),
-          body: JSON.stringify({ category: choice }),
-        }).catch(() => null);
-      } else {
-        toast.warning("Lead requires category selection to finish intro workflow.");
-      }
-    }
+    const introState: PostCallIntroStateMeta | null =
+      (publishData?.intro_pending_action === "retry_or_route" || publishData?.intro_pending_action === "final_route")
+      && (publishData?.intro_retry_round === 1 || publishData?.intro_retry_round === 2 || publishData?.intro_retry_round === 3)
+      && typeof publishData?.intro_round_attempt_count === "number"
+      && typeof publishData?.intro_round_attempt_limit === "number"
+        ? {
+          pendingAction: publishData.intro_pending_action as IntroPendingAction,
+          retryRound: publishData.intro_retry_round as 1 | 2 | 3,
+          roundAttemptCount: publishData.intro_round_attempt_count as number,
+          roundAttemptLimit: publishData.intro_round_attempt_limit as number,
+          retryDueAt: typeof publishData?.intro_retry_due_at === "string" ? publishData.intro_retry_due_at : null,
+          pendingFinalExit: publishData?.intro_pending_final_exit === true,
+        }
+        : null;
 
     if (qaFindings.length > 0) {
       const flaggedCount = qaFindings.filter((finding) => finding.severity === "flag").length;
@@ -744,9 +753,9 @@ export function PostCallPanel({
       || (autoCycleEnabled && isAutoCycleLeadExitDisposition(dispo));
 
     if (!leadId) {
-      setTimeout(() => { void onComplete(dispo, { autoCycleStatus: null }); }, 850);
+      setTimeout(() => { void onComplete(dispo, { autoCycleStatus: null, introState }); }, 850);
     } else if (shouldAutoAdvance) {
-      setTimeout(() => { void onComplete(dispo, { autoCycleStatus: resolvedAutoCycleStatus }); }, AUTO_ADVANCE_DELAY_MS);
+      setTimeout(() => { void onComplete(dispo, { autoCycleStatus: resolvedAutoCycleStatus, introState }); }, AUTO_ADVANCE_DELAY_MS);
     }
   };
 
@@ -814,7 +823,7 @@ export function PostCallPanel({
         }),
       ).catch(() => {});
     }
-    void onSkip("completed", { autoCycleStatus });
+    void onSkip("completed", { autoCycleStatus, introState: null });
   };
 
   const handleDispoTap = (dispo: PublishDisposition) => {
@@ -969,7 +978,7 @@ export function PostCallPanel({
           )}
           {savedDispo && AUTO_ADVANCE_DISPOS.has(savedDispo) && leadId ? (
             <button
-              onClick={() => { void onComplete(savedDispo, { autoCycleStatus }); }}
+              onClick={() => { void onComplete(savedDispo, { autoCycleStatus, introState: null }); }}
               className="text-xs text-muted-foreground/40 hover:text-foreground/60 transition-colors text-center"
             >
               Skip wait — next lead now
@@ -1017,7 +1026,7 @@ export function PostCallPanel({
               )}
               {leadId ? (
                 <>
-                  <Button size="sm" className="w-full gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm" onClick={() => { void onComplete(savedDispo ?? undefined, { autoCycleStatus }); }}>
+                  <Button size="sm" className="w-full gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm" onClick={() => { void onComplete(savedDispo ?? undefined, { autoCycleStatus, introState: null }); }}>
                     Next Lead
                     <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
