@@ -3464,7 +3464,14 @@ function DialerPageInner() {
     if (!pendingPowerDialStart) return;
     if (powerDialPaused) return;
     if (callState !== "idle" || dispositionPending) return;
-    if (!currentLead || !currentPowerDialReady) return;
+    if (!currentLead) {
+      const nextReadyLead = executionQueue[0] ?? null;
+      if (nextReadyLead) {
+        selectQueueLead(nextReadyLead);
+      }
+      return;
+    }
+    if (!currentPowerDialReady) return;
     if (!selectedDialPhone) return;
 
     setPendingPowerDialStart(false);
@@ -3476,8 +3483,10 @@ function DialerPageInner() {
     callState,
     dispositionPending,
     currentLead,
+    executionQueue,
     currentPowerDialReady,
     selectedDialPhone,
+    selectQueueLead,
   ]);
 
   useEffect(() => {
