@@ -8,11 +8,11 @@ export const runtime = "nodejs";
  * POST /api/dialer/v1/inbound/[event_id]/dismiss
  *
  * Dismisses a missed inbound call signal — removes it from the recovery queue.
- * Requires an explicit reason (enforces that dismissal is intentional, not lazy).
  *
  * Body: { reason: string }  — required, min 3 chars
  *
- * Writes an inbound.dismissed dialer_event referencing the original.
+ * Writes an inbound.dismissed dialer_event referencing the original event or
+ * fallback calls_log row when the missed event never persisted.
  * Does NOT complete the associated task — operator can do that separately.
  * Does NOT change any lead fields.
  */
@@ -45,8 +45,30 @@ export async function POST(
       .eq("event_type", "inbound.missed")
       .single();
 
+    let originalLeadId: string | null = original?.lead_id ?? null;
+    let originalTaskId: string | null = original?.task_id ?? null;
+    let fromNumber: string | null = (original?.metadata?.from_number as string | null) ?? null;
+    let originalEventId: string | null = original?.id ?? null;
+    let originalCallLogId: string | null = null;
+
     if (fetchErr || !original) {
-      return NextResponse.json({ error: "Event not found or not a missed-inbound event" }, { status: 404 });
+      // Fallback rows come from calls_log when no inbound.missed event exists yet.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: fallbackCall, error: fallbackErr } = await (sb.from("calls_log") as any)
+        .select("id, lead_id, phone_dialed")
+        .eq("id", event_id)
+        .eq("direction", "inbound")
+        .single();
+
+      if (fallbackErr || !fallbackCall) {
+        return NextResponse.json({ error: "Event not found or not a missed-inbound event" }, { status: 404 });
+      }
+
+      originalLeadId = fallbackCall.lead_id ?? null;
+      originalTaskId = null;
+      fromNumber = fallbackCall.phone_dialed ?? null;
+      originalEventId = null;
+      originalCallLogId = fallbackCall.id;
     }
 
     // Write the dismiss event
@@ -54,15 +76,16 @@ export async function POST(
     const { error: eventErr } = await (sb.from("dialer_events") as any)
       .insert({
         event_type: "inbound.dismissed",
-        lead_id: original.lead_id,
+        lead_id: originalLeadId,
         session_id: null,
-        task_id: original.task_id,
+        task_id: originalTaskId,
         metadata: {
-          original_event_id: event_id,
+          original_event_id: originalEventId,
+          original_call_log_id: originalCallLogId,
           dismissed_by: user.id,
           dismissed_at: new Date().toISOString(),
           reason,
-          from_number: original.metadata?.from_number ?? null,
+          from_number: fromNumber,
         },
       });
 

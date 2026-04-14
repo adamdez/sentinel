@@ -570,7 +570,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
                 size="sm"
                 variant="outline"
                 className="h-7 text-sm px-2.5 border-border/40 text-foreground hover:bg-muted/30"
-                onClick={handleDismiss}
+                onClick={() => void handleDismiss()}
                 disabled={busy}
               >
                 {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}

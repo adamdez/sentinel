@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  HelpCircle,
   Loader2,
   MessageSquare,
   Phone,
@@ -22,7 +21,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { MissedInbound, UnclassifiedAnswered } from "@/app/api/dialer/v1/queue/route";
+import type { MissedInbound } from "@/app/api/dialer/v1/queue/route";
 import { matchesCommunicationSearch } from "@/lib/dialer/communication-search";
 import { buildDialerHref, pushToDialer } from "@/components/sentinel/dialer-navigation";
 
@@ -60,9 +59,9 @@ function formatPhone(phone: string): string {
   return phone;
 }
 
-function buildVoicemailPlaybackUrl(url: string | null): string | null {
-  if (!url) return null;
-  return url.endsWith(".mp3") || url.endsWith(".wav") ? url : `${url}.mp3`;
+function buildVoicemailPlaybackUrl(callLogId: string | null, hasVoicemail: boolean): string | null {
+  if (!callLogId || !hasVoicemail) return null;
+  return `/api/dialer/v1/calls/${encodeURIComponent(callLogId)}/voicemail?format=mp3`;
 }
 
 function finalStatePriority(item: MissedInbound): number {
@@ -147,8 +146,8 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
 
   const severity = ageSeverity(item.minutes_ago);
   const ageLabel = formatAge(item.missed_at, item.minutes_ago);
-  const hasEventActions = item.source !== "calls_log_fallback";
-  const playbackUrl = buildVoicemailPlaybackUrl(item.voicemail_url);
+  const hasRecoverAction = item.source !== "calls_log_fallback";
+  const playbackUrl = buildVoicemailPlaybackUrl(item.call_log_id, Boolean(item.voicemail_url));
   const routeText = routeLabel(item);
 
   const openHref = useMemo(() => {
@@ -330,30 +329,28 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
           </Link>
         )}
 
-        {hasEventActions && (
-          <>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs px-2.5 border-border/40 text-foreground hover:bg-muted/30"
-              onClick={handleRecover}
-              disabled={busy}
-            >
-              {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
-              Mark Recovered
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs px-2.5 text-muted-foreground/65 hover:text-foreground"
-              onClick={() => void handleDismiss()}
-              disabled={busy}
-            >
-              {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
-              Dismiss
-            </Button>
-          </>
+        {hasRecoverAction && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs px-2.5 border-border/40 text-foreground hover:bg-muted/30"
+            onClick={handleRecover}
+            disabled={busy}
+          >
+            {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
+            Mark Recovered
+          </Button>
         )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs px-2.5 text-muted-foreground/65 hover:text-foreground"
+          onClick={() => void handleDismiss()}
+          disabled={busy}
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+          Dismiss
+        </Button>
       </div>
 
       {playbackUrl && (
@@ -376,30 +373,8 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
   );
 }
 
-function UnclassifiedAnsweredRow({ item, idx }: { item: UnclassifiedAnswered; idx: number }) {
-  const ageLabel = formatAge(item.answered_at, item.minutes_ago);
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -4 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: 0.04 + idx * 0.04 }}
-      className="rounded-[8px] border border-border/15 bg-muted/[0.03] p-2 flex items-center gap-2"
-    >
-      <HelpCircle className="h-3 w-3 shrink-0 text-foreground/60" />
-      <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium">{item.from_number !== "unknown" ? formatPhone(item.from_number) : "Unknown"}</span>
-        <span className="ml-1.5 text-sm text-muted-foreground/40">{ageLabel}</span>
-      </div>
-      <Link href={`/dialer/inbound?event_id=${item.event_id}`} className="text-sm text-foreground/70 hover:text-foreground shrink-0">
-        Classify →
-      </Link>
-    </motion.div>
-  );
-}
-
 interface MissedInboundQueueProps {
   items: MissedInbound[];
-  unclassified?: UnclassifiedAnswered[];
   loading: boolean;
   onRefresh: () => void;
   query?: string;
@@ -407,7 +382,6 @@ interface MissedInboundQueueProps {
 
 export function MissedInboundQueue({
   items,
-  unclassified = [],
   loading,
   onRefresh,
   query = "",
@@ -431,12 +405,9 @@ export function MissedInboundQueue({
       if (stateDelta !== 0) return stateDelta;
       return new Date(right.missed_at).getTime() - new Date(left.missed_at).getTime();
     });
-  const filteredUnclassified = unclassified.filter((item) => matchesCommunicationSearch(query, [
-    item.from_number,
-  ]));
   const count = filteredVisible.length;
   const hasSearch = query.trim().length > 0;
-  const hasAnyRecords = visible.length > 0 || unclassified.length > 0;
+  const hasAnyRecords = visible.length > 0;
 
   return (
     <div className="space-y-2">
@@ -466,7 +437,7 @@ export function MissedInboundQueue({
         <p className="text-sm text-muted-foreground/40 py-1">No voicemail or missed inbound in the last 7 days.</p>
       )}
 
-      {!loading && hasAnyRecords && count === 0 && filteredUnclassified.length === 0 && hasSearch && (
+      {!loading && hasAnyRecords && count === 0 && hasSearch && (
         <p className="text-sm text-muted-foreground/40 py-1">No voicemail-box matches for this search.</p>
       )}
 
@@ -478,24 +449,6 @@ export function MissedInboundQueue({
           onResolved={(eventId) => setVisible((prev) => prev.filter((row) => row.event_id !== eventId))}
         />
       ))}
-
-      {filteredUnclassified.length > 0 && (
-        <div className="space-y-1 pt-1">
-          <div className="flex items-center gap-1 pb-0.5">
-            <HelpCircle className="h-3 w-3 text-foreground/60" />
-            <span className="text-sm font-semibold uppercase tracking-wider text-foreground/50">
-              Answered — not classified
-            </span>
-            <Badge className="bg-muted/15 text-foreground border-border/25 text-xs h-3.5 px-1 ml-1">
-              {filteredUnclassified.length}
-            </Badge>
-          </div>
-          {filteredUnclassified.map((item, idx) => (
-            <UnclassifiedAnsweredRow key={item.event_id} item={item} idx={idx} />
-          ))}
-        </div>
-      )}
-
       {count > 0 && (
         <div className="flex items-center gap-2 pt-0.5">
           <div className="flex items-center gap-1">
@@ -519,7 +472,6 @@ export function MissedInboundQueue({
 
 export function MissedInboundQueueAutoLoad({ query = "" }: { query?: string }) {
   const [items, setItems] = useState<MissedInbound[]>([]);
-  const [unclassified, setUnclassified] = useState<UnclassifiedAnswered[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<"unauthorized" | "server" | "network" | null>(null);
 
@@ -532,13 +484,11 @@ export function MissedInboundQueueAutoLoad({ query = "" }: { query?: string }) {
       if (res.status === 401) {
         setError("unauthorized");
         setItems([]);
-        setUnclassified([]);
       } else if (!res.ok) {
         setError("server");
       } else {
         const data = await res.json();
         setItems(data.missed_inbound ?? []);
-        setUnclassified(data.unclassified_answered ?? []);
       }
     } catch {
       setError("network");
@@ -582,5 +532,7 @@ export function MissedInboundQueueAutoLoad({ query = "" }: { query?: string }) {
     );
   }
 
-  return <MissedInboundQueue items={items} unclassified={unclassified} loading={loading} onRefresh={() => void load()} query={query} />;
+  return <MissedInboundQueue items={items} loading={loading} onRefresh={() => void load()} query={query} />;
 }
+
+

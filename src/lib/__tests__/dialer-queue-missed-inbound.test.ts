@@ -31,7 +31,7 @@ type QueryState = {
   lt: Array<[string, unknown]>;
 };
 
-type Scenario = "voicemail" | "jeff_placeholder";
+type Scenario = "voicemail" | "jeff_placeholder" | "fallback_dismissed";
 
 let scenario: Scenario = "voicemail";
 
@@ -126,6 +126,19 @@ function resolveQuery(table: string, state: QueryState) {
   if (table === "calls_log") {
     const ids = state.in.find(([field]) => field === "id")?.[1] as string[] | undefined;
     if (!ids) {
+      if (scenario === "fallback_dismissed") {
+        return {
+          data: [{
+            id: "fallback-call-log-1",
+            lead_id: null,
+            phone_dialed: "+15095551234",
+            twilio_sid: "CA-fallback-1",
+            created_at: "2026-04-13T18:00:00.000Z",
+            disposition: "in_progress",
+          }],
+          error: null,
+        };
+      }
       return { data: [], error: null };
     }
 
@@ -216,6 +229,10 @@ function resolveQuery(table: string, state: QueryState) {
     if (eqEventType === "inbound.missed") {
       expect(state.gte).toEqual(expect.arrayContaining([["created_at", expect.any(String)]]));
 
+      if (scenario === "fallback_dismissed") {
+        return { data: [], error: null };
+      }
+
       if (scenario === "voicemail") {
         return {
           data: [{
@@ -267,6 +284,16 @@ function resolveQuery(table: string, state: QueryState) {
     }
 
     if (Array.isArray(inEventType) && inEventType.includes("inbound.recovered")) {
+      if (scenario === "fallback_dismissed") {
+        return {
+          data: [{
+            metadata: {
+              original_call_log_id: "fallback-call-log-1",
+            },
+          }],
+          error: null,
+        };
+      }
       return { data: [], error: null };
     }
 
@@ -382,5 +409,20 @@ describe("GET /api/dialer/v1/queue missed inbound enrichment", () => {
       final_state: "jeff_message",
       seller_sms_sent: false,
     });
+  });
+
+  it("does not resurface dismissed fallback missed calls from calls_log", async () => {
+    scenario = "fallback_dismissed";
+    const { GET } = await import("@/app/api/dialer/v1/queue/route");
+
+    const response = await GET(
+      new Request("http://localhost/api/dialer/v1/queue", {
+        headers: { authorization: "Bearer test-token" },
+      }) as never,
+    );
+
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.missed_inbound).toHaveLength(0);
   });
 });

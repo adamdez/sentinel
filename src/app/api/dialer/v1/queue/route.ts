@@ -334,22 +334,27 @@ export async function GET(req: NextRequest) {
   }
 
   let missedInbound: MissedInbound[] = [];
+  const resolvedCallLogIds = new Set<string>();
+
+  // Resolved (recovered / dismissed), including fallback rows keyed by calls_log.id.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: resolvedEvents } = await (sb.from("dialer_events") as any)
+    .select("metadata")
+    .in("event_type", ["inbound.recovered", "inbound.dismissed"]);
+
+  const resolvedOriginalIds = new Set(
+    (resolvedEvents ?? []).map(
+      (e: { metadata: { original_event_id?: string } }) => e.metadata?.original_event_id
+    ).filter(Boolean)
+  );
+  for (const callLogId of (resolvedEvents ?? []).map(
+    (e: { metadata: { original_call_log_id?: string } }) => e.metadata?.original_call_log_id
+  ).filter(Boolean)) {
+    resolvedCallLogIds.add(callLogId as string);
+  }
 
   if ((missedEvents ?? []).length > 0) {
     const missedEventIds = (missedEvents as Array<{ id: string }>).map(e => e.id);
-
-    // Resolved (recovered / dismissed)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: resolvedEvents } = await (sb.from("dialer_events") as any)
-      .select("metadata")
-      .in("event_type", ["inbound.recovered", "inbound.dismissed"])
-      .not("metadata->original_event_id", "is", null);
-
-    const resolvedOriginalIds = new Set(
-      (resolvedEvents ?? []).map(
-        (e: { metadata: { original_event_id?: string } }) => e.metadata?.original_event_id
-      ).filter(Boolean)
-    );
 
     // Classification state
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -440,7 +445,7 @@ export async function GET(req: NextRequest) {
         twilio_sid: string | null;
         created_at: string;
       }>) {
-        if (knownIds.has(row.id)) continue;
+        if (knownIds.has(row.id) || resolvedCallLogIds.has(row.id)) continue;
         missedInbound.push({
           event_id: row.id,
           lead_id: row.lead_id,
