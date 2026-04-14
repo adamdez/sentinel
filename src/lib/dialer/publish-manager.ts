@@ -114,6 +114,7 @@ const PROVISIONAL_DISPOSITIONS = new Set<string | null>([
   "agent_answered",
   "in_progress",
   "completed",
+  "failed",
 ]);
 
 // ─────────────────────────────────────────────────────────────
