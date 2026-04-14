@@ -9,13 +9,13 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   PhoneIncoming, Phone, Users, Loader2, RefreshCw, CheckCircle2,
   XCircle, Clock, HelpCircle, MapPin, FileText, ArrowRight,
-  AlertTriangle, ChevronDown, ChevronUp, User,
+  AlertTriangle, ChevronDown, ChevronUp, User, Play, Voicemail, MessageSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageShell } from "@/components/sentinel/page-shell";
@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase";
 import { InboundWritebackPanel } from "@/components/sentinel/inbound-writeback-panel";
+import { pushToDialer } from "@/components/sentinel/dialer-navigation";
 import type { MissedInbound, UnclassifiedAnswered } from "@/app/api/dialer/v1/queue/route";
 import type { InboundCallerType, InboundDisposition } from "@/lib/dialer/types";
 import { INBOUND_DISPOSITIONS } from "@/lib/dialer/types";
@@ -48,6 +49,66 @@ function ageSeverity(minutesAgo: number): "critical" | "warning" | "normal" {
   if (minutesAgo < 30) return "critical";
   if (minutesAgo < 240) return "warning";
   return "normal";
+}
+
+function formatPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "").slice(-10);
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  return phone;
+}
+
+function buildVoicemailPlaybackUrl(callLogId: string | null, hasVoicemail: boolean): string | null {
+  if (!callLogId || !hasVoicemail) return null;
+  return `/api/dialer/v1/calls/${encodeURIComponent(callLogId)}/voicemail?format=mp3`;
+}
+
+function finalStateLabel(item: MissedInbound): string {
+  if (item.jeff_notes_missing) return "Jeff answered - notes missing";
+  switch (item.final_state) {
+    case "voicemail_recorded":
+      return "Voicemail recorded";
+    case "callback_booked":
+      return "Callback booked";
+    case "jeff_message":
+      return "Jeff took message";
+    case "hung_up":
+      return "Caller hung up";
+    case "answered_unclassified":
+      return "Answered, not classified";
+    default:
+      return "Unresolved";
+  }
+}
+
+function stateBadgeClass(item: MissedInbound): string {
+  if (item.jeff_notes_missing) {
+    return "border-orange-400/30 text-orange-200 bg-orange-400/10";
+  }
+  switch (item.final_state) {
+    case "voicemail_recorded":
+      return "border-red-500/30 text-red-200 bg-red-500/10";
+    case "callback_booked":
+      return "border-emerald-400/30 text-emerald-200 bg-emerald-400/10";
+    case "jeff_message":
+      return "border-sky-400/30 text-sky-200 bg-sky-400/10";
+    case "hung_up":
+      return "border-rose-400/30 text-rose-200 bg-rose-400/10";
+    default:
+      return "border-border/40 text-foreground/80 bg-muted/10";
+  }
+}
+
+function routeLabel(item: MissedInbound): string | null {
+  if (!item.route_primary) return null;
+  const first = item.route_primary === "adam" ? "Adam first" : "Logan first";
+  const second = item.route_secondary
+    ? item.route_secondary === "adam"
+      ? "Adam backup"
+      : "Logan backup"
+    : null;
+  return second ? `${first} • ${second}` : first;
 }
 
 const CALLER_TYPES: InboundCallerType[] = ["seller", "buyer", "vendor", "spam", "unknown"];
@@ -210,6 +271,7 @@ interface InboundCallCardProps {
 }
 
 function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) {
+  const router = useRouter();
   const [mode, setMode] = useState<"idle" | "classify" | "dismiss" | "writeback">("idle");
   const [dismissReason, setDismissReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -222,6 +284,8 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
   const isMissed = type === "missed";
   const missed = isMissed ? (item as MissedInbound) : null;
   const hasEventActions = !missed || missed.source !== "calls_log_fallback";
+  const playbackUrl = missed ? buildVoicemailPlaybackUrl(missed.call_log_id, Boolean(missed.voicemail_url)) : null;
+  const routeText = missed ? routeLabel(missed) : null;
 
   async function handleRecover() {
     setBusy(true);
@@ -290,7 +354,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
                 }`}
               />
               <span className="text-sm font-medium">
-                {fromNumber !== "unknown" ? fromNumber : "Unknown number"}
+                {missed?.owner_name || (fromNumber !== "unknown" ? formatPhone(fromNumber) : "Unknown number")}
               </span>
               <span className={`text-sm font-medium ${
                 severity === "critical" ? "text-foreground" :
@@ -333,24 +397,91 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
                   task overdue
                 </Badge>
               )}
+              {missed && (
+                <Badge variant="outline" className={`text-xs h-4 px-1.5 ${stateBadgeClass(missed)}`}>
+                  {finalStateLabel(missed)}
+                </Badge>
+              )}
               {missed?.source === "calls_log_fallback" && (
                 <Badge variant="outline" className="text-xs h-4 px-1.5 border-amber-500/20 text-amber-200/80">
                   Fallback signal
                 </Badge>
               )}
             </div>
+            {missed && (missed.property_address || routeText || playbackUrl || missed.jeff_summary || missed.seller_sms_sent) && (
+              <div className="mt-2 space-y-2">
+                {(missed.property_address || routeText) && (
+                  <p className="text-xs text-muted-foreground/55 leading-relaxed">
+                    {[missed.property_address, routeText].filter(Boolean).join(" • ")}
+                  </p>
+                )}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {playbackUrl && (
+                    <Badge variant="outline" className="text-xs h-4 px-1.5 border-red-500/30 text-red-200 bg-red-500/10">
+                      <Voicemail className="mr-1 h-3 w-3" />
+                      Voicemail ready
+                    </Badge>
+                  )}
+                  {missed.jeff_summary && (
+                    <Badge variant="outline" className="text-xs h-4 px-1.5 border-sky-400/30 text-sky-200 bg-sky-400/10">
+                      <MessageSquare className="mr-1 h-3 w-3" />
+                      Jeff notes
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className="text-xs h-4 px-1.5 border-border/40 text-muted-foreground/70">
+                    {missed.seller_sms_sent ? "Seller SMS sent" : "No seller SMS yet"}
+                  </Badge>
+                </div>
+                {missed.jeff_summary && (
+                  <div className={missed.jeff_notes_missing
+                    ? "rounded-[8px] border border-orange-400/20 bg-orange-400/[0.05] p-2"
+                    : "rounded-[8px] border border-sky-400/20 bg-sky-400/[0.05] p-2"}>
+                    <p className={`text-xs leading-relaxed ${missed.jeff_notes_missing ? "text-orange-100/90" : "text-sky-100/90"}`}>
+                      {missed.jeff_summary}
+                    </p>
+                    {missed.jeff_callback_time && (
+                      <p className={`mt-1 text-[11px] ${missed.jeff_notes_missing ? "text-orange-200/80" : "text-sky-200/80"}`}>
+                        Callback: {missed.jeff_callback_time}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {playbackUrl && (
+                  <div className="rounded-[8px] border border-red-500/20 bg-red-500/[0.04] px-2.5 py-2">
+                    <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-red-200/85">
+                      <Play className="h-3 w-3" />
+                      <span>
+                        Voicemail playback
+                        {typeof missed.voicemail_duration === "number" && missed.voicemail_duration > 0 ? ` • ${missed.voicemail_duration}s` : ""}
+                      </span>
+                    </div>
+                    <audio controls preload="none" className="h-8 w-full" src={playbackUrl}>
+                      Your browser does not support voicemail playback.
+                    </audio>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Action bar */}
         {mode === "idle" && (
           <div className="flex items-center gap-1.5 flex-wrap px-3 pb-3">
-            <Link href={`/dialer?phone=${encodeURIComponent(fromNumber)}${item.lead_id ? `&lead_id=${item.lead_id}` : ""}`}>
-              <Button size="sm" className="h-7 text-sm px-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30">
-                <Phone className="h-3 w-3 mr-1" />
-                Call back
-              </Button>
-            </Link>
+            <Button
+              size="sm"
+              className="h-7 text-sm px-2.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30"
+              onClick={() => pushToDialer(router, {
+                phone: fromNumber,
+                leadId: item.lead_id ?? null,
+                openClientFile: true,
+                autodial: true,
+                source: "inbound-review-call-back",
+              })}
+            >
+              <Phone className="h-3 w-3 mr-1" />
+              Call back
+            </Button>
 
             {hasEventActions && !missed?.is_classified && (
               <Button
@@ -512,6 +643,8 @@ export default function InboundDialerPageClient() {
   }
 
   const totalCount = missed.length + unclassified.length;
+  const voicemailCount = missed.filter((item) => item.final_state === "voicemail_recorded").length;
+  const criticalMissedCount = missed.filter((item) => item.minutes_ago < 30).length;
 
   return (
     <PageShell title="Inbound Calls" description="Review, classify, and recover inbound calls">
@@ -536,6 +669,21 @@ export default function InboundDialerPageClient() {
             {totalCount} inbound call{totalCount !== 1 ? "s" : ""} needing attention
           </span>
         </div>
+        {criticalMissedCount > 0 && (
+          <div className="inline-flex items-center gap-2 rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-200">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-red-500 animate-ping opacity-80" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+            </span>
+            {criticalMissedCount} urgent missed
+          </div>
+        )}
+        {voicemailCount > 0 && (
+          <div className="inline-flex items-center gap-2 rounded-full border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-xs font-semibold text-red-200">
+            <Voicemail className="h-3 w-3" />
+            {voicemailCount} voicemail{voicemailCount !== 1 ? "s" : ""} ready
+          </div>
+        )}
         <button
           onClick={load}
           className="text-muted-foreground/30 hover:text-muted-foreground/60 transition-colors"

@@ -44,7 +44,7 @@ export const primaryItems: NavItem[] = [
   { label: "Lead Queue", href: "/leads", icon: Users },
   { label: "Deep Dive", href: "/deep-dive", icon: FileSearch },
   { label: "PPL Inbox", href: "/intake", icon: Inbox, badge: "intake-pending" },
-  { label: "Dialer", href: "/dialer", icon: Phone },
+  { label: "Dialer", href: "/dialer", icon: Phone, badge: "dialer-alerts" },
   { label: "Active", href: "/sales-funnel/active", icon: KanbanSquare },
   { label: "Negotiation", href: "/sales-funnel/negotiation", icon: Handshake },
   { label: "Disposition", href: "/sales-funnel/disposition", icon: ShieldCheck },

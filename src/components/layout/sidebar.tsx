@@ -30,13 +30,21 @@ interface SidebarBadges {
   adsAlerts: number;
   reviewQueue: number;
   intakePending: number;
+  dialerAlerts: number;
+  voicemailAlerts: number;
 }
 
 function useSidebarBadges(): SidebarBadges {
-  const [badges, setBadges] = useState<SidebarBadges>({ adsAlerts: 0, reviewQueue: 0, intakePending: 0 });
+  const [badges, setBadges] = useState<SidebarBadges>({
+    adsAlerts: 0,
+    reviewQueue: 0,
+    intakePending: 0,
+    dialerAlerts: 0,
+    voicemailAlerts: 0,
+  });
 
   useEffect(() => {
-    const fetchCounts = async () => {
+    const fetchCounts = async (accessToken?: string | null) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count: adsAlerts } = await (supabase.from("ads_alerts") as any)
         .select("id", { count: "exact", head: true })
@@ -52,10 +60,30 @@ function useSidebarBadges(): SidebarBadges {
         .select("id", { count: "exact", head: true })
         .eq("status", "pending_review");
 
+      let dialerAlerts = 0;
+      let voicemailAlerts = 0;
+      if (accessToken) {
+        try {
+          const queueRes = await fetch("/api/dialer/v1/queue?limit=25", {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (queueRes.ok) {
+            const queue = await queueRes.json();
+            const missedInbound = Array.isArray(queue.missed_inbound) ? queue.missed_inbound : [];
+            dialerAlerts = missedInbound.length;
+            voicemailAlerts = missedInbound.filter((item: { final_state?: string }) => item.final_state === "voicemail_recorded").length;
+          }
+        } catch (error) {
+          console.error("[sidebar] dialer alert count failed:", error);
+        }
+      }
+
       setBadges({
         adsAlerts: adsAlerts ?? 0,
         reviewQueue: reviewPending ?? 0,
         intakePending: intakePending ?? 0,
+        dialerAlerts,
+        voicemailAlerts,
       });
     };
 
@@ -73,33 +101,36 @@ function useSidebarBadges(): SidebarBadges {
 
       activeChannel = supabase
         .channel("sidebar_badges")
-        .on("postgres_changes", { event: "*", schema: "public", table: "ads_alerts" }, () => fetchCounts())
-        .on("postgres_changes", { event: "*", schema: "public", table: "review_queue" }, () => fetchCounts())
-        .on("postgres_changes", { event: "*", schema: "public", table: "intake_leads" }, () => fetchCounts())
+        .on("postgres_changes", { event: "*", schema: "public", table: "ads_alerts" }, () => fetchCounts(accessToken))
+        .on("postgres_changes", { event: "*", schema: "public", table: "review_queue" }, () => fetchCounts(accessToken))
+        .on("postgres_changes", { event: "*", schema: "public", table: "intake_leads" }, () => fetchCounts(accessToken))
+        .on("postgres_changes", { event: "*", schema: "public", table: "dialer_events" }, () => fetchCounts(accessToken))
+        .on("postgres_changes", { event: "*", schema: "public", table: "calls_log" }, () => fetchCounts(accessToken))
+        .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => fetchCounts(accessToken))
         .subscribe((status) => {
           if (status === "SUBSCRIBED") {
-            void fetchCounts();
+            void fetchCounts(accessToken);
           }
         });
     };
 
     const bootstrap = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      await fetchCounts();
+      await fetchCounts(session?.access_token);
       await bindRealtime(session?.access_token);
     };
 
     void bootstrap();
 
     const handleIntakeUpdated = () => {
-      void fetchCounts();
+      void supabase.auth.getSession().then(({ data: { session } }) => fetchCounts(session?.access_token));
     };
     if (typeof window !== "undefined") {
       window.addEventListener("sentinel:intake-updated", handleIntakeUpdated);
     }
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      void fetchCounts();
+      void fetchCounts(session?.access_token);
       void bindRealtime(session?.access_token);
     });
 
@@ -203,15 +234,33 @@ function NavLink({ item, depth = 0, badges }: { item: NavItem; depth?: number; b
           );
         }
         const dot =
+          item.badge === "dialer-alerts" && badges.dialerAlerts > 0 ? "bg-red-500" :
           item.badge === "ads-alerts" && badges.adsAlerts > 0 ? "bg-amber-400" :
           item.badge === "review-queue" && badges.reviewQueue > 0 ? "bg-violet-400" :
           null;
         if (!dot) return null;
+        const count =
+          item.badge === "dialer-alerts" ? badges.dialerAlerts :
+          item.badge === "ads-alerts" ? badges.adsAlerts :
+          item.badge === "review-queue" ? badges.reviewQueue :
+          0;
         return (
-          <span className="relative flex h-2.5 w-2.5 ml-auto">
-            <span className={`absolute inline-flex h-full w-full rounded-full ${dot} animate-ping opacity-75`} />
-            <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${dot}`} />
-          </span>
+          <div className="ml-auto flex items-center gap-2">
+            {item.badge === "dialer-alerts" && badges.voicemailAlerts > 0 ? (
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-red-200/90">
+                VM {badges.voicemailAlerts}
+              </span>
+            ) : null}
+            <span className="relative flex h-2.5 w-2.5">
+              <span className={`absolute inline-flex h-full w-full rounded-full ${dot} animate-ping opacity-75`} />
+              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${dot}`} />
+            </span>
+            {count > 0 ? (
+              <span className="inline-flex min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                {count}
+              </span>
+            ) : null}
+          </div>
         );
       })()}
     </Link>
