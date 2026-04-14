@@ -28,6 +28,8 @@ import type { LiveCoachMode } from "@/lib/dialer/live-coach-types";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+const liveCoachMemoryCache = new Map<string, Record<string, unknown>>();
+
 function inferMode(bodyMode: unknown): LiveCoachMode {
   return bodyMode === "inbound" ? "inbound" : "outbound";
 }
@@ -114,9 +116,10 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const session = sessionResult.data;
 
   const stateResult = await getSessionLiveCoachState(sb, sessionId, user.id, true);
+  const fallbackCachedState = liveCoachMemoryCache.get(sessionId) ?? null;
   const cachedState = stateResult.error
-    ? createEmptyLiveCoachState(now)
-    : parseLiveCoachState(stateResult.data);
+    ? parseLiveCoachState(fallbackCachedState)
+    : parseLiveCoachState(stateResult.data ?? fallbackCachedState);
 
   const notes = await fetchNotes(sb, sessionId, cachedState.lastProcessedSequence);
   const reduction = reduceLiveCoachState(cachedState, notes, mode, now);
@@ -171,6 +174,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const previousStateJson = stateResult.error ? null : JSON.stringify(cachedState);
   const nextStateJson = JSON.stringify(liveCoachState);
   let cacheWriteError: string | null = null;
+  let memoryFallbackUsed = false;
 
   if (previousStateJson !== nextStateJson) {
     const cacheWrite = await updateSessionLiveCoachState(
@@ -182,13 +186,17 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     );
     if (cacheWrite.error) {
       cacheWriteError = cacheWrite.error;
+      liveCoachMemoryCache.set(sessionId, liveCoachState as unknown as Record<string, unknown>);
+      memoryFallbackUsed = true;
       console.warn("[live-coach] failed to persist live coach state:", cacheWrite.error);
+    } else {
+      liveCoachMemoryCache.set(sessionId, liveCoachState as unknown as Record<string, unknown>);
     }
   }
 
   const response = buildLiveCoachResponse(liveCoachState, mode);
   return NextResponse.json({
     ...response,
-    state_persisted: !cacheWriteError,
+    state_persisted: !cacheWriteError || memoryFallbackUsed,
   });
 }
