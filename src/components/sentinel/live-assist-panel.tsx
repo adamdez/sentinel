@@ -33,6 +33,22 @@ const STAGE_LABELS: Record<string, string> = {
   commitment: "Commitment",
 };
 
+const DEAL_MODE_LABELS: Record<NonNullable<LiveCoachState["dealMode"]>, string> = {
+  discovery: "Discovery",
+  objection: "Objection",
+  price: "Price",
+  authority: "Authority",
+  close: "Close",
+};
+
+const READINESS_LABELS: Record<NonNullable<LiveCoachState["closeReadiness"]>, string> = {
+  not_ready: "Not Ready",
+  warming: "Warming",
+  ready_for_next_step: "Ready For Next Step",
+  ready_for_offer: "Ready For Offer",
+  ready_for_signature_path: "Ready For Signature Path",
+};
+
 const SLOT_META: Array<{
   key: keyof NonNullable<LiveCoachState["discoveryMap"]>;
   label: string;
@@ -103,6 +119,10 @@ function relativeFreshness(iso: string | null | undefined): string | null {
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.round(minutes / 60);
   return `${hours}h ago`;
+}
+
+function humanizeEnum(value: string): string {
+  return value.replace(/_/g, " ");
 }
 
 const GENERIC_GUARDRAILS = new Set([
@@ -217,6 +237,8 @@ function LiveCoachBody({
   const total = discoveryRows.length;
   const sellerFreshness = relativeFreshness(coach.lastSellerTurnAt);
   const strategistFreshness = relativeFreshness(coach.lastStrategizedAt);
+  const rescueMove = coach.rescueMove;
+  const closeMove = coach.closeMove;
 
   return (
     <div className="space-y-2.5">
@@ -230,6 +252,43 @@ function LiveCoachBody({
           tone={strategistFreshness ? "default" : "muted"}
         />
       </div>
+
+      <div className="grid gap-2 md:grid-cols-3">
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-2.5">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Mode</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Pill label={DEAL_MODE_LABELS[coach.dealMode] ?? coach.dealMode} tone="accent" />
+            <Pill label={READINESS_LABELS[coach.closeReadiness] ?? coach.closeReadiness} tone="default" />
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground/60 leading-snug">{coach.dealModeReason}</p>
+        </div>
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-2.5">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Primary Blocker</p>
+          <p className="text-sm text-foreground/85">{humanizeEnum(coach.primaryBlocker)}</p>
+          {coach.secondaryBlocker && (
+            <p className="mt-1 text-xs text-muted-foreground/60">Next: {humanizeEnum(coach.secondaryBlocker)}</p>
+          )}
+        </div>
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-2.5">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Commitment</p>
+          <p className="text-sm text-foreground/85">{coach.commitmentTarget}</p>
+          <p className="mt-1 text-xs text-muted-foreground/60">Confidence: {coach.commitmentConfidence}</p>
+        </div>
+      </div>
+
+      {coach.whatChanged.length > 0 && (
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-2.5">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1.5">What Changed</p>
+          <ul className="space-y-1">
+            {coach.whatChanged.slice(0, 3).map((change, idx) => (
+              <li key={`${change}-${idx}`} className="text-xs text-foreground/70 leading-snug flex items-start gap-1.5">
+                <span className="text-primary/50 mt-0.5">•</span>
+                <span>{change}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* ── PRIMARY: Next Best Question ── */}
       <div className="rounded-[10px] border border-primary/20 bg-primary/[0.06] p-3">
@@ -252,6 +311,27 @@ function LiveCoachBody({
         <p className="text-[15px] text-foreground/90 leading-snug font-medium">
           {nextBestQuestion || "Collecting context\u2026"}
         </p>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-2">
+        {rescueMove && (
+          <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-2.5">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Rescue Move</p>
+            <p className="text-sm text-foreground/75 leading-snug">{rescueMove}</p>
+          </div>
+        )}
+        {closeMove && (
+          <div className="rounded-[10px] border border-primary/20 bg-primary/[0.04] p-2.5">
+            <p className="text-[10px] uppercase tracking-wider text-primary/70 mb-1">Close Move</p>
+            <p className="text-sm text-foreground/80 leading-snug">{closeMove}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 px-1 text-xs text-muted-foreground/55">
+        <Pill label={`Authority: ${humanizeEnum(coach.authorityStatus)}`} tone="muted" />
+        <Pill label={`Price: ${humanizeEnum(coach.pricePosture)}`} tone="muted" />
+        <Pill label={`Seller: ${humanizeEnum(coach.sellerPosture)}`} tone="muted" />
       </div>
 
       {/* ── Gap reason ── */}
@@ -447,6 +527,14 @@ function LiveCoachBody({
               <p className="text-xs text-foreground/65 mt-0.5 leading-snug">{primaryGoal}</p>
             </div>
           )}
+
+          <div className="rounded-[8px] border border-overlay-8 bg-overlay-2 px-2.5 py-2">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/50">
+              <Shield className="h-3 w-3" />
+              After Call
+            </div>
+            <p className="text-xs text-foreground/65 mt-0.5 leading-snug">{coach.postCallRecommendation}</p>
+          </div>
         </div>
       )}
     </div>

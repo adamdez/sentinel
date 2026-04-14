@@ -7,20 +7,26 @@ import {
 } from "./prompt-cache";
 import type { CRMLeadContext } from "./types";
 import type {
+  LiveCoachAuthorityStatus,
   DeterministicSignal,
   DeterministicSignalFamily,
+  LiveCoachBlocker,
   DiscoveryMap,
   DiscoveryMapConfidence,
   DiscoveryMapSlot,
   DiscoveryMapSlotKey,
   DiscoveryMapSlotStatus,
   DiscoveryMapSource,
+  LiveCoachCloseReadiness,
+  LiveCoachCloserMode,
   EmpathyMove,
   LiveBestMove,
   LiveCoachCachedState,
   LiveCoachMode,
+  LiveCoachPricePosture,
   LiveCoachRecentTurn,
   LiveCoachResponseV2,
+  LiveCoachSellerPosture,
   LiveCoachSpeakerReliability,
   NepqStage,
   StructuredLiveNote,
@@ -1466,12 +1472,262 @@ function buildEmpathyMoves(move: LiveBestMove): EmpathyMove[] {
   return moves.slice(0, 3);
 }
 
+function classifyAuthorityStatus(discoveryMap: DiscoveryMap): LiveCoachAuthorityStatus {
+  const value = (discoveryMap.decision_maker.value ?? "").toLowerCase();
+  if (!value) return "unknown";
+  if (value.includes("only decision-maker")) return "sole_decision_maker";
+  if (value.includes("attorney") || value.includes("lawyer")) return "attorney_involved";
+  if (value.includes("probate") || value.includes("estate") || value.includes("personal representative")) {
+    return "probate_or_estate";
+  }
+  if (value.includes("trust") || value.includes("llc") || value.includes("entity")) {
+    return "trust_or_entity";
+  }
+  if (value.includes("wife") || value.includes("husband") || value.includes("brother") || value.includes("sister") || value.includes("family")) {
+    return "multiple_signers";
+  }
+  return discoveryMap.decision_maker.status === "confirmed"
+    ? "sole_decision_maker"
+    : "influencer_only";
+}
+
+function classifyPricePosture(discoveryMap: DiscoveryMap): LiveCoachPricePosture {
+  const value = (discoveryMap.price_posture.value ?? "").toLowerCase();
+  if (!value) return "not_discussed";
+  if (value.includes("retail") || value.includes("market value") || value.includes("zillow")) return "anchored_high";
+  if (value.includes("net") || value.includes("walk away")) return "needs_net_number";
+  if (value.includes("offer") || value.includes("something together") || value.includes("email")) return "open_to_offer";
+  if (value.includes("fair") || value.includes("reasonable")) return "softening";
+  if (value.includes("what can you pay") || value.includes("number")) return "testing_value";
+  return "curious";
+}
+
+function classifySellerPosture(
+  discoveryMap: DiscoveryMap,
+  turns: LiveCoachRecentTurn[],
+): LiveCoachSellerPosture {
+  const sellerTurns = turns.filter((turn) => turn.speaker === "seller");
+  const sellerText = sellerTurns.map((turn) => turn.text.toLowerCase()).join(" ");
+  const avgLength = sellerTurns.length > 0
+    ? sellerTurns.reduce((sum, turn) => sum + turn.text.length, 0) / sellerTurns.length
+    : 0;
+
+  if (/where do i sign|let'?s do it|ready to move forward|send (me )?the offer/.test(sellerText)) {
+    return "ready";
+  }
+  if (/think about it|call me in|later|couple months|not ready/.test(sellerText)) {
+    return "stalling";
+  }
+  if (/stress|overwhelmed|tired|frustrated|can't|cannot|stuck/.test(sellerText)) {
+    return "emotional";
+  }
+  if (/how much|what can you pay|numbers|value|comps|market/.test(sellerText)) {
+    return "analytical";
+  }
+  if (discoveryMap.desired_relief.status === "confirmed" || discoveryMap.next_step.status === "confirmed") {
+    return "cooperative";
+  }
+  if (avgLength > 0 && avgLength < 26) return "guarded";
+  return "direct";
+}
+
+function deriveDealMode(
+  gap: DiscoveryMapSlotKey,
+  discoveryMap: DiscoveryMap,
+  authorityStatus: LiveCoachAuthorityStatus,
+  pricePosture: LiveCoachPricePosture,
+  sellerPosture: LiveCoachSellerPosture,
+): { dealMode: LiveCoachCloserMode; dealModeReason: string } {
+  if (pricePosture !== "not_discussed") {
+    return {
+      dealMode: "price",
+      dealModeReason: "Price is active in the conversation and needs to be handled without losing the deal path.",
+    };
+  }
+  if (authorityStatus !== "sole_decision_maker" && authorityStatus !== "unknown") {
+    return {
+      dealMode: "authority",
+      dealModeReason: "The signer path is not simple, so authority needs to be clarified before pushing commitment.",
+    };
+  }
+  if (sellerPosture === "stalling" || sellerPosture === "guarded") {
+    return {
+      dealMode: "objection",
+      dealModeReason: "The seller posture is resistant or delaying, so the next move should handle friction first.",
+    };
+  }
+  if (
+    discoveryMap.motivation.status === "confirmed" &&
+    discoveryMap.timeline.status !== "missing" &&
+    discoveryMap.next_step.status !== "missing"
+  ) {
+    return {
+      dealMode: "close",
+      dealModeReason: "The core discovery is mostly there, so the call should move toward a concrete commitment.",
+    };
+  }
+  return {
+    dealMode: "discovery",
+    dealModeReason: `The main missing piece is still ${gap.replace(/_/g, " ")}, so discovery should stay focused there.`,
+  };
+}
+
+function blockerForGap(gap: DiscoveryMapSlotKey): LiveCoachBlocker {
+  switch (gap) {
+    case "motivation":
+    case "human_pain":
+    case "desired_relief":
+      return "motivation_unclear";
+    case "timeline":
+      return "timeline_unclear";
+    case "decision_maker":
+      return "authority_unclear";
+    case "price_posture":
+      return "price_resistance";
+    case "next_step":
+      return "next_step_unlocked";
+    case "property_condition":
+    case "surface_problem":
+      return "condition_unclear";
+    default:
+      return "trust_gap";
+  }
+}
+
+function computeCloseReadiness(
+  discoveryMap: DiscoveryMap,
+  authorityStatus: LiveCoachAuthorityStatus,
+  pricePosture: LiveCoachPricePosture,
+): LiveCoachCloseReadiness {
+  const hasCore =
+    discoveryMap.motivation.status !== "missing" &&
+    discoveryMap.timeline.status !== "missing";
+  const authorityClear =
+    authorityStatus === "sole_decision_maker" ||
+    authorityStatus === "multiple_signers" ||
+    authorityStatus === "attorney_involved" ||
+    authorityStatus === "probate_or_estate" ||
+    authorityStatus === "trust_or_entity";
+  const nextStepStrong = discoveryMap.next_step.status === "confirmed";
+  const offerReady =
+    hasCore &&
+    authorityClear &&
+    (pricePosture === "open_to_offer" || nextStepStrong);
+  const signaturePathReady =
+    offerReady &&
+    nextStepStrong &&
+    (discoveryMap.next_step.value?.toLowerCase().includes("offer") ||
+      discoveryMap.next_step.value?.toLowerCase().includes("ready"));
+
+  if (signaturePathReady) return "ready_for_signature_path";
+  if (offerReady) return "ready_for_offer";
+  if (hasCore && authorityClear) return "ready_for_next_step";
+  if (hasCore) return "warming";
+  return "not_ready";
+}
+
+function buildWhatChanged(state: LiveCoachCachedState): string[] {
+  const recentSignals = state.deterministicSignals
+    .filter((signal) => signal.sequenceNum > state.lastStrategizedSequence)
+    .slice(-4)
+    .map((signal) => {
+      if (signal.slot === "decision_maker") return `Seller clarified signer path: ${signal.value}`;
+      if (signal.slot === "timeline") return `Seller clarified timing: ${signal.value}`;
+      if (signal.slot === "price_posture") return `Seller signaled price posture: ${signal.value}`;
+      if (signal.slot === "next_step") return `Seller suggested next step: ${signal.value}`;
+      return `Seller added ${signal.slot.replace(/_/g, " ")}: ${signal.value}`;
+    });
+
+  if (recentSignals.length > 0) return recentSignals;
+
+  return state.recentTurns
+    .filter((turn) => turn.speaker === "seller" && turn.sequenceNum > state.lastStrategizedSequence)
+    .slice(-2)
+    .map((turn) => `Seller said: ${compact(turn.text, 90) ?? "new context"}`);
+}
+
+function buildCommitmentTarget(
+  gap: DiscoveryMapSlotKey,
+  readiness: LiveCoachCloseReadiness,
+  authorityStatus: LiveCoachAuthorityStatus,
+  pricePosture: LiveCoachPricePosture,
+): { target: string; confidence: "low" | "medium" | "high"; closeMove: string | null; recommendation: string } {
+  if (authorityStatus !== "sole_decision_maker" && authorityStatus !== "unknown") {
+    return {
+      target: "confirm signer path",
+      confidence: "high",
+      closeMove: "If we got the right people on the next conversation, would you be open to reviewing a real offer together?",
+      recommendation: "Schedule the next touch around the real signer path.",
+    };
+  }
+  if (pricePosture === "open_to_offer" || readiness === "ready_for_offer" || readiness === "ready_for_signature_path") {
+    return {
+      target: "get permission to send offer",
+      confidence: "high",
+      closeMove: "If I put a clean cash offer in writing, are you open to reviewing it today?",
+      recommendation: "Prepare and send a written offer if the seller stays open.",
+    };
+  }
+  if (gap === "timeline") {
+    return {
+      target: "lock callback date",
+      confidence: "medium",
+      closeMove: "Would it help if we picked a specific time to reconnect while this is still fresh?",
+      recommendation: "Set a dated callback tied to the seller's timing.",
+    };
+  }
+  if (gap === "next_step") {
+    return {
+      target: "book walkthrough or offer review",
+      confidence: "medium",
+      closeMove: "What would be the easiest next step from your side, a quick walkthrough or a time to review numbers?",
+      recommendation: "Set the next concrete step before ending the call.",
+    };
+  }
+  return {
+    target: "earn one concrete next step",
+    confidence: readiness === "not_ready" ? "low" : "medium",
+    closeMove: "If this did make sense, what would you want the next step to look like?",
+    recommendation: "Keep the file in active follow-up with a specific next commitment.",
+  };
+}
+
 export function buildLiveCoachResponse(
   state: LiveCoachCachedState,
   mode: LiveCoachMode,
 ): LiveCoachResponseV2 {
   const bestMove = state.bestMove ?? buildRulesBestMove(state.discoveryMap, mode);
   const transcriptExcerpt = transcriptExcerptFromTurns(state.recentTurns);
+  const authorityStatus = classifyAuthorityStatus(state.discoveryMap);
+  const pricePosture = classifyPricePosture(state.discoveryMap);
+  const sellerPosture = classifySellerPosture(state.discoveryMap, state.recentTurns);
+  const { dealMode, dealModeReason } = deriveDealMode(
+    bestMove.highestPriorityGap,
+    state.discoveryMap,
+    authorityStatus,
+    pricePosture,
+    sellerPosture,
+  );
+  const closeReadiness = computeCloseReadiness(
+    state.discoveryMap,
+    authorityStatus,
+    pricePosture,
+  );
+  const primaryBlocker = blockerForGap(bestMove.highestPriorityGap);
+  const secondaryGap = SLOT_KEYS.find(
+    (slot) =>
+      slot !== bestMove.highestPriorityGap &&
+      state.discoveryMap[slot].status !== "confirmed",
+  );
+  const secondaryBlocker = secondaryGap ? blockerForGap(secondaryGap) : null;
+  const whatChanged = buildWhatChanged(state);
+  const commitment = buildCommitmentTarget(
+    bestMove.highestPriorityGap,
+    closeReadiness,
+    authorityStatus,
+    pricePosture,
+  );
+  const rescueMove = bestMove.backupQuestion ?? bestMove.suggestedLabel ?? bestMove.suggestedMirror;
 
   return {
     currentStage: bestMove.currentStage,
@@ -1489,6 +1745,21 @@ export function buildLiveCoachResponse(
     updatedAt: state.lastUpdatedAt,
     mode,
     source: state.source,
+    dealMode,
+    dealModeReason,
+    closeReadiness,
+    primaryBlocker,
+    secondaryBlocker,
+    whatChanged,
+    primaryMove: bestMove.nextBestQuestion,
+    rescueMove,
+    closeMove: commitment.closeMove,
+    commitmentTarget: commitment.target,
+    commitmentConfidence: commitment.confidence,
+    authorityStatus,
+    pricePosture,
+    sellerPosture,
+    postCallRecommendation: commitment.recommendation,
     discoveryMap: state.discoveryMap,
     structuredLiveNotes: state.structuredLiveNotes,
     highestPriorityGap: bestMove.highestPriorityGap,

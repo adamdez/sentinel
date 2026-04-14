@@ -26,7 +26,7 @@ export function useLiveCoach({
   enabled,
   mode = "outbound",
   sessionInstructions,
-  intervalMs = 1200,
+  intervalMs = 800,
 }: UseLiveCoachOptions) {
   const [coach, setCoach] = useState<LiveCoachState | null>(null);
   const [loading, setLoading] = useState(false);

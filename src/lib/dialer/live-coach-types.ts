@@ -30,6 +30,51 @@ export type DiscoveryMapSlotStatus = "missing" | "partial" | "confirmed";
 export type DiscoveryMapConfidence = "weak" | "probable" | "strong";
 export type DiscoveryMapSource = "rule" | "transcript" | "ai";
 export type LiveCoachSource = "rules" | "gpt5";
+export type LiveCoachCloserMode =
+  | "discovery"
+  | "objection"
+  | "price"
+  | "authority"
+  | "close";
+export type LiveCoachCloseReadiness =
+  | "not_ready"
+  | "warming"
+  | "ready_for_next_step"
+  | "ready_for_offer"
+  | "ready_for_signature_path";
+export type LiveCoachBlocker =
+  | "motivation_unclear"
+  | "timeline_unclear"
+  | "authority_unclear"
+  | "price_resistance"
+  | "trust_gap"
+  | "condition_unclear"
+  | "next_step_unlocked"
+  | "needs_decision_process";
+export type LiveCoachAuthorityStatus =
+  | "sole_decision_maker"
+  | "multiple_signers"
+  | "influencer_only"
+  | "probate_or_estate"
+  | "trust_or_entity"
+  | "attorney_involved"
+  | "unknown";
+export type LiveCoachPricePosture =
+  | "not_discussed"
+  | "curious"
+  | "testing_value"
+  | "anchored_high"
+  | "needs_net_number"
+  | "softening"
+  | "open_to_offer";
+export type LiveCoachSellerPosture =
+  | "guarded"
+  | "emotional"
+  | "analytical"
+  | "direct"
+  | "stalling"
+  | "cooperative"
+  | "ready";
 
 export interface DiscoveryMapSlot {
   status: DiscoveryMapSlotStatus;
@@ -148,6 +193,21 @@ export interface LiveCoachResponseV2 {
   updatedAt: string;
   mode: LiveCoachMode;
   source: LiveCoachSource;
+  dealMode: LiveCoachCloserMode;
+  dealModeReason: string;
+  closeReadiness: LiveCoachCloseReadiness;
+  primaryBlocker: LiveCoachBlocker;
+  secondaryBlocker: LiveCoachBlocker | null;
+  whatChanged: string[];
+  primaryMove: string;
+  rescueMove: string | null;
+  closeMove: string | null;
+  commitmentTarget: string;
+  commitmentConfidence: "low" | "medium" | "high";
+  authorityStatus: LiveCoachAuthorityStatus;
+  pricePosture: LiveCoachPricePosture;
+  sellerPosture: LiveCoachSellerPosture;
+  postCallRecommendation: string;
   discoveryMap: DiscoveryMap;
   structuredLiveNotes: StructuredLiveNote[];
   highestPriorityGap: DiscoveryMapSlotKey;

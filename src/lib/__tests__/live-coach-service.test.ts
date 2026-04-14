@@ -51,6 +51,9 @@ describe("live-coach-service", () => {
     const response = buildLiveCoachResponse(result.state, "outbound");
     expect(response.highestPriorityGap).toBe("human_pain");
     expect(response.nextBestQuestion).toContain("affecting things for you personally");
+    expect(response.dealMode).toBe("discovery");
+    expect(response.primaryMove).toBe(response.nextBestQuestion);
+    expect(response.commitmentTarget.length).toBeGreaterThan(0);
   });
 
   it("fills pain and relief from a family-move statement, then prioritizes timeline", () => {
@@ -122,6 +125,8 @@ describe("live-coach-service", () => {
     expect(response.highestPriorityGap).toBe("motivation");
     expect(response.nextBestQuestion).toContain("solve this now instead of letting it sit");
     expect(response.guardrails[0]).toContain("do not anchor a number");
+    expect(response.dealMode).toBe("price");
+    expect(response.pricePosture).not.toBe("not_discussed");
   });
 
   it("dedupes repeated notes and respects the sequence watermark", () => {
