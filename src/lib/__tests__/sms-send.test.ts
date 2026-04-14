@@ -36,6 +36,8 @@ describe("sendAndLogSMS", () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-13T19:00:00-07:00"));
     process.env.NEXT_PUBLIC_SITE_URL = "https://sentinel.dominionhomedeals.com";
     delete process.env.TWILIO_SMS_MESSAGING_SERVICE_SID;
     delete process.env.TWILIO_NOTIFY_MESSAGING_SERVICE_SID;
@@ -54,6 +56,7 @@ describe("sendAndLogSMS", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
     delete process.env.TWILIO_SMS_MESSAGING_SERVICE_SID;
     delete process.env.TWILIO_NOTIFY_MESSAGING_SERVICE_SID;
   });
@@ -143,5 +146,22 @@ describe("sendAndLogSMS", () => {
     const params = new URLSearchParams(String(request?.body));
     expect(params.get("From")).toBe("+15099921136");
     expect(params.get("MessagingServiceSid")).toBe("MGoperator");
+  });
+
+  it("blocks seller-facing outbound SMS during quiet hours", async () => {
+    vi.setSystemTime(new Date("2026-04-13T20:05:00-07:00"));
+    vi.stubGlobal("fetch", vi.fn());
+    const { sendAndLogSMS } = await import("@/lib/sms/send");
+
+    const result = await sendAndLogSMS({
+      to: "+15092795818",
+      body: "Checking in.",
+      context: "operator_forced",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.blocked).toBe(true);
+    expect(result.blockedReasons).toContain("sms_quiet_hours");
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
   });
 });

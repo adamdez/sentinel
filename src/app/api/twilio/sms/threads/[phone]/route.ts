@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createDialerClient, getDialerUser } from "@/lib/dialer/db";
 import { backfillSmsLeadForPhone, resolveSmsLead } from "@/lib/sms/lead-resolution";
+import { reconcileSmsStatuses } from "@/lib/sms/status";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +39,24 @@ export async function GET(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
+  const statusUpdates = await reconcileSmsStatuses(
+    sb,
+    (messages ?? []).map((message) => ({
+      id: String(message.id),
+      direction: typeof message.direction === "string" ? message.direction : null,
+      twilio_sid: typeof message.twilio_sid === "string" ? message.twilio_sid : null,
+      twilio_status: typeof message.twilio_status === "string" ? message.twilio_status : null,
+      created_at: typeof message.created_at === "string" ? message.created_at : null,
+    })),
+  );
+
+  const messagesWithFreshStatus = (messages ?? []).map((message) => ({
+    ...message,
+    twilio_status: statusUpdates.get(String(message.id)) ?? message.twilio_status,
+  }));
+
   // Mark unread inbound messages as read
-  const unreadIds = (messages ?? [])
+  const unreadIds = messagesWithFreshStatus
     .filter((m) => m.direction === "inbound" && !m.read_at)
     .map((m) => m.id as string);
 
@@ -65,7 +82,7 @@ export async function GET(
   }
 
   return NextResponse.json({
-    messages: messages ?? [],
+    messages: messagesWithFreshStatus,
     leadInfo,
     resolutionState: resolution.resolutionState,
     resolutionLabel: resolution.matchReason,

@@ -364,8 +364,8 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json() as Record<string, unknown>;
-    const { title } = body;
-    if (!title?.trim()) {
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    if (!title) {
       return NextResponse.json({ error: "title is required" }, { status: 400 });
     }
 

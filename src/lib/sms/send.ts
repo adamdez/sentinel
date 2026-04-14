@@ -52,6 +52,8 @@ export interface SendSMSResult {
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
 const MAX_BODY_LENGTH = 1_600;
 const messagingServiceSidCache = new Map<string, string | null>();
+const SMS_QUIET_HOURS_START = 20;
+const SMS_QUIET_HOURS_END = 8;
 
 // ── E.164 normalization ───────────────────────────────────────────────
 
@@ -60,6 +62,20 @@ function toE164(phone: string): string {
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
   return phone.startsWith("+") ? phone : `+${digits}`;
+}
+
+function getPacificHour(now = new Date()): number {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    hour: "2-digit",
+    hour12: false,
+  });
+  return parseInt(formatter.format(now), 10);
+}
+
+export function isSellerFacingSmsQuietHours(now = new Date()): boolean {
+  const hour = getPacificHour(now);
+  return hour >= SMS_QUIET_HOURS_START || hour < SMS_QUIET_HOURS_END;
 }
 
 function resolveMessagingServiceSid(): string | null {
@@ -231,6 +247,15 @@ export async function sendAndLogSMS(params: SendSMSParams): Promise<SendSMSResul
   const e164 = toE164(to);
   const truncatedBody = body.slice(0, MAX_BODY_LENGTH);
   const effectiveUserId = userId ?? SYSTEM_USER_ID;
+
+  if (context !== "transactional" && isSellerFacingSmsQuietHours()) {
+    return {
+      success: false,
+      blocked: true,
+      blockedReasons: ["sms_quiet_hours"],
+      error: "Outbound SMS to sellers is blocked after 8:00 PM Pacific and before 8:00 AM Pacific.",
+    };
+  }
 
   // ── Compliance scrub (skip for transactional + operator_forced) ─────
   if (context === "cold_outbound" || context === "reply_to_inbound") {

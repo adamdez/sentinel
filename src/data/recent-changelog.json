@@ -1,5 +1,35 @@
 [
   {
+    "hash": "15ad18d6",
+    "date": "2026-04-13",
+    "message": "[codex] Add global call workspace and persist Bricked intel"
+  },
+  {
+    "hash": "7b18c512",
+    "date": "2026-04-13",
+    "message": "[codex] Add drive by post-call closeout"
+  },
+  {
+    "hash": "995fb8a0",
+    "date": "2026-04-13",
+    "message": "[codex] Trigger drive by move on selection"
+  },
+  {
+    "hash": "e3d57fe3",
+    "date": "2026-04-13",
+    "message": "[codex] Gate Spokane Scout recent-owner intake"
+  },
+  {
+    "hash": "d1f8e949",
+    "date": "2026-04-13",
+    "message": "[codex] Make drive by a true file destination"
+  },
+  {
+    "hash": "81a68b4f",
+    "date": "2026-04-13",
+    "message": "[codex] Add live voice control and fix power dial continuation"
+  },
+  {
     "hash": "1727333e",
     "date": "2026-04-13",
     "message": "[codex] Repair power dial phone sequencing"
@@ -93,35 +123,5 @@
     "hash": "50c32898",
     "date": "2026-04-10",
     "message": "[codex] Harden deep search and deep dive workflows"
-  },
-  {
-    "hash": "14e01e14",
-    "date": "2026-04-10",
-    "message": "[codex] Ship owner intel fallback cleanup"
-  },
-  {
-    "hash": "8678cfb9",
-    "date": "2026-04-10",
-    "message": "[codex] Fix Spokane parcel link matching"
-  },
-  {
-    "hash": "d9ef371d",
-    "date": "2026-04-10",
-    "message": "[codex] Fix deep dive opening and shared lead queue"
-  },
-  {
-    "hash": "b1a85798",
-    "date": "2026-04-10",
-    "message": "[codex] Ship dialer parcel link and file-level rejection hardening"
-  },
-  {
-    "hash": "082f2eb9",
-    "date": "2026-04-10",
-    "message": "[codex] Preload dialer equity on queue entry"
-  },
-  {
-    "hash": "34de30df",
-    "date": "2026-04-10",
-    "message": "[codex] Add owner collision review hints"
   }
 ]

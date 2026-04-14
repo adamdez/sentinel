@@ -90,6 +90,18 @@ const TERMINAL_QUEUE_DISPOSITIONS = new Set([
   "not_interested",
 ]);
 
+function toLeadWorkInput(lead: QueueLead) {
+  return {
+    assignedTo: lead.assigned_to,
+    nextAction: lead.next_action,
+    nextActionDueAt: lead.next_action_due_at,
+    nextCallScheduledAt: lead.next_call_scheduled_at,
+    nextFollowUpAt: lead.next_follow_up_at,
+    followUpDate: lead.follow_up_date,
+    lastContactAt: lead.last_contact_at,
+  };
+}
+
 function shouldRenderInDialQueue(lead: QueueLead): boolean {
   const status = (lead.status ?? "").toLowerCase();
   const isActiveLead = status === "active";
@@ -102,7 +114,7 @@ function shouldRenderInDialQueue(lead: QueueLead): boolean {
   const disposition = (lead.disposition_code ?? "").toLowerCase();
   if (TERMINAL_QUEUE_DISPOSITIONS.has(disposition)) return false;
   const nextAction = (lead.next_action ?? "").toLowerCase();
-  if (isActiveLead && (!lead.next_action?.trim() || !resolveLeadDueAt(lead))) return false;
+  if (isActiveLead && (!lead.next_action?.trim() || !resolveLeadDueAt(toLeadWorkInput(lead)))) return false;
   if (nextAction.startsWith("drive by")) return false;
   if (isDeepDiveNextAction(lead.next_action)) return false;
   return true;

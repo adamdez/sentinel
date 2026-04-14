@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createDialerClient } from "@/lib/dialer/db";
+import { createServerClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -12,18 +12,22 @@ export const runtime = "nodejs";
  */
 export async function POST(req: NextRequest) {
   const formData = await req.formData();
-  const messageSid = formData.get("MessageSid")?.toString() ?? "";
-  const status = formData.get("MessageStatus")?.toString() ?? "";
+  const messageSid = formData.get("MessageSid")?.toString()
+    ?? formData.get("SmsSid")?.toString()
+    ?? "";
+  const status = formData.get("MessageStatus")?.toString()
+    ?? formData.get("SmsStatus")?.toString()
+    ?? "";
 
   if (!messageSid || !status) {
     return new NextResponse("OK", { status: 200 });
   }
 
-  const sb = createDialerClient();
+  const sb = createServerClient();
 
-  const { error } = await sb
-    .from("sms_messages")
-    .update({ twilio_status: status })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (sb.from("sms_messages") as any)
+    .update({ twilio_status: status.toLowerCase() })
     .eq("twilio_sid", messageSid);
 
   if (error) {

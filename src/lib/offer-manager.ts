@@ -1,18 +1,7 @@
 import { randomUUID } from "crypto";
 
 type SupabaseLike = {
-  from: (table: string) => {
-    select: (...args: unknown[]) => any;
-    insert: (...args: unknown[]) => any;
-    update: (...args: unknown[]) => any;
-    eq: (...args: unknown[]) => any;
-    in?: (...args: unknown[]) => any;
-    neq?: (...args: unknown[]) => any;
-    order?: (...args: unknown[]) => any;
-    limit?: (...args: unknown[]) => any;
-    single?: (...args: unknown[]) => any;
-    maybeSingle?: (...args: unknown[]) => any;
-  };
+  from: (table: string) => any;
 };
 
 export type OfferTerminalStatus = "accepted" | "rejected" | "countered" | "expired" | "withdrawn";

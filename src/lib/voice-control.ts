@@ -191,19 +191,7 @@ export function getBusinessHoursStatus(
 
 export async function getVoiceControlConfig(
   sb?: {
-    from: (table: string) => {
-      select: (query: string) => {
-        eq: (column: string, value: string) => {
-          eq: (column: string, value: string) => {
-            eq: (column: string, value: string) => {
-              eq: (column: string, value: string) => {
-                maybeSingle: () => Promise<{ data: { rule_config?: unknown } | null; error?: unknown }>;
-              };
-            };
-          };
-        };
-      };
-    };
+    from: (table: string) => any;
   },
 ): Promise<VoiceControlConfig> {
   const client = sb ?? (await import("@/lib/supabase")).createServerClient();

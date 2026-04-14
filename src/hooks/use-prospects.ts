@@ -24,6 +24,7 @@ export interface ProspectRow {
   notes: string | null;
   promoted_at: string | null;
   assigned_to: string | null;
+  dial_queue_active?: boolean | null;
   next_action: string | null;
   next_action_due_at: string | null;
   next_call_scheduled_at: string | null;

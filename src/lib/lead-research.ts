@@ -127,6 +127,8 @@ interface LegalMetadataRecord {
   updated_at?: string | null;
 }
 
+type LegalMetadataSource = Record<string, unknown> & LegalMetadataRecord;
+
 function compact(value: string | null | undefined): string {
   return (value ?? "").trim();
 }
@@ -479,7 +481,7 @@ export function mergeResearchLegalMetadata(args: {
   legalDocuments: NormalizedDocument[];
   stagedAt?: string;
 }): LegalMetadataRecord | null {
-  const existing = args.existing && typeof args.existing === "object"
+  const existing: LegalMetadataSource = args.existing && typeof args.existing === "object"
     ? { ...(args.existing as Record<string, unknown>) }
     : {};
 
@@ -506,16 +508,16 @@ export function mergeResearchLegalMetadata(args: {
     ?? null;
 
   const merged = {
-    ...compactRecord(existing as LegalMetadataRecord),
+    ...compactRecord(existing),
     ...(compact(existing.document_type) ? {} : { document_type: primaryDoc?.documentType ? primaryDoc.documentType.replace(/_/g, " ") : null }),
-    ...(compact(existing.case_number as string | null | undefined) ? {} : { case_number: primaryDoc?.caseNumber ?? null }),
-    ...(compact(existing.file_date as string | null | undefined) ? {} : { file_date: earliestDoc?.recordingDate ?? null }),
-    ...(compact(existing.court_name as string | null | undefined) ? {} : { court_name: primaryDoc?.courtName ?? null }),
-    ...(compact(existing.case_type as string | null | undefined) ? {} : { case_type: primaryDoc?.caseType ?? null }),
-    ...(compact(existing.next_hearing_date as string | null | undefined) ? {} : { next_hearing_date: nextHearingDoc?.nextHearingDate ?? null }),
-    ...(compact(existing.status as string | null | undefined) ? {} : { status: primaryDoc?.status ?? null }),
-    ...(compact(existing.source_url as string | null | undefined) ? {} : { source_url: primaryDoc?.sourceUrl ?? null }),
-    ...(compact(existing.source as string | null | undefined) ? {} : { source: primaryDoc?.source ?? null }),
+    ...(compact(existing.case_number) ? {} : { case_number: primaryDoc?.caseNumber ?? null }),
+    ...(compact(existing.file_date) ? {} : { file_date: earliestDoc?.recordingDate ?? null }),
+    ...(compact(existing.court_name) ? {} : { court_name: primaryDoc?.courtName ?? null }),
+    ...(compact(existing.case_type) ? {} : { case_type: primaryDoc?.caseType ?? null }),
+    ...(compact(existing.next_hearing_date) ? {} : { next_hearing_date: nextHearingDoc?.nextHearingDate ?? null }),
+    ...(compact(existing.status) ? {} : { status: primaryDoc?.status ?? null }),
+    ...(compact(existing.source_url) ? {} : { source_url: primaryDoc?.sourceUrl ?? null }),
+    ...(compact(existing.source) ? {} : { source: primaryDoc?.source ?? null }),
     updated_at: args.stagedAt ?? new Date().toISOString(),
   } satisfies LegalMetadataRecord;
 
@@ -749,8 +751,8 @@ export function buildFallbackPeopleIntel(args: {
     dedupedPeople.map((person) =>
       findingFromPerson(
         person,
-        args.legalDocuments.find((doc) => doc.source === person.source)?.sourceUrl,
-        args.legalDocuments.find((doc) => doc.source === person.source)?.recordingDate ?? undefined,
+        args.legalDocuments.find((doc) => doc.source === person.source)?.sourceUrl || undefined,
+        args.legalDocuments.find((doc) => doc.source === person.source)?.recordingDate || undefined,
       )),
   );
 
