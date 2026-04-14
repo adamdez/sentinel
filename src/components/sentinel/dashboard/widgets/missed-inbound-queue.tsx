@@ -22,7 +22,6 @@ import {
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import type { MissedInbound, UnclassifiedAnswered } from "@/app/api/dialer/v1/queue/route";
 import { matchesCommunicationSearch } from "@/lib/dialer/communication-search";
 import { buildDialerHref, pushToDialer } from "@/components/sentinel/dialer-navigation";
@@ -143,8 +142,6 @@ interface MissedInboundRowProps {
 
 function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
   const router = useRouter();
-  const [mode, setMode] = useState<"idle" | "dismiss">("idle");
-  const [dismissReason, setDismissReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -198,10 +195,6 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
   }
 
   async function handleDismiss() {
-    if (dismissReason.trim().length < 3) {
-      setErr("Enter a reason");
-      return;
-    }
     setBusy(true);
     setErr(null);
     try {
@@ -209,7 +202,7 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
       const res = await fetch(`/api/dialer/v1/inbound/${item.event_id}/dismiss`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ reason: dismissReason.trim() }),
+        body: JSON.stringify({ reason: "dismissed" }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -337,7 +330,7 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
           </Link>
         )}
 
-        {hasEventActions && mode === "idle" && (
+        {hasEventActions && (
           <>
             <Button
               size="sm"
@@ -353,9 +346,10 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
               size="sm"
               variant="ghost"
               className="h-7 text-xs px-2.5 text-muted-foreground/65 hover:text-foreground"
-              onClick={() => setMode("dismiss")}
+              onClick={() => void handleDismiss()}
+              disabled={busy}
             >
-              <XCircle className="h-3 w-3 mr-1" />
+              {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
               Dismiss
             </Button>
           </>
@@ -374,44 +368,6 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
           <audio controls preload="none" className="h-8 w-full" src={playbackUrl}>
             Your browser does not support voicemail playback.
           </audio>
-        </div>
-      )}
-
-      {mode === "dismiss" && (
-        <div className="space-y-1.5">
-          <Input
-            value={dismissReason}
-            onChange={(event) => setDismissReason(event.target.value)}
-            placeholder="Reason for dismissing…"
-            className="h-7 text-xs px-2"
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void handleDismiss();
-            }}
-            autoFocus
-          />
-          <div className="flex items-center gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs px-2.5 border-border/40"
-              onClick={handleDismiss}
-              disabled={busy}
-            >
-              {busy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
-              Confirm Dismiss
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs px-2.5 text-muted-foreground/60"
-              onClick={() => {
-                setMode("idle");
-                setErr(null);
-              }}
-            >
-              Cancel
-            </Button>
-          </div>
         </div>
       )}
 

@@ -309,8 +309,9 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
     }
   }
 
-  async function handleDismiss() {
-    if (dismissReason.trim().length < 3) {
+  async function handleDismiss(reasonOverride?: string) {
+    const reason = reasonOverride ?? dismissReason.trim();
+    if (reason.length < 3) {
       setErr("Enter a reason (min 3 chars)");
       return;
     }
@@ -320,7 +321,7 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
       const res = await fetch(`/api/dialer/v1/inbound/${item.event_id}/dismiss`, {
         method: "POST",
         headers: await authHeaders(),
-        body: JSON.stringify({ reason: dismissReason.trim() }),
+        body: JSON.stringify({ reason }),
       });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
@@ -524,7 +525,13 @@ function InboundCallCard({ item, type, idx, onResolved }: InboundCallCardProps) 
                   size="sm"
                   variant="ghost"
                   className="h-7 text-sm px-2 text-muted-foreground/40 hover:text-muted-foreground"
-                  onClick={() => setMode("dismiss")}
+                  onClick={() => {
+                    if (isMissed) {
+                      void handleDismiss("dismissed");
+                      return;
+                    }
+                    setMode("dismiss");
+                  }}
                 >
                   <XCircle className="h-3 w-3 mr-1" />
                   Dismiss
