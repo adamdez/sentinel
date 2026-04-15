@@ -119,6 +119,13 @@ async function authHeaders(): Promise<Record<string, string>> {
 
 type QueueAdvancePlan = ReturnType<typeof planNextQueueTarget>;
 
+function getFutureResurfaceBadge(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const dueMs = new Date(iso).getTime();
+  if (Number.isNaN(dueMs) || dueMs <= Date.now()) return null;
+  return `Resurface ${formatDueDateLabel(iso).text}`;
+}
+
 type PendingIntroDecision = {
   leadId: string;
   autoDial: boolean;
@@ -4853,6 +4860,7 @@ function DialerPageInner() {
                       && !(typeof lead.intro_exit_category === "string" && lead.intro_exit_category.trim().length > 0),
                   });
                   const rowDueLabel = powerDialRow ? getPowerDialRowLabel(powerDialRow, rowDueIso) : wf.dueLabel;
+                  const futureResurfaceBadge = getFutureResurfaceBadge(rowDueIso);
 
                   return (
                     <button
@@ -4890,6 +4898,15 @@ function DialerPageInner() {
                           </span>
                           {!lead.compliant && !ghostMode && (
                             <span className="h-2 w-2 rounded-full bg-foreground/80 shadow-[0_0_6px_var(--shadow-medium)] shrink-0" title="Compliance blocked" />
+                          )}
+                          {futureResurfaceBadge && (
+                            <span
+                              className="shrink-0 inline-flex items-center gap-1 rounded-[7px] border border-amber-500/30 bg-amber-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-300"
+                              title="This lead has a future resurface date. You can still call it manually if needed."
+                            >
+                              <Clock className="h-3 w-3" />
+                              {futureResurfaceBadge}
+                            </span>
                           )}
                           <RelationshipBadgeCompact data={{ tags: lead.tags }} />
                           <button
@@ -4979,6 +4996,8 @@ function DialerPageInner() {
                               "tabular-nums shrink-0",
                               powerDialRow?.powerDialState === "ready"
                                 ? "text-emerald-300 font-medium"
+                                : futureResurfaceBadge
+                                  ? "text-amber-300 font-medium"
                                 : wf.dueOverdue
                                   ? "text-red-400 font-medium"
                                   : "text-muted-foreground/60",

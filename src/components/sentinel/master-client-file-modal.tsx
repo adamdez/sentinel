@@ -298,6 +298,14 @@ import {
 
 } from "./master-client-file-helpers";
 
+function getFutureResurfaceBadge(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const dueDate = new Date(iso);
+  const dueMs = dueDate.getTime();
+  if (Number.isNaN(dueMs) || dueMs <= Date.now()) return null;
+  return `Resurface ${dueDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+}
+
 import {
 
   InfoRow, Section, CopyBtn, ScoreCard,
@@ -8995,6 +9003,12 @@ export function MasterClientFileModal({
 
   });
 
+  const futureResurfaceBadge = getFutureResurfaceBadge(
+    clientFile.nextCallScheduledAt
+    ?? clientFile.nextActionDueAt
+    ?? clientFile.followUpDate,
+  );
+
   const compactOwnerFlags = clientFile.ownerFlags ?? {};
   const compactScoutData = recordFromUnknown(compactOwnerFlags.scout_data);
   const compactScoutTaxOwed = numberFromUnknown(compactScoutData?.total_charges_owing);
@@ -9520,10 +9534,25 @@ export function MasterClientFileModal({
 
                   <span className="text-muted-foreground">
                     Due{" "}
-                    <span className={cn(operatorWf.dueOverdue ? "text-amber-300 font-medium" : "text-foreground")}>
+                    <span
+                      className={cn(
+                        futureResurfaceBadge
+                          ? "text-amber-300 font-medium"
+                          : operatorWf.dueOverdue
+                            ? "text-amber-300 font-medium"
+                            : "text-foreground",
+                      )}
+                    >
                       {operatorWf.dueLabel}
                     </span>
                   </span>
+
+                  {futureResurfaceBadge && (
+                    <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300 bg-amber-500/10 border border-amber-500/20">
+                      <Clock className="h-3 w-3" />
+                      {futureResurfaceBadge}
+                    </span>
+                  )}
 
                   <span className="text-muted-foreground inline-flex items-center gap-1.5">
                     Last touch <span className="text-foreground">{operatorWf.lastTouchLabel}</span>
