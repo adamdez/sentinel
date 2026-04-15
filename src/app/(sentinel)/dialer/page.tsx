@@ -2428,7 +2428,8 @@ function DialerPageInner() {
 
     if (plan.action === "next") {
       pendingSameLeadPhoneAdvanceRef.current = null;
-      const nextLead = executionQueue.find((lead) => lead.id === plan.leadId) ?? null;
+      const nextLeadId = (plan as Extract<QueueAdvancePlan, { action: "next" }>).leadId;
+      const nextLead = executionQueue.find((lead) => lead.id === nextLeadId) ?? null;
       selectQueueLead(nextLead);
       if (autoDial && powerDialPaused && nextLead) {
         setPendingAutoDialLeadId(null);
@@ -2440,7 +2441,7 @@ function DialerPageInner() {
         return;
       }
       if (autoDial && nextLead) {
-        setPendingAutoDialLeadId(nextLead.id);
+        setPendingAutoDialLeadId(nextLead?.id ?? null);
         toast.info("Power Dial: next lead dialing...");
       } else if (nextLead) {
         toast.info(disposition === "dead_lead" || disposition === "disqualified" ? "Lead done - next lead loaded" : "Next lead loaded");
@@ -2581,7 +2582,8 @@ function DialerPageInner() {
 
     if (plan.action === "next") {
       pendingSameLeadPhoneAdvanceRef.current = null;
-      const nextLead = executionQueue.find((lead) => lead.id === plan.leadId) ?? null;
+      const nextLeadId = (plan as Extract<QueueAdvancePlan, { action: "next" }>).leadId;
+      const nextLead = executionQueue.find((lead) => lead.id === nextLeadId) ?? null;
       selectQueueLead(nextLead);
       if (autoDial && powerDialPaused && nextLead) {
         setPendingAutoDialLeadId(null);
@@ -2593,7 +2595,7 @@ function DialerPageInner() {
         return;
       }
       if (autoDial && nextLead) {
-        setPendingAutoDialLeadId(nextLead.id);
+        setPendingAutoDialLeadId(nextLead?.id ?? null);
         toast.info("Power Dial: next lead dialing...");
       } else if (nextLead) {
         toast.info(disposition === "dead_lead" || disposition === "disqualified" ? "Lead done — next lead loaded" : "Next lead loaded");

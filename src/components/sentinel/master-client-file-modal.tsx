@@ -7836,7 +7836,7 @@ export function MasterClientFileModal({
       } else if (result.taskType === "drive_by") {
         const moveResult = await moveLeadToDriveBy(clientFile.id);
         if (!moveResult.ok) {
-          throw new Error(moveResult.data.error ?? "Failed to move to Drive By");
+          throw new Error(moveResult.error ?? "Failed to move to Drive By");
         }
         toast.success("Moved to Drive By");
       } else {
