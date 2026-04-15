@@ -64,7 +64,6 @@ import { PostCallPanel, type PostCallIntroStateMeta } from "@/components/sentine
 import { SellerMemoryPanel } from "@/components/sentinel/seller-memory-panel";
 import { SellerMemoryPreview } from "@/components/sentinel/seller-memory-preview";
 import { LiveCoachWindow } from "@/components/sentinel/live-coach-window";
-import { UnlinkedCallsFolder } from "@/components/sentinel/unlinked-calls-folder";
 import { SmsMessagesPanel } from "@/components/sentinel/sms-messages-panel";
 import { MissedInboundQueueAutoLoad } from "@/components/sentinel/dashboard/widgets/missed-inbound-queue";
 import type { LeadPhone } from "@/lib/dialer/types";
@@ -1447,12 +1446,6 @@ function DialerPageInner() {
     window.sessionStorage.setItem(autoDialConsumptionKey, "1");
     autoDialConsumedRef.current = autoDialConsumptionKey;
   }, [autoDialConsumptionKey]);
-
-  useEffect(() => {
-    if (callState !== "idle" || manualStatus === "connected" || manualStatus === "dialing") return;
-    if (manualPhone === requestedPhone) return;
-    setManualPhone(requestedPhone);
-  }, [callState, manualPhone, manualStatus, requestedPhone]);
 
   useEffect(() => {
     if (manualStatus !== "connected" || !manualPhone || currentLead) return;
@@ -5995,7 +5988,6 @@ function DialerPageInner() {
                     }} query={idleRailQuery} />
                   )}
 
-                  <UnlinkedCallsFolder onLinked={refetchQueue} />
                 </motion.div>
               )}
             </AnimatePresence>
