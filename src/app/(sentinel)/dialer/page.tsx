@@ -1403,6 +1403,9 @@ function DialerPageInner() {
   const requestedSource = searchParams.get("source")?.trim() || null;
   const requestedAutoDial = searchParams.get("autodial") === "1";
   const requestedOpenClientFile = searchParams.get("open_client_file") === "1";
+  const preserveRequestedLead =
+    Boolean(requestedLeadId)
+    && (requestedSource === "client-file-open-for-call" || requestedSource === "client-file-dial-phone");
   const requestedActionId = searchParams.get("request_id")?.trim() || null;
   const [manualPhone, setManualPhone] = useState(() => requestedPhone);
   const [manualDialExpanded, setManualDialExpanded] = useState(false);
@@ -1708,6 +1711,7 @@ function DialerPageInner() {
   useEffect(() => {
     if (isLeadSelectionLocked || !selectedQueueLead) return;
     if (displayedQueue.some((lead) => lead.id === selectedQueueLead.id)) return;
+    if (preserveRequestedLead && selectedQueueLead.id === requestedLeadId) return;
     const nextLead = selectFallbackDialerLead({
       autoCycleMode,
       displayedQueue,
@@ -1717,7 +1721,7 @@ function DialerPageInner() {
     });
     if (nextLead === null && fileModalOpen) return;
     selectQueueLead(nextLead);
-  }, [autoCycleMode, displayedQueue, executionQueue, preferredQueue, selectedQueueLead, fileModalOpen, isLeadSelectionLocked, selectQueueLead]);
+  }, [autoCycleMode, displayedQueue, executionQueue, preferredQueue, selectedQueueLead, fileModalOpen, isLeadSelectionLocked, preserveRequestedLead, requestedLeadId, selectQueueLead]);
 
   // Keep activeCallRef in sync for polling callback closures
   useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);

@@ -7909,8 +7909,8 @@ export function MasterClientFileModal({
       phone: numberToDial,
       leadId: clientFile?.id ?? null,
       openClientFile: true,
-      autodial: true,
-      source: "client-file-call-now",
+      autodial: Boolean(phoneNumber),
+      source: phoneNumber ? "client-file-dial-phone" : "client-file-open-for-call",
     });
 
   }, [clientFile?.id, displayPhone, router]);
