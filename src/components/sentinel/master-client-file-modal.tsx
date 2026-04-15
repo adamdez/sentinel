@@ -34,7 +34,7 @@ import { Button } from "@/components/ui/button";
 
 import { Badge } from "@/components/ui/badge";
 
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, formatPhone } from "@/lib/utils";
 import { pushToDialer } from "@/components/sentinel/dialer-navigation";
 
 import type { ProspectRow } from "@/hooks/use-prospects";
@@ -9028,6 +9028,44 @@ export function MasterClientFileModal({
   const compactContextTags = (clientFile.tags ?? [])
     .filter((tag) => ["probate", "inherited", "vacant", "tax_lien", "tax_delinquency"].includes(tag))
     .slice(0, 2);
+  const callReadinessPhone = displayPhone ? formatPhone(displayPhone) : "No phone on file";
+  const callReadinessPhoneMeta = !displayPhone
+    ? "Add or select a number before calling."
+    : activeLeadPhoneCount > 1
+      ? `${activeLeadPhoneCount} active numbers on file. Call Now uses the selected primary number.`
+      : "Primary number ready for the dialer handoff.";
+  const callReadinessDueLabel = futureResurfaceBadge ?? operatorWf.dueLabel;
+  const callReadinessNextAction = clientFile.nextAction?.trim() || operatorWf.doNow;
+  const callReadinessItems = [
+    {
+      label: "Selected phone",
+      value: callReadinessPhone,
+      meta: callReadinessPhoneMeta,
+      tone: displayPhone ? "text-foreground" : "text-amber-300",
+    },
+    {
+      label: futureResurfaceBadge ? "Resurface" : "Due",
+      value: callReadinessDueLabel,
+      meta: futureResurfaceBadge
+        ? "You can still dial now, but this file is marked for a future callback."
+        : operatorWf.dueOverdue
+          ? "This file is due now or overdue."
+          : "Current next-touch target for this file.",
+      tone: futureResurfaceBadge || operatorWf.dueOverdue ? "text-amber-300" : "text-foreground",
+    },
+    {
+      label: "Next action",
+      value: callReadinessNextAction,
+      meta: "This is the current recommended conversation objective.",
+      tone: "text-foreground",
+    },
+    {
+      label: "Last touch",
+      value: operatorWf.lastTouchLabel,
+      meta: operatorWf.workedToday ? "Already touched today." : "Last recorded outreach on this file.",
+      tone: operatorWf.workedToday ? "text-primary" : "text-foreground",
+    },
+  ];
 
   const qualificationEditable = currentStage === "lead";
 
@@ -9390,6 +9428,30 @@ export function MasterClientFileModal({
                     </div>
                   </details>
 
+                </div>
+
+                <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                  {callReadinessItems.map((item) => (
+                    <div
+                      key={item.label}
+                      className={cn(
+                        "rounded-[10px] border px-2.5 py-2 bg-overlay-4/80",
+                        item.label === "Resurface" || item.label === "Due"
+                          ? "border-amber-500/20"
+                          : "border-overlay-12",
+                      )}
+                    >
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                        {item.label}
+                      </p>
+                      <p className={cn("mt-1 text-sm font-semibold leading-tight", item.tone)}>
+                        {item.value}
+                      </p>
+                      <p className="mt-1 text-[11px] leading-tight text-muted-foreground">
+                        {item.meta}
+                      </p>
+                    </div>
+                  ))}
                 </div>
 
                 {closeoutOpen && (

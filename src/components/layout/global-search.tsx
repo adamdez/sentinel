@@ -494,6 +494,19 @@ export function GlobalSearch() {
     [closeDropdown, openModal]
   );
 
+  const openSelectedRecord = useCallback(
+    (record: SearchRecord) => {
+      if (record.leadId) {
+        handleOpenLead(record.leadId);
+        return;
+      }
+      if (record.href !== "#") {
+        handleSelect(record.href);
+      }
+    },
+    [handleOpenLead, handleSelect]
+  );
+
   // Open the new-prospect modal instantly with whatever address data we have,
   // then let the modal fetch Bricked enrichment in the background.
   const handleNationwideLookup = useCallback((addressOverride?: string, structured?: { city?: string; state?: string; zip?: string }) => {
@@ -567,7 +580,7 @@ export function GlobalSearch() {
         e.preventDefault();
         if (activeIndex >= 0 && activeIndex < localResults.length) {
           const rec = localResults[activeIndex];
-          if (rec.href !== "#") handleOpenLead(rec.id);
+          openSelectedRecord(rec);
         } else if (activeIndex >= localResults.length && activeIndex < localResults.length + suggestions.length) {
           // Nationwide suggestion selected
           const suggestion = suggestions[activeIndex - localResults.length];
@@ -584,7 +597,7 @@ export function GlobalSearch() {
         inputRef.current?.blur();
       }
     },
-    [isOpen, activeIndex, totalNavItems, localResults, suggestions, showFallbackButton, showNationwide, handleSelect, handleOpenLead, handleNationwideLookup, closeDropdown]
+    [isOpen, activeIndex, totalNavItems, localResults, suggestions, showFallbackButton, showNationwide, openSelectedRecord, handleNationwideLookup, closeDropdown]
   );
 
   return (
@@ -672,7 +685,7 @@ export function GlobalSearch() {
                           <button
                             onMouseDown={(e) => {
                               e.preventDefault();
-                              if (rec.href !== "#") handleOpenLead(rec.id);
+                              openSelectedRecord(rec);
                             }}
                             className="flex items-center gap-3 w-full text-left px-3 py-2.5"
                           >
