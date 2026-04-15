@@ -25,6 +25,20 @@ const autoCycleLeads: TestLead[] = [
 ];
 
 describe("buildDialerQueueCollections", () => {
+  it("shows the same staged lead list in queue mode and power dial mode", () => {
+    const result = buildDialerQueueCollections({
+      autoCycleMode: false,
+      queue: [{ id: "lead-1" }, { id: "lead-2" }],
+      queueLoading: false,
+      autoCycleQueue: [{ id: "lead-2", ready: true }, { id: "lead-3", ready: false }],
+      autoCycleQueueLoading: false,
+      isReadyLead: (lead) => lead.ready === true,
+    });
+
+    expect(result.displayedQueue.map((lead) => lead.id)).toEqual(["lead-1", "lead-2", "lead-3"]);
+    expect(result.executionQueue.map((lead) => lead.id)).toEqual(["lead-1", "lead-2", "lead-3"]);
+  });
+
   it("uses only ready auto-cycle leads for the power-dial execution queue", () => {
     const result = buildDialerQueueCollections({
       autoCycleMode: true,
@@ -35,7 +49,7 @@ describe("buildDialerQueueCollections", () => {
       isReadyLead: (lead) => lead.ready === true,
     });
 
-    expect(result.displayedQueue.map((lead) => lead.id)).toEqual(["lead-a", "lead-b"]);
+    expect(result.displayedQueue.map((lead) => lead.id)).toEqual(["lead-1", "lead-2", "lead-a", "lead-b"]);
     expect(result.executionQueue.map((lead) => lead.id)).toEqual(["lead-b"]);
     expect(result.preferredQueue.map((lead) => lead.id)).toEqual(["lead-b"]);
     expect(result.displayedQueueLoading).toBe(true);
@@ -53,14 +67,14 @@ describe("buildDialerQueueCollections", () => {
     });
 
     expect(result.executionQueue).toEqual([]);
-    expect(result.preferredQueue.map((lead) => lead.id)).toEqual(["lead-a"]);
+    expect(result.preferredQueue.map((lead) => lead.id)).toEqual(["lead-1", "lead-2", "lead-a"]);
     expect(result.powerDialReadyQueueExhausted).toBe(true);
   });
 
   it("does not mark power dial as exhausted when the staged queue is empty", () => {
     const result = buildDialerQueueCollections({
       autoCycleMode: true,
-      queue: queueLeads,
+      queue: [],
       queueLoading: false,
       autoCycleQueue: [],
       autoCycleQueueLoading: false,

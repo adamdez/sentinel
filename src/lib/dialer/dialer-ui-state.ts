@@ -41,15 +41,23 @@ export function buildDialerQueueCollections<TLead extends DialerQueueLeadLike>({
   autoCycleQueueLoading,
   isReadyLead,
 }: BuildDialerQueueCollectionsArgs<TLead>): DialerQueueCollections<TLead> {
-  const displayedQueue = autoCycleMode ? autoCycleQueue : queue;
-  const executionQueue = autoCycleMode ? autoCycleQueue.filter(isReadyLead) : queue;
+  const mergedById = new Map<string, TLead>();
+  for (const lead of queue) {
+    mergedById.set(lead.id, lead);
+  }
+  for (const lead of autoCycleQueue) {
+    mergedById.set(lead.id, lead);
+  }
+
+  const displayedQueue = [...mergedById.values()];
+  const executionQueue = autoCycleMode ? autoCycleQueue.filter(isReadyLead) : displayedQueue;
   const preferredQueue = executionQueue.length > 0 ? executionQueue : displayedQueue;
 
   return {
     displayedQueue,
     executionQueue,
     preferredQueue,
-    displayedQueueLoading: autoCycleMode ? autoCycleQueueLoading : queueLoading,
+    displayedQueueLoading: autoCycleMode ? (queueLoading || autoCycleQueueLoading) : (queueLoading || autoCycleQueueLoading),
     powerDialReadyQueueExhausted: autoCycleMode && displayedQueue.length > 0 && executionQueue.length === 0,
   };
 }
