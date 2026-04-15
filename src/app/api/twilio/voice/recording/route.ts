@@ -17,19 +17,45 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const recordingUrl = formData.get("RecordingUrl")?.toString() ?? "";
   const recordingDuration = formData.get("RecordingDuration")?.toString() ?? "0";
+  const parsedDuration = Number.parseInt(recordingDuration, 10) || 0;
+  const recordedAt = new Date().toISOString();
 
   const sb = createServerClient();
 
   if (callLogId && recordingUrl) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (sb.from("calls_log") as any)
+    const { data: existingCall, error: fetchErr } = await (sb.from("calls_log") as any)
+      .select("id, metadata")
+      .eq("id", callLogId)
+      .maybeSingle();
+
+    if (fetchErr) {
+      console.error("[twilio/voice/recording] failed to load call log:", fetchErr.message);
+      return NextResponse.json({ error: "Failed to load call log" }, { status: 500 });
+    }
+
+    const existingMetadata =
+      existingCall && typeof existingCall.metadata === "object" && existingCall.metadata !== null
+        ? existingCall.metadata
+        : {};
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updateErr } = await (sb.from("calls_log") as any)
       .update({
-        voicemail_url: recordingUrl,
-        voicemail_duration: parseInt(recordingDuration) || 0,
-        voicemail_dropped: true,
+        disposition: "voicemail",
         recording_url: recordingUrl,
+        metadata: {
+          ...existingMetadata,
+          voicemail_duration: parsedDuration,
+          voicemail_recorded_at: recordedAt,
+        },
       })
       .eq("id", callLogId);
+
+    if (updateErr) {
+      console.error("[twilio/voice/recording] failed to save voicemail:", updateErr.message);
+      return NextResponse.json({ error: "Failed to save voicemail" }, { status: 500 });
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,7 +67,7 @@ export async function POST(req: NextRequest) {
     details: {
       recording_url: recordingUrl,
       duration: recordingDuration,
-      timestamp: new Date().toISOString(),
+      timestamp: recordedAt,
     },
   });
 
