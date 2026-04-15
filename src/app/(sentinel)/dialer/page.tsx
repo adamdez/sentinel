@@ -2434,7 +2434,9 @@ function DialerPageInner() {
       pendingSameLeadPhoneAdvanceRef.current = null;
       const nextLeadId = (plan as Extract<QueueAdvancePlan, { action: "next" }>).leadId;
       const nextLead = executionQueue.find((lead) => lead.id === nextLeadId) ?? null;
-      selectQueueLead(nextLead);
+      if (nextLead) {
+        selectQueueLead(nextLead);
+      }
       if (autoDial && powerDialPaused && nextLead) {
         setPendingAutoDialLeadId(null);
         toast.info(isLeadTerminalDisposition ? "Lead done - Power Dial paused on next lead" : "Power Dial paused on next lead");
@@ -2444,8 +2446,8 @@ function DialerPageInner() {
         toast.info("Lead done - next lead loaded");
         return;
       }
-      if (autoDial && nextLead) {
-        setPendingAutoDialLeadId(nextLead?.id ?? null);
+      if (autoDial) {
+        setPendingAutoDialLeadId(nextLeadId);
         toast.info("Power Dial: next lead dialing...");
       } else if (nextLead) {
         toast.info(disposition === "dead_lead" || disposition === "disqualified" ? "Lead done - next lead loaded" : "Next lead loaded");
@@ -3798,6 +3800,22 @@ function DialerPageInner() {
     if (!pendingAutoDialLeadId) return;
     if (powerDialPaused) return;
     if (callState !== "idle" || dispositionPending) return;
+    if (!currentLead || currentLead.id !== pendingAutoDialLeadId) {
+      const pendingLead = executionQueue.find((lead) => lead.id === pendingAutoDialLeadId) ?? null;
+      const fallbackLead = executionQueue[0] ?? null;
+      const leadToLoad = pendingLead ?? fallbackLead;
+      if (!leadToLoad) {
+        setPendingAutoDialLeadId(null);
+        return;
+      }
+      if (!currentLead || currentLead.id !== leadToLoad.id) {
+        selectQueueLead(leadToLoad);
+      }
+      if (leadToLoad.id !== pendingAutoDialLeadId) {
+        setPendingAutoDialLeadId(leadToLoad.id);
+      }
+      return;
+    }
     if (!currentLead || currentLead.id !== pendingAutoDialLeadId) return;
     if (!currentPowerDialReady) return;
     if (!selectedDialPhone) return;
@@ -3815,9 +3833,11 @@ function DialerPageInner() {
     callState,
     dispositionPending,
     currentLead,
+    executionQueue,
     currentPowerDialReady,
     selectedDialPhone,
     handleDial,
+    selectQueueLead,
   ]);
 
   useEffect(() => {
