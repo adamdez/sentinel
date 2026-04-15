@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -151,11 +150,16 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
   const routeText = routeLabel(item);
 
   const openHref = useMemo(() => {
-    if (item.open_target_type === "lead" && item.open_target_id) {
-      return `/leads?open=${item.open_target_id}`;
-    }
     if (item.open_target_type === "intake" && item.open_target_id) {
       return `/intake?open=${item.open_target_id}`;
+    }
+    if (item.open_target_type === "lead" && item.open_target_id) {
+      return buildDialerHref({
+        leadId: item.open_target_id,
+        phone: item.from_number !== "unknown" ? item.from_number : null,
+        openClientFile: true,
+        source: "missed-inbound-open-client-file",
+      });
     }
     if (item.open_target_type === "phone_lookup" && item.from_number !== "unknown") {
       return buildDialerHref({ phone: item.from_number, source: "missed-inbound-open-context" });
@@ -321,12 +325,15 @@ function MissedInboundRow({ item, idx, onResolved }: MissedInboundRowProps) {
         </Button>
 
         {openHref && openLabel && (
-          <Link href={openHref}>
-            <Button size="sm" variant="outline" className="h-7 text-xs px-2.5 border-border/40 text-foreground/85 hover:bg-muted/30">
-              <UserRoundSearch className="h-3 w-3 mr-1" />
-              {openLabel}
-            </Button>
-          </Link>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs px-2.5 border-border/40 text-foreground/85 hover:bg-muted/30"
+            onClick={() => router.push(openHref)}
+          >
+            <UserRoundSearch className="h-3 w-3 mr-1" />
+            {openLabel}
+          </Button>
         )}
 
         {hasRecoverAction && (
