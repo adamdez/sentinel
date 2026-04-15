@@ -73,6 +73,7 @@ import {
   resolveDialerPhoneSelection,
 } from "@/lib/dialer/operator-auto-cycle";
 import { isAutoCycleLeadExitDisposition } from "@/lib/dialer/auto-cycle";
+import { buildTerminalDispositionLeadPatch } from "@/lib/dialer/terminal-disposition-policy";
 import { useTwilio } from "@/providers/twilio-provider";
 import {
   formatTalkTime,
@@ -3686,6 +3687,9 @@ function DialerPageInner() {
     }
 
     setDispositionPending(true);
+    const endedAt = new Date().toISOString();
+    const terminalDisposition = isAutoCycleLeadExitDisposition(dispoKey as Parameters<typeof isAutoCycleLeadExitDisposition>[0]);
+    let resolvedAutoCycleStatus: string | null = null;
 
     if (callState === "connected") {
       handleHangup();
@@ -3702,10 +3706,52 @@ function DialerPageInner() {
             durationSec: timer.elapsed,
             notes: callNotes || null,
             userId: currentUser.id,
+            endedAt,
           }),
         });
       } catch (err) {
         console.error("[Dialer] disposition error:", err);
+      }
+    }
+
+    if (autoCycleMode && currentLead?.id) {
+      try {
+        const autoCycleRes = await fetch("/api/dialer/v1/auto-cycle/outcome", {
+          method: "POST",
+          headers: await authHeaders(),
+          body: JSON.stringify({
+            leadId: currentLead.id,
+            disposition: dispoKey,
+            phoneNumber: currentDialedPhone,
+          }),
+        });
+        if (autoCycleRes.ok) {
+          const autoCycleData = await autoCycleRes.json().catch(() => ({})) as { cycle_status?: string | null };
+          resolvedAutoCycleStatus = autoCycleData.cycle_status ?? null;
+        }
+      } catch (err) {
+        console.warn("[Dialer] fallback auto-cycle outcome failed (non-fatal):", err);
+      }
+    }
+
+    if (terminalDisposition && currentLead?.id) {
+      try {
+        const prospectHeaders = await authHeaders();
+        prospectHeaders["x-lock-version"] = String(currentLead.lock_version ?? 0);
+        await fetch("/api/prospects", {
+          method: "PATCH",
+          headers: prospectHeaders,
+          body: JSON.stringify({
+            lead_id: currentLead.id,
+            ...buildTerminalDispositionLeadPatch({
+              disposition: dispoKey as "not_interested" | "disqualified" | "dead_lead" | "do_not_call",
+              lockVersion: currentLead.lock_version ?? null,
+              nowIso: endedAt,
+            }),
+          }),
+        });
+      } catch (err) {
+        console.warn("[Dialer] fallback terminal lead patch failed (non-fatal):", err);
       }
     }
 
@@ -3750,8 +3796,21 @@ function DialerPageInner() {
     noteSeqRef.current = 0;
     timer.reset();
     setDispositionPending(false);
+    if (
+      autoCycleMode
+      && resolvedAutoCycleStatus
+      && resolvedAutoCycleStatus !== "ready"
+    ) {
+      if (!powerDialPaused) {
+        setPendingPowerDialStart(true);
+      }
+      setPendingAutoDialLeadId(null);
+      await refreshQueues();
+      selectQueueLead(null);
+      return;
+    }
     void advanceQueueAfterDisposition(dispoKey, autoCycleMode);
-  }, [advanceQueueAfterDisposition, autoCycleMode, currentCallLogId, callState, callNotes, currentLead, currentUser.id, handleHangup, timer]);
+  }, [advanceQueueAfterDisposition, autoCycleMode, callState, callNotes, currentCallLogId, currentDialedPhone, currentLead, currentUser.id, handleHangup, powerDialPaused, refreshQueues, selectQueueLead, timer]);
 
   // ── PostCallPanel completion handler ────────────────────────────────
   // Shared by onComplete and onSkip — PostCallPanel handles its own API calls.
