@@ -72,6 +72,8 @@ export interface ParsedStrategistMove {
   vossLabels: [string, string, string] | null;
 }
 
+type PostCallRecap = LiveCoachResponseV2["postCallRecap"];
+
 function parseTriple(val: unknown): [string, string, string] | null {
   if (!Array.isArray(val)) return null;
   const strings = val.filter((v): v is string => typeof v === "string" && v.length > 0);
@@ -1692,6 +1694,160 @@ function buildCommitmentTarget(
   };
 }
 
+function formatSlotLabel(slot: DiscoveryMapSlotKey): string {
+  return slot.replace(/_/g, " ");
+}
+
+function uniqueCompact(items: Array<string | null | undefined>, limit: number): string[] {
+  const seen = new Set<string>();
+  const values: string[] = [];
+  for (const item of items) {
+    const next = compact(item ?? null, 140);
+    if (!next) continue;
+    const key = next.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    values.push(next);
+    if (values.length >= limit) break;
+  }
+  return values;
+}
+
+function buildDiscoveryAnswers(discoveryMap: DiscoveryMap): PostCallRecap["discoveryAnswers"] {
+  return SLOT_KEYS.reduce<PostCallRecap["discoveryAnswers"]>((acc, slot) => {
+    const item = discoveryMap[slot];
+    if (item.status === "missing" || !item.value) return acc;
+    acc[slot] = compact(item.value, 180) ?? item.value;
+    return acc;
+  }, {});
+}
+
+function buildPrimaryObjection(
+  state: LiveCoachCachedState,
+  pricePosture: LiveCoachPricePosture,
+): string | null {
+  const noteMatch = state.structuredLiveNotes
+    .slice()
+    .reverse()
+    .find((note) => note.slot === "price_posture" || note.slot === "timeline" || note.slot === "next_step");
+  if (noteMatch) return compact(noteMatch.text, 140);
+
+  const sellerText = state.recentTurns
+    .filter((turn) => turn.speaker === "seller")
+    .map((turn) => turn.text)
+    .join(" ");
+
+  if (pricePosture === "anchored_high") return "Seller is anchored to retail or a high number.";
+  if (pricePosture === "needs_net_number") return "Seller wants a clear net number before deciding.";
+  if (/not ready|think about it|later|call me back/i.test(sellerText)) {
+    return "Seller is not ready to decide yet.";
+  }
+  if (/realtor|agent|list/i.test(sellerText)) {
+    return "Seller is still comparing listing-agent options.";
+  }
+  return null;
+}
+
+function buildPostCallRecap(
+  state: LiveCoachCachedState,
+  bestMove: LiveBestMove,
+  authorityStatus: LiveCoachAuthorityStatus,
+  pricePosture: LiveCoachPricePosture,
+  sellerPosture: LiveCoachSellerPosture,
+  commitment: ReturnType<typeof buildCommitmentTarget>,
+): PostCallRecap {
+  const discoveryAnswers = buildDiscoveryAnswers(state.discoveryMap);
+  const recapGapPriority: DiscoveryMapSlotKey[] = [
+    "human_pain",
+    "motivation",
+    "timeline",
+    "decision_maker",
+    "price_posture",
+    "next_step",
+    "desired_relief",
+    "surface_problem",
+    "property_condition",
+  ];
+  const unresolvedGaps = recapGapPriority.filter((slot) => state.discoveryMap[slot].status !== "confirmed").slice(0, 4);
+  const primaryObjection = buildPrimaryObjection(state, pricePosture);
+  const nepqSignals = uniqueCompact([
+    state.discoveryMap.human_pain.value
+      ? `Pain: ${state.discoveryMap.human_pain.value}`
+      : null,
+    state.discoveryMap.desired_relief.value
+      ? `Desired relief: ${state.discoveryMap.desired_relief.value}`
+      : null,
+    state.discoveryMap.motivation.value
+      ? `Motivation: ${state.discoveryMap.motivation.value}`
+      : null,
+    state.discoveryMap.timeline.value
+      ? `Timeline: ${state.discoveryMap.timeline.value}`
+      : null,
+    state.discoveryMap.next_step.value
+      ? `Next step signal: ${state.discoveryMap.next_step.value}`
+      : null,
+  ], 4);
+  const vossSignals = uniqueCompact([
+    authorityStatus !== "unknown" ? `Decision path: ${humanizeAuthority(authorityStatus)}` : null,
+    pricePosture !== "not_discussed" ? `Price posture: ${humanizePrice(pricePosture)}` : null,
+    `Seller posture: ${sellerPosture.replace(/_/g, " ")}`,
+    primaryObjection ? `Pressure point: ${primaryObjection}` : null,
+  ], 4);
+
+  const bullets = uniqueCompact([
+    state.discoveryMap.surface_problem.value
+      ? `Property issue: ${state.discoveryMap.surface_problem.value}`
+      : state.discoveryMap.property_condition.value
+        ? `Condition: ${state.discoveryMap.property_condition.value}`
+        : null,
+    state.discoveryMap.human_pain.value
+      ? `Seller impact: ${state.discoveryMap.human_pain.value}`
+      : state.discoveryMap.motivation.value
+        ? `Motivation: ${state.discoveryMap.motivation.value}`
+        : null,
+    state.discoveryMap.desired_relief.value
+      ? `Desired outcome: ${state.discoveryMap.desired_relief.value}`
+      : null,
+    state.discoveryMap.timeline.value
+      ? `Timeline: ${state.discoveryMap.timeline.value}`
+      : unresolvedGaps.includes("timeline")
+        ? "Timeline still needs to be pinned down."
+        : null,
+    primaryObjection ? `Main friction: ${primaryObjection}` : null,
+    state.discoveryMap.next_step.value
+      ? `Next step: ${state.discoveryMap.next_step.value}`
+      : `Recommended next step: ${commitment.recommendation}`,
+  ], 6).slice(0, 6);
+
+  return {
+    bullets,
+    discoveryAnswers,
+    unresolvedGaps,
+    primaryObjection,
+    vossSignals,
+    nepqSignals,
+    recommendedSummary:
+      compact(
+        [
+          state.discoveryMap.motivation.value || state.discoveryMap.human_pain.value,
+          state.discoveryMap.timeline.value,
+          state.discoveryMap.next_step.value || commitment.recommendation,
+        ]
+          .filter(Boolean)
+          .join(" | "),
+        220,
+      ) ?? commitment.recommendation,
+  };
+}
+
+function humanizeAuthority(status: LiveCoachAuthorityStatus): string {
+  return status.replace(/_/g, " ");
+}
+
+function humanizePrice(posture: LiveCoachPricePosture): string {
+  return posture.replace(/_/g, " ");
+}
+
 export function buildLiveCoachResponse(
   state: LiveCoachCachedState,
   mode: LiveCoachMode,
@@ -1728,6 +1884,14 @@ export function buildLiveCoachResponse(
     pricePosture,
   );
   const rescueMove = bestMove.backupQuestion ?? bestMove.suggestedLabel ?? bestMove.suggestedMirror;
+  const postCallRecap = buildPostCallRecap(
+    state,
+    bestMove,
+    authorityStatus,
+    pricePosture,
+    sellerPosture,
+    commitment,
+  );
 
   return {
     currentStage: bestMove.currentStage,
@@ -1772,6 +1936,7 @@ export function buildLiveCoachResponse(
     lastProcessedSequence: state.lastProcessedSequence,
     lastStrategizedAt: state.lastStrategizedAt,
     lastSellerTurnAt: state.lastSellerTurnAt,
+    postCallRecap,
   };
 }
 

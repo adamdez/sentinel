@@ -38,8 +38,11 @@ import type { PostCallDraft, ObjectionCapture } from "@/components/sentinel/post
 import { QualGapStripCompact } from "@/components/sentinel/qual-gap-strip";
 import type { QualCheckInput, QualItemKey } from "@/lib/dialer/qual-checklist";
 import type { PostCallStructureInput } from "@/lib/dialer/post-call-structure";
+import type { LiveCoachResponseV2 } from "@/lib/dialer/live-coach-types";
 import { formatDueDateLabel } from "@/lib/due-date-label";
 import type { IntroPendingAction } from "@/lib/intro-sop-state";
+
+type LiveCoachRecap = LiveCoachResponseV2["postCallRecap"];
 
 interface PublishQaFinding {
   check_type: string;
@@ -91,19 +94,26 @@ const STEP3_TASK_DEFAULTS: Partial<Record<PublishDisposition, { type: "callback"
 function deriveStructureFromSummary(summaryText: string): PostCallStructureInput {
   const lines = summaryText
     .split("\n")
-    .map((l) => l.trim())
+    .map((l) => l.trim().replace(/^[•\-]\s*/, ""))
     .filter(Boolean);
 
   const summaryLine = lines[0] ?? null;
   const promises = lines.find((l) => /^promised:/i.test(l))?.replace(/^promised:\s*/i, "") ?? null;
+  const objection = lines.find((l) => /^objection:/i.test(l))?.replace(/^objection:\s*/i, "") ?? null;
   const next = lines.find((l) => /^next:/i.test(l))?.replace(/^next:\s*/i, "") ?? null;
   const callbackHint = lines.find((l) => /^best callback timing:/i.test(l))?.replace(/^best callback timing:\s*/i, "") ?? null;
+  const temperature = lines.find((l) => /^temp:/i.test(l))?.replace(/^temp:\s*/i, "")?.toLowerCase() ?? null;
 
   return {
     summary_line: summaryLine,
     promises_made: promises,
+    objection,
     next_task_suggestion: next,
     callback_timing_hint: callbackHint,
+    deal_temperature:
+      temperature === "hot" || temperature === "warm" || temperature === "cool" || temperature === "cold" || temperature === "dead"
+        ? temperature
+        : null,
   };
 }
 
@@ -265,6 +275,7 @@ export interface PostCallPanelProps {
   autoCycleEnabled?: boolean;
   /** Optional hook to persist any unsaved operator draft note before publish finishes. */
   beforePublish?: () => Promise<unknown> | unknown;
+  liveCoachRecap?: LiveCoachRecap | null;
   onComplete: (
     disposition?: PublishDisposition,
     meta?: { autoCycleStatus?: string | null; introState?: PostCallIntroStateMeta | null },
@@ -288,6 +299,7 @@ export function PostCallPanel({
   leadId = null,
   autoCycleEnabled = false,
   beforePublish,
+  liveCoachRecap = null,
   onComplete,
   onSkip,
 }: PostCallPanelProps) {
@@ -409,6 +421,7 @@ export function PostCallPanel({
               notes:       summary.trim(),
               disposition: pendingDispo ?? undefined,
               callback_at: pendingNextCallAt ?? undefined,
+              live_coach_recap: liveCoachRecap ?? undefined,
             }),
           }),
         )

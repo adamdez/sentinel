@@ -198,6 +198,45 @@ describe("live-coach-service", () => {
     expect(response.lastProcessedSequence).toBe(1);
   });
 
+  it("builds a concise post-call recap from discovery answers and negotiation signals", () => {
+    const result = reduceLiveCoachState(
+      createEmptyLiveCoachState(NOW),
+      [
+        note(1, "The house needs a lot of repairs and it's becoming too much for me."),
+        note(2, "I want to move closer to my daughter."),
+        note(3, "I'd like to be done in the next 30 days."),
+        note(4, "If the numbers make sense, send me something to review."),
+      ],
+      "outbound",
+      NOW,
+    );
+
+    const response = buildLiveCoachResponse(result.state, "outbound");
+
+    expect(response.postCallRecap.bullets.length).toBeGreaterThanOrEqual(4);
+    expect(response.postCallRecap.bullets.length).toBeLessThanOrEqual(6);
+    expect(response.postCallRecap.discoveryAnswers.motivation).toBeTruthy();
+    expect(response.postCallRecap.discoveryAnswers.timeline).toContain("30 days");
+    expect(response.postCallRecap.vossSignals.length).toBeGreaterThan(0);
+    expect(response.postCallRecap.nepqSignals.join(" ")).toContain("Motivation");
+    expect(response.postCallRecap.recommendedSummary.length).toBeGreaterThan(20);
+  });
+
+  it("keeps unresolved recap gaps honest instead of inventing missing answers", () => {
+    const result = reduceLiveCoachState(
+      createEmptyLiveCoachState(NOW),
+      [note(1, "The roof leak is getting worse.")],
+      "outbound",
+      NOW,
+    );
+
+    const response = buildLiveCoachResponse(result.state, "outbound");
+
+    expect(response.postCallRecap.discoveryAnswers.timeline).toBeUndefined();
+    expect(response.postCallRecap.unresolvedGaps).toContain("human_pain");
+    expect(response.postCallRecap.unresolvedGaps.some((gap) => gap === "timeline" || gap === "motivation")).toBe(true);
+  });
+
   it("re-strategizes on a fresh seller turn even when the gap stays the same", () => {
     const firstPass = reduceLiveCoachState(
       createEmptyLiveCoachState("2026-03-22T20:00:00.000Z"),

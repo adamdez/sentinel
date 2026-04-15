@@ -42,6 +42,7 @@ import { completeDialerAiLayered } from "@/lib/dialer/openai-lane-client";
 import { getStyleBlock, styleVersionTag } from "@/lib/conversation-style";
 import { randomUUID } from "crypto";
 import { writeAiTrace } from "@/lib/dialer/ai-trace-writer";
+import type { LiveCoachResponseV2 } from "@/lib/dialer/live-coach-types";
 import {
   assemblePrompt,
   draftNoteStableBase,
@@ -49,8 +50,10 @@ import {
   draftNoteDynamic,
   type LayeredPrompt,
 } from "@/lib/dialer/prompt-cache";
+import type { DiscoveryMapSlotKey } from "@/lib/dialer/live-coach-types";
 
 type RouteContext = { params: Promise<{ id: string }> };
+type LiveCoachRecap = LiveCoachResponseV2["postCallRecap"];
 
 // ── Prompt registry ─────────────────────────────────────────────────────────
 //
@@ -96,6 +99,90 @@ const NULL_DRAFT: PostCallDraft = {
 
 const VALID_TEMPS = new Set(["hot", "warm", "cool", "cold", "dead"]);
 
+function parseLiveCoachRecap(raw: unknown): LiveCoachRecap | null {
+  if (!raw || typeof raw !== "object") return null;
+  const recap = raw as Record<string, unknown>;
+  const bullets = Array.isArray(recap.bullets)
+    ? recap.bullets.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 6)
+    : [];
+  const discoveryAnswersRaw = recap.discoveryAnswers;
+  const discoveryAnswers =
+    discoveryAnswersRaw && typeof discoveryAnswersRaw === "object"
+      ? Object.fromEntries(
+          Object.entries(discoveryAnswersRaw).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim().length > 0),
+        )
+      : {};
+  const unresolvedGaps = Array.isArray(recap.unresolvedGaps)
+    ? recap.unresolvedGaps.filter((item): item is DiscoveryMapSlotKey => typeof item === "string" && item.trim().length > 0).slice(0, 4)
+    : [];
+  const vossSignals = Array.isArray(recap.vossSignals)
+    ? recap.vossSignals.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 4)
+    : [];
+  const nepqSignals = Array.isArray(recap.nepqSignals)
+    ? recap.nepqSignals.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 4)
+    : [];
+  const recommendedSummary = typeof recap.recommendedSummary === "string" ? recap.recommendedSummary.trim() : "";
+  const primaryObjection = typeof recap.primaryObjection === "string" && recap.primaryObjection.trim()
+    ? recap.primaryObjection.trim()
+    : null;
+
+  if (
+    bullets.length === 0 &&
+    Object.keys(discoveryAnswers).length === 0 &&
+    unresolvedGaps.length === 0 &&
+    vossSignals.length === 0 &&
+    nepqSignals.length === 0 &&
+    !recommendedSummary &&
+    !primaryObjection
+  ) {
+    return null;
+  }
+
+  return {
+    bullets,
+    discoveryAnswers,
+    unresolvedGaps,
+    primaryObjection,
+    vossSignals,
+    nepqSignals,
+    recommendedSummary,
+  };
+}
+
+function formatDynamicDraftInput(notes: string, liveCoachRecap: LiveCoachRecap | null): string {
+  const sections: string[] = [];
+  if (notes.trim()) {
+    sections.push(`Operator call notes:\n${notes.trim()}`);
+  }
+  if (liveCoachRecap) {
+    sections.push([
+      "Live coach recap:",
+      liveCoachRecap.bullets.length > 0
+        ? `- Recap bullets: ${liveCoachRecap.bullets.join(" | ")}`
+        : null,
+      Object.keys(liveCoachRecap.discoveryAnswers).length > 0
+        ? `- Discovery answers: ${Object.entries(liveCoachRecap.discoveryAnswers).map(([key, value]) => `${key}=${value}`).join(" | ")}`
+        : null,
+      liveCoachRecap.primaryObjection
+        ? `- Primary objection: ${liveCoachRecap.primaryObjection}`
+        : null,
+      liveCoachRecap.vossSignals.length > 0
+        ? `- Voss cues: ${liveCoachRecap.vossSignals.join(" | ")}`
+        : null,
+      liveCoachRecap.nepqSignals.length > 0
+        ? `- NEPQ cues: ${liveCoachRecap.nepqSignals.join(" | ")}`
+        : null,
+      liveCoachRecap.unresolvedGaps.length > 0
+        ? `- Missing still unresolved: ${liveCoachRecap.unresolvedGaps.join(" | ")}`
+        : null,
+      liveCoachRecap.recommendedSummary
+        ? `- Recommended recap summary: ${liveCoachRecap.recommendedSummary}`
+        : null,
+    ].filter(Boolean).join("\n"));
+  }
+  return sections.join("\n\n");
+}
+
 function parseDraft(raw: Record<string, unknown>): PostCallDraft {
   const str = (v: unknown, max: number): string | null => {
     if (typeof v !== "string" || !v.trim()) return null;
@@ -129,6 +216,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   let callbackAt:  string | null = null;
   let ownerName:   string | null = null;
   let address:     string | null = null;
+  let liveCoachRecap: LiveCoachRecap | null = null;
 
   try {
     const body = await req.json() as Record<string, unknown>;
@@ -137,11 +225,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     callbackAt  = typeof body.callback_at  === "string" ? body.callback_at       : null;
     ownerName   = typeof body.owner_name   === "string" ? body.owner_name.trim() : null;
     address     = typeof body.address      === "string" ? body.address.trim()    : null;
+    liveCoachRecap = parseLiveCoachRecap(body.live_coach_recap);
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (!notes || notes.length < 5) {
+  if ((!notes || notes.length < 5) && !liveCoachRecap) {
     return NextResponse.json({ ok: false, error: "Notes too short to generate a draft", run_id: runId });
   }
 
@@ -166,7 +255,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     layers: [
       draftNoteStableBase(getStyleBlock("objection_support")),
       draftNoteSemiStable({ ownerName, address, disposition, callbackAt }),
-      draftNoteDynamic(notes),
+      draftNoteDynamic(formatDynamicDraftInput(notes, liveCoachRecap)),
     ],
     version: DRAFT_NOTE_PROMPT_VERSION,
     workflow: "draft_note",

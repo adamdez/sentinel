@@ -43,6 +43,7 @@ interface LiveCoachWindowProps {
   active: boolean;
   brief: PreCallBrief | null;
   coach?: LiveCoachState | null;
+  recapMode?: boolean;
   loading?: boolean;
   error?: string | null;
   fileModalOpen?: boolean;
@@ -119,6 +120,7 @@ export function LiveCoachWindow({
   active,
   brief,
   coach = null,
+  recapMode = false,
   loading = false,
   error = null,
   fileModalOpen = false,
@@ -386,7 +388,7 @@ export function LiveCoachWindow({
           )}
         >
           <Brain className="h-4 w-4 text-primary" />
-          <span className="font-medium text-foreground">Restore Live Coach</span>
+          <span className="font-medium text-foreground">{recapMode ? "Restore Call Recap" : "Restore Live Coach"}</span>
           {sessionId && (
             <button
               type="button"
@@ -426,10 +428,10 @@ export function LiveCoachWindow({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Live Coach
+                  {recapMode ? "Call Recap" : "Live Coach"}
                 </p>
                 <span className="rounded-full border border-primary/15 bg-primary/10 px-2 py-0.5 text-xs text-primary">
-                  {stageLabel}
+                  {recapMode ? "Recap" : stageLabel}
                 </span>
                 {sourceLabel && (
                   <span className="rounded-full border border-overlay-8 bg-overlay-3 px-2 py-0.5 text-xs text-muted-foreground/80">
@@ -438,7 +440,7 @@ export function LiveCoachWindow({
                 )}
               </div>
               <p className="text-xs text-muted-foreground/55">
-                {loading ? "Refreshing guidance live." : "Drag to move. Resize from the edges."}
+                {loading ? "Refreshing guidance live." : recapMode ? "Recap stays open until closeout is finished." : "Drag to move. Resize from the edges."}
               </p>
             </div>
             {!compactViewport && (
@@ -472,6 +474,7 @@ export function LiveCoachWindow({
               <LiveAssistPanel
                 brief={brief}
                 coach={coach}
+                recapMode={recapMode}
                 loading={loading}
                 error={error}
                 showHeader={false}

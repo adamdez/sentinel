@@ -18,6 +18,7 @@ import type { LiveCoachState } from "@/hooks/use-live-coach";
 interface Props {
   brief: PreCallBrief | null;
   coach?: LiveCoachState | null;
+  recapMode?: boolean;
   loading?: boolean;
   error?: string | null;
   className?: string;
@@ -541,6 +542,93 @@ function LiveCoachBody({
   );
 }
 
+function RecapBody({
+  coach,
+}: {
+  coach: LiveCoachState;
+}) {
+  const recap = coach.postCallRecap;
+  const discoveryEntries = Object.entries(recap.discoveryAnswers);
+
+  return (
+    <div className="space-y-2.5">
+      <div className="rounded-[10px] border border-primary/20 bg-primary/[0.06] p-3">
+        <div className="flex items-center gap-1.5 mb-1">
+          <Brain className="h-3 w-3 text-primary" />
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">Post-call recap</p>
+        </div>
+        <p className="text-sm text-foreground/85 leading-snug">
+          {recap.recommendedSummary || coach.postCallRecommendation}
+        </p>
+      </div>
+
+      <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-2.5">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1.5">Source-of-truth note draft</p>
+        {recap.bullets.length > 0 ? (
+          <ul className="space-y-1.5">
+            {recap.bullets.map((bullet, idx) => (
+              <li key={`${bullet}-${idx}`} className="text-sm text-foreground/80 leading-snug flex items-start gap-1.5">
+                <span className="text-primary/45 mt-0.5">•</span>
+                <span>{bullet}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-muted-foreground/45 italic">No recap bullets yet.</p>
+        )}
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-2">
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-2.5">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1.5">Discovery captured</p>
+          {discoveryEntries.length > 0 ? (
+            <ul className="space-y-1.5">
+              {discoveryEntries.slice(0, 6).map(([slot, value]) => (
+                <li key={slot} className="text-xs text-foreground/70 leading-snug">
+                  <span className="text-muted-foreground/45 uppercase tracking-wider">{slot.replace(/_/g, " ")}:</span>{" "}
+                  {value}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted-foreground/45 italic">No confirmed discovery answers yet.</p>
+          )}
+        </div>
+
+        <div className="rounded-[10px] border border-overlay-8 bg-overlay-2 p-2.5 space-y-2">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Voss cues</p>
+            {recap.vossSignals.length > 0 ? (
+              <ul className="space-y-1">
+                {recap.vossSignals.map((signal, idx) => (
+                  <li key={`${signal}-${idx}`} className="text-xs text-foreground/70 leading-snug flex items-start gap-1.5">
+                    <span className="text-primary/35 mt-0.5">•</span>
+                    <span>{signal}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-muted-foreground/45 italic">No negotiation cues captured.</p>
+            )}
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/50 mb-1">Missing before next call</p>
+            {recap.unresolvedGaps.length > 0 ? (
+              <div className="flex flex-wrap gap-1">
+                {recap.unresolvedGaps.map((gap) => (
+                  <Pill key={gap} label={gap.replace(/_/g, " ")} tone="danger" />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-emerald-200/75">Core discovery is covered.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Public component
 // ---------------------------------------------------------------------------
@@ -548,6 +636,7 @@ function LiveCoachBody({
 export function LiveAssistPanel({
   brief,
   coach = null,
+  recapMode = false,
   loading = false,
   error = null,
   className = "",
@@ -601,16 +690,20 @@ export function LiveAssistPanel({
         </div>
       )}
       {coach ? (
-        <LiveCoachBody
-          coach={coach}
-          nextBestQuestion={nextBestQuestion}
-          guardrail={guardrail}
-          primaryGoal={primaryGoal}
-          nepqQuestions={nepqQuestions}
-          vossLabels={vossLabels}
-          structuredNotes={structuredNotes}
-          discoveryRows={discoveryRows}
-        />
+        recapMode ? (
+          <RecapBody coach={coach} />
+        ) : (
+          <LiveCoachBody
+            coach={coach}
+            nextBestQuestion={nextBestQuestion}
+            guardrail={guardrail}
+            primaryGoal={primaryGoal}
+            nepqQuestions={nepqQuestions}
+            vossLabels={vossLabels}
+            structuredNotes={structuredNotes}
+            discoveryRows={discoveryRows}
+          />
+        )
       ) : (
         <BriefOnlyBody
           brief={brief}
@@ -635,9 +728,9 @@ export function LiveAssistPanel({
       >
         <Brain className="h-3.5 w-3.5 text-primary/80" />
         <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex-1 text-left">
-          Live Coach
+          {recapMode ? "Call Recap" : "Live Coach"}
         </span>
-        <Pill label={STAGE_LABELS[stage] ?? "Situation"} tone="accent" />
+        <Pill label={recapMode ? "Recap" : STAGE_LABELS[stage] ?? "Situation"} tone="accent" />
         {sourceLabel && <Pill label={sourceLabel} tone="muted" />}
         {loading && <Pill label="Refreshing" tone="muted" />}
         {expanded

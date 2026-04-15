@@ -71,11 +71,12 @@ const TEMP_META: Record<string, { label: string; color: string; bg: string }> = 
 
 function assembleDraft(d: PostCallDraft): string {
   const lines: string[] = [];
-  if (d.summary_line)         lines.push(d.summary_line);
-  if (d.promises_made)        lines.push(`Promised: ${d.promises_made}`);
-  if (d.next_task_suggestion) lines.push(`Next: ${d.next_task_suggestion}`);
-  if (d.callback_timing_hint) lines.push(`Best callback timing: ${d.callback_timing_hint}`);
-  if (d.deal_temperature)     lines.push(`Temp: ${d.deal_temperature}`);
+  if (d.summary_line)         lines.push(`- ${d.summary_line}`);
+  if (d.promises_made)        lines.push(`- Promised: ${d.promises_made}`);
+  if (d.objection)            lines.push(`- Objection: ${d.objection}`);
+  if (d.next_task_suggestion) lines.push(`- Next: ${d.next_task_suggestion}`);
+  if (d.callback_timing_hint) lines.push(`- Best callback timing: ${d.callback_timing_hint}`);
+  if (d.deal_temperature)     lines.push(`- Temp: ${d.deal_temperature}`);
   return lines.join("\n");
 }
 

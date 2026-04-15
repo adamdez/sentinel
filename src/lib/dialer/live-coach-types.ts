@@ -220,4 +220,13 @@ export interface LiveCoachResponseV2 {
   lastProcessedSequence: number;
   lastStrategizedAt: string | null;
   lastSellerTurnAt: string | null;
+  postCallRecap: {
+    bullets: string[];
+    discoveryAnswers: Partial<Record<DiscoveryMapSlotKey, string>>;
+    unresolvedGaps: DiscoveryMapSlotKey[];
+    primaryObjection: string | null;
+    vossSignals: string[];
+    nepqSignals: string[];
+    recommendedSummary: string;
+  };
 }

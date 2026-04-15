@@ -52,7 +52,7 @@ import { RelationshipBadgeCompact } from "@/components/sentinel/relationship-bad
 import { getSequenceLabel, getCadencePosition } from "@/lib/call-scheduler";
 
 import { usePreCallBrief } from "@/hooks/use-pre-call-brief";
-import { useLiveCoach } from "@/hooks/use-live-coach";
+import { useLiveCoach, type LiveCoachState } from "@/hooks/use-live-coach";
 import { CallSequenceGuide } from "@/components/sentinel/call-sequence-guide";
 import { useCallHistory, type CallHistoryEntry } from "@/hooks/use-call-history";
 import { MasterClientFileModal } from "@/components/sentinel/master-client-file-modal";
@@ -1427,14 +1427,49 @@ function DialerPageInner() {
   const [smsComposeOpen, setSmsComposeOpen] = useState(false);
   const [smsComposeMsg, setSmsComposeMsg] = useState("");
   const [smsComposeSending, setSmsComposeSending] = useState(false);
+  const [queueCoachSnapshot, setQueueCoachSnapshot] = useState<LiveCoachState | null>(null);
+  const [manualCoachSnapshot, setManualCoachSnapshot] = useState<LiveCoachState | null>(null);
   const callActive = callState !== "idle";
   const manualDialOpen = manualDialExpanded || manualStatus !== "idle" || smsComposeOpen;
-  const queueCoachActive = callState === "connected";
-  const manualCoachActive = !queueCoachActive && manualStatus === "connected";
-  const activeCoachBrief = queueCoachActive ? preCallBrief : null;
-  const activeCoach = queueCoachActive ? liveCoach : manualCoachActive ? manualLiveCoach : null;
-  const activeCoachLoading = queueCoachActive ? liveCoachLoading : manualCoachActive ? manualLiveCoachLoading : false;
-  const activeCoachError = queueCoachActive ? liveCoachError : manualCoachActive ? manualLiveCoachError : null;
+  const queueCoachLiveActive = callState === "connected";
+  const queueCoachRecapActive = callState === "ended" && !!dialerSessionId && !!queueCoachSnapshot;
+  const manualCoachLiveActive = !queueCoachLiveActive && manualStatus === "connected";
+  const manualCoachRecapActive = !queueCoachLiveActive && manualStatus === "ended" && !!manualSessionId && !!manualCoachSnapshot;
+  const queueCoachActive = queueCoachLiveActive || queueCoachRecapActive;
+  const manualCoachActive = !queueCoachActive && (manualCoachLiveActive || manualCoachRecapActive);
+  const activeCoachBrief = queueCoachLiveActive ? preCallBrief : null;
+  const activeCoach = queueCoachLiveActive
+    ? liveCoach
+    : queueCoachRecapActive
+      ? queueCoachSnapshot
+      : manualCoachLiveActive
+        ? manualLiveCoach
+        : manualCoachRecapActive
+          ? manualCoachSnapshot
+          : null;
+  const activeCoachLoading = queueCoachLiveActive ? liveCoachLoading : manualCoachLiveActive ? manualLiveCoachLoading : false;
+  const activeCoachError = queueCoachLiveActive ? liveCoachError : manualCoachLiveActive ? manualLiveCoachError : null;
+  const activeCoachRecapMode = queueCoachRecapActive || manualCoachRecapActive;
+
+  useEffect(() => {
+    if (callState === "connected" && liveCoach) {
+      setQueueCoachSnapshot(liveCoach);
+      return;
+    }
+    if (callState === "idle") {
+      setQueueCoachSnapshot(null);
+    }
+  }, [callState, liveCoach]);
+
+  useEffect(() => {
+    if (manualStatus === "connected" && manualLiveCoach) {
+      setManualCoachSnapshot(manualLiveCoach);
+      return;
+    }
+    if (manualStatus === "idle") {
+      setManualCoachSnapshot(null);
+    }
+  }, [manualStatus, manualLiveCoach]);
 
   // Phone auto-match: when a manual call connects, look up the number
   const [phoneMatchResult, setPhoneMatchResult] = useState<{
@@ -3718,6 +3753,7 @@ function DialerPageInner() {
     meta?: { autoCycleStatus?: string | null; introState?: PostCallIntroStateMeta | null },
   ) => {
     setCallState("idle");
+    setQueueCoachSnapshot(null);
     setActiveCallLead(null);
     setCurrentCallLogId(null);
     setCurrentCallSid(null);
@@ -3818,6 +3854,7 @@ function DialerPageInner() {
 
   const handleManualPostCallDone = useCallback(() => {
     setManualStatus("idle");
+    setManualCoachSnapshot(null);
     setManualCallLogId(null);
     setManualSessionId(null);
   }, []);
@@ -4497,6 +4534,7 @@ function DialerPageInner() {
               initialSummary=""
               initialMotivationLevel={null}
               initialSellerTimeline={null}
+              liveCoachRecap={manualCoachSnapshot?.postCallRecap ?? manualLiveCoach?.postCallRecap ?? null}
               onComplete={handleManualPostCallDone}
               onSkip={handleManualPostCallDone}
             />
@@ -5806,6 +5844,7 @@ function DialerPageInner() {
                       beforePublish={persistOperatorDraftNote}
                       initialMotivationLevel={currentLead?.motivation_level ?? null}
                       initialSellerTimeline={currentLead?.seller_timeline ?? null}
+                      liveCoachRecap={queueCoachSnapshot?.postCallRecap ?? liveCoach?.postCallRecap ?? null}
                       qualContext={currentLead ? {
                         address: currentLead.properties?.address ?? null,
                         decisionMakerConfirmed: currentLead.decision_maker_confirmed ?? false,
@@ -6034,6 +6073,7 @@ function DialerPageInner() {
         active={queueCoachActive || manualCoachActive}
         brief={activeCoachBrief}
         coach={activeCoach}
+        recapMode={activeCoachRecapMode}
         loading={activeCoachLoading}
         error={activeCoachError}
         fileModalOpen={fileModalOpen}
