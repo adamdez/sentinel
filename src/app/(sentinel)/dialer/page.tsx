@@ -4277,7 +4277,7 @@ function DialerPageInner() {
                 setManualPhone(raw.slice(0, 10));
               }}
               placeholder="(509) 555-1234"
-              className="text-sm font-mono tracking-wide bg-overlay-3 border-overlay-6 focus:border-primary/30 focus:ring-ring/10 h-9 pr-24"
+              className="text-sm font-mono tracking-wide bg-overlay-3 border-overlay-6 focus:border-primary/30 focus:ring-ring/10 h-9 pr-32"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && manualStatus === "idle") {
                   e.preventDefault();
@@ -4285,6 +4285,22 @@ function DialerPageInner() {
                 }
               }}
             />
+            {manualStatus === "idle" && manualPhone.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setManualPhone("");
+                  setSmsComposeOpen(false);
+                  setPhoneMatchResult(null);
+                  phoneMatchFired.current = null;
+                }}
+                className="absolute right-3 top-1/2 inline-flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full border border-overlay-6 bg-overlay-4 text-muted-foreground/70 transition-colors hover:text-foreground"
+                aria-label="Clear manual dial number"
+                title="Clear number"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
             {manualStatus !== "idle" && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-sm">
                 <span className={`h-2 w-2 rounded-full animate-pulse ${manualStatus === "dialing" ? "bg-muted" : manualStatus === "connected" ? "bg-primary" : "bg-muted"}`} />
