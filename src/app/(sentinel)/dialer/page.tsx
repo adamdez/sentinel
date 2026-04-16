@@ -1661,6 +1661,19 @@ function DialerPageInner() {
   const [diagLoading, setDiagLoading] = useState(false);
   const [deepDiveLeadId, setDeepDiveLeadId] = useState<string | null>(null);
   const pendingSameLeadPhoneAdvanceRef = useRef<{ leadId: string; nextPhoneId: string } | null>(null);
+  const latestCallTrackingRef = useRef<{
+    callState: CallState;
+    currentCallLogId: string | null;
+    currentCallSid: string | null;
+    dialerSessionId: string | null;
+    manualSessionId: string | null;
+  }>({
+    callState: "idle",
+    currentCallLogId: null,
+    currentCallSid: null,
+    dialerSessionId: null,
+    manualSessionId: null,
+  });
 
   const blockLeadSelectionWhileActiveCall = useCallback(() => {
     toast.info("Finish current call before switching files");
@@ -1709,6 +1722,15 @@ function DialerPageInner() {
 
   // Keep activeCallRef in sync for polling callback closures
   useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
+  useEffect(() => {
+    latestCallTrackingRef.current = {
+      callState,
+      currentCallLogId,
+      currentCallSid,
+      dialerSessionId,
+      manualSessionId,
+    };
+  }, [callState, currentCallLogId, currentCallSid, dialerSessionId, manualSessionId]);
 
   useEffect(() => {
     if (callState !== "connected" && manualStatus !== "connected") {
@@ -2721,6 +2743,16 @@ function DialerPageInner() {
         const res = await fetch(`/api/dialer/call-status?${params}`, { headers: hdrs });
         if (!res.ok) return;
         const data = await res.json();
+        const latest = latestCallTrackingRef.current;
+        const latestTrackedSessionId = latest.dialerSessionId ?? latest.manualSessionId ?? activeSessionRef.current;
+        const pollIsStale =
+          latest.callState !== callState
+          || latest.currentCallLogId !== currentCallLogId
+          || latest.currentCallSid !== currentCallSid
+          || latestTrackedSessionId !== trackedSessionId;
+        if (pollIsStale) {
+          return;
+        }
         if (!currentCallLogId && data.callLogId) {
           setCurrentCallLogId(data.callLogId);
         }
