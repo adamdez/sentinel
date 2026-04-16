@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap, Loader2, Shield, ArrowLeft, Lock } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { AuthRequestTimeoutError, clearLocalAuthState, signInWithPasswordWithTimeout } from "@/lib/sentinel-auth-headers";
 import { usePsalm20 } from "@/components/sentinel/psalm20/use-psalm20";
 import { ShieldIcon, BannerLarge, GoldDivider, CrownIcon, BannerIcon } from "@/components/sentinel/psalm20/icons";
 import { ScriptureWatermark } from "@/components/sentinel/psalm20/scripture-watermark";
@@ -45,14 +45,38 @@ export default function LoginPage() {
     setSigningIn(true);
     setError(null);
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: selectedMember.email,
-      password,
-    });
+    await clearLocalAuthState();
+
+    let timedOut = false;
+    const timeoutHandle = window.setTimeout(() => {
+      timedOut = true;
+      setError("Sentinel auth is not responding right now. Supabase appears degraded.");
+      setSigningIn(false);
+    }, 12_000);
+
+    let authError: { message: string } | null = null;
+
+    try {
+      const { error } = await signInWithPasswordWithTimeout({
+        email: selectedMember.email,
+        password,
+      });
+      if (timedOut) return;
+      authError = error;
+    } catch (error) {
+      if (timedOut) return;
+      authError = error instanceof Error ? error : new Error(String(error));
+    } finally {
+      window.clearTimeout(timeoutHandle);
+    }
 
     if (authError) {
       console.error("[Login] Auth error:", authError);
-      setError(authError.message);
+      setError(
+        authError instanceof AuthRequestTimeoutError || authError.message === "Failed to fetch"
+          ? "Sentinel auth is not responding right now. Supabase appears degraded."
+          : authError.message,
+      );
       setSigningIn(false);
       return;
     }

@@ -2,11 +2,59 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
 const SESSION_REFRESH_BUFFER_MS = 60_000;
+const SUPABASE_STORAGE_KEY_PREFIX = "sb-";
+const AUTH_REQUEST_TIMEOUT_MS = 12_000;
+
+export class AuthRequestTimeoutError extends Error {
+  constructor(operation: string) {
+    super(`Supabase auth ${operation} timed out`);
+    this.name = "AuthRequestTimeoutError";
+  }
+}
+
+async function withAuthTimeout<T>(operation: string, promise: Promise<T>): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new AuthRequestTimeoutError(operation)), AUTH_REQUEST_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+}
 
 function sessionNeedsRefresh(session: Session | null): boolean {
-  if (!session?.access_token) return true;
+  if (!session?.access_token) return false;
   if (!session.expires_at) return false;
   return session.expires_at * 1000 <= Date.now() + SESSION_REFRESH_BUFFER_MS;
+}
+
+export async function clearLocalAuthState() {
+  try {
+    await supabase.auth.signOut({ scope: "local" });
+  } catch (error) {
+    console.warn("[auth] Failed to clear local Supabase session:", error);
+  }
+
+  if (typeof window === "undefined") return;
+
+  for (const key of Object.keys(window.localStorage)) {
+    if (!key.startsWith(SUPABASE_STORAGE_KEY_PREFIX)) continue;
+    window.localStorage.removeItem(key);
+  }
+
+  for (const key of Object.keys(window.sessionStorage)) {
+    if (!key.startsWith(SUPABASE_STORAGE_KEY_PREFIX)) continue;
+    window.sessionStorage.removeItem(key);
+  }
+}
+
+export async function signInWithPasswordWithTimeout(credentials: { email: string; password: string }) {
+  return withAuthTimeout("sign in", supabase.auth.signInWithPassword(credentials));
 }
 
 export async function getFreshSession(): Promise<Session | null> {
@@ -14,14 +62,28 @@ export async function getFreshSession(): Promise<Session | null> {
     data: { session },
   } = await supabase.auth.getSession();
 
+  if (!session?.access_token) {
+    return null;
+  }
+
   if (!sessionNeedsRefresh(session)) {
     return session;
   }
 
-  const { data, error } = await supabase.auth.refreshSession();
+  let refreshResult;
+  try {
+    refreshResult = await withAuthTimeout("session refresh", supabase.auth.refreshSession());
+  } catch (error) {
+    console.warn("[auth] Session refresh timed out:", error);
+    await clearLocalAuthState();
+    return null;
+  }
+
+  const { data, error } = refreshResult;
   if (error) {
     console.warn("[auth] Session refresh failed:", error.message);
-    return data.session ?? session ?? null;
+    await clearLocalAuthState();
+    return data.session ?? null;
   }
 
   return data.session ?? session ?? null;
