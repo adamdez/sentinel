@@ -9245,6 +9245,16 @@ export function MasterClientFileModal({
                         <Target className="h-2.5 w-2.5" />{currentStageLabel}
                       </Badge>
 
+                      <Badge
+                        variant="outline"
+                        className="text-xs gap-1 border-primary/20 bg-primary/5 text-foreground shrink-0 max-w-full"
+                        title={`Lead owner: ${assigneeLabel}`}
+                      >
+                        <Users className="h-2.5 w-2.5 shrink-0" />
+                        <span className="text-muted-foreground/70">Lead Owner:</span>
+                        <span className="truncate max-w-[180px]">{assigneeLabel}</span>
+                      </Badge>
+
                     </div>
 
                   </div>
