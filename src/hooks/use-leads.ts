@@ -77,6 +77,15 @@ const DEFAULT_SORT_DIR_BY_FIELD: Record<SortField, SortDir> = {
   equity: "desc",
 };
 
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]);
+}
+
 export interface LeadFilters {
   search: string;
   statuses: LeadStatus[];
@@ -803,13 +812,17 @@ export function useLeads() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch("/api/leads/queue", {
-        method: "GET",
-        headers: session?.access_token
-          ? { Authorization: `Bearer ${session.access_token}` }
-          : {},
-        cache: "no-store",
-      });
+      const res = await withTimeout(
+        fetch("/api/leads/queue", {
+          method: "GET",
+          headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : {},
+          cache: "no-store",
+        }),
+        15_000,
+        "Lead queue request timed out",
+      );
 
       const payload = await res.json().catch(() => ({})) as Partial<LeadQueueResponse> & { error?: string };
       if (!res.ok) {

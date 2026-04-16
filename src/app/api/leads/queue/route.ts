@@ -10,6 +10,15 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 30;
 
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]);
+}
+
 const LEAD_QUEUE_SELECT = `
   id,
   property_id,
@@ -220,7 +229,11 @@ export async function GET(req: NextRequest) {
     }
 
     const includeNonIntro = req.nextUrl.searchParams.get("include_non_intro") === "1";
-    const { data: leadsRaw, error: leadsErr } = await fetchLeadQueueRows(sb, includeNonIntro);
+    const { data: leadsRaw, error: leadsErr } = await withTimeout(
+      fetchLeadQueueRows(sb, includeNonIntro),
+      12_000,
+      "Lead queue primary query timed out",
+    );
 
     if (leadsErr) {
       console.error("[API/leads/queue] Lead query failed:", leadsErr);
@@ -245,24 +258,49 @@ export async function GET(req: NextRequest) {
           .filter((leadId): leadId is string => typeof leadId === "string" && leadId.length > 0),
       ),
     ];
+    const propertyIds = [
+      ...new Set(
+        leadsRaw
+          .map((lead) => (lead as { property_id?: string | null }).property_id)
+          .filter((propertyId): propertyId is string => typeof propertyId === "string" && propertyId.length > 0),
+      ),
+    ];
 
     const taskMap = new Map<string, PendingLeadTask[]>();
-    if (leadIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: pendingTasks, error: taskErr } = await (sb.from("tasks") as any)
-        .select("id, lead_id, title, due_at, task_type, status, assigned_to, priority, created_at")
-        .in("lead_id", leadIds)
-        .eq("status", "pending");
+    const predictionMap: Record<string, number> = {};
+    const [taskResult, predictionResult] = await Promise.all([
+      leadIds.length > 0
+        ? withTimeout(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (sb.from("tasks") as any)
+              .select("id, lead_id, title, due_at, task_type, status, assigned_to, priority, created_at")
+              .in("lead_id", leadIds)
+              .eq("status", "pending"),
+            5_000,
+            "Lead queue tasks query timed out",
+          ).catch((error) => ({ data: null, error: error as Error }))
+        : Promise.resolve({ data: null, error: null }),
+      propertyIds.length > 0
+        ? withTimeout(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (sb.from("scoring_predictions") as any)
+              .select("property_id, predictive_score")
+              .in("property_id", propertyIds)
+              .order("created_at", { ascending: false }),
+            5_000,
+            "Lead queue scoring query timed out",
+          ).catch((error) => ({ data: null, error: error as Error }))
+        : Promise.resolve({ data: null, error: null }),
+    ]);
 
-      if (taskErr) {
-        console.warn("[API/leads/queue] tasks degraded:", taskErr);
-      } else if (Array.isArray(pendingTasks)) {
-        for (const task of pendingTasks as PendingLeadTask[]) {
-          if (!task.lead_id || !isCallDrivingTaskType(task.task_type)) continue;
-          const bucket = taskMap.get(task.lead_id) ?? [];
-          bucket.push(task);
-          taskMap.set(task.lead_id, bucket);
-        }
+    if (taskResult.error) {
+      console.warn("[API/leads/queue] tasks degraded:", taskResult.error);
+    } else if (Array.isArray(taskResult.data)) {
+      for (const task of taskResult.data as PendingLeadTask[]) {
+        if (!task.lead_id || !isCallDrivingTaskType(task.task_type)) continue;
+        const bucket = taskMap.get(task.lead_id) ?? [];
+        bucket.push(task);
+        taskMap.set(task.lead_id, bucket);
       }
     }
 
@@ -304,33 +342,16 @@ export async function GET(req: NextRequest) {
       return response;
     }
 
-    const propertyIds = [
-      ...new Set(
-        queueLeads
-          .map((lead) => (lead as { property_id?: string | null }).property_id)
-          .filter((propertyId): propertyId is string => typeof propertyId === "string" && propertyId.length > 0),
-      ),
-    ];
-
-    const predictionMap: Record<string, number> = {};
-    if (propertyIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: predictions, error: predictionErr } = await (sb.from("scoring_predictions") as any)
-        .select("property_id, predictive_score")
-        .in("property_id", propertyIds)
-        .order("created_at", { ascending: false });
-
-      if (predictionErr) {
-        console.warn("[API/leads/queue] scoring_predictions degraded:", predictionErr);
-      } else if (Array.isArray(predictions)) {
-        const seen = new Set<string>();
-        for (const row of predictions as Array<{ property_id: string; predictive_score: number | null }>) {
-          if (!row.property_id || seen.has(row.property_id)) continue;
-          if (typeof row.predictive_score === "number") {
-            predictionMap[row.property_id] = row.predictive_score;
-          }
-          seen.add(row.property_id);
+    if (predictionResult.error) {
+      console.warn("[API/leads/queue] scoring_predictions degraded:", predictionResult.error);
+    } else if (Array.isArray(predictionResult.data)) {
+      const seen = new Set<string>();
+      for (const row of predictionResult.data as Array<{ property_id: string; predictive_score: number | null }>) {
+        if (!row.property_id || seen.has(row.property_id)) continue;
+        if (typeof row.predictive_score === "number") {
+          predictionMap[row.property_id] = row.predictive_score;
         }
+        seen.add(row.property_id);
       }
     }
 
