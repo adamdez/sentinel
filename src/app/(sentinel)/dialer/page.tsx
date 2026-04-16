@@ -487,14 +487,6 @@ interface DispoOption {
   bgColor: string;
 }
 
-type FallbackEndedDispositionOption = {
-  key: string;
-  label: string;
-  icon: React.ElementType;
-  color: string;
-  bgColor: string;
-};
-
 type QuickPhoneAction = {
   key: "wrong_number" | "disconnected" | "fax" | "dnc" | "reactivate";
   label: string;
@@ -513,15 +505,6 @@ const DISPOSITIONS: DispoOption[] = [
   { key: "disqualified", label: "Nurture",     hotkey: "7", icon: Heart,          color: "text-foreground",   bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
   { key: "skip_trace",  label: "Skip Trace",   hotkey: "8", icon: Search,         color: "text-primary-400",   bgColor: "bg-primary-500/10 hover:bg-primary-500/20 border-primary-500/20" },
   { key: "ghost",       label: "Property Research", hotkey: "9", icon: Ghost,        color: "text-foreground", bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-];
-
-const FALLBACK_ENDED_DISPOSITIONS: FallbackEndedDispositionOption[] = [
-  { key: "dead_lead",       label: "Dead",           icon: Skull,         color: "text-foreground", bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "disconnected",    label: "Disconnected",   icon: PhoneOff,      color: "text-amber-200",  bgColor: "bg-amber-500/8 hover:bg-amber-500/15 border-amber-500/15" },
-  { key: "wrong_number",    label: "Wrong Number",   icon: PhoneOff,      color: "text-amber-200",  bgColor: "bg-amber-500/8 hover:bg-amber-500/15 border-amber-500/15" },
-  { key: "not_interested",  label: "Not Interested", icon: X,             color: "text-red-300",    bgColor: "bg-red-500/8 hover:bg-red-500/15 border-red-500/15" },
-  { key: "voicemail",       label: "Left VM",        icon: Voicemail,     color: "text-foreground", bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
-  { key: "no_answer",       label: "No Answer",      icon: PhoneOff,      color: "text-foreground", bgColor: "bg-muted/10 hover:bg-muted/20 border-border/20" },
 ];
 
 const QUICK_PHONE_ACTIONS: QuickPhoneAction[] = [
@@ -5949,12 +5932,17 @@ function DialerPageInner() {
                     <GlassCard hover={false} className="!p-3">
                       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
                         <BarChart3 className="h-3.5 w-3.5 text-primary" />
-                        Call Closeout
+                        Call Ended
                       </h2>
 
-                      <p className="text-xs text-muted-foreground/60 mb-3">
-                        Session closeout did not load. Use quick closeout to log the result and move on.
-                      </p>
+                      <div className="mb-3 rounded-[12px] border border-amber-500/15 bg-amber-500/8 px-3 py-2.5 text-xs text-muted-foreground/80">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300" />
+                          <p>
+                            This call no longer has an active closeout session. Use Lead Detail if you need to update the file, or move to the next lead.
+                          </p>
+                        </div>
+                      </div>
 
                       <Button
                         variant="outline"
@@ -5966,27 +5954,9 @@ function DialerPageInner() {
                         Open Lead Detail
                       </Button>
 
-                      <div className="grid grid-cols-1 gap-1.5">
-                        {FALLBACK_ENDED_DISPOSITIONS.map((d) => {
-                          const Icon = d.icon;
-                          return (
-                            <button
-                              key={d.key}
-                              onClick={() => void handleDisposition(d.key)}
-                              disabled={dispositionPending}
-                              className={`flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-left transition-all duration-150 border ${d.bgColor}`}
-                            >
-                              <Icon className={`h-4 w-4 ${d.color}`} />
-                              <span className="text-sm font-medium flex-1">{d.label}</span>
-                              <ChevronRight className="h-3 w-3 text-muted-foreground/30" />
-                            </button>
-                          );
-                        })}
-                      </div>
-
                       <Button
                         variant="outline"
-                        className="w-full mt-3 gap-2 text-xs"
+                        className="w-full mt-2 gap-2 text-xs"
                         onClick={() => {
                           const idx = executionQueue.findIndex((l) => l.id === currentLead?.id);
                           setActiveCallLead(null);
