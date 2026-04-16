@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap, Loader2, Shield, ArrowLeft, Lock } from "lucide-react";
 import { AuthRequestTimeoutError, clearLocalAuthState, signInWithPasswordWithTimeout } from "@/lib/sentinel-auth-headers";
@@ -37,6 +37,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void clearLocalAuthState();
+  }, []);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
