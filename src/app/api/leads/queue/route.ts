@@ -92,14 +92,7 @@ const LEAD_QUEUE_SELECT = `
     sqft,
     property_type,
     year_built,
-    lot_size,
-    loan_balance,
-    last_sale_price,
-    last_sale_date,
-    foreclosure_stage,
-    default_amount,
-    delinquent_amount,
-    is_vacant
+    lot_size
   )
 `;
 

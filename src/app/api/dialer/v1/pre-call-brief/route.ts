@@ -257,7 +257,7 @@ export async function POST(req: NextRequest) {
 
     let lead = body.leadId
       ? (await tbl("leads")
-          .select("*, properties(owner_name, address, estimated_value, equity_percent, ownership_years, property_type, county, owner_flags)")
+          .select("*, properties(owner_name, address, estimated_value, equity_percent, property_type, county, owner_flags)")
           .eq("id", body.leadId)
           .single()).data
       : null;
@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
         const match = await unifiedPhoneLookup(phoneNumber, sb);
         if (match.leadId) {
           const { data: phoneLead } = await tbl("leads")
-            .select("*, properties(owner_name, address, estimated_value, equity_percent, ownership_years, property_type, county, owner_flags)")
+            .select("*, properties(owner_name, address, estimated_value, equity_percent, property_type, county, owner_flags)")
             .eq("id", match.leadId)
             .single();
           if (phoneLead) lead = phoneLead;
@@ -333,6 +333,12 @@ export async function POST(req: NextRequest) {
     const prop = lead.properties || {};
     const ownerFlags = prop.owner_flags ?? {};
     const prRaw = ownerFlags.pr_raw ?? {};
+    const ownershipYears =
+      typeof prRaw.OwnershipLength === "number"
+        ? prRaw.OwnershipLength
+        : typeof ownerFlags.bricked_ownership_years === "number"
+          ? ownerFlags.bricked_ownership_years
+          : undefined;
     const recentCalls = (callLogs ?? []) as BriefCallRow[];
     const leadCtx: LeadContext = {
       ownerName: prop.owner_name ?? "Unknown Owner",
@@ -348,7 +354,7 @@ export async function POST(req: NextRequest) {
         .filter((c) => c.ai_summary)
         .map((c) => c.ai_summary as string),
       equityPercent: prop.equity_percent ?? undefined,
-      ownershipYears: prop.ownership_years ?? undefined,
+      ownershipYears,
       estimatedValue: prop.estimated_value ?? undefined,
       tags: lead.tags ?? [],
       ownerAge: prRaw.OwnerAge ? Number(prRaw.OwnerAge) : null,
