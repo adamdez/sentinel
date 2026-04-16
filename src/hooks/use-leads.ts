@@ -811,13 +811,17 @@ export function useLeads() {
     if (!silent) setLoading(true);
 
     try {
+      if (!currentUser.id) {
+        return;
+      }
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error("Session expired. Please sign in again.");
+      }
       const res = await withTimeout(
         fetch("/api/leads/queue", {
           method: "GET",
-          headers: session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : {},
+          headers: { Authorization: `Bearer ${session.access_token}` },
           cache: "no-store",
         }),
         15_000,
@@ -838,7 +842,7 @@ export function useLeads() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [currentUser.id]);
 
   const scheduleRefetch = useCallback(() => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
@@ -848,6 +852,7 @@ export function useLeads() {
   }, [fetchLeads]);
 
   useEffect(() => {
+    if (!currentUser.id) return;
     void fetchLeads();
 
     const channel = supabase
@@ -860,7 +865,7 @@ export function useLeads() {
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [fetchLeads, scheduleRefetch]);
+  }, [currentUser.id, fetchLeads, scheduleRefetch]);
 
   const removeLeadsByIds = useCallback((leadIds: string[]) => {
     if (leadIds.length === 0) return;
