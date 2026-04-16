@@ -1786,6 +1786,12 @@ function DialerPageInner() {
       Promise.resolve(refetchAutoCycleQueue()),
     ]);
   }, [refetchAutoCycleQueue, refetchQueue]);
+  const findAlternativeReadyPowerDialLead = useCallback((excludedLeadIds: string[]) => {
+    if (excludedLeadIds.length === 0) {
+      return executionQueue[0] ?? null;
+    }
+    return executionQueue.find((lead) => !excludedLeadIds.includes(lead.id)) ?? null;
+  }, [executionQueue]);
 
   useEffect(() => {
     if (idleRailTab !== "missed") return;
@@ -3862,9 +3868,24 @@ function DialerPageInner() {
       }
       return;
     }
+    const pendingLeadStillReady = executionQueue.some((lead) => lead.id === pendingAutoDialLeadId);
+    if (!pendingLeadStillReady || !currentPowerDialReady || !selectedDialPhone) {
+      const fallbackLead = findAlternativeReadyPowerDialLead(
+        [currentLead?.id, pendingAutoDialLeadId].filter((leadId): leadId is string => Boolean(leadId)),
+      );
+      if (!fallbackLead) {
+        setPendingAutoDialLeadId(null);
+        return;
+      }
+      if (!currentLead || currentLead.id !== fallbackLead.id) {
+        selectQueueLead(fallbackLead);
+      }
+      if (fallbackLead.id !== pendingAutoDialLeadId) {
+        setPendingAutoDialLeadId(fallbackLead.id);
+      }
+      return;
+    }
     if (!currentLead || currentLead.id !== pendingAutoDialLeadId) return;
-    if (!currentPowerDialReady) return;
-    if (!selectedDialPhone) return;
 
     const autoDialTimer = setTimeout(() => {
       setPendingAutoDialLeadId(null);
@@ -3881,6 +3902,7 @@ function DialerPageInner() {
     currentLead,
     executionQueue,
     currentPowerDialReady,
+    findAlternativeReadyPowerDialLead,
     selectedDialPhone,
     handleDial,
     selectQueueLead,
@@ -3898,8 +3920,18 @@ function DialerPageInner() {
       }
       return;
     }
-    if (!currentPowerDialReady) return;
-    if (!selectedDialPhone) return;
+    if (!currentPowerDialReady || !selectedDialPhone) {
+      const nextReadyLead = findAlternativeReadyPowerDialLead([currentLead.id]);
+      if (nextReadyLead) {
+        if (nextReadyLead.id !== currentLead.id) {
+          selectQueueLead(nextReadyLead);
+        }
+        return;
+      }
+      setPendingPowerDialStart(false);
+      setPendingAutoDialLeadId(null);
+      return;
+    }
 
     setPendingPowerDialStart(false);
     setPendingAutoDialLeadId(currentLead.id);
@@ -3912,6 +3944,7 @@ function DialerPageInner() {
     currentLead,
     executionQueue,
     currentPowerDialReady,
+    findAlternativeReadyPowerDialLead,
     selectedDialPhone,
     selectQueueLead,
   ]);
