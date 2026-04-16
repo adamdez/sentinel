@@ -130,6 +130,10 @@ export async function GET(req: NextRequest) {
   });
 }
 
+function normalizePhoneDigits(value: string | null | undefined): string {
+  return (value ?? "").replace(/\D/g, "").slice(-10);
+}
+
 export async function POST(req: NextRequest) {
   const user = await getDialerUser(req.headers.get("authorization"));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -183,7 +187,13 @@ export async function POST(req: NextRequest) {
     phone: string;
     position: number;
     status: string;
-  }>).filter((phone) => phone.status === "active");
+  }>)
+    .filter((phone) => phone.status === "active")
+    .filter((phone, index, phones) => {
+      const digits = normalizePhoneDigits(phone.phone);
+      if (!digits) return true;
+      return phones.findIndex((candidate) => normalizePhoneDigits(candidate.phone) === digits) === index;
+    });
 
   const nowIso = new Date().toISOString();
   const phoneSeeds = sourcePhones.length > 0

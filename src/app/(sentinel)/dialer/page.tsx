@@ -2503,7 +2503,7 @@ function DialerPageInner() {
   }, [completeIntroDecisionAndAdvance, pendingIntroDecision]);
 
   const advanceQueueAfterDisposition = useCallback(async (disposition: string, autoDial: boolean, introState?: PostCallIntroStateMeta | null) => {
-    const activePhoneCount = leadPhones.filter((phone) => phone.status === "active").length;
+    const activePhoneCount = activeLeadPhones.length;
     const isLeadTerminalDisposition = isAutoCycleLeadExitDisposition(disposition as Parameters<typeof isAutoCycleLeadExitDisposition>[0]);
     const plan = planNextQueueTarget({
       queueLeadIds: executionQueue.map((lead) => lead.id),
@@ -3784,12 +3784,14 @@ function DialerPageInner() {
       && resolvedAutoCycleStatus
       && resolvedAutoCycleStatus !== "ready"
     ) {
+      setPendingAutoDialLeadId(null);
+      setPendingPowerDialStart(false);
+      pendingSameLeadPhoneAdvanceRef.current = null;
+      selectQueueLead(null);
+      await refreshQueues();
       if (!powerDialPaused) {
         setPendingPowerDialStart(true);
       }
-      setPendingAutoDialLeadId(null);
-      await refreshQueues();
-      selectQueueLead(null);
       return;
     }
     void advanceQueueAfterDisposition(dispoKey, autoCycleMode);

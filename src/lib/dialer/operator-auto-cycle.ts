@@ -33,6 +33,10 @@ export type PowerDialSeedLeadLike = {
   autoCycle?: unknown | null;
 };
 
+function normalizePhoneDigits(value: string | null | undefined): string {
+  return (value ?? "").replace(/\D/g, "").slice(-10);
+}
+
 export function resolveDialerPhoneSelection({
   autoCycleMode,
   leadPhones,
@@ -40,7 +44,11 @@ export function resolveDialerPhoneSelection({
   nextPhoneId,
   fallbackPhone,
 }: DialerPhoneSelectionInput): DialerPhoneSelection {
-  const activePhones = leadPhones.filter((phone) => phone.status === "active");
+  const activePhones = leadPhones.filter((phone) => phone.status === "active").filter((phone, index, phones) => {
+    const digits = normalizePhoneDigits(phone.phone);
+    if (!digits) return true;
+    return phones.findIndex((candidate) => normalizePhoneDigits(candidate.phone) === digits) === index;
+  });
 
   if (activePhones.length === 0) {
     return {
