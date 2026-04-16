@@ -216,13 +216,6 @@ const PROPERTY_LIST_SELECT = [
   "property_type",
   "year_built",
   "lot_size",
-  "loan_balance",
-  "last_sale_price",
-  "last_sale_date",
-  "foreclosure_stage",
-  "default_amount",
-  "delinquent_amount",
-  "is_vacant",
 ].join(", ");
 
 const missingSelectColumnsCache: Record<"leads" | "properties", Set<string>> = {

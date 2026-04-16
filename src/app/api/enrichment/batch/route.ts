@@ -33,6 +33,12 @@ export async function GET(req: Request) {
 
   console.log("[Enrichment/Batch] Cron triggered:", new Date().toISOString());
 
+  // Emergency kill switch — set ENRICHMENT_PAUSED=true in Vercel env to halt all enrichment
+  if (process.env.ENRICHMENT_PAUSED === "true") {
+    console.log("[Enrichment/Batch] Halted via ENRICHMENT_PAUSED=true env var");
+    return NextResponse.json({ ok: true, skipped: true, reason: "Halted via ENRICHMENT_PAUSED env var" });
+  }
+
   // Validate required API keys before starting batch — fail loud, not silent
   if (!process.env.PROPERTYRADAR_API_KEY) {
     console.error("[Enrichment/Batch] PROPERTYRADAR_API_KEY not configured — batch cannot enrich");

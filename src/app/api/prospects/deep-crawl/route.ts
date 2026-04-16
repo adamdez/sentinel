@@ -365,7 +365,7 @@ export async function POST(req: NextRequest) {
           const owner: OwnerDetail = {
             name: property.owner_name ?? "Unknown",
             age: safeNum(pr?.OwnerAge),
-            ownershipYears: safeNum(pr?.OwnershipLength ?? property.ownership_years),
+            ownershipYears: safeNum(pr?.OwnershipLength ?? (property.owner_flags as Record<string, unknown> | null)?.bricked_ownership_years),
             lastTransferDate: safeStr(pr?.LastTransferRecDate),
             lastTransferValue: safeNum(pr?.LastTransferValue),
             lastTransferType: safeStr(pr?.LastTransferType),

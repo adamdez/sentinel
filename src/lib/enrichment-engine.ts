@@ -38,6 +38,24 @@ import { checkDataSufficiency } from "@/lib/enrichment-gate";
 import type { DistressType } from "@/lib/types";
 
 const SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Strips null bytes (\u0000) from all string values in an object before
+ * writing to a Postgres jsonb column. Postgres rejects \u0000 in jsonb,
+ * and error messages from external APIs (e.g. PropertyRadar timeouts) can
+ * contain them, causing `invalid input syntax for type json` and pool churn.
+ */
+function cleanJsonb(obj: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (typeof v === "string") {
+      result[k] = v.replace(/\u0000/g, "").slice(0, 2000);
+    } else {
+      result[k] = v;
+    }
+  }
+  return result;
+}
 const PR_API_BASE = "https://api.propertyradar.com/v1/properties";
 const MAX_ATTEMPTS = 3;
 
@@ -996,14 +1014,14 @@ export async function enrichProperty(
     // Track attempt in owner_flags
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("properties") as any).update({
-      owner_flags: {
+      owner_flags: cleanJsonb({
         ...ownerFlags,
         enrichment_pending: true,
         enrichment_attempts: attempts,
         enrichment_last_attempt: new Date().toISOString(),
         enrichment_status: countyFilled ? "county_partial" : "failed",
         ...(countyFilled ? { county_fallback_used: true } : {}),
-      },
+      }),
       updated_at: new Date().toISOString(),
     }).eq("id", propertyId);
 
@@ -1037,14 +1055,14 @@ export async function enrichProperty(
     // Track failure attempt
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("properties") as any).update({
-      owner_flags: {
+      owner_flags: cleanJsonb({
         ...ownerFlags,
         enrichment_pending: true,
         enrichment_attempts: attempts,
         enrichment_last_attempt: new Date().toISOString(),
         enrichment_status: "error",
-        enrichment_error: err instanceof Error ? err.message : String(err),
-      },
+        enrichment_error: (err instanceof Error ? err.message : String(err)).slice(0, 500),
+      }),
       updated_at: new Date().toISOString(),
     }).eq("id", propertyId);
 
