@@ -461,10 +461,12 @@ export async function queueLeadIdsForUser(input: {
   }
 
   if (queuedIds.length > 0) {
-    await hydrateQueuedLeadEquity(
+    void hydrateQueuedLeadEquity(
       input.sb,
       rows.filter((row) => queuedIds.includes(row.id)),
-    );
+    ).catch((error) => {
+      console.error("[dial-queue] queued lead equity hydration failed:", error);
+    });
   }
 
   return { queuedIds, conflictedIds, missingIds };

@@ -356,7 +356,10 @@ export function useAutoCycleQueue(limit = 12) {
     try {
       setLoading(true);
       const hdrs = await dialerAuthHeaders();
-      const res = await fetch(`/api/dialer/v1/auto-cycle?limit=${limit}`, { headers: hdrs });
+      const res = await withTimeout(
+        fetch(`/api/dialer/v1/auto-cycle?limit=${limit}`, { headers: hdrs }),
+        12_000,
+      );
       if (!res.ok) {
         setLoading(false);
         return;

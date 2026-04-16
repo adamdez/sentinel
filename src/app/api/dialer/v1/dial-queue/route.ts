@@ -33,15 +33,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await queueLeadIdsForUser({ sb, userId: user.id, leadIds });
-    try {
-      await ensureAutoCycleEnrollmentForQueuedLeads({
-        sb,
-        userId: user.id,
-        leadIds: result.queuedIds,
-      });
-    } catch (enrollmentError) {
+    void ensureAutoCycleEnrollmentForQueuedLeads({
+      sb,
+      userId: user.id,
+      leadIds: result.queuedIds,
+    }).catch((enrollmentError) => {
       console.error("[dial-queue] auto-cycle enrollment after queue add failed:", enrollmentError);
-    }
+    });
 
     // Keep queueing success from being masked by an audit-log failure.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
