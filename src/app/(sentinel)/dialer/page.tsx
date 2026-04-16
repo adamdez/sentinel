@@ -3841,12 +3841,14 @@ function DialerPageInner() {
       && meta?.autoCycleStatus
       && meta.autoCycleStatus !== "ready"
     ) {
+      setPendingAutoDialLeadId(null);
+      setPendingPowerDialStart(false);
+      pendingSameLeadPhoneAdvanceRef.current = null;
+      selectQueueLead(null);
+      await refreshQueues();
       if (!powerDialPaused) {
         setPendingPowerDialStart(true);
       }
-      setPendingAutoDialLeadId(null);
-      await refreshQueues();
-      selectQueueLead(null);
       return;
     }
 
