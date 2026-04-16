@@ -16,6 +16,7 @@ import { extractProspectingSnapshot, sourceChannelLabel } from "@/lib/prospectin
 import { deriveLeadActionSummary } from "@/lib/action-derivation";
 import type { LeadQueueResponse } from "@/lib/lead-queue-contract";
 import { isLeadUnclaimed } from "@/lib/lead-ownership";
+import { authorizedFetch } from "@/lib/sentinel-auth-headers";
 import { sortLeadRows } from "./use-leads-sort";
 
 export type SortField = "score" | "priority" | "newest" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "source" | "status" | "equity";
@@ -814,14 +815,9 @@ export function useLeads() {
       if (!currentUser.id) {
         return;
       }
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error("Session expired. Please sign in again.");
-      }
       const res = await withTimeout(
-        fetch("/api/leads/queue", {
+        authorizedFetch("/api/leads/queue", {
           method: "GET",
-          headers: { Authorization: `Bearer ${session.access_token}` },
           cache: "no-store",
         }),
         15_000,
@@ -855,6 +851,12 @@ export function useLeads() {
     if (!currentUser.id) return;
     void fetchLeads();
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        void fetchLeads();
+      }
+    });
+
     const channel = supabase
       .channel("leads_hub_realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, scheduleRefetch)
@@ -862,6 +864,7 @@ export function useLeads() {
 
     channelRef.current = channel;
     return () => {
+      subscription.unsubscribe();
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };

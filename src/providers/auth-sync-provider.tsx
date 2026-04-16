@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
+import { getFreshSession } from "@/lib/sentinel-auth-headers";
 import type { User as SentinelUser } from "@/lib/types";
 
 const TEAM_MAP: Record<string, { name: string; role: SentinelUser["role"] }> = {
@@ -64,7 +65,7 @@ export function AuthSyncProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const syncSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = await getFreshSession();
 
       if (session?.user) {
         setCurrentUser(await ensureProfileAndResolve(session.user, session.access_token));

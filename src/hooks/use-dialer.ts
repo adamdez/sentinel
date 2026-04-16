@@ -9,6 +9,7 @@ import type { AutoCycleLeadState, AutoCyclePhoneState } from "@/lib/dialer/types
 import { isDeepDiveNextAction } from "@/lib/deep-dive";
 import { isIntroRetryHiddenUntilDue } from "@/lib/intro-sop-state";
 import { resolveLeadDueAt } from "@/lib/active-work";
+import { authorizedFetch, getFreshSession, sentinelAuthHeaders } from "@/lib/sentinel-auth-headers";
 import type {
   DialerKpiPreset,
   DialerKpiRange,
@@ -124,10 +125,7 @@ function shouldRenderInDialQueue(lead: QueueLead): boolean {
 }
 
 async function dialerAuthHeaders(): Promise<Record<string, string>> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const headers: Record<string, string> = {};
-  if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
-  return headers;
+  return sentinelAuthHeaders(false);
 }
 
 async function fetchQueueRowsForUser(userId: string, limit: number) {
@@ -205,6 +203,11 @@ export function useDialerQueue(limit = 7) {
   const fetchQueue = useCallback(async () => {
     if (!currentUser.id) return;
     try {
+      const session = await getFreshSession();
+      if (!session?.access_token) {
+        setLoading(false);
+        return;
+      }
       // Personal queue: explicitly queued leads only.
       // We still rank due work inside that queue, but membership itself is manual.
       const queueRes = await fetchQueueRowsForUser(currentUser.id, limit);
@@ -333,15 +336,25 @@ export function useDialerQueue(limit = 7) {
   }, [currentUser.id, ghostMode, limit]);
 
   useEffect(() => {
+    if (!currentUser.id) return;
     fetchQueue();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        void fetchQueue();
+      }
+    });
 
     const channel = supabase
       .channel("dialer-queue")
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchQueue())
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchQueue]);
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser.id, fetchQueue]);
 
   return { queue, loading, refetch: fetchQueue };
 }
@@ -355,9 +368,8 @@ export function useAutoCycleQueue(limit = 12) {
     if (!currentUser.id) return;
     try {
       setLoading(true);
-      const hdrs = await dialerAuthHeaders();
       const res = await withTimeout(
-        fetch(`/api/dialer/v1/auto-cycle?limit=${limit}`, { headers: hdrs }),
+        authorizedFetch(`/api/dialer/v1/auto-cycle?limit=${limit}`),
         12_000,
       );
       if (!res.ok) {
@@ -408,7 +420,14 @@ export function useAutoCycleQueue(limit = 12) {
   }, [currentUser.id, ghostMode, limit]);
 
   useEffect(() => {
+    if (!currentUser.id) return;
     fetchQueue();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        void fetchQueue();
+      }
+    });
 
     const channel = supabase
       .channel("auto-cycle-queue")
@@ -417,8 +436,11 @@ export function useAutoCycleQueue(limit = 12) {
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchQueue())
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchQueue]);
+    return () => {
+      subscription.unsubscribe();
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser.id, fetchQueue]);
 
   return { queue, loading, refetch: fetchQueue };
 }
@@ -455,7 +477,7 @@ export async function fetchDialerKpis(
   selection: DialerKpiSelection,
 ): Promise<DialerKpiSnapshot> {
   try {
-    const headers = await dialerAuthHeaders();
+    const headers = await sentinelAuthHeaders(false);
     const params = new URLSearchParams();
     params.set("preset", selection.preset);
     if (selection.from) params.set("from", selection.from);
