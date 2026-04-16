@@ -2,7 +2,7 @@ import { buildOperatorWorkflowSummary } from "@/components/sentinel/operator-wor
 import { leadSourceSortKey } from "@/lib/lead-source";
 import type { LeadStatus, QualificationRoute } from "@/lib/types";
 
-type SortField = "score" | "priority" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "source" | "status" | "equity";
+type SortField = "score" | "priority" | "newest" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "source" | "status" | "equity";
 type SortDir = "asc" | "desc";
 
 export interface SortableLeadRow {
@@ -27,6 +27,7 @@ export interface SortableLeadRow {
   followUpDate: string | null;
   lastContactAt: string | null;
   totalCalls: number;
+  createdAt: string;
   promotedAt: string;
   nextAction?: string | null;
   nextActionDueAt?: string | null;
@@ -71,7 +72,7 @@ function stableCompare(a: SortableLeadRow, b: SortableLeadRow, dir: SortDir): nu
   return (
     compareText(a.ownerName, b.ownerName, dir) ||
     compareText(a.address, b.address, dir) ||
-    compareNullableTime(a.promotedAt, b.promotedAt, dir) ||
+    compareNullableTime(a.createdAt, b.createdAt, dir) ||
     compareText(a.id, b.id, dir)
   );
 }
@@ -92,7 +93,7 @@ function doNowSortParts(lead: SortableLeadRow): {
     totalCalls: lead.totalCalls,
     nextAction: lead.nextAction,
     nextActionDueAt: lead.nextActionDueAt,
-    createdAt: lead.promotedAt,
+    createdAt: lead.createdAt,
     promotedAt: lead.promotedAt,
     introSopActive: lead.introSopActive,
     introDayCount: lead.introDayCount,
@@ -141,6 +142,8 @@ export function sortLeadRows<T extends SortableLeadRow>(
         return compareNumber(a.score.composite, b.score.composite, sortDir) || stableCompare(a, b, sortDir);
       case "priority":
         return compareNumber(a.predictivePriority, b.predictivePriority, sortDir) || stableCompare(a, b, sortDir);
+      case "newest":
+        return compareNullableTime(a.createdAt, b.createdAt, sortDir) || stableCompare(a, b, sortDir);
       case "followUp": {
         const aDoNow = doNowCache?.get(a.id);
         const bDoNow = doNowCache?.get(b.id);

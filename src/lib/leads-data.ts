@@ -561,6 +561,7 @@ export interface LeadRow {
   offerStatus: OfferVisibilityStatus;
   offerPrepSnapshot: OfferPrepSnapshot;
   offerPrepHealth: OfferPrepHealth;
+  createdAt: string;
   promotedAt: string;
   source: string;
   sourceChannel: string | null;

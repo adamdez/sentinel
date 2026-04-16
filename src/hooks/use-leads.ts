@@ -18,7 +18,7 @@ import type { LeadQueueResponse } from "@/lib/lead-queue-contract";
 import { isLeadUnclaimed } from "@/lib/lead-ownership";
 import { sortLeadRows } from "./use-leads-sort";
 
-export type SortField = "score" | "priority" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "source" | "status" | "equity";
+export type SortField = "score" | "priority" | "newest" | "followUp" | "due" | "lastTouch" | "address" | "owner" | "source" | "status" | "equity";
 export type SortDir = "asc" | "desc";
 export type FollowUpFilter = "all" | "overdue" | "today" | "uncontacted" | "urgent_uncontacted";
 export type MarketFilter = "spokane" | "kootenai" | "other";
@@ -66,6 +66,7 @@ function leadMatchesDistressTag(
 const DEFAULT_SORT_DIR_BY_FIELD: Record<SortField, SortDir> = {
   score: "desc",
   priority: "desc",
+  newest: "desc",
   followUp: "asc",
   due: "asc",
   lastTouch: "desc",
@@ -659,6 +660,7 @@ function mapToLeadRow(raw: any, prop: any, firstAttemptAt: string | null = null,
     }),
     offerPrepSnapshot,
     offerPrepHealth,
+    createdAt: raw.created_at ?? raw.promoted_at ?? new Date().toISOString(),
     promotedAt: raw.promoted_at ?? raw.created_at ?? new Date().toISOString(),
     source: raw.source ?? "unknown",
     sourceChannel: prospecting.sourceChannel ?? raw.source ?? "unknown",

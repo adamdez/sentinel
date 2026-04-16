@@ -15,6 +15,7 @@ import {
   UserMinus,
   Zap,
   MapPin,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -51,7 +52,7 @@ interface LeadTableProps {
 }
 
 // Grid: select · active · property · do now · due · last touch · actions
-const GRID = "grid-cols-[28px_28px_minmax(220px,1.55fr)_minmax(148px,0.95fr)_minmax(120px,1.15fr)_minmax(80px,0.9fr)_minmax(88px,0.95fr)_80px]";
+const GRID = "grid-cols-[28px_28px_minmax(220px,1.4fr)_minmax(88px,0.8fr)_minmax(88px,0.72fr)_minmax(148px,0.95fr)_minmax(120px,1.05fr)_minmax(80px,0.86fr)_80px]";
 const BULK_ACTION_CONCURRENCY = 6;
 const INITIAL_RENDER_COUNT = 150;
 const RENDER_COUNT_STEP = 150;
@@ -102,6 +103,39 @@ function formatPhone(phone: string): string {
     return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
   }
   return phone;
+}
+
+function toTimestamp(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  return Number.isNaN(ms) ? null : ms;
+}
+
+function formatLeadAge(iso: string | null | undefined): string {
+  const ms = toTimestamp(iso);
+  if (ms == null) return "—";
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - ms) / 60000));
+  if (diffMinutes < 60) return `${Math.max(1, diffMinutes)}m`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h`;
+  return `${Math.floor(diffHours / 24)}d`;
+}
+
+function formatLeadAgeTitle(iso: string | null | undefined): string {
+  const ms = toTimestamp(iso);
+  if (ms == null) return "Lead entered Sentinel: unavailable";
+  return `Lead entered Sentinel ${new Date(ms).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  })}`;
+}
+
+function isNewLead(iso: string | null | undefined): boolean {
+  const ms = toTimestamp(iso);
+  return ms != null && Date.now() - ms < 60 * 60 * 1000;
 }
 
 
@@ -690,6 +724,7 @@ export function LeadTable({
         <span />
         <SortHeader label="Property / Owner" field="address" currentField={sortField} currentDir={sortDir} onSort={onSort} />
         <SortHeader label="Source" field="source" currentField={sortField} currentDir={sortDir} onSort={onSort} />
+        <SortHeader label="New" field="newest" currentField={sortField} currentDir={sortDir} onSort={onSort} title="Sort by newest leads in Sentinel" />
         <SortHeader
           label="Do Now"
           field="followUp"
@@ -729,7 +764,7 @@ export function LeadTable({
           totalCalls: lead.totalCalls,
           nextAction: lead.nextAction,
           nextActionDueAt: lead.nextActionDueAt,
-          createdAt: lead.promotedAt,
+          createdAt: lead.createdAt,
           promotedAt: lead.promotedAt,
           introSopActive: lead.introSopActive,
           introDayCount: lead.introDayCount,
@@ -746,6 +781,8 @@ export function LeadTable({
                 ),
               )
             : 0;
+        const leadAge = formatLeadAge(lead.createdAt);
+        const leadIsNew = isNewLead(lead.createdAt);
 
         return (
           <div
@@ -901,6 +938,26 @@ export function LeadTable({
               >
                 {sourceLabel}
               </span>
+            </div>
+
+            <div className="flex flex-col justify-center min-w-0 gap-1">
+              <span
+                className={cn(
+                  "text-sm font-semibold",
+                  leadIsNew ? "text-emerald-300" : "text-foreground/80",
+                )}
+                title={formatLeadAgeTitle(lead.createdAt)}
+              >
+                {leadAge}
+              </span>
+              {leadIsNew ? (
+                <span className="inline-flex w-fit items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
+                  <Sparkles className="h-2.5 w-2.5" />
+                  New
+                </span>
+              ) : (
+                <span className="text-[11px] text-muted-foreground/45">in Sentinel</span>
+              )}
             </div>
 
             {/* Do now */}
