@@ -124,7 +124,7 @@ function getFutureResurfaceBadge(iso: string | null | undefined): string | null 
   if (!iso) return null;
   const dueMs = new Date(iso).getTime();
   if (Number.isNaN(dueMs) || dueMs <= Date.now()) return null;
-  return `Resurface ${formatDueDateLabel(iso).text}`;
+  return formatDueDateLabel(iso).text;
 }
 
 type PendingIntroDecision = {
@@ -3077,17 +3077,18 @@ function DialerPageInner() {
     setIncomingMatch(null);
   }, [incomingCall, incomingFrom]);
 
-  const handleDial = useCallback(async () => {
+  const handleDial = useCallback(async (options?: { allowScheduledOverride?: boolean }) => {
     const target = currentLead;
     if (!target) return;
     const autoCycleTarget = isAutoCycleQueueLead(target) ? target : null;
     const phone = selectedDialPhone;
+    const allowScheduledOverride = options?.allowScheduledOverride === true;
     if (!phone) {
       toast.error("No phone number for this lead");
       return;
     }
 
-    if (autoCycleMode && autoCycleTarget && !isReadyPowerDialLead(autoCycleTarget)) {
+    if (autoCycleMode && autoCycleTarget && !allowScheduledOverride && !isReadyPowerDialLead(autoCycleTarget)) {
       toast.info(
         autoCycleTarget.autoCycle?.nextDueAt
           ? `Scheduled ${formatDueDateLabel(autoCycleTarget.autoCycle?.nextDueAt ?? "").text}`
@@ -4012,7 +4013,7 @@ function DialerPageInner() {
 
       if (e.key === "Enter" && callState === "idle" && currentLead) {
         e.preventDefault();
-        handleDial();
+        handleDial({ allowScheduledOverride: true });
         return;
       }
 
@@ -5340,7 +5341,7 @@ function DialerPageInner() {
                             {currentAutoCycleLead?.powerDialState === "ready"
                               ? "Power Dial works this file now and parks it after every active number has been worked for the day."
                               : currentAutoCycleLead?.powerDialState === "scheduled"
-                                ? "This queued file is parked for a later Power Dial window and will become callable again when due."
+                              ? "This queued file is parked for a later Power Dial window. Power Dial will pick it up when due, but you can still call it now."
                                 : "This queued file is staged for Power Dial and will auto-dial once it becomes power-ready."}
                           </p>
                         )}
@@ -5607,15 +5608,14 @@ function DialerPageInner() {
                       {callState === "idle" && (
                         <>
                           <Button
-                            onClick={() => handleDial()}
-                            disabled={(!currentLead.compliant && !ghostMode) || !currentPowerDialReady || !selectedDialPhone}
+                            onClick={() => handleDial({ allowScheduledOverride: true })}
+                            disabled={(!currentLead.compliant && !ghostMode) || !selectedDialPhone}
                             className="flex-1 gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-sm"
                           >
                             <Phone className="h-4 w-4" />
                             {(() => {
                               if (autoCycleMode && currentAutoCycleLead?.autoCycle?.cycleStatus === "paused") return "Held";
                               if (autoCycleMode && currentAutoCycleLead?.powerDialState === "not_enrolled") return "Queued";
-                              if (autoCycleMode && !currentPowerDialReady) return "Scheduled";
                               if (selectedLeadPhone) return `Call ${formatUsPhone(selectedLeadPhone.phone.replace(/\D/g, "").slice(-10))}`;
                               if (leadPhones.length > 0) return "No Active Phone";
                               return currentLead.properties?.owner_phone ? "Call Now" : "No Phone";
