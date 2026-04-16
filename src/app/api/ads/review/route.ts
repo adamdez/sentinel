@@ -46,10 +46,15 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [campaignsRes, keywordsRes, searchTermsRes, metricsRes] = await Promise.all([
-      (sb.from("ads_campaigns") as any).select("*"),
-      (sb.from("ads_keywords") as any).select("*, ads_ad_groups(name, campaign_id, ads_campaigns(name, market))"),
-      (sb.from("ads_search_terms") as any).select("*").order("clicks", { ascending: false }).limit(100),
-      (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", thirtyDaysAgo),
+      (sb.from("ads_campaigns") as any).select("id, google_campaign_id, name, market, status"),
+      (sb.from("ads_keywords") as any).select("id, text, match_type, status, ads_ad_groups(name, campaign_id, ads_campaigns(name, market))"),
+      (sb.from("ads_search_terms") as any)
+        .select("search_term, impressions, clicks, cost_micros, conversions, is_waste, is_opportunity, market")
+        .order("clicks", { ascending: false })
+        .limit(100),
+      (sb.from("ads_daily_metrics") as any)
+        .select("report_date, impressions, clicks, cost_micros, conversions, ads_campaigns(name, market)")
+        .gte("report_date", thirtyDaysAgo),
     ]);
 
     const campaigns = campaignsRes.data ?? [];
@@ -298,7 +303,7 @@ export async function POST(req: NextRequest) {
         model_used: "opus-4.6+gpt-5.4-pro",
         ...(adversarialResult ? { adversarial_review: adversarialResult } : {}),
       })
-      .select("*")
+      .select("id")
       .single();
 
     if (reviewErr) {

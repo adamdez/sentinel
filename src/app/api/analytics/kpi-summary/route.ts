@@ -79,16 +79,19 @@ export async function GET(req: NextRequest) {
     }
     const allLeads: LeadRow[] = (allLeadsRaw ?? []) as LeadRow[];
 
-    // Period-filtered leads (new leads in period)
-    let periodLeadsQuery = tbl(sb, "leads")
-      .select("id, status, source, promoted_at, created_at, last_contact_at, total_calls")
-      .neq("status", "staging");
-    if (periodStart) {
-      periodLeadsQuery = periodLeadsQuery.gte("created_at", periodStart);
+    // Period-filtered leads (new leads in period). Reuse the all-leads snapshot for "all"
+    // so the default KPI request does not reread the same dataset twice.
+    let periodLeads: LeadRow[];
+    if (!periodStart) {
+      periodLeads = allLeads;
+    } else {
+      const { data: periodLeadsRaw, error: periodLeadsErr } = await tbl(sb, "leads")
+        .select("id, status, source, promoted_at, created_at, last_contact_at, total_calls")
+        .neq("status", "staging")
+        .gte("created_at", periodStart);
+      if (periodLeadsErr) throw periodLeadsErr;
+      periodLeads = (periodLeadsRaw ?? []) as LeadRow[];
     }
-    const { data: periodLeadsRaw, error: periodLeadsErr } = await periodLeadsQuery;
-    if (periodLeadsErr) throw periodLeadsErr;
-    const periodLeads: LeadRow[] = (periodLeadsRaw ?? []) as LeadRow[];
     const periodLeadIds = periodLeads.map((lead) => lead.id).filter((id) => typeof id === "string" && id.length > 0);
 
     // ── 2. Active pipeline (current snapshot, not period-filtered) ───

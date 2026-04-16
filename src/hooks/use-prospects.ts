@@ -225,6 +225,7 @@ export function useProspects(opts: UseProspectsOptions = {}) {
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const fetchingRef = useRef(false);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cache = useSentinelStore((s) => s._prospectCache);
   const cacheTime = useSentinelStore((s) => s._prospectCacheTime);
@@ -274,6 +275,17 @@ export function useProspects(opts: UseProspectsOptions = {}) {
     }
   }, [cache, cacheTime, setCache, allRows.length]);
 
+  const scheduleRefetch = useCallback(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      invalidateCache();
+      void fetchFromApi(true);
+    }, 400);
+  }, [fetchFromApi, invalidateCache]);
+
   // On mount: use cache if fresh, otherwise fetch
   useEffect(() => {
     if (cache && (Date.now() - cacheTime) < CACHE_TTL_MS) {
@@ -293,21 +305,37 @@ export function useProspects(opts: UseProspectsOptions = {}) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "leads", filter: "status=eq.prospect" },
-        () => { invalidateCache(); fetchFromApi(true); }
+        scheduleRefetch,
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "properties" },
-        () => { invalidateCache(); fetchFromApi(true); }
+        scheduleRefetch,
       )
       .subscribe();
 
     channelRef.current = channel;
     return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [scheduleRefetch]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        invalidateCache();
+        void fetchFromApi(true);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchFromApi, invalidateCache]);
 
   // Client-side filter + sort (instant, no API call)
   const { prospects, totalCount } = useMemo(() => {

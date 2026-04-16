@@ -108,9 +108,12 @@ export function useTasks(view: TaskView = "all") {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestVersionRef = useRef(0);
 
-  const fetchTasks = useCallback(async () => {
-    setLoading(true);
+  const fetchTasks = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    const requestVersion = ++requestVersionRef.current;
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const headers = await getAuthHeaders();
@@ -128,28 +131,59 @@ export function useTasks(view: TaskView = "all") {
       const res = await fetch(`/api/tasks?${params.toString()}`, { headers });
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const json = await res.json();
+      if (requestVersion !== requestVersionRef.current) return;
       setTasks(json.tasks ?? []);
     } catch (err) {
       console.error("[useTasks] Fetch failed:", err);
-      setError(err instanceof Error ? err.message : "Failed to load tasks");
+      if (requestVersion === requestVersionRef.current) {
+        setError(err instanceof Error ? err.message : "Failed to load tasks");
+      }
     } finally {
-      setLoading(false);
+      if (!silent && requestVersion === requestVersionRef.current) {
+        setLoading(false);
+      }
     }
   }, [view]);
 
+  const scheduleRefetch = useCallback(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      void fetchTasks({ silent: true });
+    }, 300);
+  }, [fetchTasks]);
+
   useEffect(() => {
-    fetchTasks();
+    void fetchTasks();
 
     const channel = supabase
       .channel(`tasks_rt_${view}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => fetchTasks())
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, scheduleRefetch)
       .subscribe();
     channelRef.current = channel;
 
     return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [fetchTasks, view]);
+  }, [fetchTasks, scheduleRefetch, view]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchTasks({ silent: true });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchTasks]);
 
   const handleCreate = useCallback(async (data: Partial<TaskItem>) => {
     const task = await createTask(data);

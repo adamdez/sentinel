@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: briefing, error: fetchErr } = await (sb.from("ads_intelligence_briefings") as any)
-      .select("*")
+      .select("id, briefing_date, account_status, executive_summary, total_estimated_monthly_waste, total_estimated_monthly_opportunity, data_points, adversarial_result, created_at")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -121,11 +121,18 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [campaignsRes, keywordsRes, searchTermsRes, metrics30Res, metrics7Res] = await Promise.all([
-      (sb.from("ads_campaigns") as any).select("*"),
-      (sb.from("ads_keywords") as any).select("*, ads_ad_groups(name, campaign_id, ads_campaigns(name, market))"),
-      (sb.from("ads_search_terms") as any).select("*").order("clicks", { ascending: false }).limit(200),
-      (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", thirtyDaysAgo),
-      (sb.from("ads_daily_metrics") as any).select("*, ads_campaigns(name, market)").gte("report_date", sevenDaysAgo),
+      (sb.from("ads_campaigns") as any).select("id, name, market, status"),
+      (sb.from("ads_keywords") as any).select("id, google_keyword_id, text, match_type, status, quality_score, ads_ad_groups(name, campaign_id, ads_campaigns(name, market))"),
+      (sb.from("ads_search_terms") as any)
+        .select("search_term, impressions, clicks, cost_micros, conversions, is_waste, is_opportunity, market")
+        .order("clicks", { ascending: false })
+        .limit(200),
+      (sb.from("ads_daily_metrics") as any)
+        .select("report_date, impressions, clicks, cost_micros, conversions, ads_campaigns(name, market)")
+        .gte("report_date", thirtyDaysAgo),
+      (sb.from("ads_daily_metrics") as any)
+        .select("report_date, impressions, clicks, cost_micros, conversions, ads_campaigns(name, market)")
+        .gte("report_date", sevenDaysAgo),
     ]);
 
     const campaigns = campaignsRes.data ?? [];
@@ -137,7 +144,7 @@ export async function POST(req: NextRequest) {
     // Also fetch latest review for context
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: latestReview } = await (sb.from("ad_reviews") as any)
-      .select("summary, findings, suggestions, adversarial_review, review_type, created_at")
+      .select("summary, review_type, created_at")
       .order("created_at", { ascending: false })
       .limit(1)
       .single();

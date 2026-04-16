@@ -76,34 +76,42 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Calculate metrics
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: metricsData } = await (sb.from("intake_leads") as any)
-      .select("status, created_at");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayIso = today.toISOString();
+
+    // Calculate metrics with targeted count queries instead of scanning the full table.
+    const [
+      pendingMetrics,
+      claimedTodayMetrics,
+      rejectedMetrics,
+      duplicateMetrics,
+    ] = await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (sb.from("intake_leads") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending_review"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (sb.from("intake_leads") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "claimed")
+        .gte("created_at", todayIso),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (sb.from("intake_leads") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "rejected"),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (sb.from("intake_leads") as any)
+        .select("id", { count: "exact", head: true })
+        .eq("status", "duplicate"),
+    ]);
 
     const metrics = {
-      total_pending: 0,
-      claimed_today: 0,
-      rejected_count: 0,
-      duplicate_count: 0,
+      total_pending: pendingMetrics.count ?? 0,
+      claimed_today: claimedTodayMetrics.count ?? 0,
+      rejected_count: rejectedMetrics.count ?? 0,
+      duplicate_count: duplicateMetrics.count ?? 0,
     };
-
-    if (metricsData) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      for (const record of metricsData) {
-        if (record.status === "pending_review") metrics.total_pending++;
-        if (record.status === "rejected") metrics.rejected_count++;
-        if (record.status === "duplicate") metrics.duplicate_count++;
-        if (
-          record.status === "claimed" &&
-          new Date(record.created_at) >= today
-        ) {
-          metrics.claimed_today++;
-        }
-      }
-    }
 
     return NextResponse.json({
       success: true,

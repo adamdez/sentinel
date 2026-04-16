@@ -26,11 +26,14 @@ export function useCallHistory(userId: string, options: UseCallHistoryOptions = 
   const [history, setHistory] = useState<CallHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestVersionRef = useRef(0);
   const days = options.days ?? 7;
 
-  const fetchHistory = useCallback(async () => {
+  const fetchHistory = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!userId) return;
-    setLoading(true);
+    const requestVersion = ++requestVersionRef.current;
+    if (!silent) setLoading(true);
     const cutoffIso = new Date(Date.now() - days * 86_400_000).toISOString();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,7 +60,7 @@ export function useCallHistory(userId: string, options: UseCallHistoryOptions = 
       .gte("started_at", cutoffIso)
       .order("started_at", { ascending: false })
 
-    if (!mountedRef.current) return;
+    if (!mountedRef.current || requestVersion !== requestVersionRef.current) return;
 
     if (error) {
       console.error("[useCallHistory]", error.message);
@@ -69,7 +72,7 @@ export function useCallHistory(userId: string, options: UseCallHistoryOptions = 
         .gte("started_at", cutoffIso)
         .order("started_at", { ascending: false })
 
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || requestVersion !== requestVersionRef.current) return;
 
       setHistory(
         (fallback ?? []).map((r: Record<string, unknown>) => ({
@@ -79,7 +82,7 @@ export function useCallHistory(userId: string, options: UseCallHistoryOptions = 
           direction: r.direction === "inbound" ? "inbound" as const : "outbound" as const,
         })) as CallHistoryEntry[],
       );
-      setLoading(false);
+      if (!silent) setLoading(false);
       return;
     }
 
@@ -103,13 +106,26 @@ export function useCallHistory(userId: string, options: UseCallHistoryOptions = 
     });
 
     setHistory(mapped);
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, [days, userId]);
+
+  const scheduleRefresh = useCallback(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      void fetchHistory({ silent: true });
+    }, 400);
+  }, [fetchHistory]);
 
   useEffect(() => {
     mountedRef.current = true;
-    fetchHistory();
-    return () => { mountedRef.current = false; };
+    void fetchHistory();
+    return () => {
+      mountedRef.current = false;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
   }, [fetchHistory]);
 
   // Real-time subscription for new calls
@@ -120,12 +136,27 @@ export function useCallHistory(userId: string, options: UseCallHistoryOptions = 
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "calls_log", filter: `user_id=eq.${userId}` },
-        () => { fetchHistory(); },
+        scheduleRefresh,
       )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [userId, fetchHistory]);
+  }, [userId, scheduleRefresh]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchHistory({ silent: true });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchHistory]);
 
   return { history, loading, refetch: fetchHistory };
 }

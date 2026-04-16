@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { IntakeLeadsTable } from "@/components/sentinel/intake-leads-table";
 import { IntakeClaimModal } from "@/components/sentinel/intake-claim-modal";
@@ -61,11 +61,14 @@ export default function IntakePage() {
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [deletingLeadId, setDeletingLeadId] = useState<string | null>(null);
   const [openLeadId, setOpenLeadId] = useState<string | null>(null);
+  const requestVersionRef = useRef(0);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch leads
-  const fetchLeads = async () => {
+  const fetchLeads = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    const requestVersion = ++requestVersionRef.current;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const params = new URLSearchParams();
 
       if (statusFilter) params.append("status", statusFilter);
@@ -84,6 +87,8 @@ export default function IntakePage() {
       if (!response.ok) throw new Error("Failed to fetch intake leads");
 
       const data = await response.json();
+      if (requestVersion !== requestVersionRef.current) return;
+
       setLeads(data.leads || []);
       setMetrics(data.metrics || {
         total_pending: 0,
@@ -91,32 +96,60 @@ export default function IntakePage() {
         rejected_count: 0,
         duplicate_count: 0,
       });
+      setError(null);
     } catch (err) {
+      if (requestVersion !== requestVersionRef.current) return;
       const message = err instanceof Error ? err.message : "Unknown error";
       setError(message);
       console.error("[IntakePage] Fetch error:", err);
     } finally {
-      setLoading(false);
+      if (!silent && requestVersion === requestVersionRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, [dateRange.from, dateRange.to, sourceFilter, statusFilter]);
+
+  const scheduleFetchLeads = useCallback(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      void fetchLeads({ silent: true });
+    }, 300);
+  }, [fetchLeads]);
 
   // Initial load + refetch on filter changes
   useEffect(() => {
-    fetchLeads();
-  }, [statusFilter, sourceFilter, dateRange]);
+    void fetchLeads();
+  }, [fetchLeads]);
 
   useEffect(() => {
     const channel = supabase
       .channel("intake_queue_live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "intake_leads" }, () => {
-        void fetchLeads();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "intake_leads" }, scheduleFetchLeads)
       .subscribe();
 
     return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
       supabase.removeChannel(channel);
     };
-  }, [statusFilter, sourceFilter, dateRange]);
+  }, [scheduleFetchLeads]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchLeads({ silent: true });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchLeads]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -136,7 +169,7 @@ export default function IntakePage() {
   const handleClaimSuccess = () => {
     setShowClaimModal(false);
     setSelectedLead(null);
-    fetchLeads(); // Refresh the list
+    void fetchLeads(); // Refresh the list
   };
 
   const openClaimModal = (lead: IntakeLead) => {
@@ -159,7 +192,7 @@ export default function IntakePage() {
 
   const handleEditSuccess = () => {
     setEditingLead(null);
-    fetchLeads();
+    void fetchLeads();
   };
 
   const handleDelete = async (lead: IntakeLead) => {
@@ -230,7 +263,7 @@ export default function IntakePage() {
             <p className="font-medium">Error loading intake queue</p>
             <p className="text-sm mt-1">{error}</p>
             <button
-              onClick={fetchLeads}
+              onClick={() => { void fetchLeads(); }}
               className="text-sm mt-3 px-3 py-1 bg-destructive text-white rounded hover:bg-destructive/90"
             >
               Retry

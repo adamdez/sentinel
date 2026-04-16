@@ -6,53 +6,14 @@ import { loadAdsSystemPrompt } from "@/lib/ads/ads-system-prompt";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-/**
- * POST /api/ads/chat
- *
- * Streaming chat endpoint for asking Claude about your Google Ads.
- * Pre-loaded with campaign context from normalized ads_* tables.
- *
- * Body: { messages: ClaudeMessage[] }
- */
-export async function POST(req: NextRequest) {
-  const sb = createServerClient();
+const ADS_CHAT_CONTEXT_TTL_MS = 60_000;
 
-  const authHeader = req.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  const { data: { user }, error: authErr } = await sb.auth.getUser(token ?? "");
-  if (authErr || !user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+let cachedChatSystemPrompt: {
+  expiresAt: number;
+  systemPrompt: string;
+} | null = null;
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return new Response(
-      JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
-      { status: 503, headers: { "Content-Type": "application/json" } },
-    );
-  }
-
-  let body: { messages: ClaudeMessage[] };
-  try {
-    body = await req.json();
-  } catch {
-    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  if (!Array.isArray(body.messages) || body.messages.length === 0) {
-    return new Response(JSON.stringify({ error: "messages array required" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  // ── Fetch context from normalized ads_* tables ──────────────────
+async function buildChatSystemPrompt(sb: ReturnType<typeof createServerClient>) {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().split("T")[0];
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -122,11 +83,11 @@ export async function POST(req: NextRequest) {
   const recentDecisions = recentDecisionsRes.data ?? [];
   const keywordQuality = keywordQualityRes.data ?? [];
 
-  const totalSpendMicros = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.cost_micros ?? 0), 0);
+  const totalSpendMicros = dailyMetrics.reduce((sum: number, row: Record<string, unknown>) => sum + Number(row.cost_micros ?? 0), 0);
   const totalSpend = totalSpendMicros / 1_000_000;
-  const totalClicks = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.clicks ?? 0), 0);
-  const totalImpressions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.impressions ?? 0), 0);
-  const totalConversions = dailyMetrics.reduce((s: number, r: Record<string, unknown>) => s + Number(r.conversions ?? 0), 0);
+  const totalClicks = dailyMetrics.reduce((sum: number, row: Record<string, unknown>) => sum + Number(row.clicks ?? 0), 0);
+  const totalImpressions = dailyMetrics.reduce((sum: number, row: Record<string, unknown>) => sum + Number(row.impressions ?? 0), 0);
+  const totalConversions = dailyMetrics.reduce((sum: number, row: Record<string, unknown>) => sum + Number(row.conversions ?? 0), 0);
 
   let systemPrompt = await loadAdsSystemPrompt({
     totalSpend,
@@ -136,134 +97,146 @@ export async function POST(req: NextRequest) {
     campaignCount: campaigns.length,
   });
 
-  // Append campaign and performance data as context
   if (dailyMetrics.length > 0) {
-    const metricsContext = dailyMetrics.slice(0, 20).map((m: Record<string, unknown>) => {
+    const metricsContext = dailyMetrics.slice(0, 20).map((metric: Record<string, unknown>) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const camp = m.ads_campaigns as any;
+      const campaign = metric.ads_campaigns as any;
       return {
-        date: m.report_date,
-        campaign: camp?.name ?? null,
-        market: camp?.market ?? null,
-        impressions: m.impressions,
-        clicks: m.clicks,
-        costDollars: Number(m.cost_micros ?? 0) / 1_000_000,
-        conversions: m.conversions,
+        date: metric.report_date,
+        campaign: campaign?.name ?? null,
+        market: campaign?.market ?? null,
+        impressions: metric.impressions,
+        clicks: metric.clicks,
+        costDollars: Number(metric.cost_micros ?? 0) / 1_000_000,
+        conversions: metric.conversions,
       };
     });
-    systemPrompt += "\n\n## Recent Campaign Data (last 30 days)\n```json\n" +
-      JSON.stringify(metricsContext, null, 2) +
-      "\n```";
+    systemPrompt += "\n\n## Recent Campaign Data (last 30 days)\n```json\n"
+      + JSON.stringify(metricsContext, null, 2)
+      + "\n```";
   }
 
   if (searchTerms.length > 0) {
-    const termsContext = searchTerms.map((st: Record<string, unknown>) => ({
-      term: st.search_term,
-      clicks: st.clicks,
-      costDollars: Number(st.cost_micros ?? 0) / 1_000_000,
-      conversions: st.conversions,
-      isWaste: st.is_waste,
+    const termsContext = searchTerms.map((searchTerm: Record<string, unknown>) => ({
+      term: searchTerm.search_term,
+      clicks: searchTerm.clicks,
+      costDollars: Number(searchTerm.cost_micros ?? 0) / 1_000_000,
+      conversions: searchTerm.conversions,
+      isWaste: searchTerm.is_waste,
     }));
-    systemPrompt += "\n\n## Top Search Terms\n```json\n" +
-      JSON.stringify(termsContext, null, 2) +
-      "\n```";
+    systemPrompt += "\n\n## Top Search Terms\n```json\n"
+      + JSON.stringify(termsContext, null, 2)
+      + "\n```";
   }
 
-  // ── Append additional context sections ──────────────────────────
-
   if (negativeKeywords.length > 0) {
-    const ctx = negativeKeywords.map((nk: Record<string, unknown>) => ({
-      keyword_text: nk.keyword_text,
-      match_type: nk.match_type,
-      level: nk.level,
+    const context = negativeKeywords.map((negativeKeyword: Record<string, unknown>) => ({
+      keyword_text: negativeKeyword.keyword_text,
+      match_type: negativeKeyword.match_type,
+      level: negativeKeyword.level,
     }));
-    systemPrompt += "\n\n## Negative Keywords\n```json\n" + JSON.stringify(ctx, null, 2) + "\n```";
+    systemPrompt += "\n\n## Negative Keywords\n```json\n"
+      + JSON.stringify(context, null, 2)
+      + "\n```";
   }
 
   if (campaignBudgets.length > 0) {
-    const ctx = campaignBudgets.map((b: Record<string, unknown>) => ({
-      campaign_id: b.campaign_id,
-      daily_budget_dollars: Number(b.daily_budget_micros ?? 0) / 1_000_000,
-      delivery_method: b.delivery_method,
+    const context = campaignBudgets.map((budget: Record<string, unknown>) => ({
+      campaign_id: budget.campaign_id,
+      daily_budget_dollars: Number(budget.daily_budget_micros ?? 0) / 1_000_000,
+      delivery_method: budget.delivery_method,
     }));
-    systemPrompt += "\n\n## Campaign Budgets\n```json\n" + JSON.stringify(ctx, null, 2) + "\n```";
+    systemPrompt += "\n\n## Campaign Budgets\n```json\n"
+      + JSON.stringify(context, null, 2)
+      + "\n```";
   }
 
   if (conversionActions.length > 0) {
-    const ctx = conversionActions.map((ca: Record<string, unknown>) => ({
-      name: ca.name,
-      type: ca.type,
-      status: ca.status,
-      category: ca.category,
+    const context = conversionActions.map((conversionAction: Record<string, unknown>) => ({
+      name: conversionAction.name,
+      type: conversionAction.type,
+      status: conversionAction.status,
+      category: conversionAction.category,
     }));
-    systemPrompt += "\n\n## Conversion Actions\n```json\n" + JSON.stringify(ctx, null, 2) + "\n```";
+    systemPrompt += "\n\n## Conversion Actions\n```json\n"
+      + JSON.stringify(context, null, 2)
+      + "\n```";
   }
 
   if (deviceMetrics.length > 0) {
-    const ctx = deviceMetrics.map((d: Record<string, unknown>) => ({
-      device: d.device,
-      impressions: d.impressions,
-      clicks: d.clicks,
-      costDollars: Number(d.cost_micros ?? 0) / 1_000_000,
-      conversions: d.conversions,
+    const context = deviceMetrics.map((deviceMetric: Record<string, unknown>) => ({
+      device: deviceMetric.device,
+      impressions: deviceMetric.impressions,
+      clicks: deviceMetric.clicks,
+      costDollars: Number(deviceMetric.cost_micros ?? 0) / 1_000_000,
+      conversions: deviceMetric.conversions,
     }));
-    systemPrompt += "\n\n## Device Performance (last 30 days)\n```json\n" + JSON.stringify(ctx, null, 2) + "\n```";
+    systemPrompt += "\n\n## Device Performance (last 30 days)\n```json\n"
+      + JSON.stringify(context, null, 2)
+      + "\n```";
   }
 
   if (geoMetrics.length > 0) {
-    const ctx = geoMetrics.map((g: Record<string, unknown>) => ({
-      geo_name: g.geo_name,
-      impressions: g.impressions,
-      clicks: g.clicks,
-      costDollars: Number(g.cost_micros ?? 0) / 1_000_000,
-      conversions: g.conversions,
+    const context = geoMetrics.map((geoMetric: Record<string, unknown>) => ({
+      geo_name: geoMetric.geo_name,
+      impressions: geoMetric.impressions,
+      clicks: geoMetric.clicks,
+      costDollars: Number(geoMetric.cost_micros ?? 0) / 1_000_000,
+      conversions: geoMetric.conversions,
     }));
-    systemPrompt += "\n\n## Geographic Performance (last 30 days)\n```json\n" + JSON.stringify(ctx, null, 2) + "\n```";
+    systemPrompt += "\n\n## Geographic Performance (last 30 days)\n```json\n"
+      + JSON.stringify(context, null, 2)
+      + "\n```";
   }
 
   if (latestBriefing) {
-    systemPrompt += "\n\n## Latest Intelligence Briefing\n```json\n" + JSON.stringify({
-      executive_summary: latestBriefing.executive_summary,
-      account_status: latestBriefing.account_status,
-      data_points: latestBriefing.data_points,
-    }, null, 2) + "\n```";
-
-    // Use the briefing as the latest AI review
+    systemPrompt += "\n\n## Latest Intelligence Briefing\n```json\n"
+      + JSON.stringify({
+        executive_summary: latestBriefing.executive_summary,
+        account_status: latestBriefing.account_status,
+        data_points: latestBriefing.data_points,
+      }, null, 2)
+      + "\n```";
     systemPrompt += `\n\n## Latest AI Review\n${latestBriefing.executive_summary}`;
   }
 
   if (pendingRecs.length > 0) {
-    const ctx = pendingRecs.map((r: Record<string, unknown>) => ({
-      type: r.recommendation_type,
-      risk: r.risk_level,
-      reason: r.reason,
-      market: r.market,
+    const context = pendingRecs.map((recommendation: Record<string, unknown>) => ({
+      type: recommendation.recommendation_type,
+      risk: recommendation.risk_level,
+      reason: recommendation.reason,
+      market: recommendation.market,
     }));
-    systemPrompt += "\n\n## Pending Recommendations\n```json\n" + JSON.stringify(ctx, null, 2) + "\n```";
+    systemPrompt += "\n\n## Pending Recommendations\n```json\n"
+      + JSON.stringify(context, null, 2)
+      + "\n```";
   }
 
   if (recentDecisions.length > 0) {
-    const ctx = recentDecisions.map((r: Record<string, unknown>) => ({
-      type: r.recommendation_type,
-      status: r.status,
-      market: r.market,
+    const context = recentDecisions.map((decision: Record<string, unknown>) => ({
+      type: decision.recommendation_type,
+      status: decision.status,
+      market: decision.market,
     }));
-    systemPrompt += "\n\n## Recent Decisions\n```json\n" + JSON.stringify(ctx, null, 2) + "\n```";
+    systemPrompt += "\n\n## Recent Decisions\n```json\n"
+      + JSON.stringify(context, null, 2)
+      + "\n```";
   }
 
   if (keywordQuality.length > 0) {
-    const ctx = keywordQuality.map((k: Record<string, unknown>) => ({
-      text: k.text,
-      match_type: k.match_type,
-      quality_score: k.quality_score,
-      expected_ctr: k.expected_ctr,
-      ad_relevance: k.ad_relevance,
-      landing_page_experience: k.landing_page_experience,
+    const context = keywordQuality.map((keyword: Record<string, unknown>) => ({
+      text: keyword.text,
+      match_type: keyword.match_type,
+      quality_score: keyword.quality_score,
+      expected_ctr: keyword.expected_ctr,
+      ad_relevance: keyword.ad_relevance,
+      landing_page_experience: keyword.landing_page_experience,
     }));
-    systemPrompt += "\n\n## Keyword Quality Scores\n```json\n" + JSON.stringify(ctx, null, 2) + "\n```";
+    systemPrompt += "\n\n## Keyword Quality Scores\n```json\n"
+      + JSON.stringify(context, null, 2)
+      + "\n```";
   }
 
-  // ── Recommendation creation instructions ──────────────────────
   systemPrompt += `
 
 ## Creating Recommendations
@@ -278,6 +251,71 @@ Valid recommendation_types: keyword_pause, bid_adjust, negative_add, budget_adju
 Valid risk_levels: green, yellow, red
 
 Always use real entity IDs from the data above. The system will validate entity IDs and insert into the Approvals queue.`;
+
+  return systemPrompt;
+}
+
+async function getCachedChatSystemPrompt(sb: ReturnType<typeof createServerClient>) {
+  if (cachedChatSystemPrompt && cachedChatSystemPrompt.expiresAt > Date.now()) {
+    return cachedChatSystemPrompt.systemPrompt;
+  }
+
+  const systemPrompt = await buildChatSystemPrompt(sb);
+  cachedChatSystemPrompt = {
+    systemPrompt,
+    expiresAt: Date.now() + ADS_CHAT_CONTEXT_TTL_MS,
+  };
+
+  return systemPrompt;
+}
+
+/**
+ * POST /api/ads/chat
+ *
+ * Streaming chat endpoint for asking Claude about your Google Ads.
+ * Pre-loaded with campaign context from normalized ads_* tables.
+ *
+ * Body: { messages: ClaudeMessage[] }
+ */
+export async function POST(req: NextRequest) {
+  const sb = createServerClient();
+
+  const authHeader = req.headers.get("authorization");
+  const token = authHeader?.replace("Bearer ", "");
+  const { data: { user }, error: authErr } = await sb.auth.getUser(token ?? "");
+  if (authErr || !user) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return new Response(
+      JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" }),
+      { status: 503, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  let body: { messages: ClaudeMessage[] };
+  try {
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (!Array.isArray(body.messages) || body.messages.length === 0) {
+    return new Response(JSON.stringify({ error: "messages array required" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const systemPrompt = await getCachedChatSystemPrompt(sb);
 
   try {
     const stream = await streamClaudeChat({

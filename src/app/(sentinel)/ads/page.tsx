@@ -66,11 +66,71 @@ interface AdsCampaign {
 
 type MarketFilter = "all" | "spokane" | "kootenai";
 
+interface DashboardMetricSummary {
+  spend: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  avgCpc: number;
+  avgCtr: number;
+  costPerLead: number;
+  rowCount: number;
+  campaignCount: number;
+}
+
+interface DashboardCampaignRow {
+  id: number;
+  name: string;
+  market: "spokane" | "kootenai" | null;
+  spend: number;
+  clicks: number;
+  impressions: number;
+  conversions: number;
+}
+
+interface AdsDashboardCacheEntry {
+  dashboard: {
+    marketTotals: Record<MarketFilter, DashboardMetricSummary>;
+    campaignRows: DashboardCampaignRow[];
+    lastSyncAt: string | null;
+    truncated: boolean;
+    hasData: boolean;
+  } | null;
+  metrics: DailyMetric[];
+  campaigns: AdsCampaign[];
+  lastSyncAt: string | null;
+  truncated: boolean;
+  fetchedAt: number;
+}
+
+interface AdsLandingCacheEntry {
+  landing: {
+    review: LandingReview | null;
+    adGroupMetrics: AdGroupMetrics[];
+  };
+  fetchedAt: number;
+}
+
 type TabId = "dashboard" | "ad-groups" | "approvals" | "intelligence" | "copylab" | "landing" | "chat" | "system-prompt";
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
 const CHAT_STORAGE_KEY = "sentinel_ads_chat_history";
+const ADS_DASHBOARD_CACHE_TTL_MS = 60_000;
+const METRICS_ROW_CAP = 5000;
+const adsDashboardCache = new Map<number, AdsDashboardCacheEntry>();
+let adsLandingCache: AdsLandingCacheEntry | null = null;
+const EMPTY_DASHBOARD_SUMMARY: DashboardMetricSummary = {
+  spend: 0,
+  clicks: 0,
+  impressions: 0,
+  conversions: 0,
+  avgCpc: 0,
+  avgCtr: 0,
+  costPerLead: 0,
+  rowCount: 0,
+  campaignCount: 0,
+};
 
 function loadChatHistory(): ChatMsg[] {
   if (typeof window === "undefined") return [];
@@ -181,12 +241,12 @@ export default function AdsPage() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15 }}
           >
-            {activeTab === "dashboard" && <DashboardTab />}
+            {activeTab === "dashboard" && <DashboardTabOptimized />}
             {activeTab === "ad-groups" && <AdGroupsTab />}
             {activeTab === "approvals" && <PendingApprovalsTable />}
             {activeTab === "intelligence" && <IntelligenceTab onSendToChat={sendToChat} />}
             {activeTab === "copylab" && <CopyLabTab />}
-            {activeTab === "landing" && <LandingTab />}
+            {activeTab === "landing" && <LandingTabOptimized />}
             {activeTab === "chat" && <ChatTab preloadMessage={chatPreload} onPreloadConsumed={() => setChatPreload(null)} />}
             {activeTab === "system-prompt" && <SystemPromptTab />}
           </motion.div>
@@ -199,11 +259,14 @@ export default function AdsPage() {
 // ── Dashboard Tab ───────────────────────────────────────────────────
 
 function DashboardTab() {
+  const initialCache = adsDashboardCache.get(30);
+  const initialCacheFresh = !!initialCache && (Date.now() - initialCache.fetchedAt) < ADS_DASHBOARD_CACHE_TTL_MS;
+  const [dashboard, setDashboard] = useState<AdsDashboardCacheEntry["dashboard"] | null>(initialCacheFresh ? initialCache.dashboard : null);
   const [metrics, setMetrics] = useState<DailyMetric[]>([]);
   const [campaigns, setCampaigns] = useState<AdsCampaign[]>([]);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [marketFilter, setMarketFilter] = useState<MarketFilter>("all");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialCacheFresh);
   const [syncing, setSyncing] = useState(false);
   const [truncated, setTruncated] = useState(false);
   const [dateRange, setDateRange] = useState(30);
@@ -215,9 +278,14 @@ function DashboardTab() {
     { label: "30 days", days: 30 },
   ];
 
-  const METRICS_ROW_CAP = 5000;
+  const loadData = useCallback(async ({ force = false }: { force?: boolean } = {}) => {
+    const cached = adsDashboardCache.get(dateRange);
+    if (!force && cached && (Date.now() - cached.fetchedAt) < ADS_DASHBOARD_CACHE_TTL_MS) {
+      setDashboard(cached.dashboard);
+      setLoading(false);
+      return;
+    }
 
-  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const sinceDate = new Date(Date.now() - dateRange * 24 * 60 * 60 * 1000)
@@ -245,10 +313,21 @@ function DashboardTab() {
           .maybeSingle(),
       ]);
       const metricsData = metricsRes.data ?? [];
+      const campaignsData = campaignsRes.data ?? [];
+      const lastSyncedAt = syncRes.data?.completed_at ?? null;
+
       setMetrics(metricsData);
       setTruncated(metricsData.length >= METRICS_ROW_CAP);
-      setCampaigns(campaignsRes.data ?? []);
-      setLastSyncAt(syncRes.data?.completed_at ?? null);
+      setCampaigns(campaignsData);
+      setLastSyncAt(lastSyncedAt);
+      adsDashboardCache.set(dateRange, {
+        dashboard: null,
+        metrics: metricsData,
+        campaigns: campaignsData,
+        lastSyncAt: lastSyncedAt,
+        truncated: metricsData.length >= METRICS_ROW_CAP,
+        fetchedAt: Date.now(),
+      });
     } finally {
       setLoading(false);
     }
@@ -268,7 +347,8 @@ function DashboardTab() {
         const body = await res.json().catch(() => ({}));
         console.error("Sync failed:", body.error ?? res.status);
       }
-      await loadData();
+      adsDashboardCache.clear();
+      await loadData({ force: true });
     } catch (err) {
       console.error("Sync failed:", err);
     }
@@ -478,6 +558,258 @@ function DashboardTab() {
                       <td className="px-4 py-2.5 text-right">{c.impressions > 0 ? fmtPct(c.clicks / c.impressions) : "—"}</td>
                       <td className="px-4 py-2.5 text-right">{c.conversions.toFixed(1)}</td>
                       <td className="px-4 py-2.5 text-right">{c.clicks > 0 ? fmt$(c.spend / c.clicks) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function DashboardTabOptimized() {
+  const initialCache = adsDashboardCache.get(30);
+  const initialCacheFresh = !!initialCache && (Date.now() - initialCache.fetchedAt) < ADS_DASHBOARD_CACHE_TTL_MS;
+  const [dashboard, setDashboard] = useState<AdsDashboardCacheEntry["dashboard"] | null>(initialCacheFresh ? initialCache.dashboard : null);
+  const [marketFilter, setMarketFilter] = useState<MarketFilter>("all");
+  const [loading, setLoading] = useState(!initialCacheFresh);
+  const [syncing, setSyncing] = useState(false);
+  const [dateRange, setDateRange] = useState(30);
+
+  const DATE_RANGE_OPTIONS = [
+    { label: "Yesterday", days: 1 },
+    { label: "7 days", days: 7 },
+    { label: "14 days", days: 14 },
+    { label: "30 days", days: 30 },
+  ];
+
+  const loadData = useCallback(async ({ force = false }: { force?: boolean } = {}) => {
+    const cached = adsDashboardCache.get(dateRange);
+    if (!force && cached && (Date.now() - cached.fetchedAt) < ADS_DASHBOARD_CACHE_TTL_MS) {
+      setDashboard(cached.dashboard);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const search = new URLSearchParams({
+        view: "dashboard",
+        days: String(dateRange),
+      });
+      if (force) {
+        search.set("force", "1");
+      }
+
+      const res = await fetch(`/api/ads/dashboard?${search.toString()}`, { headers });
+      if (!res.ok) throw new Error(await res.text());
+
+      const data = await res.json();
+      const nextDashboard = data.dashboard ?? null;
+      setDashboard(nextDashboard);
+      adsDashboardCache.set(dateRange, {
+        dashboard: nextDashboard,
+        metrics: [],
+        campaigns: [],
+        lastSyncAt: nextDashboard?.lastSyncAt ?? null,
+        truncated: nextDashboard?.truncated ?? false,
+        fetchedAt: Date.now(),
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [dateRange]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/ads/sync", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.error("Sync failed:", body.error ?? res.status);
+      }
+      adsDashboardCache.clear();
+      adsLandingCache = null;
+      await loadData({ force: true });
+    } catch (err) {
+      console.error("Sync failed:", err);
+    }
+    setSyncing(false);
+  };
+
+  const selectedTotals = dashboard?.marketTotals?.[marketFilter] ?? EMPTY_DASHBOARD_SUMMARY;
+  const campaignRows = (dashboard?.campaignRows ?? []).filter((campaign) => (
+    marketFilter === "all" ? true : campaign.market === marketFilter
+  ));
+  const syncAge = dashboard?.lastSyncAt ? Math.round((Date.now() - new Date(dashboard.lastSyncAt).getTime()) / (1000 * 60)) : null;
+  const syncLabel = syncAge == null
+    ? "Never synced"
+    : syncAge < 60
+      ? `${syncAge}m ago`
+      : syncAge < 1440
+        ? `${Math.round(syncAge / 60)}h ago`
+        : `${Math.round(syncAge / 1440)}d ago`;
+  const syncStale = syncAge != null && syncAge > 24 * 60;
+  const hasAnyData = dashboard?.hasData ?? false;
+  const hasMarketData = selectedTotals.rowCount > 0;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-primary/50" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <Filter className="h-3.5 w-3.5 text-muted-foreground/50" />
+            <div className="flex rounded-lg border border-overlay-8 overflow-hidden">
+              {(["all", "spokane", "kootenai"] as MarketFilter[]).map((mkt) => (
+                <button
+                  key={mkt}
+                  onClick={() => setMarketFilter(mkt)}
+                  className={`px-3 py-1.5 text-xs capitalize transition ${
+                    marketFilter === mkt
+                      ? "bg-primary/15 text-primary font-medium"
+                      : "text-muted-foreground/60 hover:text-foreground hover:bg-overlay-3"
+                  }`}
+                >
+                  {mkt === "all" ? "All Markets" : mkt}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex rounded-lg border border-overlay-8 overflow-hidden">
+            {DATE_RANGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.days}
+                onClick={() => setDateRange(opt.days)}
+                className={`px-3 py-1.5 text-xs transition ${
+                  dateRange === opt.days
+                    ? "bg-primary/15 text-primary font-medium"
+                    : "text-muted-foreground/60 hover:text-foreground hover:bg-overlay-3"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          <div className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
+            syncStale
+              ? "border-border/20 text-foreground bg-muted/5"
+              : dashboard?.lastSyncAt
+                ? "border-border/20 text-foreground bg-muted/5"
+                : "border-overlay-8 text-muted-foreground/50"
+          }`}>
+            <Clock className="h-3 w-3" />
+            <span>{syncLabel}</span>
+          </div>
+        </div>
+
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+          {syncing ? "Syncing..." : "Sync Google Ads"}
+        </button>
+      </div>
+
+      {dashboard?.truncated && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/5 border border-border/20 text-xs text-foreground">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>Data may be incomplete — too many metric rows for the last {dateRange} days. Totals could be understated.</span>
+        </div>
+      )}
+
+      {!hasMarketData ? (
+        <div className="text-center py-16">
+          <Target className="h-12 w-12 mx-auto text-muted-foreground/30 mb-4" />
+          <h3 className="text-lg font-medium text-muted-foreground mb-2">
+            {!hasAnyData ? "No Ad Data Yet" : `No data for ${marketFilter}`}
+          </h3>
+          <p className="text-sm text-muted-foreground/60 max-w-md mx-auto">
+            {!hasAnyData
+              ? "Click “Sync Google Ads” to pull your campaign data, or configure your Google Ads API credentials in environment variables."
+              : "Try switching the market filter or syncing fresh data."}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <MetricCard icon={DollarSign} label="Total Spend" value={fmt$(selectedTotals.spend)} trend={null} />
+            <MetricCard icon={MousePointerClick} label="Clicks" value={selectedTotals.clicks.toLocaleString()} trend={null} />
+            <MetricCard icon={Eye} label="Impressions" value={selectedTotals.impressions.toLocaleString()} trend={null} />
+            <MetricCard icon={Target} label="Conversions" value={selectedTotals.conversions.toFixed(1)} trend={null} />
+            <MetricCard icon={TrendingUp} label="Avg CPC" value={fmt$(selectedTotals.avgCpc)} trend={null} />
+            <MetricCard icon={TrendingDown} label="Cost/Lead" value={selectedTotals.costPerLead > 0 ? fmt$(selectedTotals.costPerLead) : "—"} trend={null} />
+          </div>
+
+          <div className="glass-strong rounded-xl p-4 border border-overlay-6">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Click-Through Rate</span>
+              <span className="text-lg font-bold text-primary">{fmtPct(selectedTotals.avgCtr)}</span>
+            </div>
+            <div className="mt-2 h-2 rounded-full bg-overlay-4 overflow-hidden">
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary"
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min(selectedTotals.avgCtr * 100 * 10, 100)}%` }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+              />
+            </div>
+          </div>
+
+          <div className="glass-strong rounded-xl border border-overlay-6 overflow-hidden">
+            <div className="px-4 py-3 border-b border-overlay-6">
+              <h3 className="text-sm font-semibold">Campaigns</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-overlay-4 text-muted-foreground/60">
+                    <th className="text-left px-4 py-2 font-medium">Campaign</th>
+                    <th className="text-left px-4 py-2 font-medium">Market</th>
+                    <th className="text-right px-4 py-2 font-medium">Spend</th>
+                    <th className="text-right px-4 py-2 font-medium">Clicks</th>
+                    <th className="text-right px-4 py-2 font-medium">Impressions</th>
+                    <th className="text-right px-4 py-2 font-medium">CTR</th>
+                    <th className="text-right px-4 py-2 font-medium">Conv.</th>
+                    <th className="text-right px-4 py-2 font-medium">CPC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaignRows.map((campaign) => (
+                    <tr key={campaign.id} className="border-b border-overlay-3 hover:bg-overlay-2 transition">
+                      <td className="px-4 py-2.5 font-medium">{campaign.name}</td>
+                      <td className="px-4 py-2.5">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-overlay-4 capitalize">{campaign.market ?? "—"}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">{fmt$(campaign.spend)}</td>
+                      <td className="px-4 py-2.5 text-right">{campaign.clicks.toLocaleString()}</td>
+                      <td className="px-4 py-2.5 text-right">{campaign.impressions.toLocaleString()}</td>
+                      <td className="px-4 py-2.5 text-right">{campaign.impressions > 0 ? fmtPct(campaign.clicks / campaign.impressions) : "—"}</td>
+                      <td className="px-4 py-2.5 text-right">{campaign.conversions.toFixed(1)}</td>
+                      <td className="px-4 py-2.5 text-right">{campaign.clicks > 0 ? fmt$(campaign.spend / campaign.clicks) : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1870,6 +2202,234 @@ interface AdGroupMetrics {
   conversions: number;
 }
 
+function LandingTabOptimized() {
+  const initialCacheFresh = !!adsLandingCache && (Date.now() - adsLandingCache.fetchedAt) < ADS_DASHBOARD_CACHE_TTL_MS;
+  const [review, setReview] = useState<LandingReview | null>(initialCacheFresh ? adsLandingCache?.landing.review ?? null : null);
+  const [loading, setLoading] = useState(!initialCacheFresh);
+  const [reviewing, setReviewing] = useState(false);
+  const [selectedPage, setSelectedPage] = useState<string | null>(null);
+  const [adGroupMetrics, setAdGroupMetrics] = useState<AdGroupMetrics[]>(initialCacheFresh ? adsLandingCache?.landing.adGroupMetrics ?? [] : []);
+
+  const loadLandingData = useCallback(async ({ force = false }: { force?: boolean } = {}) => {
+    if (!force && adsLandingCache && (Date.now() - adsLandingCache.fetchedAt) < ADS_DASHBOARD_CACHE_TTL_MS) {
+      setReview(adsLandingCache.landing.review);
+      setAdGroupMetrics(adsLandingCache.landing.adGroupMetrics);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const headers = await getAuthHeaders();
+      const search = new URLSearchParams({ view: "landing" });
+      if (force) {
+        search.set("force", "1");
+      }
+
+      const res = await fetch(`/api/ads/dashboard?${search.toString()}`, { headers });
+      if (!res.ok) throw new Error(await res.text());
+
+      const data = await res.json();
+      const landing = data.landing ?? { review: null, adGroupMetrics: [] };
+      setReview(landing.review ?? null);
+      setAdGroupMetrics(landing.adGroupMetrics ?? []);
+      adsLandingCache = {
+        landing,
+        fetchedAt: Date.now(),
+      };
+    } catch (err) {
+      console.error("Landing page data load failed:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLandingData();
+  }, [loadLandingData]);
+
+  const handleReview = async () => {
+    setReviewing(true);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch("/api/ads/landing-page", {
+        method: "POST",
+        headers,
+      });
+      if (res.ok) {
+        adsLandingCache = null;
+        await loadLandingData({ force: true });
+      }
+    } catch (err) {
+      console.error("Landing page review failed:", err);
+    }
+    setReviewing(false);
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-primary/50" /></div>;
+  }
+
+  const severityIcon: Record<string, React.ReactNode> = {
+    critical: <AlertTriangle className="h-4 w-4 text-foreground" />,
+    warning: <AlertTriangle className="h-4 w-4 text-foreground" />,
+    info: <Info className="h-4 w-4 text-primary" />,
+  };
+
+  const getMetricsForAdGroup = (adGroupName: string) => {
+    return adGroupMetrics.find(m => m.name === adGroupName);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold">Landing Pages &middot; dominionhomedeals.com</h3>
+          <p className="text-xs text-muted-foreground/60">
+            {LANDING_PAGES.length} pages mapped to {LANDING_PAGES.length} ad groups
+          </p>
+        </div>
+        <button
+          onClick={handleReview}
+          disabled={reviewing}
+          className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition disabled:opacity-50"
+        >
+          <RefreshCw className={`h-4 w-4 ${reviewing ? "animate-spin" : ""}`} />
+          {reviewing ? "Reviewing..." : "Review All Pages"}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
+        <div className="space-y-3">
+          {LANDING_PAGES.map((page) => {
+            const metrics = getMetricsForAdGroup(page.adGroup);
+            const isSelected = selectedPage === page.path;
+            return (
+              <button
+                key={page.path}
+                onClick={() => setSelectedPage(page.path === selectedPage ? null : page.path)}
+                className={`w-full text-left glass-strong rounded-xl border p-4 transition ${
+                  isSelected ? "border-primary/30 bg-primary/5" : "border-overlay-6 hover:border-overlay-10"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">{page.label}</div>
+                    <div className="text-xs text-muted-foreground/60 mt-1">{page.description}</div>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground/40 transition ${isSelected ? "rotate-180" : ""}`} />
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
+                  <div className="rounded-lg bg-overlay-3 px-3 py-2">
+                    <div className="text-muted-foreground/50">Spend</div>
+                    <div className="font-medium mt-0.5">{fmt$(metrics?.cost ?? 0)}</div>
+                  </div>
+                  <div className="rounded-lg bg-overlay-3 px-3 py-2">
+                    <div className="text-muted-foreground/50">Clicks</div>
+                    <div className="font-medium mt-0.5">{(metrics?.clicks ?? 0).toLocaleString()}</div>
+                  </div>
+                  <div className="rounded-lg bg-overlay-3 px-3 py-2">
+                    <div className="text-muted-foreground/50">Conv.</div>
+                    <div className="font-medium mt-0.5">{(metrics?.conversions ?? 0).toFixed(1)}</div>
+                  </div>
+                  <div className="rounded-lg bg-overlay-3 px-3 py-2">
+                    <div className="text-muted-foreground/50">CTR</div>
+                    <div className="font-medium mt-0.5">
+                      {metrics && metrics.impressions > 0 ? fmtPct(metrics.clicks / metrics.impressions) : "—"}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="space-y-4">
+          {review ? (
+            <>
+              <div className="glass-strong rounded-xl border border-overlay-6 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h4 className="text-sm font-semibold">Latest Landing Review</h4>
+                    <p className="text-xs text-muted-foreground/60 mt-1">
+                      {new Date(review.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="text-xs px-2 py-1 rounded-full border border-overlay-8 text-muted-foreground/60">
+                    {review.ai_engine}
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground mt-4 leading-relaxed">{review.summary}</p>
+              </div>
+
+              {review.findings.length > 0 && (
+                <div className="glass-strong rounded-xl border border-overlay-6 p-4 space-y-3">
+                  <h4 className="text-sm font-semibold">Findings</h4>
+                  {review.findings.map((finding, i) => (
+                    <div key={i} className="flex items-start gap-3 rounded-lg bg-overlay-2 p-3">
+                      <div className="mt-0.5">{severityIcon[finding.severity] ?? severityIcon.info}</div>
+                      <div>
+                        <div className="font-medium text-sm">{finding.title}</div>
+                        <p className="text-xs text-muted-foreground/60 mt-1">{finding.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {review.suggestions.length > 0 && (
+                <div className="glass-strong rounded-xl border border-overlay-6 p-4 space-y-3">
+                  <h4 className="text-sm font-semibold">Improvement Suggestions</h4>
+                  {review.suggestions.map((suggestion, i) => (
+                    <div key={i} className="rounded-lg bg-overlay-2 p-3 text-sm">
+                      <div className="font-medium">{suggestion.target}</div>
+                      {suggestion.old_value && suggestion.new_value && (
+                        <div className="mt-1 text-xs">
+                          <div className="text-foreground/60 line-through">{suggestion.old_value}</div>
+                          <div className="text-primary mt-0.5">{suggestion.new_value}</div>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground/50 mt-1">{suggestion.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <Brain className="h-8 w-8 mx-auto text-muted-foreground/20 mb-3" />
+              <p className="text-sm text-muted-foreground/50">Click &ldquo;Review All Pages&rdquo; to get Claude&apos;s conversion analysis.</p>
+            </div>
+          )}
+
+          <div className="glass-strong rounded-xl border border-overlay-6 p-4 space-y-3">
+            <h4 className="text-sm font-semibold flex items-center gap-2">
+              <Settings className="h-4 w-4 text-muted-foreground/40" />
+              Google Ads Setup
+            </h4>
+            <p className="text-xs text-muted-foreground/60 leading-relaxed">
+              To connect each ad group to its landing page, update the <strong>Final URL</strong> in Google Ads:
+            </p>
+            <div className="space-y-2">
+              {LANDING_PAGES.map((page) => (
+                <div key={page.path} className="flex items-center justify-between text-xs bg-overlay-2 rounded-lg px-3 py-2">
+                  <span className="text-muted-foreground/70">{page.adGroup}</span>
+                  <span className="text-primary font-mono">dominionhomedeals.com{page.path}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground/40 leading-relaxed">
+              Add <code className="text-primary/60">?utm_source=google&amp;utm_medium=cpc&amp;utm_campaign=spokane_seller&amp;utm_content=</code> + ad group name
+              for attribution tracking in analytics.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LandingTab() {
   const [review, setReview] = useState<LandingReview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1883,7 +2443,7 @@ function LandingTab() {
         // Fetch latest landing page review
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data } = await (supabase.from("ad_reviews") as any)
-          .select("*")
+          .select("id, review_type, summary, findings, suggestions, ai_engine, created_at")
           .eq("review_type", "landing_page")
           .order("created_at", { ascending: false })
           .limit(1)
@@ -1946,7 +2506,7 @@ function LandingTab() {
       if (res.ok) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { data } = await (supabase.from("ad_reviews") as any)
-          .select("*")
+          .select("id, review_type, summary, findings, suggestions, ai_engine, created_at")
           .eq("review_type", "landing_page")
           .order("created_at", { ascending: false })
           .limit(1)

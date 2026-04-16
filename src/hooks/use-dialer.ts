@@ -199,13 +199,17 @@ export function useDialerQueue(limit = 7) {
   const [queue, setQueue] = useState<QueueLead[]>([]);
   const [loading, setLoading] = useState(true);
   const { currentUser, ghostMode } = useSentinelStore();
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestVersionRef = useRef(0);
 
-  const fetchQueue = useCallback(async () => {
+  const fetchQueue = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!currentUser.id) return;
+    const requestVersion = ++requestVersionRef.current;
+    if (!silent) setLoading(true);
     try {
       const session = await getFreshSession();
       if (!session?.access_token) {
-        setLoading(false);
         return;
       }
       // Personal queue: explicitly queued leads only.
@@ -215,7 +219,6 @@ export function useDialerQueue(limit = 7) {
       if (queueRes.error) {
         const err = queueRes.error;
         console.error("[DialerQueue] query error:", err?.message ?? err);
-        setLoading(false);
         return;
       }
       const rows = (queueRes.data ?? []) as QueueLead[];
@@ -327,34 +330,65 @@ export function useDialerQueue(limit = 7) {
         })
       );
 
+      if (requestVersion !== requestVersionRef.current) return;
       setQueue(scrubbed);
     } catch (err) {
       console.error("[DialerQueue] fetch failed:", err);
     } finally {
-      setLoading(false);
+      if (!silent && requestVersion === requestVersionRef.current) {
+        setLoading(false);
+      }
     }
   }, [currentUser.id, ghostMode, limit]);
 
+  const scheduleRefetch = useCallback(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      void fetchQueue({ silent: true });
+    }, 300);
+  }, [fetchQueue]);
+
   useEffect(() => {
     if (!currentUser.id) return;
-    fetchQueue();
+    void fetchQueue();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.access_token) {
-        void fetchQueue();
+        void fetchQueue({ silent: true });
       }
     });
 
     const channel = supabase
       .channel("dialer-queue")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchQueue())
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, scheduleRefetch)
       .subscribe();
+
+    channelRef.current = channel;
 
     return () => {
       subscription.unsubscribe();
-      supabase.removeChannel(channel);
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [currentUser.id, fetchQueue]);
+  }, [currentUser.id, fetchQueue, scheduleRefetch]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchQueue({ silent: true });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchQueue]);
 
   return { queue, loading, refetch: fetchQueue };
 }
@@ -363,17 +397,20 @@ export function useAutoCycleQueue(limit = 12) {
   const [queue, setQueue] = useState<AutoCycleQueueLead[]>([]);
   const [loading, setLoading] = useState(true);
   const { currentUser, ghostMode } = useSentinelStore();
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestVersionRef = useRef(0);
 
-  const fetchQueue = useCallback(async () => {
+  const fetchQueue = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!currentUser.id) return;
+    const requestVersion = ++requestVersionRef.current;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await withTimeout(
         authorizedFetch(`/api/dialer/v1/auto-cycle?limit=${limit}`),
         12_000,
       );
       if (!res.ok) {
-        setLoading(false);
         return;
       }
 
@@ -411,36 +448,67 @@ export function useAutoCycleQueue(limit = 12) {
         }),
       );
 
+      if (requestVersion !== requestVersionRef.current) return;
       setQueue(scrubbed);
     } catch (err) {
       console.error("[AutoCycleQueue] fetch failed:", err);
     } finally {
-      setLoading(false);
+      if (!silent && requestVersion === requestVersionRef.current) {
+        setLoading(false);
+      }
     }
   }, [currentUser.id, ghostMode, limit]);
 
+  const scheduleRefetch = useCallback(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      void fetchQueue({ silent: true });
+    }, 300);
+  }, [fetchQueue]);
+
   useEffect(() => {
     if (!currentUser.id) return;
-    fetchQueue();
+    void fetchQueue();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.access_token) {
-        void fetchQueue();
+        void fetchQueue({ silent: true });
       }
     });
 
     const channel = supabase
       .channel("auto-cycle-queue")
-      .on("postgres_changes", { event: "*", schema: "public", table: "dialer_auto_cycle_leads" }, () => fetchQueue())
-      .on("postgres_changes", { event: "*", schema: "public", table: "dialer_auto_cycle_phones" }, () => fetchQueue())
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => fetchQueue())
+      .on("postgres_changes", { event: "*", schema: "public", table: "dialer_auto_cycle_leads" }, scheduleRefetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "dialer_auto_cycle_phones" }, scheduleRefetch)
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, scheduleRefetch)
       .subscribe();
+
+    channelRef.current = channel;
 
     return () => {
       subscription.unsubscribe();
-      supabase.removeChannel(channel);
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
     };
-  }, [currentUser.id, fetchQueue]);
+  }, [currentUser.id, fetchQueue, scheduleRefetch]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchQueue({ silent: true });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [fetchQueue]);
 
   return { queue, loading, refetch: fetchQueue };
 }
@@ -509,33 +577,73 @@ export function useDialerKpis(selection: DialerKpiSelection) {
     },
   });
   const [loading, setLoading] = useState(true);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestVersionRef = useRef(0);
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    const requestVersion = ++requestVersionRef.current;
     try {
+      if (!silent) setLoading(true);
       const next = await fetchDialerKpis(selection);
+      if (requestVersion !== requestVersionRef.current) return;
       setSnapshot(next);
     } catch (err) {
       console.error("[DialerKpis] fetch failed:", err);
     } finally {
-      setLoading(false);
+      if (!silent && requestVersion === requestVersionRef.current) {
+        setLoading(false);
+      }
     }
   }, [selection]);
 
+  const scheduleStatsRefresh = useCallback(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      void fetchStats({ silent: true });
+    }, 1000);
+  }, [fetchStats]);
+
   useEffect(() => {
     setLoading(true);
-    fetchStats();
-    const interval = setInterval(fetchStats, 30_000);
-    return () => clearInterval(interval);
+    void fetchStats();
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
+      void fetchStats({ silent: true });
+    }, 30_000);
+    return () => {
+      clearInterval(interval);
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
   }, [fetchStats]);
 
   useEffect(() => {
     const channel = supabase
       .channel("dialer-stats")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "calls_log" }, () => fetchStats())
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "calls_log" }, () => fetchStats())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "calls_log" }, scheduleStatsRefresh)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "calls_log" }, scheduleStatsRefresh)
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
+  }, [scheduleStatsRefresh]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchStats({ silent: true });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [fetchStats]);
 
   return { snapshot, loading, refetch: fetchStats };

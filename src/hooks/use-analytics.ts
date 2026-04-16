@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSentinelStore } from "@/lib/store";
 import {
@@ -63,9 +63,12 @@ export function useAnalytics(): AnalyticsState {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { currentUser } = useSentinelStore();
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestVersionRef = useRef(0);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    const requestVersion = ++requestVersionRef.current;
+    if (!silent) setLoading(true);
     setError(null);
     const periodStart = getPeriodStart(period);
     try {
@@ -74,31 +77,64 @@ export function useAnalytics(): AnalyticsState {
         fetchConversionSnapshot(),
       ]);
 
+      if (requestVersion !== requestVersionRef.current) return;
       setData(analytics);
       setConversionSnapshot(conversion);
     } catch (err) {
       console.error("[Analytics] load failed:", err);
-      setError(err instanceof Error ? err.message : "Failed to load analytics");
+      if (requestVersion === requestVersionRef.current) {
+        setError(err instanceof Error ? err.message : "Failed to load analytics");
+      }
     } finally {
-      setLoading(false);
+      if (!silent && requestVersion === requestVersionRef.current) {
+        setLoading(false);
+      }
     }
   }, [period]);
 
+  const scheduleLoad = useCallback(() => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+      return;
+    }
+    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    refreshTimerRef.current = setTimeout(() => {
+      void load({ silent: true });
+    }, 500);
+  }, [load]);
+
   useEffect(() => {
-    load();
+    void load();
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
   }, [load]);
 
   useEffect(() => {
     const channel = supabase
       .channel("analytics-v1-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "calls_log" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "deals" }, () => load())
-      .on("postgres_changes", { event: "*", schema: "public", table: "lead_stage_snapshots" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "calls_log" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "deals" }, scheduleLoad)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lead_stage_snapshots" }, scheduleLoad)
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+    };
+  }, [scheduleLoad]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void load({ silent: true });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [load]);
 

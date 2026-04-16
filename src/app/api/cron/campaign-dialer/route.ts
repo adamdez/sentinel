@@ -176,16 +176,16 @@ export async function GET(req: NextRequest) {
       run.increment();
     }
 
-    // Update campaign stats
+    // Update campaign stats using a targeted count query instead of reading all statuses.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: stats } = await (sb.from("campaign_leads") as any)
-      .select("status")
-      .eq("campaign_id", campaign.id);
+    const { count: sentCount } = await (sb.from("campaign_leads") as any)
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaign.id)
+      .neq("status", "pending");
 
-    const sentCount = stats?.filter((s: Record<string, unknown>) => s.status !== "pending").length ?? 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (sb.from("campaigns") as any)
-      .update({ sent_count: sentCount, updated_at: now })
+      .update({ sent_count: sentCount ?? 0, updated_at: now })
       .eq("id", campaign.id);
 
     results.push({ campaignId: campaign.id, name: campaign.name, processed, skipped, completed });

@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: adGroups, error: agErr } = await (sb
     .from("ads_ad_groups") as any)
-    .select("*, ads_campaigns(name, google_campaign_id)")
+    .select("id, google_ad_group_id, name, status, impressions, clicks, cost, conversions, ctr, avg_cpc, ads_campaigns(name)")
     .order("name");
 
   if (agErr) {

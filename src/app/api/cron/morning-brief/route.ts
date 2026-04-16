@@ -52,16 +52,18 @@ export async function GET(req: NextRequest) {
       .order("due_at", { ascending: true })
       .limit(20);
 
-    // Pipeline snapshot
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: pipeline } = await (sb.from("leads") as any)
-      .select("status")
-      .in("status", ["prospect", "lead", "negotiation", "disposition", "nurture"]);
-
-    const pipelineCounts: Record<string, number> = {};
-    for (const row of pipeline ?? []) {
-      pipelineCounts[row.status] = (pipelineCounts[row.status] ?? 0) + 1;
-    }
+    const pipelineStatuses = ["prospect", "lead", "negotiation", "disposition", "nurture"] as const;
+    const pipelineCounts = Object.fromEntries(
+      (await Promise.all(
+        pipelineStatuses.map(async (status) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { count } = await (sb.from("leads") as any)
+            .select("id", { count: "exact", head: true })
+            .eq("status", status);
+          return count && count > 0 ? [status, count] : null;
+        }),
+      )).filter((entry): entry is [typeof pipelineStatuses[number], number] => entry !== null),
+    ) as Record<string, number>;
 
     // Active offers
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
